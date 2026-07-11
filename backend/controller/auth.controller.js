@@ -4,29 +4,44 @@ import crypto from 'crypto';
 import { generateTokenAndSetCookie } from '../utils/generate.Token.js';
 
 export async function login(req, res) {
-    console.log("========== LOGIN HIT ==========");
-    console.log(req.body);
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: "All fields are required" });
+        }
 
-    return res.json({
-        success: true,
-        test: true
-    });
-}
+        const userQuery = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        if (userQuery.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Invalid credentials" });
+        }
 
-/*
-// Test 2 (Uncomment this and comment out Test 1 when ready)
-export async function login(req, res) {
-    console.log("1");
-    const { email, password } = req.body;
-    console.log("2");
-    const userQuery = await pool.query(
-        "SELECT * FROM users WHERE email=$1",
-        [email]
-    );
-    console.log("3");
-    return res.json(userQuery.rows);
+        const user = userQuery.rows[0];
+        const isPasswordCorrect = await bcryptjs.compare(password, user.password);
+        if (!isPasswordCorrect) {
+            return res.status(400).json({ success: false, message: "Invalid credentials" });
+        }
+
+        if (!user.is_active) {
+            return res.status(403).json({ success: false, message: "User account is suspended" });
+        }
+
+        generateTokenAndSetCookie(user.id, res);
+
+        res.status(200).json({
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                is_active: user.is_active
+            }
+        });
+    } catch (error) {
+        console.log("Error in login", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
 }
-*/
 
 export async function logout(req, res) {
     try {
