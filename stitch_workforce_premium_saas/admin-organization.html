@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Admin — Organization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  .org-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding-left: 20px;
+    position: relative;
+  }
+  .org-node {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(10px);
+    width: fit-content;
+    min-width: 250px;
+    box-shadow: var(--glass-shadow-soft);
+    position: relative;
+    transition: all 0.2s ease;
+  }
+  .org-node:hover {
+    background: rgba(255, 255, 255, 0.4);
+    transform: translateX(3px);
+  }
+  .org-node::before {
+    content: "";
+    position: absolute;
+    left: -20px;
+    top: 50%;
+    width: 20px;
+    height: 1px;
+    background: rgba(15, 139, 115, 0.35);
+  }
+  .org-node-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #fff;
+  }
+  .org-node-info .name {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--teal-900);
+  }
+  .org-node-info .role {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+  .org-node-info .dept {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--teal-600);
+    margin-top: 2px;
+  }
+  .org-tree-wrapper {
+    position: relative;
+    padding-left: 0;
+  }
+  .org-tree-wrapper > .org-tree-item > .org-node::before {
+    display: none;
+  }
+  .org-tree-item {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .org-tree-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(15, 139, 115, 0.35);
+  }
+  .org-tree-item:last-child::before {
+    height: 50%;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Admin</h1>
+        <span>Enterprise Suite</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item active" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
+    </ul>
+
+    <div class="sidebar-logout" id="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+
+      <nav class="topbar-nav">
+        <a href="/admin-dashboard.html">Dashboard</a>
+        <a href="/admin-organization.html" class="active">Organization</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div>
+        <h2>Organization Structure</h2>
+        <p>Manage and view employee directory and reporting hierarchy.</p>
+      </div>
+      <button class="btn-primary" id="btn-add-emp-modal" style="display:inline-flex; align-items:center; gap:8px;"><i class="fa-solid fa-user-plus"></i> Add Employee</button>
+    </div>
+
+    <!-- Replaced Content Area -->
+    <div class="card table-card">
+      <div class="card-head">
+        <h3 id="view-title">Active Directory</h3>
+        <div class="tab-group" id="org-tabs">
+          <button class="active" id="tab-employees">Employees</button>
+          <button id="btn-chart">Organization Chart</button>
+          <button id="tab-depts">Departments</button>
+          <button id="tab-desigs">Designations</button>
+        </div>
+      </div>
+      
+      <!-- Directory View -->
+      <div id="view-employees">
+        <div class="directory-filters" style="display:flex;gap:15px;margin-bottom:20px;padding:0 10px;align-items:center;">
+          <div class="search-box" style="flex:1;background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.45);padding:10px 14px;border-radius:var(--radius-sm);display:flex;align-items:center;">
+            <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);"></i>
+            <input type="text" id="dir-search" placeholder="Search by name, code, designation..." style="background:transparent;border:none;outline:none;color:var(--text-dark);width:100%;font-family:inherit;font-size:14px;margin-left:8px;">
+          </div>
+          <select id="dir-dept-filter" class="glass" style="padding:10px 15px;border-radius:var(--radius-sm);border:1px solid rgba(255,255,255,0.55);background:rgba(255,255,255,0.35);color:var(--text-dark);font-family:inherit;font-weight:600;font-size:13.5px;outline:none;cursor:pointer;">
+            <option value="">All Departments</option>
+          </select>
+        </div>
+
+        <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+          <table style="min-width: 1100px;">
+            <thead>
+              <tr>
+                <th>Employee Name</th>
+                <th>Employee Code</th>
+                <th>Email</th>
+                <th>Department</th>
+                <th>Designation</th>
+                <th>Manager</th>
+                <th>Status</th>
+                <th>WhatsApp No</th>
+                <th>AnyDesk ID</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="employees-list">
+              <!-- Dynamic rendering -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Chart View -->
+      <div id="chart-view" style="display:none;padding:20px 10px;">
+        <div class="org-tree-wrapper" id="org-chart-tree">
+          <!-- Dynamic rendering of reporting tree hierarchy -->
+        </div>
+      </div>
+
+      <!-- Departments View -->
+      <div id="view-depts" style="display:none;padding:15px;">
+        <div class="grid-two-col" style="display:grid; grid-template-columns:1.2fr 0.8fr; gap:20px;">
+          <div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Department Name</th>
+                  <th>Code</th>
+                </tr>
+              </thead>
+              <tbody id="depts-list">
+                <!-- Dynamic rows -->
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- Add Dept form -->
+          <div class="card glass" style="padding:20px;box-shadow:none;border-radius:var(--radius-md); border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.15);">
+            <h4 style="margin-bottom:15px;color:var(--teal-900);">Add Department</h4>
+            <form id="dept-form">
+              <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Name</label>
+                <input type="text" id="dept-name" required placeholder="e.g. Sales Department" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+              </div>
+              <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Code</label>
+                <input type="text" id="dept-code" required placeholder="e.g. SALES" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+              </div>
+              <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Description</label>
+                <textarea id="dept-desc" rows="3" placeholder="Brief details..." style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none; resize:none;"></textarea>
+              </div>
+              <button type="submit" class="btn-primary" style="width:100%;margin-top:10px;">Create Department</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Designations View -->
+      <div id="view-desigs" style="display:none;padding:15px;">
+        <div class="grid-two-col" style="display:grid; grid-template-columns:1.2fr 0.8fr; gap:20px;">
+          <div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Designation Title</th>
+                  <th>Department</th>
+                </tr>
+              </thead>
+              <tbody id="desigs-list">
+                <!-- Dynamic rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Add Designation Form -->
+          <div class="card glass" style="padding:20px;box-shadow:none;border-radius:var(--radius-md); border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.15);">
+            <h4 style="margin-bottom:15px;color:var(--teal-900);">Add Designation</h4>
+            <form id="desig-form">
+              <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Title</label>
+                <input type="text" id="desig-title" required placeholder="e.g. Senior Executive" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+              </div>
+              <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Department</label>
+                <select id="desig-dept" required style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+                  <!-- Populate departments -->
+                </select>
+              </div>
+              <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Level</label>
+                <input type="number" id="desig-level" placeholder="e.g. 3" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+              </div>
+              <button type="submit" class="btn-primary" style="width:100%;margin-top:10px;">Create Designation</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ================= ADD / EDIT EMPLOYEE MODAL ================= -->
+<div class="modal-overlay" id="emp-modal" style="display:none; position:fixed; inset:0; background:rgba(31, 42, 36, 0.4); backdrop-filter:blur(10px); align-items:center; justify-content:center; z-index:1000; padding:20px; opacity:0; transition:opacity 0.25s ease;">
+  <div class="modal-box" style="width:100%; max-width:760px; max-height:90vh; overflow-y:auto; background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(var(--glass-blur)); box-shadow:var(--glass-shadow); border-radius:var(--radius-lg); padding:30px; position:relative;">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3 id="modal-title" style="font-size:18.5px; font-weight:800; color:var(--teal-900);">Add New Employee</h3>
+      <i class="fa-solid fa-xmark modal-close" id="emp-modal-close" style="font-size:18px; color:var(--text-muted); cursor:pointer;"></i>
+    </div>
+    <form id="emp-form">
+      <input type="hidden" id="emp-edit-id">
+      
+      <h4 style="margin: 0 0 12px; color:var(--teal-900); font-weight:700;"><i class="fa-solid fa-briefcase"></i> Work Profile</h4>
+      <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom: 20px;">
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Full Name</label>
+          <input type="text" id="emp-fullname" required placeholder="John Doe" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Email Address</label>
+          <input type="email" id="emp-email" required placeholder="john.doe@company.com" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Employee Code</label>
+          <input type="text" id="emp-code" required placeholder="EMP-0010" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Salary Grade</label>
+          <input type="text" id="emp-grade" placeholder="e.g. GR-04" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Department</label>
+          <select id="emp-dept" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+            <option value="">Select Department</option>
+          </select>
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Designation</label>
+          <select id="emp-desig" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+            <option value="">Select Designation</option>
+          </select>
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Reporting Manager</label>
+          <select id="emp-manager" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+            <option value="">None</option>
+          </select>
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Joining Date</label>
+          <input type="date" id="emp-join-date" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+      </div>
+
+      <h4 style="margin: 0 0 12px; color:var(--teal-900); font-weight:700;"><i class="fa-solid fa-user-tag"></i> Personal &amp; Bank Information</h4>
+      <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom: 20px;">
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Phone Number</label>
+          <input type="text" id="emp-phone" placeholder="Enter contact number" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Birth Date</label>
+          <input type="date" id="emp-dob" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Citizenship</label>
+          <input type="text" id="emp-citizenship" placeholder="e.g. Indian" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Current Address</label>
+          <input type="text" id="emp-address" placeholder="Residential Address" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px; grid-column: span 2;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Permanent Address</label>
+          <input type="text" id="emp-perm-address" placeholder="Permanent Home Address" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">WhatsApp Number</label>
+          <input type="text" id="emp-whatsapp-no" placeholder="e.g. +919876543210" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Anydesk ID</label>
+          <input type="text" id="emp-anydesk-id" placeholder="e.g. 123 456 789" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Bank Name</label>
+          <input type="text" id="emp-bank-name" placeholder="Bank Name" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Account Number</label>
+          <input type="text" id="emp-bank-acc-no" placeholder="Account Number" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">IFSC Code</label>
+          <input type="text" id="emp-bank-ifsc" placeholder="IFSC Code" style="padding:10px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.55); background:rgba(255,255,255,0.35); color:var(--text-dark); font-family:inherit; font-size:13.5px; outline:none;">
+        </div>
+      </div>
+
+      <h4 style="margin: 0 0 12px; color:var(--teal-900); font-weight:700;"><i class="fa-solid fa-file-arrow-up"></i> Document Attachments</h4>
+      <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">CV / Resume</label>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="file" id="emp-doc-cv" style="display:none;">
+            <label for="emp-doc-cv" class="btn-glass" style="margin:0; font-size: 11.5px; padding: 6px 12px; cursor:pointer;"><i class="fa-solid fa-upload"></i> Choose</label>
+            <span id="cv-filename" style="font-size:11.5px; color:var(--text-muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;">No file</span>
+            <a id="cv-download-link" href="#" target="_blank" style="display:none; font-size:11.5px; font-weight:700; color:var(--teal-600);"><i class="fa-solid fa-download"></i> View</a>
+          </div>
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Offer Letter</label>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="file" id="emp-doc-offer" style="display:none;">
+            <label for="emp-doc-offer" class="btn-glass" style="margin:0; font-size: 11.5px; padding: 6px 12px; cursor:pointer;"><i class="fa-solid fa-upload"></i> Choose</label>
+            <span id="offer-filename" style="font-size:11.5px; color:var(--text-muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;">No file</span>
+            <a id="offer-download-link" href="#" target="_blank" style="display:none; font-size:11.5px; font-weight:700; color:var(--teal-600);"><i class="fa-solid fa-download"></i> View</a>
+          </div>
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Aadhaar Card (docs)</label>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="file" id="emp-doc-adhar" style="display:none;">
+            <label for="emp-doc-adhar" class="btn-glass" style="margin:0; font-size: 11.5px; padding: 6px 12px; cursor:pointer;"><i class="fa-solid fa-upload"></i> Choose</label>
+            <span id="adhar-filename" style="font-size:11.5px; color:var(--text-muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;">No file</span>
+            <a id="adhar-download-link" href="#" target="_blank" style="display:none; font-size:11.5px; font-weight:700; color:var(--teal-600);"><i class="fa-solid fa-download"></i> View</a>
+          </div>
+        </div>
+        <div class="form-group" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-dark);">PAN Card (docs)</label>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="file" id="emp-doc-pan" style="display:none;">
+            <label for="emp-doc-pan" class="btn-glass" style="margin:0; font-size: 11.5px; padding: 6px 12px; cursor:pointer;"><i class="fa-solid fa-upload"></i> Choose</label>
+            <span id="pan-filename" style="font-size:11.5px; color:var(--text-muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;">No file</span>
+            <a id="pan-download-link" href="#" target="_blank" style="display:none; font-size:11.5px; font-weight:700; color:var(--teal-600);"><i class="fa-solid fa-download"></i> View</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-btn-group" style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button type="button" class="btn-secondary" id="emp-modal-cancel">Cancel</button>
+        <button type="submit" class="btn-primary" id="emp-modal-submit">Save Employee</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  /* Tiny action pills */
+  .action-pill {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    outline: none;
+  }
+  .action-pill.edit {
+    background: rgba(79, 124, 255, 0.15);
+    color: var(--blue);
+  }
+  .action-pill.edit:hover {
+    background: rgba(79, 124, 255, 0.25);
+  }
+  .action-pill.suspend {
+    background: rgba(214, 79, 79, 0.15);
+    color: var(--red);
+  }
+  .action-pill.suspend:hover {
+    background: rgba(214, 79, 79, 0.25);
+  }
+  .action-pill.activate {
+    background: rgba(15, 139, 115, 0.15);
+    color: var(--teal-700);
+  }
+  .action-pill.activate:hover {
+    background: rgba(15, 139, 115, 0.25);
+  }
+</style>
+
+  </main>
+</div>
+
+<script src="script.js"></script>
+<script src="organization.js"></script>
+</body>
+</html>

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Admin — Customers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* Modal Overlay Styling */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 42, 36, 0.4);
+    backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .modal-overlay.active {
+    display: flex;
+    opacity: 1;
+  }
+  .modal-box {
+    width: 100%;
+    max-width: 620px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    position: relative;
+    transform: translateY(-20px);
+    transition: transform 0.25s var(--ease-liquid);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-overlay.active .modal-box {
+    transform: translateY(0);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .modal-header h3 {
+    font-size: 18.5px;
+    font-weight: 800;
+    color: var(--teal-900);
+  }
+  .modal-close {
+    font-size: 18px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+  .modal-close:hover {
+    color: var(--red);
+  }
+  /* Form elements */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 15px;
+  }
+  .form-group label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-dark);
+  }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.35);
+    color: var(--text-dark);
+    font-family: inherit;
+    font-size: 13.5px;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: var(--teal-600);
+  }
+  /* Dynamic Contact Row */
+  .contact-entry-list {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .contact-entry-row {
+    display: grid;
+    grid-template-columns: 1.1fr 1.3fr 1.1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  .branch-entry-row {
+    display: grid;
+    grid-template-columns: 1.5fr 2fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  .project-entry-row {
+    display: grid;
+    grid-template-columns: 1.5fr 2fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  .btn-remove-contact, .btn-remove-branch, .btn-remove-project {
+    color: var(--red);
+    cursor: pointer;
+    font-size: 15px;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+  }
+  .btn-remove-contact:hover, .btn-remove-branch:hover, .btn-remove-project:hover {
+    background: rgba(214, 79, 79, 0.15);
+  }
+  .action-btn-group {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .btn-secondary {
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.25);
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--text-dark);
+  }
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.45);
+  }
+  /* Tiny action pills */
+  .action-pill {
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .action-pill.edit {
+    background: rgba(79, 124, 255, 0.15);
+    color: var(--blue);
+  }
+  .action-pill.edit:hover {
+    background: rgba(79, 124, 255, 0.25);
+  }
+  .action-pill.delete {
+    background: rgba(214, 79, 79, 0.15);
+    color: var(--red);
+  }
+  .action-pill.delete:hover {
+    background: rgba(214, 79, 79, 0.25);
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Admin</h1>
+        <span>Enterprise Suite</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item active" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
+    </ul>
+
+    <div class="sidebar-logout" id="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+
+      <nav class="topbar-nav">
+        <a href="/admin-dashboard.html">Dashboard</a>
+        <a href="/admin-customers.html" class="active">Customers</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2>Customer Management</h2>
+        <p>Maintain customer accounts, branch locations, SLAs, and primary contacts.</p>
+      </div>
+      <button class="btn-primary" id="btn-add-cust-modal"><i class="fa-solid fa-plus"></i> Add Customer</button>
+    </div>
+
+    <!-- Filters and Table Card -->
+    <div class="card table-card">
+      <div class="card-head">
+        <h3>Customer Master</h3>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="search-box" style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.45);padding:6px 12px;border-radius:var(--radius-sm);display:flex;align-items:center;">
+            <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:13px;"></i>
+            <input type="text" id="cust-search" placeholder="Search by name, branch..." style="background:transparent;border:none;outline:none;color:var(--text-dark);width:160px;font-family:inherit;font-size:13px;margin-left:6px;">
+          </div>
+          <select id="cust-industry-filter" class="glass" style="padding:6px 12px;border-radius:var(--radius-sm);border:1px solid rgba(255,255,255,0.55);background:rgba(255,255,255,0.35);color:var(--text-dark);font-family:inherit;font-weight:600;font-size:12.5px;outline:none;cursor:pointer;">
+            <option value="">All Industries</option>
+            <option value="Pharma">Pharma</option>
+            <option value="Manufacturing">Manufacturing</option>
+            <option value="IT Services">IT Services</option>
+            <option value="Logistics">Logistics</option>
+            <option value="Healthcare">Healthcare</option>
+            <option value="Consulting">Consulting</option>
+            <option value="Retail">Retail</option>
+            <option value="Others">Others</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+        <table style="min-width: 1200px;">
+          <thead>
+            <tr>
+              <th>Company Name</th>
+              <th>Branches / GST</th>
+              <th>Projects / Modules</th>
+              <th>Contact Persons</th>
+              <th>SLA & Contract Settings</th>
+              <th>Deadline</th>
+              <th>Industry</th>
+              <th>Assigned Team</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="customers-list">
+            <!-- Dynamic rows -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ================= ADD / EDIT CUSTOMER MODAL ================= -->
+<div class="modal-overlay" id="cust-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modal-title">Add Customer</h3>
+      <i class="fa-solid fa-xmark modal-close" id="cust-modal-close"></i>
+    </div>
+    <form id="cust-form">
+      <input type="hidden" id="cust-edit-id">
+
+      <div class="form-group">
+        <label for="cust-name">Company Name</label>
+        <input type="text" id="cust-name" required placeholder="e.g. Acme Corporation">
+      </div>
+
+      <div style="margin-top:12px;margin-bottom:8px;display:flex;justify-content:between;align-items:center;">
+        <label style="font-size:13.5px;font-weight:800;color:var(--teal-900);">Branches / GST Numbers</label>
+        <button type="button" class="btn-primary" id="btn-add-branch-field" style="padding:5px 10px;font-size:11.5px;margin-left:auto;"><i class="fa-solid fa-plus"></i> Add Branch</button>
+      </div>
+
+      <div class="contact-entry-list" id="branch-entry-container">
+        <!-- Dynamic branch row entries go here -->
+      </div>
+
+      <div style="border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius-md); padding: 12px; margin-bottom: 15px; background: rgba(255,255,255,0.05);">
+        <label style="font-size: 13.5px; font-weight: 800; color: var(--teal-900); display: block; margin-bottom: 10px;">SLA & Contract Settings</label>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="cust-sla-type" style="font-size: 12px; margin-bottom: 4px;">SLA Type</label>
+            <select id="cust-sla-type" style="padding: 6px;">
+              <option value="" disabled selected>Select SLA Type</option>
+              <option value="Standard">Standard</option>
+              <option value="Premium">Premium</option>
+              <option value="Enterprise">Enterprise</option>
+              <option value="SME">SME</option>
+              <option value="Government">Government</option>
+              <option value="Startup">Startup</option>
+              <option value="Vendor">Vendor</option>
+              <option value="Partner">Partner</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="cust-sla-response" style="font-size: 12px; margin-bottom: 4px;">Response Time</label>
+            <select id="cust-sla-response" style="padding: 6px;">
+              <option value="" disabled selected>Select Response Time</option>
+              <option value="1 Hour">1 Hour</option>
+              <option value="2 Hours">2 Hours</option>
+              <option value="4 Hours">4 Hours</option>
+              <option value="8 Hours">8 Hours</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="cust-sla-resolution" style="font-size: 12px; margin-bottom: 4px;">Resolution Time</label>
+            <select id="cust-sla-resolution" style="padding: 6px;">
+              <option value="" disabled selected>Select Resolution Time</option>
+              <option value="24 Hours">24 Hours</option>
+              <option value="48 Hours">48 Hours</option>
+              <option value="72 Hours">72 Hours</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="cust-contract-start" style="font-size: 12px; margin-bottom: 4px;">Contract Start Date</label>
+            <input type="date" id="cust-contract-start" style="padding: 5px;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="cust-contract-end" style="font-size: 12px; margin-bottom: 4px;">Contract End Date</label>
+            <input type="date" id="cust-contract-end" style="padding: 5px;">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px;">
+        <div class="form-group">
+          <label for="cust-deadline">Deadline</label>
+          <input type="date" id="cust-deadline">
+        </div>
+        <div class="form-group">
+          <label for="cust-industry">Industry</label>
+          <select id="cust-industry">
+            <option value="" disabled selected>Select Industry</option>
+            <option value="Pharma">Pharma</option>
+            <option value="Manufacturing">Manufacturing</option>
+            <option value="IT Services">IT Services</option>
+            <option value="Logistics">Logistics</option>
+            <option value="Healthcare">Healthcare</option>
+            <option value="Consulting">Consulting</option>
+            <option value="Retail">Retail</option>
+            <option value="Others">Others</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Nested contacts and projects are managed directly inside the branch cards above -->
+
+      <div class="action-btn-group">
+        <button type="button" class="btn-secondary" id="cust-modal-cancel">Cancel</button>
+        <button type="submit" class="btn-primary" id="cust-modal-submit">Save Customer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= ASSIGNED MEMBERS MODAL ================= -->
+<div class="modal-overlay" id="members-modal">
+  <div class="modal-box" style="max-width: 400px;">
+    <div class="modal-header">
+      <h3 style="color:var(--teal-900);">Assigned Project Team</h3>
+      <i class="fa-solid fa-xmark modal-close" id="members-modal-close"></i>
+    </div>
+    <div style="padding:10px 0;">
+      <ul id="members-list-popup" style="display:flex; flex-direction:column; gap:8px; list-style:none; padding:0; margin:0;">
+        <!-- Populate dynamically -->
+      </ul>
+    </div>
+    <div class="action-btn-group" style="margin-top:15px; display:flex; justify-content:center;">
+      <button type="button" class="btn-primary" id="members-modal-ok" style="width:100%;">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+<script src="customers.js"></script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Employee — Attendance & Leave</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  .grid-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Employee</h1>
+        <span>Employee Portal</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-profile.html'"><i class="fa-regular fa-user"></i> My Profile</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-inbox.html'"><i class="fa-regular fa-envelope"></i> Inbox</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-tasks.html'"><i class="fa-regular fa-square-check"></i> My Tasks</li>
+      <li class="nav-item active" onclick="window.location.href='/employee-attendance.html'"><i class="fa-solid fa-calendar-check"></i> Attendance &amp; Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dsr.html'"><i class="fa-regular fa-clipboard"></i> Daily Report</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-organization.html'"><i class="fa-solid fa-people-group"></i> Organization</li>
+    </ul>
+
+    <div class="sidebar-profile" id="sidebar-profile">
+      <img src="https://i.pravatar.cc/80?img=68" alt="Employee">
+      <div>
+        <div class="name" id="profile-name">Loading...</div>
+        <div class="role" id="profile-role">Employee</div>
+        <div class="status">Online</div>
+      </div>
+      <i class="fa-solid fa-chevron-right chev"></i>
+    </div>
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+      <div class="topbar-actions" style="margin-left:auto;">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=68" alt="Employee avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2 id="page-title">Attendance &amp; Leave</h2>
+        <p id="page-description">Track your daily clock-in/out, apply for leaves, and request corrections.</p>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn-primary" id="btn-correction" style="display: flex;"><i class="fa-solid fa-pen-to-square"></i> Request Correction</button>
+        <button class="btn-primary" id="btn-apply-leave" style="display: none;"><i class="fa-solid fa-circle-plus"></i> Apply for Leave</button>
+      </div>
+    </div>
+
+    <!-- Combined Main Tab Group -->
+    <div class="tab-group" id="main-attendance-leave-tabs" style="margin-bottom: 24px;">
+      <button class="active" id="tab-btn-attendance">Attendance Records</button>
+      <button id="tab-btn-leave">Leave Management</button>
+    </div>
+
+    <!-- ==================== TAB CONTENT: ATTENDANCE ==================== -->
+    <div id="tab-content-attendance" style="display: block;">
+      <!-- Clock Widget (Hidden, handled on Dashboard) -->
+      <div class="card" style="display:none !important;">
+        <div id="live-clock"></div>
+        <div id="live-date"></div>
+        <div id="clock-status-badge"></div>
+        <button id="btn-clock-in"></button>
+        <button id="btn-clock-out"></button>
+        <div id="clock-in-time"></div>
+      </div>
+
+      <!-- Today's Stats -->
+      <div class="content-grid" style="grid-template-columns:1fr; margin-bottom:24px;">
+        <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin:0;">
+          <div class="card stat-card">
+            <div class="stat-card-top">
+              <span class="label">Status Today</span>
+              <div class="stat-icon teal"><i class="fa-solid fa-user-check"></i></div>
+            </div>
+            <div class="stat-value" style="font-size:22px;" id="today-status">—</div>
+            <div class="stat-sub flat" id="today-checkin-label">No record yet</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-card-top">
+              <span class="label">Hours Today</span>
+              <div class="stat-icon teal"><i class="fa-regular fa-clock"></i></div>
+            </div>
+            <div class="stat-value" style="font-size:22px;" id="today-hours">0.00</div>
+            <div class="stat-sub flat">hours logged</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-card-top">
+              <span class="label">This Month Present</span>
+              <div class="stat-icon" style="background:rgba(74,222,128,0.2);color:#4ade80;"><i class="fa-regular fa-calendar-check"></i></div>
+            </div>
+            <div class="stat-value" style="font-size:22px;" id="month-present">—</div>
+            <div class="stat-sub flat">days</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-card-top">
+              <span class="label">Late Check-Ins</span>
+              <div class="stat-icon" style="background:rgba(251,146,60,0.2);color:#fb923c;"><i class="fa-solid fa-business-time"></i></div>
+            </div>
+            <div class="stat-value" style="font-size:22px;" id="month-late">—</div>
+            <div class="stat-sub flat">this month</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attendance Log Table -->
+      <div class="card table-card">
+        <div class="card-head">
+          <h3>Attendance History</h3>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <input type="month" id="filter-month" class="glass" style="padding:6px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:12.5px;">
+          </div>
+        </div>
+        <div style="overflow-x: auto; width: 100%;">
+          <table style="min-width: 800px;">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th>Total Hours</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="attendance-tbody">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">Loading attendance records...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB CONTENT: LEAVE ==================== -->
+    <div id="tab-content-leave" style="display: none;">
+      <!-- Leave Balance Cards -->
+      <div id="leave-balance-grid" class="stat-grid" style="margin-bottom:24px;">
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Loading balances...</span>
+            <div class="stat-icon teal"><i class="fa-solid fa-leaf"></i></div>
+          </div>
+          <div class="stat-value">—</div>
+        </div>
+      </div>
+
+      <!-- Leave History Table -->
+      <div class="card table-card">
+        <div class="card-head">
+          <h3>Leave Request History</h3>
+          <div class="tab-group" id="leave-tabs">
+            <button class="active" data-filter="all">All</button>
+            <button data-filter="Pending">Pending</button>
+            <button data-filter="Approved">Approved</button>
+            <button data-filter="Rejected">Rejected</button>
+          </div>
+        </div>
+        <div style="overflow-x: auto; width: 100%;">
+          <table style="min-width: 900px;">
+            <thead>
+              <tr>
+                <th>Leave Type</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Days</th>
+                <th>Reason</th>
+                <th>Applied On</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="leave-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:32px;">Loading leave history...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- Attendance Correction Modal -->
+<div class="modal-overlay" id="modal-correction" style="display:none;">
+  <div class="modal-card" style="max-width:480px;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-pen-to-square"></i> Request Attendance Correction</h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-correction"></i>
+    </div>
+    <div class="form-group">
+      <label>Select Date</label>
+      <input type="date" id="correct-date">
+    </div>
+    <div class="grid-two-col">
+      <div class="form-group">
+        <label>Expected Clock In</label>
+        <input type="time" id="correct-in">
+      </div>
+      <div class="form-group">
+        <label>Expected Clock Out</label>
+        <input type="time" id="correct-out">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Reason / Remarks</label>
+      <textarea id="correct-reason" rows="3" placeholder="Briefly describe why the correction is needed..."></textarea>
+    </div>
+    <div class="action-btn-group">
+      <button class="btn-secondary" id="close-correction-2">Cancel</button>
+      <button class="btn-primary" id="submit-correction"><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- Apply Leave Modal -->
+<div class="modal-overlay" id="modal-leave" style="display:none;">
+  <div class="modal-card" style="max-width:520px;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-plane-departure"></i> Apply for Leave</h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-leave-modal"></i>
+    </div>
+    <div class="form-group">
+      <label>Leave Type</label>
+      <select id="leave-type-select">
+        <option value="">Select leave type...</option>
+      </select>
+    </div>
+    <div class="grid-two-col">
+      <div class="form-group">
+        <label>From Date</label>
+        <input type="date" id="leave-from">
+      </div>
+      <div class="form-group">
+        <label>To Date</label>
+        <input type="date" id="leave-to">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Reason</label>
+      <textarea id="leave-reason" rows="3" placeholder="Briefly describe the reason for your leave..."></textarea>
+    </div>
+    <div id="leave-days-preview" style="font-size:13px;color:var(--teal-600);font-weight:700;margin-bottom:8px;"></div>
+    <div class="action-btn-group">
+      <button class="btn-secondary" id="close-leave-2">Cancel</button>
+      <button class="btn-primary" id="submit-leave"><i class="fa-solid fa-paper-plane"></i> Submit Application</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="script.js"></script>
+<script src="js/employee-attendance.js"></script>
+<script src="js/employee-leave.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabBtnAttendance = document.getElementById('tab-btn-attendance');
+    const tabBtnLeave = document.getElementById('tab-btn-leave');
+    const tabContentAttendance = document.getElementById('tab-content-attendance');
+    const tabContentLeave = document.getElementById('tab-content-leave');
+    const btnCorrection = document.getElementById('btn-correction');
+    const btnApplyLeave = document.getElementById('btn-apply-leave');
+
+    tabBtnAttendance.addEventListener('click', () => {
+      tabBtnAttendance.classList.add('active');
+      tabBtnLeave.classList.remove('active');
+      tabContentAttendance.style.display = 'block';
+      tabContentLeave.style.display = 'none';
+      btnCorrection.style.display = 'flex';
+      btnApplyLeave.style.display = 'none';
+    });
+
+    tabBtnLeave.addEventListener('click', () => {
+      tabBtnLeave.classList.add('active');
+      tabBtnAttendance.classList.remove('active');
+      tabContentAttendance.style.display = 'none';
+      tabContentLeave.style.display = 'block';
+      btnCorrection.style.display = 'none';
+      btnApplyLeave.style.display = 'flex';
+    });
+  });
+</script>
+
+</body>
+</html>

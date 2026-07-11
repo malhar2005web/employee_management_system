@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Admin — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css?v=3">
+<style>
+  .read-only-box {
+    padding: 10px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-dark);
+    margin-bottom: 12px;
+  }
+  .action-pill.evaluate {
+    background: rgba(35, 184, 153, 0.15);
+    color: var(--teal-900);
+    border: 1px solid rgba(35, 184, 153, 0.3);
+  }
+  .action-pill.evaluate:hover {
+    background: rgba(35, 184, 153, 0.25);
+  }
+  /* Modal Overlay Styling */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 42, 36, 0.4);
+    backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .modal-overlay.active {
+    display: flex;
+    opacity: 1;
+  }
+  .modal-box {
+    width: 100%;
+    max-width: 500px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: 30px;
+    position: relative;
+    transform: translateY(-20px);
+    transition: transform 0.25s var(--ease-liquid);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-overlay.active .modal-box {
+    transform: translateY(0);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .modal-header h3 {
+    font-size: 18.5px;
+    font-weight: 800;
+    color: var(--teal-900);
+  }
+  .modal-close {
+    font-size: 18px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+  .modal-close:hover {
+    color: var(--red);
+  }
+  .performance-shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    padding: 6px;
+    width: min(520px, 100%);
+    margin: 0 auto;
+    background:
+      radial-gradient(circle at 12% 12%, rgba(255,255,255,0.95), rgba(255,255,255,0) 34%),
+      radial-gradient(circle at 78% 8%, rgba(221,214,254,0.32), rgba(255,255,255,0) 34%),
+      linear-gradient(135deg, rgba(255,255,255,0.62), rgba(255,255,255,0.28));
+    border: 1px solid rgba(255,255,255,0.55);
+    box-shadow:
+      0 35px 80px rgba(0,0,0,.08),
+      0 12px 35px rgba(0,0,0,.05),
+      inset 0 1px rgba(255,255,255,.8);
+  }
+  .performance-shell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: .14;
+    pointer-events: none;
+    background-image: radial-gradient(rgba(31,42,36,.22) .7px, transparent .7px);
+    background-size: 12px 12px;
+    mix-blend-mode: soft-light;
+  }
+  #performance-intelligence {
+    position: relative;
+    z-index: 1;
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 14px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    padding: 4px 2px 10px;
+    width: min(390px, 100%);
+    margin: 0 auto;
+    scrollbar-width: none;
+  }
+  #performance-intelligence::-webkit-scrollbar {
+    display: none;
+  }
+  #performance-intelligence > .read-only-box {
+    flex: 0 0 100%;
+    scroll-snap-align: center;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    min-height: 225px !important;
+    padding: 16px;
+    background: rgba(255,255,255,0.58);
+    backdrop-filter: blur(35px);
+    border: 1px solid rgba(255,255,255,0.45);
+    border-radius: 22px;
+    transition: transform 0.28s var(--ease-liquid), box-shadow 0.28s ease, border-color 0.28s ease;
+    box-shadow:
+      0 35px 80px rgba(0,0,0,.08),
+      0 12px 35px rgba(0,0,0,.05),
+      inset 0 1px rgba(255,255,255,.8);
+  }
+  #performance-intelligence > .read-only-box::before {
+    content: "";
+    display: block;
+    position: absolute;
+    inset: -45% auto auto -20%;
+    width: 62%;
+    height: 62%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,.92), rgba(255,255,255,0));
+    pointer-events: none;
+    opacity: .8;
+    transition: transform .55s ease;
+  }
+  #performance-intelligence > .read-only-box:hover {
+    transform: translateY(-6px) scale(1.015);
+    z-index: 5;
+    border-color: rgba(142, 113, 255, 0.28);
+    box-shadow:
+      0 48px 120px rgba(79,70,229,.18),
+      0 18px 48px rgba(0,0,0,.08),
+      inset 0 1px rgba(255,255,255,.88);
+  }
+  #performance-intelligence > .read-only-box:hover::before {
+    transform: translateX(42%);
+  }
+  .pi-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .pi-card-title span:first-child {
+    color: #1f2a24;
+    font-size: 14px;
+    font-weight: 850;
+  }
+  .pi-card-title span:last-child {
+    color: #8a9289;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .pi-chart-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 128px;
+    width: 100%;
+  }
+  .pi-svg-chart {
+    width: 156px;
+    height: 146px;
+    position: relative;
+    transition: transform .35s cubic-bezier(.2,.8,.2,1), filter .35s ease;
+  }
+  .pi-svg-chart svg {
+    width: 156px;
+    height: 146px;
+    overflow: visible;
+  }
+  #performance-intelligence > .read-only-box:hover .pi-svg-chart {
+    transform: translateY(-5px) scale(1.05) rotate(-2deg);
+    filter: drop-shadow(0 22px 28px rgba(15,168,124,.16));
+  }
+  .pi-donut-svg {
+    overflow: visible;
+  }
+  .pi-donut-floor {
+    fill: rgba(12, 74, 64, 0.14);
+    filter: blur(1px);
+  }
+  .pi-chart-base {
+    fill: none;
+    stroke: rgba(231, 229, 255, 0.82);
+    filter: drop-shadow(0 12px 18px rgba(79,70,229,0.08));
+  }
+  .pi-chart-depth {
+    fill: none;
+    stroke-linecap: round;
+    opacity: .78;
+    transform: translateY(10px);
+    filter: drop-shadow(0 8px 8px rgba(31,42,36,0.14));
+  }
+  .pi-chart-segment {
+    fill: none;
+    stroke-linecap: round;
+    cursor: pointer;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: piDrawRing .85s cubic-bezier(.2,.8,.2,1) forwards;
+    animation-delay: calc(var(--i, 0) * 90ms);
+    transition: filter 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
+    transform-box: fill-box;
+    transform-origin: center;
+    filter: drop-shadow(0 9px 10px rgba(31,42,36,0.12));
+  }
+  .pi-chart-segment:hover {
+    filter: drop-shadow(0 12px 16px rgba(15,168,124,0.25));
+    transform: scale(1.035);
+  }
+  @keyframes piDrawRing {
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes piDrawArc {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
+  }
+  .pi-donut-segment-group path {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: piDrawArc 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .pi-zero-orbit {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.05);
+    stroke-width: 14;
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.04));
+  }
+
+  .pi-chart-center {
+    cursor: pointer;
+  }
+  .pi-chart-center text {
+    pointer-events: none;
+    text-align: center;
+    font-weight: 900;
+    fill: var(--teal-900);
+  }
+  .pi-chart-center text:last-child {
+    fill: #6f7a71;
+    font-weight: 800;
+  }
+  .pi-bar-column {
+    position: relative;
+    height: 96px;
+    width: 52px;
+    border-radius: 18px;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.94), rgba(255,255,255,0) 38%),
+      linear-gradient(180deg, rgba(250,249,255,0.92), rgba(255,255,255,0.72));
+    display:flex;
+    align-items:end;
+    overflow:hidden;
+    border:1px solid rgba(230,229,245,0.95);
+    box-shadow: 0 16px 28px rgba(79,70,229,0.12), inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -18px 26px rgba(79,70,229,0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .pi-bars-row {
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    gap: 22px;
+    min-height: 104px;
+  }
+  .pi-bar-column::before {
+    display:none;
+  }
+  .pi-bar-column:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 22px 36px rgba(79,70,229,0.18), inset 0 1px 0 rgba(255,255,255,0.95);
+  }
+  .pi-bar-fill {
+    position: relative;
+    width:100%;
+    height: var(--bar-height);
+    border-radius: 14px 14px 10px 10px;
+    box-shadow: inset 0 12px 15px rgba(255,255,255,0.38), inset 0 -10px 16px rgba(31,42,36,0.16), 0 -3px 8px rgba(255,255,255,0.7);
+    animation: piBarRise .8s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .pi-bar-fill span {
+    position: absolute;
+    left: 7px;
+    right: 7px;
+    top: 6px;
+    height: 11px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.42);
+  }
+  @keyframes piBarRise {
+    from { height: 4%; }
+    to { height: var(--bar-height); }
+  }
+  .pi-bubble-plot {
+    position: relative;
+    height: 138px;
+    width: 100%;
+    border-left: 1px dashed rgba(126, 132, 126, 0.22);
+    border-bottom: 1px dashed rgba(126, 132, 126, 0.22);
+    background:
+      linear-gradient(rgba(126,132,126,0.08) 1px, transparent 1px) 0 0 / 100% 38px,
+      linear-gradient(90deg, rgba(126,132,126,0.06) 1px, transparent 1px) 0 0 / 33% 100%;
+  }
+  .pi-bubble {
+    position:absolute;
+    min-width:42px;
+    min-height:42px;
+    padding:10px;
+    border-radius:14px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:white;
+    font-weight:900;
+    box-shadow: 0 16px 28px rgba(79,70,229,0.18), inset 0 1px 0 rgba(255,255,255,0.35);
+    cursor:pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .pi-bubble:hover {
+    transform: translateY(-7px) scale(1.06);
+    box-shadow: 0 24px 36px rgba(79,70,229,0.26), inset 0 1px 0 rgba(255,255,255,0.45);
+  }
+  .pi-chart-segment,
+  .pi-bar-item,
+  .pi-team-row {
+    cursor: pointer;
+    transition: transform 0.18s ease, color 0.18s ease;
+  }
+  .pi-bar-item:hover,
+  .pi-team-row:hover {
+    transform: translateX(4px);
+    color: var(--teal-900);
+  }
+  .pi-chart-detail {
+    position: relative;
+    margin-top: 6px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(230,229,245,0.95);
+    color: #1f2a24;
+    font-size: 11px;
+    font-weight: 900;
+    box-shadow: 0 10px 22px rgba(31,42,36,0.06);
+    min-height: 30px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #performance-intelligence .read-only-box {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+  #pi-workflow-donut,
+  #pi-health-pie {
+    position: relative;
+    align-self: center;
+    justify-self: center;
+    width: min(240px, 100%);
+    height: 160px;
+  }
+
+  .pi-carousel-dots {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 4px 0 2px;
+  }
+  .admin-dashboard-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 380px);
+    align-items: stretch;
+  }
+  .performance-card {
+    padding: 18px 20px;
+  }
+  .performance-card .card-head {
+    margin-bottom: 12px;
+  }
+  .activity-card {
+    padding: 28px 30px;
+  }
+  .activity-card .card-head {
+    margin-bottom: 28px;
+  }
+  .activity-card .activity-list {
+    gap: 14px;
+  }
+  .activity-card .activity-item {
+    gap: 16px;
+    padding: 12px 10px;
+  }
+  .activity-card .activity-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+  }
+  .activity-card .activity-title {
+    font-size: 15px;
+    line-height: 1.18;
+  }
+  .activity-card .activity-desc {
+    font-size: 13.5px;
+    line-height: 1.25;
+  }
+  .pi-carousel-dot {
+    width: 8px;
+    height: 8px;
+    border: 0;
+    border-radius: 99px;
+    background: rgba(31,42,36,0.18);
+    cursor: pointer;
+    transition: width 0.2s ease, background 0.2s ease;
+  }
+  .pi-carousel-dot.active {
+    width: 30px;
+    background: linear-gradient(90deg, #8b5cf6, #14b8a6);
+  }
+  body {
+    background-color: #F8F7F4 !important;
+    background-image:
+      radial-gradient(circle at 10% 20%, rgba(24, 194, 156, 0.07) 0%, transparent 40%),
+      radial-gradient(circle at 80% 10%, rgba(221, 214, 254, 0.35) 0%, transparent 50%),
+      radial-gradient(circle at 50% 80%, rgba(107, 140, 255, 0.05) 0%, transparent 45%),
+      radial-gradient(circle at 50% 50%, #F8F7F4 0%, #F3F1EB 100%) !important;
+    background-attachment: fixed !important;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-size: 36px 36px;
+    background-image: 
+      linear-gradient(to right, rgba(0, 0, 0, 0.012) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.012) 1px, transparent 1px);
+  }
+  .pi-glass-highlight {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+  }
+  .performance-card, #performance-intelligence > .read-only-box, .pi-kpi-card {
+    background: rgba(255, 255, 255, 0.58) !important;
+    backdrop-filter: blur(28px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.6) !important;
+    box-shadow: 
+      0 12px 40px rgba(0,0,0,0.06), 
+      0 4px 10px rgba(0,0,0,0.02),
+      inset 0 1px 0 rgba(255,255,255,0.85) !important;
+    border-radius: 28px !important;
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease, border-color 0.35s ease, opacity 0.35s ease, filter 0.35s ease !important;
+    transform-style: preserve-3d;
+  }
+  .performance-card {
+    padding: 24px !important;
+  }
+  .pi-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .pi-kpi-card {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-radius: 20px !important;
+    cursor: pointer;
+  }
+  .pi-kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .pi-kpi-label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+  .pi-kpi-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(24, 194, 156, 0.08);
+    color: var(--teal-700);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
+  .pi-kpi-card:nth-child(2) .pi-kpi-icon {
+    background: rgba(139, 92, 246, 0.08);
+    color: var(--purple);
+  }
+  .pi-kpi-card:nth-child(3) .pi-kpi-icon {
+    background: rgba(255, 182, 72, 0.08);
+    color: var(--orange);
+  }
+  .pi-kpi-card:nth-child(4) .pi-kpi-icon {
+    background: rgba(107, 140, 255, 0.08);
+    color: var(--blue);
+  }
+  .pi-kpi-value-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .pi-kpi-number {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-dark);
+    font-family: 'Inter', sans-serif;
+  }
+  .pi-kpi-trend {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 99px;
+  }
+  .pi-kpi-trend.up {
+    background: rgba(35, 184, 153, 0.08);
+    color: var(--teal-900);
+  }
+  .pi-kpi-trend.down {
+    background: rgba(214, 79, 79, 0.08);
+    color: var(--red);
+  }
+  .pi-kpi-trend.flat {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--text-muted);
+  }
+  .pi-kpi-sparkline {
+    height: 24px;
+    margin-top: 4px;
+  }
+  .pi-donut-center-badge {
+    position: absolute;
+    top: 48%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.76);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    box-shadow: 
+      0 12px 30px rgba(12, 74, 64, 0.08), 
+      inset 0 1px 2px rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: none;
+    transform-style: preserve-3d;
+  }
+  .pi-donut-center-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--teal-900);
+    line-height: 1.1;
+  }
+  .pi-donut-center-label {
+    font-size: 9.5px;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 1px;
+  }
+
+  .sidebar, .topbar, .page-header, .stat-grid, .admin-dashboard-grid > * {
+    transition: filter 0.3s ease, opacity 0.3s ease, transform 0.3s ease !important;
+  }
+  body.pi-dashboard-blur .sidebar,
+  body.pi-dashboard-blur .topbar,
+  body.pi-dashboard-blur .page-header,
+  body.pi-dashboard-blur .stat-grid,
+  body.pi-dashboard-blur .admin-dashboard-grid > *:not(.performance-card) {
+    filter: blur(5px) !important;
+    opacity: 0.55 !important;
+  }
+
+
+  .pi-focus-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(20, 24, 22, 0.45);
+    backdrop-filter: blur(12px) brightness(65%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .pi-focus-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .pi-focus-card {
+    width: min(780px, 92vw);
+    min-height: 380px;
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    background: rgba(248, 247, 244, 0.88);
+    backdrop-filter: blur(28px);
+    box-shadow: 
+      0 40px 80px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    padding: 32px;
+    transform: scale(0.85) translateY(30px);
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .pi-focus-backdrop.active .pi-focus-card {
+    transform: scale(1) translateY(0);
+  }
+  body.pi-modal-open {
+    overflow: hidden !important;
+  }
+</style>
+
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Admin</h1>
+        <span>Enterprise Suite</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
+    </ul>
+
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+
+      <nav class="topbar-nav">
+        <a href="#" class="active">Dashboard</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2>Overview</h2>
+        <p>Welcome back, Admin! Here's what's happening today.</p>
+      </div>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stat-grid">
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Total Employees</span>
+          <div class="stat-icon teal"><i class="fa-solid fa-people-group"></i></div>
+        </div>
+        <div class="stat-value">1,248</div>
+        <div class="stat-sub up"><i class="fa-solid fa-arrow-trend-up"></i> +12 this month</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Attendance Rate</span>
+          <div class="stat-icon teal"><i class="fa-solid fa-user-check"></i></div>
+        </div>
+        <div class="stat-value">94.2%</div>
+        <div class="stat-sub flat">— stable vs last week</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Project Completion</span>
+          <div class="stat-icon teal"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+        <div class="stat-value">68%</div>
+        <div class="progress-track"><div class="progress-fill" style="width:68%"></div></div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Active Leave</span>
+          <div class="stat-icon amber"><i class="fa-solid fa-person-walking-luggage"></i></div>
+        </div>
+        <div class="stat-value">42</div>
+        <div class="stat-sub warn"><i class="fa-solid fa-triangle-exclamation"></i> 5 pending approvals</div>
+      </div>
+    </div>
+
+    <!-- Chart + Activity -->
+    <div class="content-grid admin-dashboard-grid">
+      <div class="card table-card performance-card" style="grid-column: span 1;">
+        <div class="pi-glass-highlight"></div>
+        <div class="card-head">
+          <h3>Performance Intelligence</h3>
+          <span class="status-pill progress">Auto Calculated</span>
+        </div>
+
+        <!-- KPI Cards Grid -->
+        <div class="pi-kpi-grid">
+          <div class="pi-kpi-card glass" id="kpi-completed-tasks">
+            <div class="pi-glass-highlight"></div>
+            <div class="pi-kpi-header">
+              <span class="pi-kpi-label">Tasks Completed</span>
+              <div class="pi-kpi-icon"><i class="fa-solid fa-circle-check"></i></div>
+            </div>
+            <div class="pi-kpi-value-row">
+              <span class="pi-kpi-number" id="kpi-val-completed">0</span>
+              <span class="pi-kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +4.2%</span>
+            </div>
+            <div class="pi-kpi-sparkline" id="kpi-spark-completed"></div>
+          </div>
+
+          <div class="pi-kpi-card glass" id="kpi-productivity">
+            <div class="pi-glass-highlight"></div>
+            <div class="pi-kpi-header">
+              <span class="pi-kpi-label">Productivity</span>
+              <div class="pi-kpi-icon"><i class="fa-solid fa-bolt"></i></div>
+            </div>
+            <div class="pi-kpi-value-row">
+              <span class="pi-kpi-number" id="kpi-val-productivity">0%</span>
+              <span class="pi-kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +2.1%</span>
+            </div>
+            <div class="pi-kpi-sparkline" id="kpi-spark-productivity"></div>
+          </div>
+
+          <div class="pi-kpi-card glass" id="kpi-project-health">
+            <div class="pi-glass-highlight"></div>
+            <div class="pi-kpi-header">
+              <span class="pi-kpi-label">Project Health</span>
+              <div class="pi-kpi-icon"><i class="fa-solid fa-heart-pulse"></i></div>
+            </div>
+            <div class="pi-kpi-value-row">
+              <span class="pi-kpi-number" id="kpi-val-health">0%</span>
+              <span class="pi-kpi-trend flat">— stable</span>
+            </div>
+            <div class="pi-kpi-sparkline" id="kpi-spark-health"></div>
+          </div>
+
+          <div class="pi-kpi-card glass" id="kpi-completion-time">
+            <div class="pi-glass-highlight"></div>
+            <div class="pi-kpi-header">
+              <span class="pi-kpi-label">Avg. Lead Time</span>
+              <div class="pi-kpi-icon"><i class="fa-solid fa-clock"></i></div>
+            </div>
+            <div class="pi-kpi-value-row">
+              <span class="pi-kpi-number" id="kpi-val-leadtime">0.0d</span>
+              <span class="pi-kpi-trend down"><i class="fa-solid fa-arrow-trend-down"></i> -0.4d</span>
+            </div>
+            <div class="pi-kpi-sparkline" id="kpi-spark-leadtime"></div>
+          </div>
+        </div>
+
+        <div class="performance-shell">
+
+          <div id="performance-intelligence">
+            <div class="read-only-box">
+              <div class="pi-card-title"><span>Workflow Status</span><span>count</span></div>
+              <div id="pi-workflow-donut"></div>
+            </div>
+            <div class="read-only-box">
+              <div class="pi-card-title"><span>Productivity vs On-Time</span><span>%</span></div>
+              <div id="pi-bar-chart" style="display:grid;grid-template-rows:1fr auto;height:154px;padding:4px 6px 0;position:relative;"></div>
+            </div>
+            <div class="read-only-box">
+              <div class="pi-card-title"><span>Team Efficiency</span><span>rating</span></div>
+              <div id="pi-team-bars" style="min-height:118px;position:relative;"></div>
+            </div>
+            <div class="read-only-box">
+              <div class="pi-card-title"><span>Project Health</span><span>share</span></div>
+              <div id="pi-health-pie"></div>
+            </div>
+          </div>
+          <div class="pi-carousel-dots" id="pi-carousel-dots"></div>
+        </div>
+        <div style="margin-top:14px;overflow-x:auto;width:100%;">
+          <table>
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Allocated</th>
+                <th>Completed</th>
+                <th>Efficiency</th>
+              </tr>
+            </thead>
+            <tbody id="team-performance-list">
+              <tr><td colspan="4" style="text-align:center;padding:18px;color:var(--text-muted);">Loading team analytics...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card activity-card">
+        <div class="card-head">
+          <h3>Recent Activity</h3>
+        </div>
+        <div class="activity-list">
+          <div class="activity-item">
+            <div class="activity-icon green"><i class="fa-solid fa-check"></i></div>
+            <div>
+              <div class="activity-title">23 Report Finalized</div>
+              <div class="activity-desc">Sarah Jenkins uploaded new files.</div>
+              <div class="activity-time">10 mins ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon green"><i class="fa-solid fa-user-plus"></i></div>
+            <div>
+              <div class="activity-title">New Hire Onboarding</div>
+              <div class="activity-desc">Engineering team added 3 members.</div>
+              <div class="activity-time">2 hours ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon red"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div>
+              <div class="activity-title">Server Load Alert</div>
+              <div class="activity-desc">Node 4 reached 90% capacity.</div>
+              <div class="activity-time">Yesterday</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon grey"><i class="fa-solid fa-file-lines"></i></div>
+            <div>
+              <div class="activity-title">Policy Update Draft</div>
+              <div class="activity-desc">HR policy draft is ready for review.</div>
+              <div class="activity-time">2 days ago</div>
+            </div>
+          </div>
+        </div>
+        <a href="#" class="view-all-link">View All Activity <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+    </div>
+
+    <!-- Priority tasks table -->
+    <div class="card table-card">
+      <div class="card-head">
+        <h3>Active Workflow Tasks</h3>
+        <a href="/admin-tasks.html" class="link">View All</a>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Workflow / Task</th>
+            <th>Team / Assignee</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Progress</th>
+            <th>Status Timeline</th>
+            <th>Change Status</th>
+          </tr>
+        </thead>
+        <tbody id="dashboard-workflow-tasks">
+          <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">Loading workflow tasks...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div><!-- end app-shell -->
+
+<!-- ================= SET GOAL MODAL ================= -->
+<div class="modal-overlay" id="goal-modal">
+  <div class="modal-box">
+
+    <div class="modal-header">
+      <h3 id="goal-modal-title">Set Goal</h3>
+      <i class="fa-solid fa-xmark modal-close" id="goal-close"></i>
+    </div>
+    <form id="goal-form">
+      <input type="hidden" id="goal-edit-id">
+
+      <div class="form-group">
+        <label for="goal-employee">Employee</label>
+        <select id="goal-employee" required>
+          <option value="">Select Employee</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="goal-title">Goal Title</label>
+        <input type="text" id="goal-title" required placeholder="e.g. Speed up API endpoints">
+      </div>
+
+      <div class="form-group">
+        <label for="goal-desc">Description</label>
+        <textarea id="goal-desc" rows="3" placeholder="Deliverables parameters..."></textarea>
+      </div>
+
+      <div class="grid-two-col">
+        <div class="form-group">
+          <label for="goal-type">Goal Type</label>
+          <select id="goal-type">
+            <option value="Individual" selected>Individual</option>
+            <option value="Departmental">Departmental</option>
+            <option value="Organization">Organization</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="goal-weightage">Weightage (%)</label>
+          <input type="number" id="goal-weightage" min="1" max="100" required placeholder="e.g. 20">
+        </div>
+      </div>
+
+      <div class="grid-two-col">
+        <div class="form-group">
+          <label for="goal-kpi">KPI Metric</label>
+          <input type="text" id="goal-kpi" placeholder="e.g. Response time (ms)">
+        </div>
+        <div class="form-group">
+          <label for="goal-target">Target Value</label>
+          <input type="number" step="0.1" id="goal-target" placeholder="e.g. 200">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="goal-timeline">Timeline / Target Date</label>
+        <input type="text" id="goal-timeline" placeholder="e.g. Q3 2026 or 2026-09-30">
+      </div>
+
+      <div class="form-group">
+        <label for="goal-status">Status</label>
+        <select id="goal-status">
+          <option value="In Progress" selected>In Progress</option>
+          <option value="Achieved">Achieved</option>
+          <option value="Not Achieved">Not Achieved</option>
+        </select>
+      </div>
+
+      <div class="action-btn-group">
+        <button type="button" class="btn-secondary" id="goal-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">Save Goal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= EVALUATE GOAL MODAL ================= -->
+<div class="modal-overlay" id="evaluate-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Evaluate Goal</h3>
+      <i class="fa-solid fa-xmark modal-close" id="evaluate-close"></i>
+    </div>
+    <form id="evaluate-form">
+      <input type="hidden" id="evaluate-id">
+
+      <div class="form-group">
+        <label>Goal</label>
+        <div class="read-only-box" id="eval-goal-title">Goal title details</div>
+      </div>
+
+      <div class="form-group">
+        <label>Employee Self-Assessment</label>
+        <div class="read-only-box" id="eval-self-assessment" style="font-style:italic;">No self-assessment submitted.</div>
+      </div>
+
+      <div class="grid-two-col">
+        <div class="form-group">
+          <label>Actual Value Achieved (Task Count)</label>
+          <div class="read-only-box" id="eval-actual-value" style="font-weight: 700; color: var(--teal-900);">0</div>
+        </div>
+        <div class="form-group">
+          <label>Percentage Achieved (%)</label>
+          <div class="read-only-box" id="eval-percentage-value" style="font-weight: 700; color: var(--teal-900);">0%</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="eval-status">Evaluation Status</label>
+        <select id="eval-status">
+          <option value="In Progress">In Progress</option>
+          <option value="Achieved">Achieved</option>
+          <option value="Not Achieved">Not Achieved</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="eval-feedback">Manager Feedback</label>
+        <textarea id="eval-feedback" rows="3" required placeholder="Provide evaluation feedback summary..."></textarea>
+      </div>
+
+      <div class="action-btn-group">
+        <button type="button" class="btn-secondary" id="evaluate-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">Submit Evaluation</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="script.js"></script>
+<script src="admin-dashboard-workflows.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="performance-intelligence.js"></script>
+</body>
+</html>
+

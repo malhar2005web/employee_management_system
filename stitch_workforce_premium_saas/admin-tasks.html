@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Admin — Tasks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* Modal Overlay Styling */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 42, 36, 0.4);
+    backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .modal-overlay.active {
+    display: flex;
+    opacity: 1;
+  }
+  .modal-box {
+    width: 100%;
+    max-width: 600px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: 30px;
+    position: relative;
+    transform: translateY(-20px);
+    transition: transform 0.25s var(--ease-liquid);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-overlay.active .modal-box {
+    transform: translateY(0);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .modal-header h3 {
+    font-size: 18.5px;
+    font-weight: 800;
+    color: var(--teal-900);
+  }
+  .modal-close {
+    font-size: 18px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+  .modal-close:hover {
+    color: var(--red);
+  }
+  /* Form elements */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .form-group label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-dark);
+  }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.35);
+    color: var(--text-dark);
+    font-family: inherit;
+    font-size: 13.5px;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: var(--teal-600);
+  }
+  .checkbox-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    max-height: 120px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+  }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dark);
+  }
+  .checkbox-item input {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+  }
+  .grid-two-col {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 20px;
+  }
+  .action-btn-group {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .btn-secondary {
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.25);
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--text-dark);
+  }
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.45);
+  }
+  .action-pill {
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .action-pill.edit {
+    background: rgba(79, 124, 255, 0.15);
+    color: var(--blue);
+  }
+  .action-pill.edit:hover {
+    background: rgba(79, 124, 255, 0.25);
+  }
+  .action-pill.forward {
+    background: rgba(169, 217, 76, 0.15);
+    color: var(--teal-700);
+  }
+  .action-pill.forward:hover {
+    background: rgba(169, 217, 76, 0.25);
+  }
+  .action-pill.approve {
+    background: rgba(35, 184, 153, 0.15);
+    color: var(--teal-900);
+    border: 1px solid rgba(35, 184, 153, 0.3);
+  }
+  .action-pill.approve:hover {
+    background: rgba(35, 184, 153, 0.25);
+  }
+  .action-pill.delete {
+    background: rgba(214, 79, 79, 0.15);
+    color: var(--red);
+  }
+  .action-pill.delete:hover {
+    background: rgba(214, 79, 79, 0.25);
+  }
+  .member-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid #fff;
+    margin-left: -6px;
+  }
+  .member-avatar:first-child {
+    margin-left: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Admin</h1>
+        <span>Enterprise Suite</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item active" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
+    </ul>
+
+    <div class="sidebar-logout" id="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+
+      <nav class="topbar-nav">
+        <a href="/admin-dashboard.html">Dashboard</a>
+        <a href="/admin-tasks.html" class="active">Tasks &amp; Audit Logs</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2 id="page-title">Workflows &amp; Audit Logs</h2>
+        <p id="page-description">Build project workflows, assign teams, connect task nodes, and track delivery progress.</p>
+      </div>
+      <button class="btn-primary" id="btn-add-task-modal"><i class="fa-solid fa-plus"></i> Create Workflow</button>
+    </div>
+
+    <!-- Table Card -->
+    <div class="card table-card">
+      <div class="card-head">
+        <h3 id="view-title">Active Workflows</h3>
+        <div class="tab-group" id="task-tabs">
+          <button class="active" id="tab-tasks">Workflows</button>
+          <button id="tab-templates">Auto Templates</button>
+          <button id="tab-audit-logs">Audit Logs</button>
+        </div>
+      </div>
+
+      <!-- Tasks View -->
+      <div id="view-tasks">
+        <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+          <table style="min-width: 1100px;">
+            <thead>
+              <tr>
+                <th>Workflow</th>
+                <th>Customer</th>
+                <th>Project / Module</th>
+                <th>Account Manager</th>
+                <th>Teams</th>
+                <th>Workflow Progress</th>
+                <th>Target Completion</th>
+                <th>Progress</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tasks-list">
+              <!-- Dynamic rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Templates View -->
+      <div id="view-templates" style="display:none;padding:15px;">
+        <div class="grid-two-col">
+          <div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Template Name</th>
+                  <th>Frequency</th>
+                  <th>Priority</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="templates-list">
+                <!-- Dynamic rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Add Template Form -->
+          <div class="card glass" style="padding:20px;box-shadow:none;border-radius:var(--radius-md);">
+            <h4 style="margin-bottom:15px;color:var(--teal-900);">Create Task Template</h4>
+            <form id="template-form">
+              <div class="form-group">
+                <label for="temp-title">Title</label>
+                <input type="text" id="temp-title" required placeholder="e.g. Daily DB Backup Check">
+              </div>
+              <div class="form-group">
+                <label for="temp-desc">Description</label>
+                <textarea id="temp-desc" rows="2" placeholder="Tasks details..."></textarea>
+              </div>
+              <div class="form-group">
+                <label for="temp-freq">Frequency</label>
+                <select id="temp-freq" required>
+                  <option value="Daily">Daily</option>
+                  <option value="Weekly">Weekly</option>
+                  <option value="Monthly">Monthly</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Assigned To</label>
+                <div class="checkbox-group" id="temp-assignee-checkboxes">
+                  <!-- Populate employees checkboxes -->
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="temp-priority">Priority</label>
+                <select id="temp-priority">
+                  <option value="Low">Low</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="temp-hours">Est. Hours</label>
+                <input type="number" step="0.5" id="temp-hours" placeholder="e.g. 1.5">
+              </div>
+              <button type="submit" class="btn-primary" style="width:100%;margin-top:10px;">Create Template</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audit Logs View -->
+      <div id="view-audit-logs" style="display:none;padding:15px;">
+        <!-- Sub-tabs for Audit Logs -->
+        <div class="tab-group" id="audit-sub-tabs" style="margin-bottom: 20px;">
+          <button class="active" id="tab-sub-action">System Actions Audit</button>
+          <button id="tab-sub-login">Login Sessions Log</button>
+        </div>
+
+        <!-- Panel: Actions Audit -->
+        <div id="panel-action" style="display:block;">
+          <div style="display:flex;gap:15px;align-items:center;margin-bottom:20px;padding:12px;background:rgba(255,255,255,0.05);border-radius:var(--radius-sm);border:1px solid var(--glass-border);">
+            <select class="glass" id="act-filter-action" style="padding:6px 12px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:13px;outline:none;background:rgba(255,255,255,0.25);">
+              <option value="">All Actions</option>
+              <option value="CREATE">CREATE</option>
+              <option value="UPDATE">UPDATE</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+
+            <select class="glass" id="act-filter-entity" style="padding:6px 12px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:13px;outline:none;background:rgba(255,255,255,0.25);">
+              <option value="">All Entities</option>
+              <option value="Employee">Employee</option>
+              <option value="Customer">Customer</option>
+              <option value="Project">Project</option>
+              <option value="Task">Task</option>
+              <option value="Leave">Leave</option>
+              <option value="Timesheet">Timesheet</option>
+            </select>
+          </div>
+
+          <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Executor</th>
+                  <th>Action</th>
+                  <th>Entity</th>
+                  <th>Description</th>
+                  <th>IP Address</th>
+                </tr>
+              </thead>
+              <tbody id="action-audits-list">
+                <!-- Dynamic rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Panel: Logins Session -->
+        <div id="panel-login" style="display:none;">
+          <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Login Date/Time</th>
+                  <th>Employee Name</th>
+                  <th>IP Address</th>
+                  <th>Session Status</th>
+                </tr>
+              </thead>
+              <tbody id="login-logs-list">
+                <!-- Dynamic rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ================= CREATE WORKFLOW MODAL ================= -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal-box" style="max-width: 980px;">
+    <div class="modal-header">
+      <h3 id="modal-title">Create Workflow</h3>
+      <i class="fa-solid fa-xmark modal-close" id="task-modal-close"></i>
+    </div>
+    <form id="task-form">
+      <input type="hidden" id="task-edit-id">
+
+      <div style="display:flex;flex-direction:column;gap:18px;">
+        <div class="card glass" style="padding:16px;box-shadow:none;border-radius:var(--radius-md);">
+          <h4 style="margin-bottom:12px;color:var(--teal-900);">Section 1 - Workflow Details</h4>
+          <div class="grid-two-col">
+            <div class="form-group">
+              <label for="task-title">Workflow Name</label>
+              <input type="text" id="task-title" required placeholder="PCS Tracking System">
+            </div>
+            <div class="form-group">
+              <label for="task-customer">Customer</label>
+              <select id="task-customer"><option value="">Select Customer</option></select>
+            </div>
+            <div class="form-group">
+              <label for="task-branch">Branch</label>
+              <select id="task-branch"><option value="">Select Branch</option></select>
+            </div>
+            <div class="form-group">
+              <label for="task-project">Project</label>
+              <select id="task-project"><option value="">Select Project</option></select>
+            </div>
+            <div class="form-group">
+              <label for="project-account-manager">Workflow Account Manager</label>
+              <select id="project-account-manager"><option value="">None Selected</option></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="task-desc">Workflow Description</label>
+            <textarea id="task-desc" rows="3" placeholder="End-to-end workflow for the delivered project..."></textarea>
+          </div>
+        </div>
+
+        <div class="card glass" style="padding:16px;box-shadow:none;border-radius:var(--radius-md);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h4 style="color:var(--teal-900);">Section 2 - Workflow Team</h4>
+            <button type="button" class="btn-primary" id="btn-add-workflow-team" style="padding:7px 12px;font-size:12px;"><i class="fa-solid fa-plus"></i> Create Team</button>
+          </div>
+          <div id="workflow-team-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+        </div>
+
+        <div class="card glass" style="padding:16px;box-shadow:none;border-radius:var(--radius-md);">
+          <h4 style="margin-bottom:12px;color:var(--teal-900);">Section 3 - Workflow Timeline</h4>
+          <div class="grid-two-col">
+            <div class="form-group">
+              <label for="workflow-start-date">Start Date</label>
+              <input type="date" id="workflow-start-date">
+            </div>
+            <div class="form-group">
+              <label for="task-due-date">Target Completion</label>
+              <input type="date" id="task-due-date">
+            </div>
+            <div class="form-group">
+              <label for="task-priority">Priority</label>
+              <select id="task-priority">
+                <option value="Low">Low</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="task-status">Status</label>
+              <select id="task-status">
+                <option value="Planning">Planning</option>
+                <option value="In Progress">In Progress</option>
+                <option value="On Hold">On Hold</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card glass" style="padding:16px;box-shadow:none;border-radius:var(--radius-md);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h4 style="color:var(--teal-900);">Section 4 - Workflow Builder</h4>
+            <button type="button" class="btn-primary" id="btn-add-workflow-task" style="padding:7px 12px;font-size:12px;"><i class="fa-solid fa-plus"></i> Add Task Node</button>
+          </div>
+          <div id="workflow-progress-preview" style="display:flex;gap:8px;align-items:center;overflow-x:auto;padding:8px 0;margin-bottom:12px;"></div>
+          <div id="workflow-builder-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+        </div>
+      </div>
+
+      <div style="display:none;">
+        <div id="task-assignee-checkboxes"></div>
+        <div id="task-dependency-checkboxes"></div>
+        <select id="task-manager"></select>
+        <div class="form-group">
+          <input type="number" step="0.5" id="task-hours" placeholder="e.g. 8.0">
+        </div>
+        <div id="edit-progress-group"><input type="number" min="0" max="100" id="task-progress"></div>
+      </div>
+
+      <div class="action-btn-group">
+        <button type="button" class="btn-secondary" id="task-modal-cancel">Cancel</button>
+        <button type="submit" class="btn-primary" id="task-modal-submit">Save Workflow</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= FORWARD TASK MODAL ================= -->
+<div class="modal-overlay" id="forward-modal">
+  <div class="modal-box" style="max-width: 440px;">
+    <div class="modal-header">
+      <h3>Forward Task</h3>
+      <i class="fa-solid fa-xmark modal-close" id="forward-modal-close"></i>
+    </div>
+    <form id="forward-form">
+      <input type="hidden" id="forward-task-id">
+      <div class="form-group">
+        <label>Reassign To</label>
+        <div class="checkbox-group" id="forward-assignee-checkboxes">
+          <!-- Populate employees checkboxes -->
+        </div>
+      </div>
+      <div class="action-btn-group">
+        <button type="button" class="btn-secondary" id="forward-modal-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">Forward Task</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="script.js"></script>
+<script src="tasks.js"></script>
+</body>
+</html>

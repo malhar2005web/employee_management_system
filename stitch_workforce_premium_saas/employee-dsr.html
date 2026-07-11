@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Employee — Daily Report (DSR)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Employee</h1>
+        <span>Employee Portal</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-profile.html'"><i class="fa-regular fa-user"></i> My Profile</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-inbox.html'"><i class="fa-regular fa-envelope"></i> Inbox</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-tasks.html'"><i class="fa-regular fa-square-check"></i> My Tasks</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-leave.html'"><i class="fa-solid fa-person-walking-luggage"></i> Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-timesheets.html'"><i class="fa-regular fa-file-lines"></i> Timesheets</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-goals.html'"><i class="fa-regular fa-circle-dot"></i> Goals</li>
+      <li class="nav-item active"><i class="fa-regular fa-clipboard"></i> Daily Report</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-organization.html'"><i class="fa-solid fa-people-group"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-trainings.html'"><i class="fa-solid fa-graduation-cap"></i> Training</li>
+    </ul>
+
+    <div class="sidebar-profile" id="sidebar-profile">
+      <img src="https://i.pravatar.cc/80?img=68" alt="Employee">
+      <div>
+        <div class="name" id="profile-name">Loading...</div>
+        <div class="role" id="profile-role">Employee</div>
+        <div class="status">Online</div>
+      </div>
+      <i class="fa-solid fa-chevron-right chev"></i>
+    </div>
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+      <div class="topbar-actions" style="margin-left:auto;">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=68" alt="Employee avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2>Daily Reports</h2>
+        <p>Submit your end-of-day self report or field visit (DSR) log for manager review.</p>
+      </div>
+      <div style="display:flex;gap:12px;">
+        <button class="btn-primary" id="btn-self-report"><i class="fa-solid fa-pen-to-square"></i> Self Report</button>
+        <button class="btn-primary" id="btn-field-visit" style="background:rgba(96,165,250,0.2);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);"><i class="fa-solid fa-map-location-dot"></i> Field Visit</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-group" id="dsr-tabs" style="margin-bottom:20px;">
+      <button class="active" data-tab="self">Self Reports (EOD)</button>
+      <button data-tab="field">Field Visit Reports (DSR)</button>
+    </div>
+
+    <!-- Self Reports Table -->
+    <div id="panel-self">
+      <div class="card table-card">
+        <div class="card-head">
+          <h3>End-of-Day Reports</h3>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Today's Work</th>
+              <th>Tomorrow's Plan</th>
+              <th>Issues</th>
+              <th>Capacity</th>
+              <th>% Done</th>
+            </tr>
+          </thead>
+          <tbody id="self-reports-tbody">
+            <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">No reports submitted yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Field Visit Reports Table -->
+    <div id="panel-field" style="display:none;">
+      <div class="card table-card">
+        <div class="card-head">
+          <h3>Field Visit / Customer Visit Reports</h3>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Site</th>
+              <th>Contact Person</th>
+              <th>Contact No</th>
+              <th>Visited For</th>
+              <th>Follow-up</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="field-reports-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:32px;">No field visit reports yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Self Report Modal -->
+<div class="modal-overlay" id="modal-self" style="display:none;">
+  <div class="modal-card" style="max-width:560px; max-height:85vh; overflow-y:auto;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-pen-to-square"></i> End-of-Day Self Report</h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-self-modal"></i>
+    </div>
+    <div style="font-size:12.5px; color:var(--text-muted); margin-bottom:4px;">
+      Describe the progress of your assigned tasks. You must fill in the description for each task.
+    </div>
+    <div id="self-report-tasks-container" style="display:flex; flex-direction:column; gap:12px; margin-bottom:8px;">
+      <!-- Dynamic fields for each task will be generated here -->
+    </div>
+    <div class="form-group">
+      <label>Extra Work / Other Tasks Worked On</label>
+      <textarea id="sr-extra-work" rows="2" placeholder="Describe any other work or unassigned tasks completed today..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Plan for tomorrow <span style="color:var(--red);">*</span></label>
+      <textarea id="sr-tomorrow" rows="2" placeholder="What will you focus on tomorrow?" required></textarea>
+    </div>
+    <div class="form-group">
+      <label>Any blockers or issues?</label>
+      <textarea id="sr-issues" rows="2" placeholder="Mention any challenges or dependencies..."></textarea>
+    </div>
+    <div class="grid-two-col">
+      <div class="form-group">
+        <label>Work Capacity (%) <span style="color:var(--red);">*</span></label>
+        <input type="number" id="sr-capacity" min="0" max="100" value="100" placeholder="100" required>
+      </div>
+      <div class="form-group">
+        <label>Overall % Complete <span style="color:var(--red);">*</span></label>
+        <input type="number" id="sr-percent" min="0" max="100" value="0" placeholder="0" required>
+      </div>
+    </div>
+    <div class="action-btn-group">
+      <button class="btn-secondary" id="close-self-2">Cancel</button>
+      <button class="btn-primary" id="submit-self"><i class="fa-solid fa-paper-plane"></i> Submit Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- Field Visit Modal -->
+<div class="modal-overlay" id="modal-field" style="display:none;">
+  <div class="modal-card" style="max-width:560px;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-map-location-dot"></i> Field Visit Report</h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-field-modal"></i>
+    </div>
+    <div class="form-group">
+      <label>Customer Name *</label>
+      <input type="text" id="fv-customer" placeholder="Enter customer company name">
+    </div>
+    <div class="grid-two-col">
+      <div class="form-group">
+        <label>Office Address</label>
+        <input type="text" id="fv-address" placeholder="City / Area">
+      </div>
+      <div class="form-group">
+        <label>Site Name</label>
+        <input type="text" id="fv-site" placeholder="Branch or Plant name">
+      </div>
+    </div>
+    <div class="grid-two-col">
+      <div class="form-group">
+        <label>Contact Person</label>
+        <input type="text" id="fv-contact" placeholder="Name of person met">
+      </div>
+      <div class="form-group">
+        <label>Contact Number</label>
+        <input type="tel" id="fv-phone" placeholder="+91 XXXXXXXXXX">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Purpose of Visit</label>
+      <textarea id="fv-purpose" rows="2" placeholder="Demo, Service call, Installation, etc."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Follow-up Notes</label>
+      <textarea id="fv-followup" rows="2" placeholder="Next steps, requirements captured, etc."></textarea>
+    </div>
+    <div class="action-btn-group">
+      <button class="btn-secondary" id="close-field-2">Cancel</button>
+      <button class="btn-primary" id="submit-field"><i class="fa-solid fa-paper-plane"></i> Log Visit</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+<script src="js/employee-dsr.js"></script>
+</body>
+</html>
+

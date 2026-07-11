@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Employee — Inbox & Notifications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Employee</h1>
+        <span>Employee Portal</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-profile.html'"><i class="fa-regular fa-user"></i> My Profile</li>
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/employee-inbox.html'"><i class="fa-regular fa-envelope"></i> Inbox</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-tasks.html'"><i class="fa-regular fa-square-check"></i> My Tasks</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-leave.html'"><i class="fa-solid fa-person-walking-luggage"></i> Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-timesheets.html'"><i class="fa-regular fa-file-lines"></i> Timesheets</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-goals.html'"><i class="fa-regular fa-circle-dot"></i> Goals</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dsr.html'"><i class="fa-regular fa-clipboard"></i> Daily Report</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-organization.html'"><i class="fa-solid fa-people-group"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-trainings.html'"><i class="fa-solid fa-graduation-cap"></i> Training</li>
+    </ul>
+
+    <div class="sidebar-profile" id="sidebar-profile">
+      <img src="https://i.pravatar.cc/80?img=68" alt="Employee">
+      <div>
+        <div class="name" id="profile-name">Loading...</div>
+        <div class="role" id="profile-role">Employee</div>
+        <div class="status">Online</div>
+      </div>
+      <i class="fa-solid fa-chevron-right chev"></i>
+    </div>
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+      <div class="topbar-actions" style="margin-left:auto;">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=68" alt="Employee avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2>Inbox & Notifications</h2>
+        <p>Stay updated with assigned tasks, goals, leave approvals, and company broadcast announcements.</p>
+      </div>
+      <button class="btn-primary" id="btn-mark-all-read"><i class="fa-solid fa-check-double"></i> Mark All as Read</button>
+    </div>
+
+    <!-- Inbox List Card -->
+    <div class="card" style="padding: 24px; min-height: 400px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 12px;">
+        <h3 style="color: var(--teal-900);"><i class="fa-regular fa-bell"></i> Recent Messages</h3>
+        <div class="tab-group" id="inbox-filter-tabs">
+          <button class="active" data-filter="all">All</button>
+          <button data-filter="unread">Unread</button>
+          <button data-filter="broadcast">Broadcasts</button>
+        </div>
+      </div>
+
+      <div id="inbox-list" style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="text-align: center; color: var(--text-muted); padding: 48px;">Loading messages...</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="script.js"></script>
+<script src="js/employee-inbox.js"></script>
+</body>
+</html>
+

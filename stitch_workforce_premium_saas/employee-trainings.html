@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Employee — Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Employee</h1>
+        <span>Employee Portal</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-profile.html'"><i class="fa-regular fa-user"></i> My Profile</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-inbox.html'"><i class="fa-regular fa-envelope"></i> Inbox</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-tasks.html'"><i class="fa-regular fa-square-check"></i> My Tasks</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-leave.html'"><i class="fa-solid fa-person-walking-luggage"></i> Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-timesheets.html'"><i class="fa-regular fa-file-lines"></i> Timesheets</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-goals.html'"><i class="fa-regular fa-circle-dot"></i> Goals</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dsr.html'"><i class="fa-regular fa-clipboard"></i> Daily Report</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-organization.html'"><i class="fa-solid fa-people-group"></i> Organization</li>
+      <li class="nav-item active"><i class="fa-solid fa-graduation-cap"></i> Training</li>
+    </ul>
+
+    <div class="sidebar-profile" id="sidebar-profile">
+      <img src="https://i.pravatar.cc/80?img=68" alt="Employee">
+      <div>
+        <div class="name" id="profile-name">Loading...</div>
+        <div class="role" id="profile-role">Employee</div>
+        <div class="status">Online</div>
+      </div>
+      <i class="fa-solid fa-chevron-right chev"></i>
+    </div>
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+      <div class="topbar-actions" style="margin-left:auto;">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=68" alt="Employee avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2>My Training</h2>
+        <p>View assigned training programs, track progress, and mark completions.</p>
+      </div>
+      <div class="tab-group" id="training-filter-tabs">
+        <button class="active" data-filter="all">All</button>
+        <button data-filter="Pending">Pending</button>
+        <button data-filter="In Progress">In Progress</button>
+        <button data-filter="Completed">Completed</button>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="stat-grid" style="margin-bottom:24px;">
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Total Assigned</span>
+          <div class="stat-icon teal"><i class="fa-solid fa-graduation-cap"></i></div>
+        </div>
+        <div class="stat-value" id="count-total-tr">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Completed</span>
+          <div class="stat-icon" style="background:rgba(74,222,128,0.2);color:#4ade80;"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+        <div class="stat-value" id="count-done-tr">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Pending</span>
+          <div class="stat-icon" style="background:rgba(251,146,60,0.2);color:#fb923c;"><i class="fa-solid fa-clock"></i></div>
+        </div>
+        <div class="stat-value" id="count-pending-tr">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Completion Rate</span>
+          <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-percent"></i></div>
+        </div>
+        <div class="stat-value" id="completion-rate">0%</div>
+      </div>
+    </div>
+
+    <!-- Training Cards Grid -->
+    <div id="training-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;">
+      <div style="text-align:center;color:var(--text-muted);padding:48px;grid-column:1/-1;">Loading training programs...</div>
+    </div>
+
+  </main>
+</div>
+
+<script src="script.js"></script>
+<script src="js/employee-trainings.js"></script>
+</body>
+</html>
+

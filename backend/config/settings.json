@@ -1,0 +1,28 @@
+{
+  "company": {
+    "name": "PCS Corporation",
+    "email": "admin@pcscorp.com",
+    "address": "100 Innovation Way, Tech District",
+    "timezone": "UTC",
+    "currency": "USD"
+  },
+  "smtp": {
+    "host": "smtp.mailtrap.io",
+    "port": 2525,
+    "user": "smtpuser",
+    "pass": "",
+    "sender": "noreply@pcscorp.com"
+  },
+  "preferences": {
+    "standardHours": 8,
+    "gracePeriod": 15,
+    "workingDays": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "ipWhitelist": "127.0.0.1, ::1, 173.249.59.181"
+}

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Employee — My Tasks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Employee</h1>
+        <span>Employee Portal</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-profile.html'"><i class="fa-regular fa-user"></i> My Profile</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-inbox.html'"><i class="fa-regular fa-envelope"></i> Inbox</li>
+      <li class="nav-item active"><i class="fa-regular fa-square-check"></i> My Tasks</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-leave.html'"><i class="fa-solid fa-person-walking-luggage"></i> Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-timesheets.html'"><i class="fa-regular fa-file-lines"></i> Timesheets</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-goals.html'"><i class="fa-regular fa-circle-dot"></i> Goals</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dsr.html'"><i class="fa-regular fa-clipboard"></i> Daily Report</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-organization.html'"><i class="fa-solid fa-people-group"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-trainings.html'"><i class="fa-solid fa-graduation-cap"></i> Training</li>
+    </ul>
+
+    <div class="sidebar-profile" id="sidebar-profile">
+      <img src="https://i.pravatar.cc/80?img=68" alt="Employee">
+      <div>
+        <div class="name" id="profile-name">Loading...</div>
+        <div class="role" id="profile-role">Employee</div>
+        <div class="status">Online</div>
+      </div>
+      <i class="fa-solid fa-chevron-right chev"></i>
+    </div>
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+      <div class="topbar-actions" style="margin-left:auto;">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=68" alt="Employee avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2>My Tasks</h2>
+        <p>Review your assigned tasks, update progress, and manage deadlines.</p>
+      </div>
+      <div class="tab-group" id="task-filter-tabs">
+        <button class="active" data-status="all">All</button>
+        <button data-status="In Progress">In Progress</button>
+        <button data-status="Completed">Completed</button>
+      </div>
+    </div>
+
+    <!-- Task Summary Cards -->
+    <div class="stat-grid" style="margin-bottom:24px;">
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Total Assigned</span>
+          <div class="stat-icon teal"><i class="fa-regular fa-square-check"></i></div>
+        </div>
+        <div class="stat-value" id="count-total">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">In Progress</span>
+          <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-spinner"></i></div>
+        </div>
+        <div class="stat-value" id="count-inprogress">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Completed</span>
+          <div class="stat-icon" style="background:rgba(74,222,128,0.2);color:#4ade80;"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+        <div class="stat-value" id="count-completed">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Overdue</span>
+          <div class="stat-icon" style="background:rgba(248,113,113,0.2);color:#f87171;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        </div>
+        <div class="stat-value" id="count-overdue">0</div>
+      </div>
+    </div>
+
+    <!-- Tasks Table -->
+    <div class="card table-card">
+      <div class="card-head">
+        <h3>Assigned Tasks</h3>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="tab-group" id="task-priority-tabs">
+            <button class="active" data-priority="all">All Priority</button>
+            <button data-priority="High">High</button>
+            <button data-priority="Medium">Medium</button>
+            <button data-priority="Low">Low</button>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Task Name</th>
+            <th>Project</th>
+            <th>Priority</th>
+            <th>Due Date</th>
+            <th>Progress</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tasks-tbody">
+          <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:32px;">Loading tasks...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<!-- Update Progress Modal -->
+<div class="modal-overlay" id="modal-progress" style="display:none;">
+  <div class="modal-card" style="max-width:480px;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-chart-line"></i> Update Task Progress</h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-progress-modal"></i>
+    </div>
+    <input type="hidden" id="progress-task-id">
+    <div class="form-group">
+      <label id="progress-task-name" style="font-size:14px;font-weight:700;color:var(--teal-900);"></label>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="progress-status">
+        <option value="To Do">To Do</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Completed">Completed</option>
+        <option value="On Hold">On Hold</option>
+      </select>
+    </div>
+    <div class="form-group" id="work-done-group" style="display:none;">
+      <label>Work Description (What you worked on &amp; previous state)</label>
+      <textarea id="progress-work-done" rows="3" class="form-control" style="background:#fff;border:1px solid rgba(0,0,0,0.15);border-radius:8px;padding:8px 12px;width:100%;font-family:inherit;font-size:13.5px;" placeholder="Describe what you worked on, previous state of project, and what's left..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Completion % — <span id="progress-val-label">0</span>%</label>
+      <input type="range" id="progress-slider" min="0" max="100" value="0" style="width:100%;accent-color:var(--teal-600);">
+    </div>
+    <div class="action-btn-group">
+      <button class="btn-secondary" id="close-progress-2">Cancel</button>
+      <button class="btn-primary" id="submit-progress"><i class="fa-solid fa-floppy-disk"></i> Save Progress</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+<script src="js/employee-tasks.js"></script>
+</body>
+</html>
+

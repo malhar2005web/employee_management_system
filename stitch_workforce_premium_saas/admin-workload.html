@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Admin — Workload Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Admin</h1>
+        <span>Enterprise Suite</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" onclick="window.location.href='/admin-employees.html'"><i class="fa-solid fa-people-group"></i> Employee Management</li>
+      <li class="nav-item" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item" onclick="window.location.href='/admin-projects.html'"><i class="fa-solid fa-diagram-project"></i> Projects</li>
+      <li class="nav-item" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks</li>
+      <li class="nav-item" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
+      <li class="nav-item" onclick="window.location.href='/admin-shifts.html'"><i class="fa-regular fa-clock"></i> Shifts</li>
+      <li class="nav-item" onclick="window.location.href='/admin-leaves.html'"><i class="fa-solid fa-plane-departure"></i> Leave Management</li>
+      <li class="nav-item" onclick="window.location.href='/admin-timesheets.html'"><i class="fa-solid fa-stopwatch"></i> Timesheets</li>
+      <li class="nav-item" onclick="window.location.href='/admin-goals.html'"><i class="fa-solid fa-bullseye"></i> Goals &amp; Performance</li>
+      <li class="nav-item" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Remote Monitoring</li>
+      <li class="nav-item" onclick="window.location.href='/admin-screenshots.html'"><i class="fa-regular fa-image"></i> Screenshots</li>
+      <li class="nav-item active" onclick="window.location.href='/admin-workload.html'"><i class="fa-solid fa-chart-column"></i> Workload</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-trainings.html'"><i class="fa-solid fa-graduation-cap"></i> Training</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-reports.html'"><i class="fa-regular fa-file-lines"></i> Reports</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-audit-logs.html'"><i class="fa-solid fa-list-check"></i> Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
+      <li class="nav-item"><i class="fa-solid fa-circle-question"></i> Support Center</li>
+    </ul>
+
+    <div class="sidebar-logout" id="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+
+      <nav class="topbar-nav">
+        <a href="/admin-dashboard.html">Dashboard</a>
+        <a href="/admin-workload.html" class="active">Workload Analysis</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2>Workload &amp; Capacity Planning</h2>
+        <p>Review staff allocations density, project volumes, task weights, and average logged hours ratios.</p>
+      </div>
+    </div>
+
+    <!-- Metrics Cards -->
+    <div class="stat-grid">
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Overloaded Staff</span>
+          <div class="stat-icon" style="background:rgba(248,113,113,0.2);color:#f87171;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        </div>
+        <div class="stat-value" id="count-overloaded">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Optimal Capacity</span>
+          <div class="stat-icon" style="background:rgba(74,222,128,0.2);color:#4ade80;"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+        <div class="stat-value" id="count-optimal">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Underutilized Staff</span>
+          <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-user-minus"></i></div>
+        </div>
+        <div class="stat-value" id="count-underutilized">0</div>
+      </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="card table-card">
+      <div class="card-head">
+        <h3>Workload Density Matrix</h3>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Employee Name</th>
+            <th>Active Projects</th>
+            <th>Pending Tasks</th>
+            <th>Avg Hours Logged / Day</th>
+            <th>Capacity Allocation Status</th>
+          </tr>
+        </thead>
+        <tbody id="workload-list">
+          <!-- Dynamic rows -->
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<script src="workload.js"></script>
+</body>
+</html>

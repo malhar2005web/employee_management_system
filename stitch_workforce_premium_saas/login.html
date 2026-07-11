@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS EMS — Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  .login-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+    z-index: 1;
+    position: relative;
+  }
+  .login-card {
+    width: 100%;
+    max-width: 440px;
+    padding: 40px;
+    border-radius: var(--radius-lg);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
+    text-align: center;
+  }
+  .login-logo {
+    width: 60px;
+    height: 60px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--teal-500), var(--teal-700));
+    color: #fff;
+    font-size: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(15, 139, 115, 0.3);
+  }
+  .login-card h2 {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--teal-900);
+    margin-bottom: 8px;
+  }
+  .login-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 30px;
+  }
+  .form-group {
+    text-align: left;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 8px;
+  }
+  .input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .input-wrapper i {
+    position: absolute;
+    left: 14px;
+    color: var(--text-muted);
+    font-size: 15px;
+  }
+  .form-control {
+    width: 100%;
+    padding: 12px 14px 12px 42px;
+    font-family: inherit;
+    font-size: 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.25);
+    color: var(--text-dark);
+    outline: none;
+    transition: all 0.2s ease;
+  }
+  .form-control:focus {
+    background: rgba(255, 255, 255, 0.45);
+    border-color: var(--teal-600);
+    box-shadow: 0 0 10px rgba(22, 160, 133, 0.15);
+  }
+  .login-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--teal-500), var(--teal-700));
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 4px 15px rgba(15, 139, 115, 0.3);
+    margin-top: 10px;
+    transition: all 0.25s var(--ease-liquid);
+  }
+  .login-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 139, 115, 0.45);
+  }
+  .login-btn:active {
+    transform: translateY(0);
+  }
+  .forgot-link {
+    display: inline-block;
+    margin-top: 18px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--teal-600);
+    transition: color 0.2s ease;
+  }
+  .forgot-link:hover {
+    color: var(--teal-700);
+  }
+  .alert {
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    display: none;
+    text-align: left;
+  }
+  .alert-danger {
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid rgba(214, 79, 79, 0.2);
+  }
+  .alert-success {
+    background: var(--teal-50);
+    color: var(--teal-700);
+    border: 1px solid rgba(15, 139, 115, 0.15);
+  }
+</style>
+</head>
+<body>
+
+<div class="login-wrapper">
+  <div class="login-card glass">
+    <div class="login-logo">
+      <i class="fa-solid fa-cube"></i>
+    </div>
+    <h2>PCS Enterprise</h2>
+    <p>Sign in to access the portal</p>
+    
+    <div id="error-alert" class="alert alert-danger"></div>
+    <div id="success-alert" class="alert alert-success"></div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <div class="input-wrapper">
+          <i class="fa-regular fa-envelope"></i>
+          <input type="email" id="email" class="form-control" placeholder="name@company.com" required autocomplete="email">
+        </div>
+      </div>
+      
+      <div class="form-group" style="margin-bottom: 25px;">
+        <label for="password">Password</label>
+        <div class="input-wrapper">
+          <i class="fa-solid fa-lock"></i>
+          <input type="password" id="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+      </div>
+
+      <button type="submit" class="login-btn">Sign In</button>
+    </form>
+    
+    <a href="#" id="forgot-link" class="forgot-link">Forgot password?</a>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+</body>
+</html>

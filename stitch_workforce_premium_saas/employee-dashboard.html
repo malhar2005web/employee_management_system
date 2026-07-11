@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Employee — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  #btn-clock-in:disabled, #btn-clock-out:disabled {
+    opacity: 0.45 !important;
+    filter: grayscale(40%) !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Employee</h1>
+        <span>Employee Portal</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/employee-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-profile.html'"><i class="fa-regular fa-user"></i> My Profile</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-inbox.html'"><i class="fa-regular fa-envelope"></i> Inbox</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-tasks.html'"><i class="fa-regular fa-square-check"></i> My Tasks</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-leave.html'"><i class="fa-solid fa-person-walking-luggage"></i> Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dsr.html'"><i class="fa-regular fa-clipboard"></i> Daily Report</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-organization.html'"><i class="fa-solid fa-people-group"></i> Organization</li>
+    </ul>
+
+    <div class="sidebar-profile" id="sidebar-profile">
+      <img src="https://i.pravatar.cc/80?img=68" alt="Employee">
+      <div>
+        <div class="name" id="profile-name">Loading...</div>
+        <div class="role" id="profile-role">Employee</div>
+        <div class="status">Online</div>
+      </div>
+      <i class="fa-solid fa-chevron-right chev"></i>
+    </div>
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
+
+      <div class="topbar-actions" style="margin-left:auto;">
+        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
+        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
+        <div class="topbar-user">
+          <img src="https://i.pravatar.cc/80?img=68" alt="Darsh avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h2 id="greeting-text">Good day! 👋</h2>
+        <p>Here's your workspace overview for today.</p>
+      </div>
+      <div class="date-picker"><i class="fa-regular fa-calendar cal"></i> <span id="today-date-label"></span> <i class="fa-solid fa-chevron-down chev"></i></div>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stat-grid" style="grid-template-columns:repeat(5,1fr);">
+      <div class="card stat-card" style="display:flex; flex-direction:column; gap:8px;">
+        <div class="stat-card-top" style="margin-bottom: 2px;">
+          <span class="label">Work Shift Clock</span>
+          <div class="stat-icon teal"><i class="fa-regular fa-clock"></i></div>
+        </div>
+        <div style="margin-top: 4px; margin-bottom: 8px;">
+          <div class="stat-value" style="font-size:22px; font-weight: 800; margin-bottom: 2px;" id="kpi-hours">0.00 hrs</div>
+          <div class="stat-sub flat" style="font-size:12px; color:var(--text-muted);" id="clock-in-time">Not clocked in yet</div>
+        </div>
+        <div style="display:flex; gap:8px; width:100%; margin-top:auto;">
+          <button class="btn-primary" id="btn-clock-in" style="flex:1; padding: 12px 6px; font-size:12.5px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:6px;"><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
+          <button class="btn-primary" id="btn-clock-out" style="flex:1; padding: 12px 6px; font-size:12.5px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:6px; background: linear-gradient(135deg, rgba(224,83,83,0.85), rgba(180,50,50,0.9)); border-color: rgba(224,83,83,0.3);"><i class="fa-solid fa-right-from-bracket"></i> Clock Out</button>
+        </div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Tasks Completed</span>
+          <div class="stat-icon teal"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+        <div class="stat-value" style="font-size:24px;" id="kpi-tasks">—</div>
+        <div class="stat-sub flat">all time</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Attendance</span>
+          <div class="stat-icon teal"><i class="fa-regular fa-calendar"></i></div>
+        </div>
+        <div class="stat-value" style="font-size:22px;" id="kpi-att">—</div>
+        <div class="stat-sub flat" id="kpi-att-sub">Loading...</div>
+        <span class="status-pill progress" style="width:fit-content;" id="kpi-att-pill">—</span>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Leave Balance</span>
+          <div class="stat-icon teal"><i class="fa-solid fa-leaf"></i></div>
+        </div>
+        <div class="stat-value" style="font-size:24px;" id="kpi-leave">—</div>
+        <div class="stat-sub flat">days available</div>
+        <a href="/employee-attendance.html" class="link" style="font-size:12.5px;font-weight:700;color:var(--teal-600);">View Details <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-card-top">
+          <span class="label">Pending Approvals</span>
+          <div class="stat-icon amber"><i class="fa-solid fa-hourglass-half"></i></div>
+        </div>
+        <div class="stat-value" style="font-size:24px;" id="kpi-pending">—</div>
+        <div class="stat-sub flat">requests</div>
+        <a href="/employee-attendance.html" class="link" style="font-size:12.5px;font-weight:700;color:var(--teal-600);">View All <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+    </div>
+
+    <!-- Chart + Schedule -->
+    <div class="content-grid">
+      <div class="card">
+        <div class="card-head">
+          <h3>My Productivity</h3>
+          <div class="toggle-group">
+            <button>Weekly</button>
+            <button class="active">Monthly</button>
+          </div>
+        </div>
+        <div class="chart-card-inner">
+          <div class="chart-wrap">
+            <canvas id="empChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Today's Schedule</h3>
+          <a href="#" id="edit-schedule-btn" class="link"><i class="fa-solid fa-pen-to-square"></i> Edit</a>
+        </div>
+        <div class="schedule-list" id="schedule-list-container">
+          <div class="schedule-item" style="border-color:var(--teal-600);">
+            <span class="time">09:00 AM</span>
+            <div><div class="title">Daily Stand-up</div><div class="sub">Team Meeting</div></div>
+            <div class="badge-icon"><i class="fa-solid fa-video"></i></div>
+          </div>
+          <div class="schedule-item" style="border-color:var(--orange);">
+            <span class="time">11:00 AM</span>
+            <div><div class="title">UI Review</div><div class="sub">Design Team</div></div>
+            <div class="badge-icon"><i class="fa-solid fa-people-group"></i></div>
+          </div>
+          <div class="schedule-item" style="border-color:var(--amber);">
+            <span class="time">01:00 PM</span>
+            <div><div class="title">Lunch Break</div><div class="sub">Personal Time</div></div>
+            <div class="badge-icon"><i class="fa-solid fa-utensils"></i></div>
+          </div>
+          <div class="schedule-item" style="border-color:var(--purple);">
+            <span class="time">02:00 PM</span>
+            <div><div class="title">Project Discussion</div><div class="sub">PCS Website</div></div>
+            <div class="badge-icon"><i class="fa-solid fa-people-group"></i></div>
+          </div>
+          <div class="schedule-item" style="border-color:var(--blue);">
+            <span class="time">04:30 PM</span>
+            <div><div class="title">Client Call</div><div class="sub">Acme Corp</div></div>
+            <div class="badge-icon"><i class="fa-solid fa-phone"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tasks + Recent activity -->
+    <div class="bottom-grid">
+      <div class="card">
+        <div class="card-head">
+          <h3>My Tasks</h3>
+          <a href="/employee-tasks.html" class="link">View All Tasks</a>
+        </div>
+        <div class="task-list" id="dashboard-task-list">
+          <div style="text-align:center;color:var(--text-muted);padding:32px;font-size:13px;">Loading tasks...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Recent Activity</h3>
+          <a href="#" class="link">View All</a>
+        </div>
+        <div class="activity-list">
+          <div class="activity-item">
+            <div class="activity-icon green"><i class="fa-solid fa-check"></i></div>
+            <div>
+              <div class="activity-title">You completed "Dashboard Redesign"</div>
+              <div class="activity-time">2 hours ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon blue"><i class="fa-solid fa-arrow-up-from-bracket"></i></div>
+            <div>
+              <div class="activity-title">Timesheet submitted for this week</div>
+              <div class="activity-time">3 hours ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon amber" style="background:var(--amber-bg);color:var(--amber);"><i class="fa-solid fa-plane-departure"></i></div>
+            <div>
+              <div class="activity-title">Leave request for Jul 18–19, 2025</div>
+              <span class="status-pill pending" style="margin-top:4px;display:inline-block;">Pending</span>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon" style="background:#f3ecff;color:var(--purple);"><i class="fa-solid fa-graduation-cap"></i></div>
+            <div>
+              <div class="activity-title">Completed training "Figma Advanced"</div>
+              <div class="activity-time">Yesterday</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Custom Confirm Modal -->
+<div id="confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter:blur(8px); z-index:99999; align-items:center; justify-content:center;">
+  <div class="card" style="width:360px; padding:24px; text-align:center; display:flex; flex-direction:column; gap:16px; background:rgba(255,255,255,0.85); border:1px solid rgba(255,255,255,0.45); border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+    <h3 style="margin:0; font-size:18px; color:var(--text-dark); font-weight:700;">Confirm Clock Out</h3>
+    <p style="margin:0; font-size:13.5px; color:var(--text-muted);">Are you sure you want to clock out?</p>
+    <div style="display:flex; gap:12px; margin-top:8px;">
+      <button class="btn-primary" id="confirm-yes" style="flex:1; padding:10px; font-size:13px; font-weight:700; border-radius:8px; background:linear-gradient(135deg, #e05252, #b43232); border-color:#e05252;">Yes, Clock Out</button>
+      <button class="btn-primary" id="confirm-no" style="flex:1; padding:10px; font-size:13px; font-weight:700; border-radius:8px; background:transparent; color:var(--text-body); border:1px solid rgba(0,0,0,0.15);">No, Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Edit Schedule Modal -->
+<div id="schedule-edit-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter:blur(8px); z-index:99999; align-items:center; justify-content:center;">
+  <div class="card" style="width:500px; max-height:85vh; padding:24px; display:flex; flex-direction:column; gap:16px; background:rgba(255,255,255,0.92); border:1px solid rgba(255,255,255,0.45); border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0,0,0,0.08); padding-bottom:12px;">
+      <h3 style="margin:0; font-size:18px; color:var(--text-dark); font-weight:700;">Edit Today's Schedule</h3>
+      <button id="btn-add-schedule-item" class="btn-primary" style="padding:6px 12px; font-size:12px; border-radius:6px;"><i class="fa-solid fa-plus"></i> Add Item</button>
+    </div>
+    <div id="schedule-items-editor-list" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px; padding-right:4px;">
+    </div>
+    <div style="display:flex; gap:12px; border-top:1px solid rgba(0,0,0,0.08); padding-top:12px; margin-top:8px;">
+      <button class="btn-primary" id="btn-save-schedule" style="flex:1; padding:10px; font-size:13px; font-weight:700; border-radius:8px;">Save Changes</button>
+      <button class="btn-primary" id="btn-cancel-schedule" style="flex:1; padding:10px; font-size:13px; font-weight:700; border-radius:8px; background:transparent; color:var(--text-body); border:1px solid rgba(0,0,0,0.15);">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Self Report Modal -->
+<div id="self-report-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter:blur(8px); z-index:99999; align-items:center; justify-content:center;">
+  <div class="card" style="width:520px; max-height:85vh; padding:26px; display:flex; flex-direction:column; gap:16px; background:rgba(255,255,255,0.92); border:1px solid rgba(255,255,255,0.45); border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.15); overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0,0,0,0.08); padding-bottom:12px;">
+      <h3 style="margin:0; font-size:18px; color:var(--teal-900); font-weight:800;"><i class="fa-solid fa-pen-to-square"></i> End-of-Day Self Report</h3>
+      <i class="fa-solid fa-xmark modal-close" id="btn-close-self-report" style="cursor:pointer;font-size:18px;"></i>
+    </div>
+    
+    <div style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">
+      Please describe the progress of your assigned tasks. You must fill in the description for each task before clocking out.
+    </div>
+
+    <form id="self-report-form" style="display:flex; flex-direction:column; gap:14px;">
+      <!-- Dynamic Tasks list will be generated here -->
+      <div id="self-report-tasks-container" style="display:flex; flex-direction:column; gap:12px;">
+        <!-- Dynamic fields for each task -->
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12.5px; font-weight:700; color:var(--text-dark); margin-bottom: 4px; display: block;">Extra Work / Other Tasks Worked On</label>
+        <textarea id="sr-extra-work" rows="2" class="form-control" style="background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:8px; padding:8px 12px; font-size:13px; width:100%; outline:none;" placeholder="Describe any other work or unassigned tasks completed today..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12.5px; font-weight:700; color:var(--text-dark); margin-bottom: 4px; display: block;">Plan for Tomorrow <span style="color:var(--red);">*</span></label>
+        <textarea id="sr-tomorrow-plan" rows="2" class="form-control" style="background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:8px; padding:8px 12px; font-size:13px; width:100%; outline:none;" required placeholder="What will you focus on tomorrow?"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12.5px; font-weight:700; color:var(--text-dark); margin-bottom: 4px; display: block;">Any blockers or issues?</label>
+        <textarea id="sr-blockers" rows="2" class="form-control" style="background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:8px; padding:8px 12px; font-size:13px; width:100%; outline:none;" placeholder="Mention any challenges or dependencies..."></textarea>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label style="font-size:12.5px; font-weight:700; color:var(--text-dark); margin-bottom: 4px; display: block;">Work Capacity (%) <span style="color:var(--red);">*</span></label>
+          <input type="number" id="sr-capacity" min="0" max="100" value="100" class="form-control" style="background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:8px; padding:8px 12px; font-size:13px; width:100%; outline:none;" required>
+        </div>
+        <div class="form-group">
+          <label style="font-size:12.5px; font-weight:700; color:var(--text-dark); margin-bottom: 4px; display: block;">Overall % Complete <span style="color:var(--red);">*</span></label>
+          <input type="number" id="sr-complete" min="0" max="100" value="0" class="form-control" style="background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:8px; padding:8px 12px; font-size:13px; width:100%; outline:none;" required>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; border-top:1px solid rgba(0,0,0,0.08); padding-top:12px; margin-top:8px;">
+        <button type="submit" class="btn-primary" id="btn-submit-self-report" style="flex:1; padding:10px; font-size:13px; font-weight:700; border-radius:8px;"><i class="fa-solid fa-paper-plane"></i> Submit Report &amp; Clock Out</button>
+        <button type="button" class="btn-primary" id="btn-cancel-self-report" style="flex:1; padding:10px; font-size:13px; font-weight:700; border-radius:8px; background:transparent; color:var(--text-body); border:1px solid rgba(0,0,0,0.15);">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="script.js"></script>
+<script>
+  renderProductivityChart('empChart', [40, 55, 22, 68, 42, 74, 30], [42, 58, 55, 58, 62, 85, 92]);
+
+  // Logout
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
+    window.location.href = '/login.html';
+  });
+
+  // Date greeting
+  const now = new Date();
+  const hour = now.getHours();
+  document.getElementById('today-date-label').textContent = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Load today's clock-in status
+  let clockInterval = null;
+  let isClockedIn = false;
+  let clockOutAlerted = false;
+
+  function formatLocalTime(isoString) {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).toLowerCase();
+  }
+
+  function checkClockOutReminder(isCurrentlyClockedIn) {
+    if (!isCurrentlyClockedIn) return;
+    const now = new Date();
+    if (now.getHours() >= 19) {
+      if (!clockOutAlerted) {
+        showToast("It's past 7:00 PM. Please remember to clock out!", "warning");
+        clockOutAlerted = true;
+      }
+    } else {
+      clockOutAlerted = false;
+    }
+  }
+
+  async function loadTodayStatus() {
+    try {
+      const res = await fetch('/api/v1/employee/attendance/status', { credentials: 'include' });
+      const data = await res.json();
+      if (!data.success) return;
+
+      const rec = data.data;
+      const inBtn = document.getElementById('btn-clock-in');
+      const outBtn = document.getElementById('btn-clock-out');
+      const timeLabel = document.getElementById('clock-in-time');
+
+      if (clockInterval) {
+        clearInterval(clockInterval);
+        clockInterval = null;
+      }
+
+      // Helper to set button visual state
+      function setBtnState(btn, active) {
+        btn.disabled = !active;
+        btn.style.opacity = active ? '1' : '0.4';
+        btn.style.pointerEvents = active ? 'auto' : 'none';
+      }
+
+      if (!rec) {
+        isClockedIn = false;
+        setBtnState(inBtn, true);
+        setBtnState(outBtn, false);
+        timeLabel.textContent = 'Not clocked in yet';
+        document.getElementById('kpi-hours').textContent = '0.00 hrs';
+        return;
+      }
+
+      if (rec.login_time && !rec.logout_time) {
+        // Currently clocked in → lock Clock In, enable Clock Out
+        isClockedIn = true;
+        setBtnState(inBtn, false);
+        setBtnState(outBtn, true);
+        
+        const loginLocal = formatLocalTime(rec.login_time);
+        timeLabel.textContent = `Clocked in at ${loginLocal}`;
+
+        // Dynamic timer ticking
+        const tick = () => {
+          const elapsedMs = new Date() - new Date(rec.login_time);
+          const totalSeconds = Math.floor(elapsedMs / 1000);
+          const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+          const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+          const s = String(totalSeconds % 60).padStart(2, '0');
+          document.getElementById('kpi-hours').textContent = `${h}:${m}:${s}`;
+          
+          checkClockOutReminder(isClockedIn);
+        };
+        tick();
+        clockInterval = setInterval(tick, 1000);
+      } else if (rec.login_time && rec.logout_time) {
+        // Clocked out → enable Clock In (for resume), lock Clock Out
+        isClockedIn = false;
+        setBtnState(inBtn, true);
+        setBtnState(outBtn, false);
+        
+        const logoutLocal = formatLocalTime(rec.logout_time);
+        timeLabel.textContent = `Clocked out at ${logoutLocal}`;
+
+        const finalHrs = rec.total_hours ? parseFloat(rec.total_hours).toFixed(2) : '0.00';
+        document.getElementById('kpi-hours').textContent = `${finalHrs} hrs`;
+      }
+    } catch (e) {
+      console.error("Error in loadTodayStatus:", e);
+    }
+  }
+
+  // Clock-in / clock-out click handlers
+  document.getElementById('btn-clock-in').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/v1/employee/attendance/clock-in', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Clocked in successfully!', 'success');
+        await loadTodayStatus();
+        await loadDashboardSummary();
+      } else {
+        showToast(data.message || 'Clock-in failed', 'error');
+      }
+    } catch (e) {
+      showToast('Network error', 'error');
+    }
+  });
+
+  document.getElementById('btn-clock-out').addEventListener('click', () => {
+    if (!isClockedIn) {
+      showToast('Please clock in first!', 'warning');
+      return;
+    }
+    document.getElementById('confirm-modal').style.display = 'flex';
+  });
+
+  document.getElementById('confirm-no').addEventListener('click', () => {
+    document.getElementById('confirm-modal').style.display = 'none';
+  });
+
+  document.getElementById('confirm-yes').addEventListener('click', async () => {
+    document.getElementById('confirm-modal').style.display = 'none';
+    await proceedWithClockOut(true);
+  });
+
+  // Proceed with clock out flow (checks for DSR requirement)
+  async function proceedWithClockOut(checkReport = true) {
+    try {
+      const res = await fetch('/api/v1/employee/attendance/clock-out', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Clocked out successfully!', 'success');
+        await loadTodayStatus();
+        await loadDashboardSummary();
+      } else if (data.code === 'SELF_REPORT_REQUIRED') {
+        // Show report modal
+        showToast(data.message, 'warning');
+        await showSelfReportModal();
+      } else {
+        showToast(data.message || 'Clock-out failed', 'error');
+      }
+    } catch (e) {
+      showToast('Network error', 'error');
+    }
+  }
+
+  let todayTasks = [];
+  async function fetchTodayTasks() {
+    try {
+      const res = await fetch('/api/v1/employee/tasks', { credentials: 'include' });
+      const data = await res.json();
+      todayTasks = data.success && Array.isArray(data.data) ? data.data : [];
+    } catch (e) {
+      console.error("Error fetching today tasks:", e);
+    }
+  }
+
+  async function showSelfReportModal() {
+    await fetchTodayTasks();
+    const container = document.getElementById('self-report-tasks-container');
+    if (!container) return;
+
+    if (todayTasks.length === 0) {
+      container.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:10px;background:rgba(0,0,0,0.03);border-radius:8px;text-align:center;">No active tasks assigned to describe.</div>`;
+    } else {
+      container.innerHTML = todayTasks.map((t, idx) => {
+        return `
+          <div class="form-group" style="margin-bottom:8px;text-align:left;">
+            <label style="font-size:13px;font-weight:700;color:var(--teal-900);display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <i class="fa-regular fa-square-check"></i> ${t.title || 'Untitled Task'} <span style="color:var(--red);">*</span>
+            </label>
+            <textarea class="sr-task-desc form-control" data-task-id="${t.id}" data-task-title="${t.title}" rows="2" style="background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:8px; padding:8px 12px; font-size:12.5px; width:100%; outline:none;" required placeholder="Describe task progress (e.g. Done, pending testing...)"></textarea>
+          </div>
+        `;
+      }).join('');
+    }
+    document.getElementById('self-report-modal').style.display = 'flex';
+  }
+
+  // Cancel/Close self report modal handlers
+  ['btn-close-self-report', 'btn-cancel-self-report'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        document.getElementById('self-report-modal').style.display = 'none';
+        showToast('Clock-out cancelled. You must submit your self-report to clock out.', 'warning');
+      });
+    }
+  });
+
+  document.getElementById('self-report-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const taskTextareas = document.querySelectorAll('.sr-task-desc');
+    let todaysWork = "";
+    taskTextareas.forEach((tx, idx) => {
+      const title = tx.getAttribute('data-task-title');
+      const val = tx.value.trim();
+      todaysWork += `Task ${idx + 1}: ${title}\nProgress: ${val}\n\n`;
+    });
+
+    const extraWorkVal = document.getElementById('sr-extra-work').value.trim();
+    if (extraWorkVal) {
+      todaysWork += `Extra Work / Other Tasks:\n${extraWorkVal}\n\n`;
+    }
+
+    if (todayTasks.length === 0 && !extraWorkVal) {
+      showToast("Please describe today's work or extra work", "error");
+      return;
+    }
+    if (todayTasks.length > 0 && !todaysWork.trim()) {
+      showToast("Please fill progress description for all tasks", "error");
+      return;
+    }
+
+    const tomorrowsPlan = document.getElementById('sr-tomorrow-plan').value.trim();
+    const currentIssues = document.getElementById('sr-blockers').value.trim();
+    const workCapacity = document.getElementById('sr-capacity').value;
+    const percentageComplete = document.getElementById('sr-complete').value;
+
+    try {
+      const res = await fetch('/api/v1/employee/reports/self', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          todaysWork,
+          tomorrowsPlan,
+          currentIssues,
+          workCapacity,
+          percentageComplete
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Self-report submitted successfully!', 'success');
+        document.getElementById('self-report-modal').style.display = 'none';
+        // Now proceed with clock out (which should pass now that report exists)
+        await proceedWithClockOut(false);
+      } else {
+        showToast(data.message || 'Failed to submit report', 'error');
+      }
+    } catch (e) {
+      showToast('Network error', 'error');
+    }
+  });
+
+  // Load dashboard summary
+  async function loadDashboardSummary() {
+    try {
+      const res = await fetch('/api/v1/employee/dashboard/summary', { credentials: 'include' });
+      const data = await res.json();
+      if (!data.success) return;
+      const d = data.data;
+
+      // Profile
+      const user = await fetch('/api/v1/auth/me', { credentials: 'include' }).then(r => r.json()).catch(() => null);
+      if (user && user.data) {
+        const name = user.data.full_name || user.data.username || 'Employee';
+        document.getElementById('profile-name').textContent = name;
+        const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+        document.getElementById('greeting-text').textContent = `${greeting}, ${name.split(' ')[0]}! 👋`;
+      }
+
+      // KPIs
+      document.getElementById('kpi-tasks').textContent = d.tasksCompleted || 0;
+      document.getElementById('kpi-att').textContent = d.attStatus || 'Absent';
+      document.getElementById('kpi-leave').textContent = d.leaveBalance ? parseFloat(d.leaveBalance).toFixed(1) : '—';
+      document.getElementById('kpi-pending').textContent = String(d.pendingRequests || 0).padStart(2, '0');
+
+      if (d.checkInTime) {
+        const t = formatLocalTime(d.checkInTime);
+        document.getElementById('kpi-att-sub').textContent = 'Checked in at ' + t;
+        document.getElementById('kpi-att-pill').textContent = 'Checked In';
+        document.getElementById('kpi-att-pill').className = 'status-pill progress';
+      } else {
+        document.getElementById('kpi-att-sub').textContent = 'Not clocked in yet';
+        document.getElementById('kpi-att-pill').textContent = 'Absent';
+        document.getElementById('kpi-att-pill').className = 'status-pill pending';
+      }
+
+      // Render Today's Schedule from localStorage/Default
+      loadAndRenderSchedule();
+
+      // Load My Tasks from API
+      await loadDashboardTasks();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // ── Dashboard My Tasks (API synced) ──
+  async function loadDashboardTasks() {
+    const container = document.getElementById('dashboard-task-list');
+    if (!container) return;
+    try {
+      const res = await fetch('/api/v1/employee/tasks', { credentials: 'include' });
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.data) || data.data.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px;font-size:13px;">No tasks assigned.</div>';
+        return;
+      }
+      container.innerHTML = data.data.map(t => {
+        const priorityClass = (t.priority || '').toLowerCase();
+        const isCompleted = t.status === 'Completed';
+        const statusClass = isCompleted ? 'done' : t.status === 'In Progress' ? 'progress' : 'to-do';
+        const due = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+        const strike = isCompleted ? 'text-decoration:line-through;opacity:0.5;' : '';
+        return `
+          <div class="task-row" style="${strike}" data-task-id="${t.id}">
+            <input type="checkbox" ${isCompleted ? 'checked disabled' : ''} onchange="markTaskComplete(${t.id}, this)">
+            <div class="info">
+              <div class="name">${t.title || 'Untitled'}</div>
+              <div class="sub">${t.description ? t.description.substring(0, 40) : '—'}</div>
+            </div>
+            <span class="priority-pill ${priorityClass}">${t.priority || 'Normal'}</span>
+            <span class="col">${due}</span>
+            <span class="status-pill ${statusClass}">${t.status || 'To Do'}</span>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error("Error loading dashboard tasks:", e);
+    }
+  }
+
+  window.markTaskComplete = async function(taskId, checkbox) {
+    checkbox.disabled = true;
+    try {
+      const res = await fetch(`/api/v1/employee/tasks/${taskId}/progress`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ progress: 100, status: 'Completed' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const row = checkbox.closest('.task-row');
+        row.style.textDecoration = 'line-through';
+        row.style.opacity = '0.5';
+        const pill = row.querySelector('.status-pill');
+        if (pill) { pill.textContent = 'Completed'; pill.className = 'status-pill done'; }
+        showToast('Task marked as completed!', 'success');
+      } else {
+        checkbox.checked = false;
+        checkbox.disabled = false;
+        showToast(data.message || 'Failed to update task', 'error');
+      }
+    } catch (e) {
+      checkbox.checked = false;
+      checkbox.disabled = false;
+      showToast('Network error', 'error');
+    }
+  };
+
+  // ── Today's Schedule Editor (LocalStorage Backed) ──
+  const DEFAULT_SCHEDULE = [
+    { time: '09:00 AM', title: 'Daily Stand-up', sub: 'Team Meeting', icon: 'video', color: 'var(--teal-600)' },
+    { time: '11:00 AM', title: 'UI Review', sub: 'Design Team', icon: 'people-group', color: 'var(--orange)' },
+    { time: '01:00 PM', title: 'Lunch Break', sub: 'Personal Time', icon: 'utensils', color: 'var(--amber)' },
+    { time: '02:00 PM', title: 'Project Discussion', sub: 'PCS Website', icon: 'people-group', color: 'var(--purple)' },
+    { time: '04:30 PM', title: 'Client Call', sub: 'Acme Corp', icon: 'phone', color: 'var(--blue)' }
+  ];
+
+  function loadAndRenderSchedule() {
+    let list = DEFAULT_SCHEDULE;
+    const stored = localStorage.getItem('employee_schedule');
+    if (stored) {
+      try {
+        list = JSON.parse(stored);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    const container = document.getElementById('schedule-list-container');
+    if (!container) return;
+
+    if (list.length === 0) {
+      container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px;font-size:13px;">No events scheduled for today.</div>';
+      return;
+    }
+
+    container.innerHTML = list.map((item) => {
+      const iconMap = {
+        'video': 'fa-video',
+        'people-group': 'fa-people-group',
+        'utensils': 'fa-utensils',
+        'phone': 'fa-phone',
+        'briefcase': 'fa-briefcase'
+      };
+      const iconClass = iconMap[item.icon] || 'fa-circle';
+      return `
+        <div class="schedule-item" style="border-color:${item.color || 'var(--teal-600)'};">
+          <span class="time">${item.time || '00:00 AM'}</span>
+          <div>
+            <div class="title" style="font-weight:600;color:var(--text-dark);">${item.title || 'Untitled'}</div>
+            <div class="sub" style="font-size:12px;color:var(--text-muted);">${item.sub || ''}</div>
+          </div>
+          <div class="badge-icon"><i class="fa-solid ${iconClass}"></i></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function addEditorRow(item = { time: '', title: '', sub: '', icon: 'video', color: 'var(--teal-600)' }) {
+    const editorList = document.getElementById('schedule-items-editor-list');
+    if (!editorList) return;
+
+    const row = document.createElement('div');
+    row.className = 'schedule-editor-row';
+    row.style.cssText = 'display:flex; flex-direction:column; gap:8px; padding:12px 36px 12px 12px; border-radius:10px; background:rgba(0,0,0,0.03); border:1px solid rgba(0,0,0,0.05); position:relative; overflow:visible;';
+
+    const colors = [
+      { name: 'Teal', val: 'var(--teal-600)' },
+      { name: 'Orange', val: 'var(--orange)' },
+      { name: 'Amber', val: 'var(--amber)' },
+      { name: 'Purple', val: 'var(--purple)' },
+      { name: 'Blue', val: 'var(--blue)' }
+    ];
+
+    const icons = [
+      { name: 'Video Call', val: 'video' },
+      { name: 'Meeting', val: 'people-group' },
+      { name: 'Meal/Break', val: 'utensils' },
+      { name: 'Phone Call', val: 'phone' },
+      { name: 'Work/Task', val: 'briefcase' }
+    ];
+
+    row.innerHTML = `
+      <button class="btn-delete-row" style="position:absolute; top:8px; right:8px; border:none; background:rgba(224,82,82,0.1); color:#e05252; cursor:pointer; font-size:13px; width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; z-index:10;"><i class="fa-solid fa-trash"></i></button>
+      <div style="display:flex; gap:8px;">
+        <input type="text" class="edit-time glass" placeholder="Time (e.g. 09:00 AM)" value="${item.time || ''}" style="width:100px; padding:6px; font-size:12.5px; border-radius:6px; background:#fff; border:1px solid rgba(0,0,0,0.15); color:#000;">
+        <input type="text" class="edit-title glass" placeholder="Event Title" value="${item.title || ''}" style="flex:2; padding:6px; font-size:12.5px; border-radius:6px; background:#fff; border:1px solid rgba(0,0,0,0.15); color:#000;">
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" class="edit-sub glass" placeholder="Subtitle (e.g. Team Meeting)" value="${item.sub || ''}" style="flex:2; padding:6px; font-size:12.5px; border-radius:6px; background:#fff; border:1px solid rgba(0,0,0,0.15); color:#000;">
+        <select class="edit-icon glass" style="flex:1; padding:6px; font-size:12.5px; border-radius:6px; background:#fff; border:1px solid rgba(0,0,0,0.15); color:#000;">
+          ${icons.map(i => `<option value="${i.val}" ${item.icon === i.val ? 'selected' : ''}>${i.name}</option>`).join('')}
+        </select>
+        <select class="edit-color glass" style="flex:1; padding:6px; font-size:12.5px; border-radius:6px; background:#fff; border:1px solid rgba(0,0,0,0.15); color:#000;">
+          ${colors.map(c => `<option value="${c.val}" ${item.color === c.val ? 'selected' : ''}>${c.name}</option>`).join('')}
+        </select>
+      </div>
+    `;
+
+    row.querySelector('.btn-delete-row').addEventListener('click', () => {
+      row.remove();
+    });
+
+    editorList.appendChild(row);
+  }
+
+  function populateScheduleEditor() {
+    let list = DEFAULT_SCHEDULE;
+    const stored = localStorage.getItem('employee_schedule');
+    if (stored) {
+      try {
+        list = JSON.parse(stored);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    const editorList = document.getElementById('schedule-items-editor-list');
+    if (!editorList) return;
+
+    editorList.innerHTML = '';
+    list.forEach((item) => {
+      addEditorRow(item);
+    });
+  }
+
+  document.getElementById('edit-schedule-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    populateScheduleEditor();
+    document.getElementById('schedule-edit-modal').style.display = 'flex';
+  });
+
+  document.getElementById('btn-cancel-schedule').addEventListener('click', () => {
+    document.getElementById('schedule-edit-modal').style.display = 'none';
+  });
+
+  document.getElementById('btn-add-schedule-item').addEventListener('click', () => {
+    addEditorRow();
+  });
+
+  document.getElementById('btn-save-schedule').addEventListener('click', () => {
+    const rows = document.querySelectorAll('.schedule-editor-row');
+    const newList = [];
+    rows.forEach(row => {
+      const time = row.querySelector('.edit-time').value.trim();
+      const title = row.querySelector('.edit-title').value.trim();
+      const sub = row.querySelector('.edit-sub').value.trim();
+      const icon = row.querySelector('.edit-icon').value;
+      const color = row.querySelector('.edit-color').value;
+      if (title) {
+        newList.push({ time, title, sub, icon, color });
+      }
+    });
+
+    localStorage.setItem('employee_schedule', JSON.stringify(newList));
+    loadAndRenderSchedule();
+    document.getElementById('schedule-edit-modal').style.display = 'none';
+    showToast('Schedule updated successfully!', 'success');
+  });
+
+  (async () => {
+    await loadTodayStatus();
+    await loadDashboardSummary();
+  })();
+</script>
+
+</body>
+</html>
