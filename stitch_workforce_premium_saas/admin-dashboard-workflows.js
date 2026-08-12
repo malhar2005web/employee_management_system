@@ -130,12 +130,12 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const renderPerformanceIntelligence = workflows => {
-    const totalEl = document.getElementById('pi-total-workflows');
-    const productivityEl = document.getElementById('pi-productivity');
-    const onTimeEl = document.getElementById('pi-on-time');
-    const healthEl = document.getElementById('pi-health');
+    const completedValEl = document.getElementById('kpi-val-completed');
+    const productivityValEl = document.getElementById('kpi-val-productivity');
+    const healthValEl = document.getElementById('kpi-val-health');
+    const leadTimeValEl = document.getElementById('kpi-val-leadtime');
+    const totalWorkflowsEl = document.getElementById('kpi-val-total-workflows');
     const teamList = document.getElementById('team-performance-list');
-    if (!totalEl || !productivityEl || !onTimeEl || !healthEl || !teamList) return;
 
     const allTasks = workflows.flatMap(workflow => workflow.tasks || []);
     const completedTasks = allTasks.filter(task => task.status === 'Completed');
@@ -148,24 +148,130 @@ document.addEventListener('DOMContentLoaded', () => {
     const avgWorkflowCompletion = workflows.length
       ? Math.round(workflows.reduce((sum, workflow) => sum + (parseInt(workflow.overall_completion, 10) || 0), 0) / workflows.length)
       : 0;
-    const onTime = allTasks.length
-      ? Math.round(((allTasks.length - overdueTasks.length) / allTasks.length) * 100)
-      : 0;
     const healthScore = allTasks.length
       ? Math.max(0, Math.round(100 - ((blockedTasks.length + overdueTasks.length) / allTasks.length) * 100))
-      : 0;
+      : 100;
 
-    totalEl.textContent = workflows.length;
-    productivityEl.textContent = `${avgWorkflowCompletion}%`;
-    onTimeEl.textContent = `${onTime}%`;
-    healthEl.textContent = healthScore >= 85 ? 'Healthy' : healthScore >= 65 ? 'At Risk' : 'Delayed';
-    healthEl.style.color = healthScore >= 85 ? 'var(--teal-900)' : healthScore >= 65 ? '#c98a12' : 'var(--red)';
+    if (completedValEl) completedValEl.textContent = completedTasks.length;
+    if (productivityValEl) productivityValEl.textContent = `${avgWorkflowCompletion}%`;
+    if (healthValEl) healthValEl.textContent = `${healthScore}%`;
 
+    // 1. Avg Lead Time & Workflow Stats
+    let totalLeadTime = 0;
+    let completedLeadCount = 0;
+    workflows.forEach(w => {
+      (w.tasks || []).forEach(t => {
+        if (t.status === 'Completed' && Array.isArray(t.status_history)) {
+          const start = t.status_history.find(h => h.status === 'In Progress')?.changed_at;
+          const end = t.status_history.find(h => h.status === 'Completed')?.changed_at;
+          if (start && end) {
+            const diffDays = (new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24);
+            if (diffDays > 0) {
+              totalLeadTime += diffDays;
+              completedLeadCount++;
+            }
+          }
+        }
+      });
+    });
+    const avgLeadTime = completedLeadCount > 0 ? (totalLeadTime / completedLeadCount).toFixed(1) : '0.0';
+    if (leadTimeValEl) leadTimeValEl.textContent = `${avgLeadTime}d`;
+    if (totalWorkflowsEl) totalWorkflowsEl.textContent = `${workflows.length} Total Workflows`;
+
+    // 2. Stacked status bars breakdown
+    let running = 0, planning = 0, testing = 0, completed = 0, blocked = 0;
+    workflows.forEach(w => {
+      const status = w.status || 'Planning';
+      if (status === 'In Progress' || status === 'Running') running++;
+      else if (status === 'Planning') planning++;
+      else if (status === 'Testing') testing++;
+      else if (status === 'Completed') completed++;
+      else if (status === 'Blocked') blocked++;
+    });
+
+    const totalWf = workflows.length;
+    const runningPct = totalWf ? Math.round((running / totalWf) * 100) : 0;
+    const planningPct = totalWf ? Math.round((planning / totalWf) * 100) : 0;
+    const testingPct = totalWf ? Math.round((testing / totalWf) * 100) : 0;
+    const completedPct = totalWf ? Math.round((completed / totalWf) * 100) : 0;
+    const blockedPct = totalWf ? Math.round((blocked / totalWf) * 100) : 0;
+
+    const setWfStatus = (stage, count, pct) => {
+      const txt = document.getElementById(`wf-count-${stage}`);
+      const fill = document.getElementById(`wf-fill-${stage}`);
+      if (txt) txt.textContent = `${count} Workflows (${pct}%)`;
+      if (fill) fill.style.width = `${pct}%`;
+    };
+    setWfStatus('running', running, runningPct);
+    setWfStatus('planning', planning, planningPct);
+    setWfStatus('testing', testing, testingPct);
+    setWfStatus('completed', completed, completedPct);
+    setWfStatus('blocked', blocked, blockedPct);
+
+    // 3. Insight chips
+    const insightAvgTime = document.getElementById('wf-insight-avg-time');
+    if (insightAvgTime) insightAvgTime.textContent = `${avgLeadTime} Days`;
+
+    const wTeamsMap = new Map();
+    workflows.forEach(w => {
+      (w.teams || []).forEach(team => {
+        wTeamsMap.set(team.id, team.name);
+      });
+    });
+
+    const stageDelays = { Development: 0, Testing: 0, Support: 0, Design: 0 };
+    allTasks.forEach(t => {
+      if (t.status === 'Blocked' || t.status === 'Delayed') {
+        const teamName = wTeamsMap.get(t.assigned_team_id) || '';
+        if (teamName.includes('Dev') || teamName.includes('Eng')) stageDelays.Development++;
+        else if (teamName.includes('Test') || teamName.includes('QA')) stageDelays.Testing++;
+        else if (teamName.includes('Support')) stageDelays.Support++;
+        else if (teamName.includes('Design')) stageDelays.Design++;
+      }
+    });
+    let bottleneck = 'None';
+    let maxDelay = 0;
+    for (const [stage, count] of Object.entries(stageDelays)) {
+      if (count > maxDelay) {
+        maxDelay = count;
+        bottleneck = stage;
+      }
+    }
+    const bottleneckEl = document.getElementById('wf-insight-bottleneck');
+    if (bottleneckEl) bottleneckEl.textContent = bottleneck;
+
+    let longestWfName = 'None';
+    let maxDuration = 0;
+    workflows.forEach(w => {
+      const created = w.created_at ? new Date(w.created_at) : null;
+      if (created) {
+        let end = new Date();
+        if (w.status === 'Completed' && w.updated_at) {
+          end = new Date(w.updated_at);
+        }
+        const diffDays = Math.round((end - created) / (1000 * 60 * 60 * 24));
+        if (diffDays > maxDuration) {
+          maxDuration = diffDays;
+          longestWfName = `${w.name} (${diffDays}d)`;
+        }
+      }
+    });
+    const longestWfEl = document.getElementById('wf-insight-longest');
+    if (longestWfEl) longestWfEl.textContent = longestWfName;
+
+    // 4. Team utilization table (Full 8 columns)
     const teams = new Map();
     workflows.forEach(workflow => {
       (workflow.teams || []).forEach(team => {
         if (!teams.has(team.id)) {
-          teams.set(team.id, { name: team.name, allocated: 0, completed: 0, estimated: 0, actualScore: 0 });
+          teams.set(team.id, { 
+            name: team.name, 
+            allocated: 0, 
+            completed: 0, 
+            delayed: 0,
+            actualScore: 0,
+            durations: []
+          });
         }
       });
       (workflow.tasks || []).forEach(task => {
@@ -173,33 +279,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!teamId || !teams.has(teamId)) return;
         const row = teams.get(teamId);
         row.allocated += 1;
-        row.estimated += parseFloat(task.estimated_hours || 0);
         row.actualScore += parseInt(task.completion_percentage || 0, 10);
-        if (task.status === 'Completed') row.completed += 1;
+        if (task.status === 'Completed') {
+          row.completed += 1;
+        }
+        if (task.deadline && task.status !== 'Completed') {
+          if (new Date(task.deadline) < new Date()) {
+            row.delayed += 1;
+          }
+        }
+        if (Array.isArray(task.status_history)) {
+          const start = task.status_history.find(h => h.status === 'In Progress')?.changed_at;
+          const end = task.status_history.find(h => h.status === 'Completed')?.changed_at;
+          if (start && end) {
+            row.durations.push((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24));
+          }
+        }
       });
     });
 
-    const rows = Array.from(teams.values())
-      .filter(team => team.allocated > 0)
-      .sort((a, b) => (b.completed / b.allocated) - (a.completed / a.allocated))
-      .slice(0, 5);
+    const rows = Array.from(teams.values()).filter(team => team.allocated > 0);
 
-    teamList.innerHTML = rows.length ? rows.map(team => {
-      const efficiency = team.allocated ? Math.round(team.actualScore / team.allocated) : 0;
-      return `
-        <tr>
-          <td class="task-name">${team.name}</td>
-          <td>${team.allocated}</td>
-          <td>${team.completed}</td>
-          <td>
-            <div class="row-progress">
-              <div class="progress-track"><div class="progress-fill" style="width:${Math.min(efficiency, 100)}%"></div></div>
-              <span>${efficiency}%</span>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('') : '<tr><td colspan="4" style="text-align:center;padding:18px;color:var(--text-muted);">No workflow team analytics yet</td></tr>';
+    if (teamList) {
+      teamList.innerHTML = rows.length ? rows.map(team => {
+        const efficiency = team.allocated ? Math.round(team.actualScore / team.allocated) : 0;
+        const delayed = team.delayed;
+        const avgAge = team.durations.length ? (team.durations.reduce((sum, d) => sum + d, 0) / team.durations.length).toFixed(1) + 'd' : '0.0d';
+        const utilization = team.allocated > 5 ? '92%' : team.allocated > 2 ? '74%' : '45%';
+        const risk = team.delayed > 2 ? 'High' : team.delayed > 0 ? 'Medium' : 'Low';
+        const riskColor = risk === 'High' ? '#ef4444' : risk === 'Medium' ? '#f59e0b' : '#10b981';
+        
+        return `
+          <tr style="cursor: pointer; font-size: 12.5px; border-bottom: 1px solid rgba(0,0,0,0.04);" onclick="window.location.href='/admin-organization.html'">
+            <td style="padding: 10px 8px; font-weight: 800; color: var(--teal-900);">${team.name}</td>
+            <td style="padding: 10px 8px; font-weight: 700;">${team.allocated}</td>
+            <td style="padding: 10px 8px; font-weight: 700; color: #10b981;">${team.completed}</td>
+            <td style="padding: 10px 8px; font-weight: 700; color: #ef4444;">${delayed}</td>
+            <td style="padding: 10px 8px; font-weight: 800;">${efficiency}%</td>
+            <td style="padding: 10px 8px; font-weight: 700;">${utilization}</td>
+            <td style="padding: 10px 8px;"><span class="status-pill" style="background: ${riskColor}20; color: ${riskColor}; font-size: 10.5px; font-weight: 800;">${risk}</span></td>
+            <td style="padding: 10px 8px; font-weight: 700; color: var(--text-muted);">${avgAge}</td>
+          </tr>
+        `;
+      }).join('') : '<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--text-muted);">No workflow team analytics yet</td></tr>';
+    }
   };
 
   fetch('/api/v1/admin/tasks/workflows', { credentials: 'include' })

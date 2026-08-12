@@ -7,7 +7,8 @@ import {
     getDeptsAndDesigs, 
     createDepartment, 
     createDesignation,
-    getDashboardSummary
+    getDashboardSummary,
+    getProductivityTrend
 } from '../controller/employee.controller.js';
 import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
 
@@ -17,6 +18,7 @@ const router = express.Router();
 router.use(protectRoute, isAdmin);
 
 router.get("/dashboard-summary", getDashboardSummary);
+router.get("/productivity-trend", getProductivityTrend);
 router.get("/", getEmployees);
 router.post("/", createEmployee);
 router.put("/:id", updateEmployee);

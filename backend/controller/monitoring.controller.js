@@ -95,10 +95,11 @@ export async function getExecutiveHealthCards(req, res) {
     try {
         const computers = await pool.query(`
             SELECT 
-                COUNT(*) FILTER (WHERE is_online = true) as online_computers,
-                COUNT(*) FILTER (WHERE is_online = false) as offline_computers,
+                COUNT(*) FILTER (WHERE c.is_online = true) as online_computers,
+                COUNT(*) FILTER (WHERE c.is_online = false) as offline_computers,
                 COUNT(*) as total_computers
-            FROM teramind_computer_cache;
+            FROM teramind_computer_cache c
+            INNER JOIN employee_teramind_mapping m ON c.computer_id = m.computer_id;
         `);
 
         const employees = await pool.query(`

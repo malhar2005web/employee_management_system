@@ -85,37 +85,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 6. Populate Team Performance Heatmap Table
-    const renderTeamHeatmapTable = () => {
-        if (!teamList) return;
-        const teamsData = [
-            { team: 'Development', allocated: 58, completed: 54, delayed: 4, efficiency: '94%', util: '81%', risk: 'Medium', age: '2.1d', riskColor: '#f59e0b' },
-            { team: 'Testing', allocated: 42, completed: 40, delayed: 2, efficiency: '95%', util: '77%', risk: 'Low', age: '1.8d', riskColor: '#10b981' },
-            { team: 'Support', allocated: 29, completed: 27, delayed: 2, efficiency: '93%', util: '64%', risk: 'Low', age: '1.4d', riskColor: '#10b981' },
-            { team: 'Design', allocated: 17, completed: 16, delayed: 1, efficiency: '96%', util: '49%', risk: 'Low', age: '1.2d', riskColor: '#10b981' }
-        ];
+    // 6. Populate Team Performance Heatmap Table (Disabled to allow dynamic workflows metrics)
+    const renderTeamHeatmapTable = () => {};
 
-        teamList.innerHTML = teamsData.map(t => `
-            <tr style="cursor: pointer; font-size: 12.5px; border-bottom: 1px solid rgba(0,0,0,0.04);" onclick="window.location.href='/admin-organization.html'">
-                <td style="padding: 10px 8px; font-weight: 800; color: var(--teal-900);">${t.team}</td>
-                <td style="padding: 10px 8px; font-weight: 700;">${t.allocated}</td>
-                <td style="padding: 10px 8px; font-weight: 700; color: #10b981;">${t.completed}</td>
-                <td style="padding: 10px 8px; font-weight: 700; color: #ef4444;">${t.delayed}</td>
-                <td style="padding: 10px 8px; font-weight: 800;">${t.efficiency}</td>
-                <td style="padding: 10px 8px; font-weight: 700;">${t.util}</td>
-                <td style="padding: 10px 8px;"><span class="status-pill" style="background: ${t.riskColor}20; color: ${t.riskColor}; font-size: 10.5px; font-weight: 800;">${t.risk}</span></td>
-                <td style="padding: 10px 8px; font-weight: 700; color: var(--text-muted);">${t.age}</td>
-            </tr>
-        `).join('');
-    };
-
-    // 7. Initialize ECharts Productive vs. Idle Stacked Area Chart
+    // 7. Initialize ECharts Productive vs. Idle Stacked Area Chart (Dynamic API-driven)
     let areaChartInstance = null;
-    const initAreaChart = () => {
+    const initAreaChart = async () => {
         if (!areaChartDom || typeof echarts === 'undefined') return;
 
         areaChartInstance = echarts.init(areaChartDom, null, { renderer: 'svg' });
-        const dates = ['Day 1', 'Day 5', 'Day 10', 'Day 15', 'Day 20', 'Day 25', 'Day 30'];
+        
+        let dates = [];
+        let workData = [];
+        let meetingsData = [];
+        let breakData = [];
+        let idleData = [];
+
+        try {
+            const res = await fetch("/api/v1/admin/employees/productivity-trend", { credentials: 'include' });
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+                json.data.forEach(row => {
+                    dates.push(row.date_str);
+                    workData.push(parseFloat(row.productive_hours || 0));
+                    meetingsData.push(parseFloat(row.unproductive_hours || 0));
+                    breakData.push(parseFloat(row.break_hours || 0));
+                    idleData.push(parseFloat(row.idle_hours || 0));
+                });
+            }
+        } catch (e) {
+            console.error("Error loading productivity trend chart:", e);
+        }
+
+        // If no data returned from API, render a clean baseline of the last 7 days with zero activity
+        if (dates.length === 0) {
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                dates.push(d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+                workData.push(0);
+                meetingsData.push(0);
+                breakData.push(0);
+                idleData.push(0);
+            }
+        }
 
         const option = {
             tooltip: {
@@ -153,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     smooth: true,
                     areaStyle: { opacity: 0.6, color: '#10b981' },
                     lineStyle: { color: '#10b981' },
-                    data: [120, 132, 101, 134, 190, 230, 210]
+                    data: workData
                 },
                 {
                     name: 'Meetings',
@@ -162,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     smooth: true,
                     areaStyle: { opacity: 0.6, color: '#0284c7' },
                     lineStyle: { color: '#0284c7' },
-                    data: [40, 45, 30, 50, 40, 60, 55]
+                    data: meetingsData
                 },
                 {
                     name: 'Break',
@@ -171,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     smooth: true,
                     areaStyle: { opacity: 0.6, color: '#f59e0b' },
                     lineStyle: { color: '#f59e0b' },
-                    data: [20, 18, 25, 22, 20, 24, 21]
+                    data: breakData
                 },
                 {
                     name: 'Idle',
@@ -180,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     smooth: true,
                     areaStyle: { opacity: 0.6, color: '#ef4444' },
                     lineStyle: { color: '#ef4444' },
-                    data: [15, 12, 20, 14, 10, 12, 11]
+                    data: idleData
                 }
             ]
         };
@@ -197,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastUpdatedSec = 0;
         if (liveText) liveText.textContent = 'Live · Updated 0s ago';
         renderTeamHeatmapTable();
-        if (areaChartInstance) areaChartInstance.resize();
+        initAreaChart();
     };
 
     const startAdaptivePolling = () => {

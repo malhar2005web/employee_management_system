@@ -855,7 +855,7 @@
         <div class="card glass" style="padding: 16px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--glass-border);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h4 style="font-size: 14.5px; font-weight: 800; color: var(--teal-900);"><i class="fa-solid fa-bars-staggered"></i> Workflow Status Breakdown</h4>
-            <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);">48 Total Workflows</span>
+            <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);" id="kpi-val-total-workflows">0 Total Workflows</span>
           </div>
 
           <!-- Stacked Bars Grid -->
@@ -863,50 +863,50 @@
             <div>
               <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
                 <span>Running</span>
-                <span>14 Workflows (29%)</span>
+                <span id="wf-count-running">0 Workflows (0%)</span>
               </div>
               <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
-                <div style="width: 29%; height: 100%; background: var(--teal-600); border-radius: 4px;"></div>
+                <div id="wf-fill-running" style="width: 0%; height: 100%; background: var(--teal-600); border-radius: 4px;"></div>
               </div>
             </div>
 
             <div>
               <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
                 <span>Planning</span>
-                <span>8 Workflows (17%)</span>
+                <span id="wf-count-planning">0 Workflows (0%)</span>
               </div>
               <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
-                <div style="width: 17%; height: 100%; background: #0284c7; border-radius: 4px;"></div>
+                <div id="wf-fill-planning" style="width: 0%; height: 100%; background: #0284c7; border-radius: 4px;"></div>
               </div>
             </div>
 
             <div>
               <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
                 <span>Testing</span>
-                <span>5 Workflows (10%)</span>
+                <span id="wf-count-testing">0 Workflows (0%)</span>
               </div>
               <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
-                <div style="width: 10%; height: 100%; background: #8b5cf6; border-radius: 4px;"></div>
+                <div id="wf-fill-testing" style="width: 0%; height: 100%; background: #8b5cf6; border-radius: 4px;"></div>
               </div>
             </div>
 
             <div>
               <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
                 <span>Completed</span>
-                <span>19 Workflows (40%)</span>
+                <span id="wf-count-completed">0 Workflows (0%)</span>
               </div>
               <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
-                <div style="width: 40%; height: 100%; background: #10b981; border-radius: 4px;"></div>
+                <div id="wf-fill-completed" style="width: 0%; height: 100%; background: #10b981; border-radius: 4px;"></div>
               </div>
             </div>
 
             <div>
               <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
                 <span>Blocked</span>
-                <span>2 Workflows (4%)</span>
+                <span id="wf-count-blocked">0 Workflows (0%)</span>
               </div>
               <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
-                <div style="width: 4%; height: 100%; background: #ef4444; border-radius: 4px;"></div>
+                <div id="wf-fill-blocked" style="width: 0%; height: 100%; background: #ef4444; border-radius: 4px;"></div>
               </div>
             </div>
           </div>
@@ -915,15 +915,15 @@
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--glass-border);">
             <div style="background: rgba(255,255,255,0.3); padding: 8px 12px; border-radius: 8px;">
               <span style="font-size: 10.5px; font-weight: 700; color: var(--text-muted); display: block;">Avg Completion Time</span>
-              <strong style="font-size: 13px; color: var(--teal-900); font-weight: 800;">4.2 Days</strong>
+              <strong style="font-size: 13px; color: var(--teal-900); font-weight: 800;" id="wf-insight-avg-time">0.0 Days</strong>
             </div>
             <div style="background: rgba(255,255,255,0.3); padding: 8px 12px; border-radius: 8px;">
               <span style="font-size: 10.5px; font-weight: 700; color: var(--text-muted); display: block;">Bottleneck Stage</span>
-              <strong style="font-size: 13px; color: #8b5cf6; font-weight: 800;">Testing</strong>
+              <strong style="font-size: 13px; color: #8b5cf6; font-weight: 800;" id="wf-insight-bottleneck">—</strong>
             </div>
             <div style="background: rgba(255,255,255,0.3); padding: 8px 12px; border-radius: 8px;">
               <span style="font-size: 10.5px; font-weight: 700; color: var(--text-muted); display: block;">Longest Workflow</span>
-              <strong style="font-size: 13px; color: var(--teal-900); font-weight: 800;">Website Migration (34d)</strong>
+              <strong style="font-size: 13px; color: var(--teal-900); font-weight: 800;" id="wf-insight-longest">—</strong>
             </div>
           </div>
         </div>

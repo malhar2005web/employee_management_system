@@ -317,3 +317,28 @@ export async function getDashboardSummary(req, res) {
         res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
+
+export async function getProductivityTrend(req, res) {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                TO_CHAR(work_date, 'YYYY-MM-DD') as date_str,
+                ROUND(SUM(productive_seconds)::numeric / 3600, 1) as productive_hours,
+                ROUND(SUM(unproductive_seconds)::numeric / 3600, 1) as unproductive_hours,
+                ROUND(SUM(idle_seconds)::numeric / 3600, 1) as idle_hours,
+                ROUND(SUM(break_seconds)::numeric / 3600, 1) as break_hours
+            FROM teramind_activity_cache
+            WHERE work_date >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY work_date
+            ORDER BY work_date ASC;
+        `);
+
+        res.status(200).json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error("Error in getProductivityTrend:", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
