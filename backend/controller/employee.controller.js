@@ -268,6 +268,52 @@ export async function createDesignation(req, res) {
         res.status(201).json({ success: true, message: "Designation created successfully" });
     } catch (error) {
         console.log("Error in createDesignation:", error.message);
+        res.status(501).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export async function getDashboardSummary(req, res) {
+    try {
+        // 1. Count actual employees
+        const empCountRes = await pool.query("SELECT COUNT(*) FROM employees");
+        const totalEmployees = parseInt(empCountRes.rows[0].count, 10);
+
+        // 2. Count active leaves (Pending approval)
+        const leaveCountRes = await pool.query("SELECT COUNT(*) FROM leave_requests WHERE status = 'Pending'");
+        const activeLeaves = parseInt(leaveCountRes.rows[0].count, 10);
+
+        // 3. Count total and completed workflow tasks to calculate progress rate
+        const taskStatsRes = await pool.query(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN status = 'Completed' THEN 1 END) as completed
+            FROM workflow_tasks
+        `);
+        const totalTasks = parseInt(taskStatsRes.rows[0].total, 10);
+        const completedTasks = parseInt(taskStatsRes.rows[0].completed, 10);
+        const projectCompletion = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+        // 4. Attendance rate today (default to 100% if no employees exist, or calculate: present / total)
+        let attendanceRate = 100.0;
+        if (totalEmployees > 0) {
+            const attendanceTodayRes = await pool.query(`
+                SELECT COUNT(DISTINCT employee_id) 
+                FROM attendance_logs 
+                WHERE work_date = CURRENT_DATE
+            `);
+            const presentToday = parseInt(attendanceTodayRes.rows[0].count, 10);
+            attendanceRate = Math.round((presentToday / totalEmployees) * 1000) / 10;
+        }
+
+        res.status(200).json({
+            success: true,
+            totalEmployees,
+            activeLeaves,
+            projectCompletion,
+            attendanceRate
+        });
+    } catch (error) {
+        console.error("Error in getDashboardSummary:", error.message);
         res.status(500).json({ success: false, message: "Internal server error" });
     }
 }

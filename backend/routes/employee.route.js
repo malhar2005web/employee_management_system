@@ -6,7 +6,8 @@ import {
     toggleEmployeeStatus, 
     getDeptsAndDesigs, 
     createDepartment, 
-    createDesignation 
+    createDesignation,
+    getDashboardSummary
 } from '../controller/employee.controller.js';
 import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
 
@@ -15,6 +16,7 @@ const router = express.Router();
 // Apply admin RBAC check globally on all employee routes
 router.use(protectRoute, isAdmin);
 
+router.get("/dashboard-summary", getDashboardSummary);
 router.get("/", getEmployees);
 router.post("/", createEmployee);
 router.put("/:id", updateEmployee);
