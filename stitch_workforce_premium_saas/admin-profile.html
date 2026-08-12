@@ -362,6 +362,7 @@
 
     <ul class="nav-list">
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
@@ -392,7 +393,33 @@
 
     <!-- 1. Header Profile Card -->
     <div class="profile-header-card">
-      <div class="profile-avatar-circle" id="hdr-avatar">—</div>
+      <div class="profile-avatar-container" style="position:relative; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;" id="btn-avatar-upload-trigger" title="Click to upload profile picture">
+        <div class="profile-avatar-circle" id="hdr-avatar" style="overflow:hidden; position:relative;">
+          <span id="hdr-avatar-text">—</span>
+          <img id="hdr-avatar-img" src="" style="width:100%; height:100%; object-fit:cover; display:none; border-radius:50%;" />
+        </div>
+        <button type="button" class="avatar-edit-badge" id="btn-avatar-pencil" title="Edit Profile Picture" style="
+          position: absolute;
+          bottom: 2px;
+          right: 2px;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: var(--teal-600);
+          color: #ffffff;
+          border: 2.5px solid #ffffff;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease;
+          z-index: 5;
+        ">
+          <i class="fa-solid fa-pen" style="font-size: 13px;"></i>
+        </button>
+        <input type="file" id="profile-pic-input" accept="image/*" style="display:none;" />
+      </div>
       <div class="profile-header-meta">
         <div class="profile-header-name">
           <span id="hdr-fullname">Loading Name...</span>
@@ -763,6 +790,8 @@
   </main>
 </div>
 
+<script src="auth.js"></script>
+<script src="js/csv-exporter.js"></script>
 <script src="script.js"></script>
 <script src="js/admin-profile.js"></script>
 </body>

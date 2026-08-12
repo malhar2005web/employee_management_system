@@ -1,0 +1,4 @@
+/* desktop.css - Desktop-specific styling overrides */
+body {
+    border: 1px solid rgba(15, 139, 115, 0.3);
+}

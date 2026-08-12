@@ -1,5 +1,38 @@
 import express from 'express';
 import { protectRoute, isEmployee } from '../middleware/protectRoute.js';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename_route = fileURLToPath(import.meta.url);
+const __dirname_route = path.dirname(__filename_route);
+
+// Multer config for chat file uploads
+const chatStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname_route, '..', 'uploads', 'chat');
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, uniqueSuffix + ext);
+    }
+});
+
+const chatUpload = multer({
+    storage: chatStorage,
+    limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+    fileFilter: (req, file, cb) => {
+        const allowed = /\.(jpg|jpeg|png|gif|webp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|7z|tar|gz)$/i;
+        if (allowed.test(path.extname(file.originalname))) {
+            cb(null, true);
+        } else {
+            cb(new Error('Unsupported file type'), false);
+        }
+    }
+});
+
 import {
     getDashboardSummary,
     getAttendanceStatus,
@@ -80,7 +113,7 @@ import { isEmployeeOrAdmin } from '../middleware/protectRoute.js';
 // Chat routes (accessible by Employee & Admin)
 router.get("/chat/contacts", protectRoute, isEmployeeOrAdmin, getChatContacts);
 router.get("/chat/messages", protectRoute, isEmployeeOrAdmin, getChatMessages);
-router.post("/chat/send", protectRoute, isEmployeeOrAdmin, sendChatMessage);
+router.post("/chat/send", protectRoute, isEmployeeOrAdmin, chatUpload.single('file'), sendChatMessage);
 
 router.put("/profile", updateProfile);
 router.post("/change-password", changePassword);

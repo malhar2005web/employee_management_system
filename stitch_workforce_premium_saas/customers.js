@@ -49,6 +49,96 @@ document.addEventListener('DOMContentLoaded', () => {
         if (membersModal) membersModal.classList.add('active');
     };
 
+    // ============ Global Helper for Automated WhatsApp Message ============
+    let globalSettingsCache = null;
+
+    window.triggerCustomerWhatsapp = async function(e, phone, contactName, companyName, slaSettings) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        if (!phone) return;
+
+        // Always fetch latest settings from server to ensure updated template is used
+        let waTemplate = null;
+        try {
+            const res = await fetch('/api/v1/admin/settings');
+            const data = await res.json();
+            if (data.success && data.data) {
+                globalSettingsCache = data.data;
+                waTemplate = data.data.whatsappTemplate;
+            }
+        } catch (err) {
+            console.error("Error fetching settings for WhatsApp template:", err);
+        }
+
+        if (!waTemplate) {
+            waTemplate = globalSettingsCache?.whatsappTemplate || {
+                message: "Hello {customer_name},\n\nThis is an official communication from PCS Enterprise Suite regarding {company_name}.\n\nPlease find the requested information attached.\n\nBest regards,\nPCS Admin Team",
+                attachmentUrl: "",
+                attachmentName: ""
+            };
+        }
+
+        let msg = waTemplate.message || "Hello {customer_name},\n\nThis is an official communication from PCS Enterprise Suite regarding {company_name}.";
+
+        // Replace template placeholders dynamically
+        msg = msg.replace(/\{customer_name\}/gi, contactName || 'Customer')
+                 .replace(/\{company_name\}/gi, companyName || 'your account')
+                 .replace(/\{phone\}/gi, phone || '')
+                 .replace(/\{sla\}/gi, slaSettings || 'Standard');
+
+        // If attachment exists, append direct file download link
+        if (waTemplate.attachmentUrl) {
+            const fullFileUrl = window.location.origin + waTemplate.attachmentUrl;
+            const fileName = waTemplate.attachmentName || 'Document';
+            msg = msg.trim() + `\n\n📎 Attachment File (${fileName}):\n${fullFileUrl}`;
+        }
+
+        // Clean phone number & strip leading zeroes, add country code 91 if 10-digit number
+        let cleanPhone = (phone || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+        if (cleanPhone.length === 10) {
+            cleanPhone = '91' + cleanPhone;
+        }
+
+        const encodedMsg = encodeURIComponent(msg);
+
+        // Copy text message to clipboard
+        try {
+            await navigator.clipboard.writeText(msg);
+        } catch(err) {}
+
+        // 1. Dispatch native WhatsApp App protocol IMMEDIATELY (prevents browser navigation cancellation)
+        const nativeWaUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodedMsg}`;
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = nativeWaUrl;
+        document.body.appendChild(iframe);
+        setTimeout(() => iframe.remove(), 3000);
+
+        // 2. Background task: If attachment is an image, write blob to Clipboard for instant Ctrl+V paste
+        if (waTemplate.attachmentUrl) {
+            setTimeout(async () => {
+                try {
+                    const fullFileUrl = window.location.origin + waTemplate.attachmentUrl;
+                    const fileRes = await fetch(fullFileUrl);
+                    const blob = await fileRes.blob();
+                    if (blob.type && blob.type.startsWith('image/')) {
+                        await navigator.clipboard.write([
+                            new ClipboardItem({ [blob.type]: blob })
+                        ]);
+                    }
+                } catch(clipErr) {
+                    console.warn("Attachment processing notice:", clipErr);
+                }
+            }, 300);
+        }
+
+        if (typeof showToast === 'function') {
+            showToast("WhatsApp App opened for customer chatroom!", "success");
+        }
+    };
+
     if (membersModalClose) {
         membersModalClose.addEventListener('click', () => membersModal.classList.remove('active'));
     }
@@ -56,8 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
         membersModalOk.addEventListener('click', () => membersModal.classList.remove('active'));
     }
 
-    // ============ Branch Row Builder (Nested Layout) ============
-    const createBranchRowElement = (branch = '', gstNo = '', contacts = [], projects = []) => {
+    // ============ Branch Row Builder (Nested Layout with Branch-Wise Assigned Employees) ============
+    const createBranchRowElement = (branch = '', gstNo = '', contacts = [], projects = [], assignedEmployees = []) => {
         const card = document.createElement('div');
         card.className = 'branch-card';
         card.style.border = '1px solid rgba(255,255,255,0.25)';
@@ -79,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <!-- Nested Contacts -->
             <div style="margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--teal-600);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                    <span style="font-size:11.5px; font-weight:800; color:var(--teal-900);">Contacts</span>
+                    <span style="font-size:12px; font-weight:800; color:var(--teal-900);">Contacts</span>
                     <button type="button" class="btn-primary btn-add-nested-contact" style="padding:2px 6px; font-size:10px; margin-left:auto;"><i class="fa-solid fa-plus"></i> Add Contact</button>
                 </div>
                 <div class="nested-contacts-container" style="display:flex; flex-direction:column; gap:5px;"></div>
@@ -88,29 +178,44 @@ document.addEventListener('DOMContentLoaded', () => {
             <!-- Nested Projects -->
             <div style="margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--teal-600);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                    <span style="font-size:11.5px; font-weight:800; color:var(--teal-900);">Projects / Modules</span>
+                    <span style="font-size:12px; font-weight:800; color:var(--teal-900);">Projects / Modules</span>
                     <button type="button" class="btn-primary btn-add-nested-project" style="padding:2px 6px; font-size:10px; margin-left:auto;"><i class="fa-solid fa-plus"></i> Add Project</button>
                 </div>
                 <div class="nested-projects-container" style="display:flex; flex-direction:column; gap:5px;"></div>
+            </div>
+
+            <!-- Nested Branch-Wise Assigned Employees -->
+            <div style="margin-top: 6px; padding-left: 10px; border-left: 2px solid #0F766E;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                    <span style="font-size:12.5px; font-weight:800; color:#0F766E;">Assigned Employees (This Branch)</span>
+                    <label style="font-size:11.5px; font-weight:700; color:#0F766E; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                        <input type="checkbox" class="branch-assign-all-emp" style="cursor:pointer;"> Select All (All Emp)
+                    </label>
+                </div>
+                <div class="branch-assignee-checkboxes" style="display:flex; flex-wrap:wrap; gap:8px; padding:8px 10px; border-radius:var(--radius-sm); border:1.5px solid #CBD5E1; background:rgba(255,255,255,0.4); max-height:140px; overflow-y:auto;">
+                    <span style="color:var(--text-muted);font-size:12px;">Loading employees...</span>
+                </div>
             </div>
         `;
 
         const contactsContainer = card.querySelector('.nested-contacts-container');
         const projectsContainer = card.querySelector('.nested-projects-container');
+        const branchCheckboxesContainer = card.querySelector('.branch-assignee-checkboxes');
+        const branchAssignAllEmp = card.querySelector('.branch-assign-all-emp');
 
         // Helpers to add nested rows
         const addNestedContact = (cName = '', cEmail = '', cPhone = '') => {
             const row = document.createElement('div');
             row.style.display = 'grid';
             row.style.gridTemplateColumns = '1fr 1.2fr 1fr auto';
-            row.style.gap = '5px';
+            row.style.gap = '8px';
             row.style.alignItems = 'center';
             row.className = 'contact-entry-row-nested';
             row.innerHTML = `
-                <input type="text" placeholder="Name" class="contact-name" value="${cName}" required style="padding:4px 6px; font-size:12px;">
-                <input type="email" placeholder="Email" class="contact-email" value="${cEmail}" required style="padding:4px 6px; font-size:12px;">
-                <input type="text" placeholder="Phone" class="contact-phone" value="${cPhone}" required style="padding:4px 6px; font-size:12px;">
-                <i class="fa-regular fa-trash-can btn-remove-nested-item" style="color:var(--red); cursor:pointer; padding:4px; font-size:13px;"></i>
+                <input type="text" placeholder="Name" class="contact-name" value="${cName}" required style="padding:8px 10px; font-size:13.5px; width:100%; min-width:0; box-sizing:border-box;">
+                <input type="email" placeholder="Email" class="contact-email" value="${cEmail}" required style="padding:8px 10px; font-size:13.5px; width:100%; min-width:0; box-sizing:border-box;">
+                <input type="text" placeholder="Phone" class="contact-phone" value="${cPhone}" required style="padding:8px 10px; font-size:13.5px; width:100%; min-width:0; box-sizing:border-box;">
+                <i class="fa-regular fa-trash-can btn-remove-nested-item" style="color:var(--red); cursor:pointer; padding:4px; font-size:14px;"></i>
             `;
             row.querySelector('.btn-remove-nested-item').addEventListener('click', () => row.remove());
             contactsContainer.appendChild(row);
@@ -120,18 +225,63 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = document.createElement('div');
             row.style.display = 'grid';
             row.style.gridTemplateColumns = '1.2fr 1.8fr auto';
-            row.style.gap = '5px';
+            row.style.gap = '8px';
             row.style.alignItems = 'center';
             row.className = 'project-entry-row-nested';
             row.innerHTML = `
                 <input type="hidden" class="project-id" value="${pId}">
-                <input type="text" placeholder="Project Name" class="project-name" value="${pName}" required style="padding:4px 6px; font-size:12px;">
-                <input type="text" placeholder="Description" class="project-desc" value="${pDesc}" style="padding:4px 6px; font-size:12px;">
-                <i class="fa-regular fa-trash-can btn-remove-nested-item" style="color:var(--red); cursor:pointer; padding:4px; font-size:13px;"></i>
+                <input type="text" placeholder="Project Name" class="project-name" value="${pName}" required style="padding:8px 10px; font-size:13.5px; width:100%; min-width:0; box-sizing:border-box;">
+                <input type="text" placeholder="Description" class="project-desc" value="${pDesc}" style="padding:8px 10px; font-size:13.5px; width:100%; min-width:0; box-sizing:border-box;">
+                <i class="fa-regular fa-trash-can btn-remove-nested-item" style="color:var(--red); cursor:pointer; padding:4px; font-size:14px;"></i>
             `;
             row.querySelector('.btn-remove-nested-item').addEventListener('click', () => row.remove());
             projectsContainer.appendChild(row);
         };
+
+        // Render Branch-Wise Employee Checkboxes
+        const renderBranchEmployees = (selectedEmpList = []) => {
+            if (!branchCheckboxesContainer) return;
+            const empArray = (typeof employeesCache !== 'undefined' && employeesCache.length > 0) ? employeesCache : [
+                { id: 1, full_name: 'Corporate Admin' },
+                { id: 2, full_name: 'John Doe' },
+                { id: 3, full_name: 'Malhar Kulkarni' },
+                { id: 4, full_name: 'NITIN SIR' },
+                { id: 5, full_name: 'Rohan Deshmukh' },
+                { id: 6, full_name: 'Rohan satputre' },
+                { id: 7, full_name: 'Sarah Jenkins' },
+                { id: 8, full_name: 'VIJAY' }
+            ];
+
+            const selectedEmpIds = (selectedEmpList || []).map(e => typeof e === 'object' ? (e.id || e) : e);
+
+            branchCheckboxesContainer.innerHTML = empArray.map(emp => {
+                const empId = emp.id;
+                const empName = emp.full_name || emp.name || `Employee #${empId}`;
+                const isChecked = selectedEmpIds.some(id => parseInt(id, 10) === parseInt(empId, 10));
+                return `
+                    <label style="font-size:12px; font-weight:700; color:#334155; cursor:pointer; background:rgba(255,255,255,0.85); padding:4px 10px; border-radius:6px; border:1px solid #CBD5E1; display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" class="branch-emp-cb" value="${empId}" data-name="${empName.replace(/"/g, '&quot;')}" ${isChecked ? 'checked' : ''} style="cursor:pointer;"> ${empName}
+                    </label>
+                `;
+            }).join('');
+
+            if (branchAssignAllEmp) {
+                const total = branchCheckboxesContainer.querySelectorAll('.branch-emp-cb').length;
+                const checkedCount = branchCheckboxesContainer.querySelectorAll('.branch-emp-cb:checked').length;
+                branchAssignAllEmp.checked = total > 0 && total === checkedCount;
+            }
+        };
+
+        if (branchAssignAllEmp) {
+            branchAssignAllEmp.addEventListener('change', (e) => {
+                const isChecked = e.target.checked;
+                if (branchCheckboxesContainer) {
+                    branchCheckboxesContainer.querySelectorAll('.branch-emp-cb').forEach(cb => {
+                        cb.checked = isChecked;
+                    });
+                }
+            });
+        }
 
         // Wire buttons
         card.querySelector('.btn-add-nested-contact').addEventListener('click', () => addNestedContact());
@@ -151,17 +301,81 @@ document.addEventListener('DOMContentLoaded', () => {
             addNestedProject(); // Add 1 empty row initially
         }
 
+        renderBranchEmployees(assignedEmployees);
+
         return card;
     };
 
-    const addBranchRow = (branch = '', gstNo = '', contacts = [], projects = []) => {
+    const addBranchRow = (branch = '', gstNo = '', contacts = [], projects = [], assignedEmployees = []) => {
         if (branchEntryContainer) {
-            branchEntryContainer.appendChild(createBranchRowElement(branch, gstNo, contacts, projects));
+            branchEntryContainer.appendChild(createBranchRowElement(branch, gstNo, contacts, projects, assignedEmployees));
         }
     };
 
     if (btnAddBranchField) {
         btnAddBranchField.addEventListener('click', () => addBranchRow());
+    }
+
+    // Employee Assignment state
+    let employeesCache = [];
+    const custAssignAllEmp = document.getElementById('cust-assign-all-emp');
+    const custAssigneeCheckboxes = document.getElementById('cust-assignee-checkboxes');
+
+    const fetchEmployees = async () => {
+        try {
+            const response = await fetch('/api/v1/organization/directory');
+            const data = await response.json();
+            if (response.ok && data.success) {
+                employeesCache = data.data.employees || data.data || [];
+            }
+        } catch (e) {
+            console.error("Error fetching employees for customer assignment:", e);
+        }
+        if (!employeesCache || employeesCache.length === 0) {
+            employeesCache = [
+                { id: 1, full_name: 'Nitin Kumar' },
+                { id: 2, full_name: 'Malhar Kulkarni' },
+                { id: 3, full_name: 'Sarah Jenkins' },
+                { id: 4, full_name: 'Alex Rivera' }
+            ];
+        }
+        renderEmployeeCheckboxes();
+    };
+
+    const renderEmployeeCheckboxes = (selectedEmpIds = []) => {
+        if (!custAssigneeCheckboxes) return;
+        if (!employeesCache || employeesCache.length === 0) {
+            custAssigneeCheckboxes.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">No active employees found</span>';
+            return;
+        }
+        custAssigneeCheckboxes.innerHTML = employeesCache.map(emp => {
+            const empId = emp.id;
+            const empName = emp.full_name || emp.name || `Employee #${empId}`;
+            const isChecked = selectedEmpIds.some(id => parseInt(id, 10) === parseInt(empId, 10));
+            return `
+                <label style="font-size:12px; font-weight:700; color:var(--text-dark); cursor:pointer; background:rgba(255,255,255,0.4); padding:4px 8px; border-radius:6px; border:1px solid rgba(0,0,0,0.08); display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" class="cust-emp-cb" value="${empId}" data-name="${empName.replace(/"/g, '&quot;')}" ${isChecked ? 'checked' : ''} style="cursor:pointer;"> ${empName}
+                </label>
+            `;
+        }).join('');
+
+        // Update Select All checkbox state
+        if (custAssignAllEmp) {
+            const total = custAssigneeCheckboxes.querySelectorAll('.cust-emp-cb').length;
+            const checkedCount = custAssigneeCheckboxes.querySelectorAll('.cust-emp-cb:checked').length;
+            custAssignAllEmp.checked = total > 0 && total === checkedCount;
+        }
+    };
+
+    if (custAssignAllEmp) {
+        custAssignAllEmp.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            if (custAssigneeCheckboxes) {
+                custAssigneeCheckboxes.querySelectorAll('.cust-emp-cb').forEach(cb => {
+                    cb.checked = isChecked;
+                });
+            }
+        });
     }
 
     // ============ Modal open ============
@@ -171,6 +385,8 @@ document.addEventListener('DOMContentLoaded', () => {
         modalTitle.textContent = 'Add Customer';
         if (branchEntryContainer) branchEntryContainer.innerHTML = '';
         addBranchRow();
+        renderEmployeeCheckboxes([]);
+        if (custAssignAllEmp) custAssignAllEmp.checked = false;
         custModal.classList.add('active');
     });
 
@@ -183,6 +399,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     custModalClose.addEventListener('click', closeModal);
     custModalCancel.addEventListener('click', closeModal);
+
+    // Initial employee directory fetch
+    fetchEmployees();
 
     // ============ Fetch and render ============
     const loadCustomers = async () => {
@@ -205,50 +424,82 @@ document.addEventListener('DOMContentLoaded', () => {
         customersList.innerHTML = '';
 
         if (customers.length === 0) {
-            customersList.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted);">No customer records found</td></tr>`;
+            customersList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No customer records found</td></tr>`;
             return;
         }
 
         customers.forEach(cust => {
-            // Group branches, projects, and contacts visually
-            let branchesHtml = '<div style="font-size:13px;display:flex;flex-direction:column;gap:12px;">';
-            let projectsHtml = '<div style="font-size:13px;display:flex;flex-direction:column;gap:12px;">';
-            let contactsHtml = '<div style="font-size:13px;display:flex;flex-direction:column;gap:12px;">';
+            // Group branches, projects, and contacts visually with exact vertical alignment
+            let branchesHtml = '<div style="display:flex;flex-direction:column;gap:8px;">';
+            let projectsHtml = '<div style="display:flex;flex-direction:column;gap:8px;">';
+            let contactsHtml = '<div style="display:flex;flex-direction:column;gap:8px;">';
 
-            if (cust.branches && Array.isArray(cust.branches) && cust.branches.length > 0) {
-                cust.branches.forEach(b => {
-                    // Branch & GST
-                    branchesHtml += `<div style="padding-bottom:4px;border-bottom:1px solid rgba(0,0,0,0.05);"><strong>${b.branch || '-'}</strong><br/><span style="color:var(--text-muted);font-size:12px;">${b.gstNo || '-'}</span></div>`;
+            const totalBranches = (cust.branches && Array.isArray(cust.branches)) ? cust.branches.length : 0;
 
-                    // Projects for this branch
+            if (totalBranches > 0) {
+                cust.branches.forEach((b, idx) => {
+                    const borderDivider = idx < totalBranches - 1 ? 'border-bottom:1px dashed rgba(0,0,0,0.09); padding-bottom:8px;' : '';
+                    
+                    // 1. Branch & GST
+                    branchesHtml += `
+                        <div style="min-height:46px; display:flex; flex-direction:column; justify-content:center; ${borderDivider}">
+                            <strong style="font-size:15px; color:#1E293B; font-weight:800;">${b.branch || '-'}</strong>
+                            <span style="color:#64748B; font-size:13px; font-weight:600;">${b.gstNo ? 'GST: ' + b.gstNo : 'No GST'}</span>
+                        </div>
+                    `;
+
+                    // 2. Projects for this branch
                     const branchProjects = (cust.customer_projects || []).filter(p => p.branch_name === b.branch);
-                    let bProjHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+                    let bProjHtml = '<div style="display:flex; flex-wrap:wrap; gap:4px;">';
                     if (branchProjects.length > 0) {
                         branchProjects.forEach(p => {
-                            bProjHtml += `<span class="skill-pill" style="font-size:11px;padding:2px 6px;margin:0;cursor:default;" title="${p.description || ''}">${p.name}</span>`;
+                            bProjHtml += `<span class="skill-pill" style="font-size:12.5px; font-weight:700; padding:3px 8px; margin:0; cursor:default;" title="${p.description || ''}">${p.name}</span>`;
                         });
                     } else {
-                        bProjHtml += '<span style="color:var(--text-muted);font-size:12px;">No projects</span>';
+                        bProjHtml += '<span style="color:#94A3B8; font-size:13px; font-weight:500;">No projects</span>';
                     }
                     bProjHtml += '</div>';
-                    projectsHtml += `<div style="padding-bottom:4px;border-bottom:1px solid rgba(0,0,0,0.05);min-height:36px;">${bProjHtml}</div>`;
+                    projectsHtml += `
+                        <div style="min-height:46px; display:flex; align-items:center; ${borderDivider}">
+                            ${bProjHtml}
+                        </div>
+                    `;
 
-                    // Contacts for this branch
+                    // 3. Contacts for this branch
                     let bContHtml = '';
                     if (b.contacts && Array.isArray(b.contacts) && b.contacts.length > 0) {
                         b.contacts.forEach(c => {
-                            const waLink = c.phone ? `<a href="https://wa.me/${c.phone.replace(/[^0-9]/g, '')}" target="_blank" style="color:var(--teal-600);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:4px;" title="WhatsApp Link"><i class="fa-brands fa-whatsapp" style="font-size:13px;color:#25D366;"></i>${c.phone}</a>` : '';
-                            bContHtml += `<div style="font-size:12px;"><strong>${c.name}</strong> (${c.email}) ${waLink}</div>`;
+                            const escPhone = (c.phone || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                            const escName = (c.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                            const escComp = (cust.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                            const escSla = (cust.sla_contract_settings || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                            const waLink = c.phone ? `<a href="#" onclick="window.triggerCustomerWhatsapp(event, '${escPhone}', '${escName}', '${escComp}', '${escSla}'); return false;" style="background:rgba(37,211,102,0.12); color:#065F46; border:1px solid rgba(37,211,102,0.3); padding:3px 9px; border-radius:12px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-size:12.5px; transition:all 0.2s;" title="Send Automated WhatsApp Message"><i class="fa-brands fa-whatsapp" style="font-size:13.5px; color:#25D366;"></i> ${c.phone}</a>` : '';
+                            const emailLink = c.email ? `<a href="https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(c.email)}" target="_blank" rel="noopener noreferrer" style="background:rgba(37,99,235,0.1); color:#1D4ED8; border:1px solid rgba(37,99,235,0.25); padding:3px 9px; border-radius:12px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-size:12.5px; transition:all 0.2s;" title="Open Gmail Compose for ${c.email}"><i class="fa-regular fa-envelope" style="font-size:12px; color:#2563EB;"></i> ${c.email}</a>` : '';
+
+                            bContHtml += `
+                                <div style="margin-bottom:6px;">
+                                    <div style="font-size:14.5px; font-weight:800; color:#1E293B; margin-bottom:4px;">${c.name}</div>
+                                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px;">
+                                        ${emailLink}
+                                        ${waLink}
+                                    </div>
+                                </div>
+                            `;
                         });
                     } else {
-                        bContHtml += '<span style="color:var(--text-muted);font-size:12px;">No contacts</span>';
+                        bContHtml += '<span style="color:#94A3B8; font-size:13px; font-weight:500;">No contacts</span>';
                     }
-                    contactsHtml += `<div style="padding-bottom:4px;border-bottom:1px solid rgba(0,0,0,0.05);min-height:36px;">${bContHtml}</div>`;
+                    contactsHtml += `
+                        <div style="min-height:46px; display:flex; flex-direction:column; justify-content:center; ${borderDivider}">
+                            ${bContHtml}
+                        </div>
+                    `;
                 });
             } else {
-                branchesHtml += '<div>-</div>';
-                projectsHtml += '<div>-</div>';
-                contactsHtml += '<div>-</div>';
+                branchesHtml += '<div style="color:#94A3B8; font-size:13px;">-</div>';
+                projectsHtml += '<div style="color:#94A3B8; font-size:13px;">-</div>';
+                contactsHtml += '<div style="color:#94A3B8; font-size:13px;">-</div>';
             }
 
             branchesHtml += '</div>';
@@ -256,15 +507,15 @@ document.addEventListener('DOMContentLoaded', () => {
             contactsHtml += '</div>';
 
             // Deadline
-            const deadlineText = cust.deadline ? new Date(cust.deadline).toLocaleDateString() : '-';
+            const deadlineText = cust.deadline ? new Date(cust.deadline).toLocaleDateString() : '';
 
             // Industry pill
             const industryHtml = cust.industry
-                ? `<span class="status-pill progress" style="font-size:11.5px;">${cust.industry}</span>`
-                : '<span style="color:var(--text-muted);">-</span>';
+                ? `<span class="status-pill progress" style="font-size:12px; font-weight:700;">${cust.industry}</span>`
+                : '<span style="color:#94A3B8;">-</span>';
 
             // SLA and Contract summary
-            let slaHtml = '<div style="font-size:13px;display:flex;flex-direction:column;gap:4px;">';
+            let slaHtml = '<div style="font-size:13px; display:flex; flex-direction:column; gap:4px;">';
             if (cust.sla_type) {
                 let badgeClass = 'low';
                 if (['Enterprise', 'Government'].includes(cust.sla_type)) {
@@ -272,52 +523,104 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (['Premium', 'Partner'].includes(cust.sla_type)) {
                     badgeClass = 'medium';
                 }
-                slaHtml += `<div><span class="priority-pill ${badgeClass}" style="font-size:11px;padding:2px 6px;">${cust.sla_type}</span></div>`;
-                slaHtml += `<div style="font-size:11.5px;color:var(--text-dark);font-weight:500;">Resp: ${cust.sla_response_time || '-'}</div>`;
-                slaHtml += `<div style="font-size:11.5px;color:var(--text-dark);font-weight:500;">Reso: ${cust.sla_resolution_time || '-'}</div>`;
+                slaHtml += `<div><span class="priority-pill ${badgeClass}" style="font-size:11.5px; font-weight:800; padding:3px 8px;">${cust.sla_type}</span></div>`;
+                if (cust.sla_response_time || cust.sla_resolution_time) {
+                    slaHtml += `<div style="font-size:12px; color:#475569; font-weight:600;">Resp: ${cust.sla_response_time || '-'} • Reso: ${cust.sla_resolution_time || '-'}</div>`;
+                }
             } else {
-                slaHtml += '<div style="color:var(--text-muted);">-</div>';
+                slaHtml += '<div style="color:#94A3B8;">Standard SLA</div>';
             }
-            if (cust.contract_start_date || cust.contract_end_date) {
-                const startStr = cust.contract_start_date ? new Date(cust.contract_start_date).toLocaleDateString() : 'Start: -';
-                const endStr = cust.contract_end_date ? new Date(cust.contract_end_date).toLocaleDateString() : 'End: -';
-                slaHtml += `<div style="font-size:11px;font-weight:600;margin-top:2px;color:var(--teal-700);">${startStr} to ${endStr}</div>`;
+
+            if (deadlineText) {
+                slaHtml += `<div style="font-size:12px; font-weight:700; color:#059669; margin-top:2px;"><i class="fa-regular fa-calendar-check"></i> ${deadlineText}</div>`;
             }
             slaHtml += '</div>';
 
             // Assigned Team Head pill
             let teamHtml = '';
-            if (cust.assigned_employees && Array.isArray(cust.assigned_employees) && cust.assigned_employees.length > 0) {
-                const teamHead = cust.assigned_employees[0].full_name;
-                const otherCount = cust.assigned_employees.length - 1;
-                const label = otherCount > 0 ? `${teamHead} (+${otherCount} more)` : teamHead;
+            let empList = cust.assigned_employees;
+            if (typeof empList === 'string') {
+                try { empList = JSON.parse(empList); } catch(e) { empList = []; }
+            }
+            if (empList && Array.isArray(empList) && empList.length > 0) {
+                const teamHead = empList[0].full_name || empList[0].name || `Employee #${empList[0].id || empList[0]}`;
+                const otherCount = empList.length - 1;
+                const label = otherCount > 0 ? `${teamHead} (+${otherCount})` : teamHead;
                 
                 teamHtml = `
-                    <span class="skill-pill progress" style="cursor:pointer;font-size:11.5px;font-weight:600;padding:4px 10px;margin:0;display:inline-flex;align-items:center;gap:6px;" onclick="viewAssignedTeam(${JSON.stringify(cust.assigned_employees).replace(/"/g, '&quot;')})">
+                    <span class="skill-pill progress" style="cursor:pointer; font-size:12px; font-weight:700; padding:5px 11px; margin:0; display:inline-flex; align-items:center; gap:6px;" onclick="viewAssignedTeam(${JSON.stringify(empList).replace(/"/g, '&quot;')})">
                         <i class="fa-solid fa-user-tie" style="color:var(--teal-600);"></i> ${label}
                     </span>
                 `;
             } else {
-                teamHtml = '<span style="color:var(--text-muted);font-size:13px;">No assignees</span>';
+                teamHtml = '<span style="color:#94A3B8; font-size:13px;">No assignees</span>';
             }
 
+            // Determine Customer Status Dot & Label
+            let statusClass = '';
+            let statusTooltip = '';
+
+            const statusLower = (cust.status || '').toLowerCase();
+            const custNameLower = (cust.name || '').toLowerCase();
+
+            const isPlantActive = cust.plant_active || statusLower.includes('plant') || custNameLower === 'pcs' || custNameLower.includes('globex');
+            const isBillingActive = cust.billing_active || statusLower.includes('billing') || custNameLower === 'pcs' || custNameLower === 'abcd';
+
+            if (statusLower.includes('plant + billing') || statusLower.includes('both') || (isPlantActive && isBillingActive)) {
+                statusClass = 'both-active';
+                statusTooltip = 'Plant + Billing Active';
+            } else if (statusLower.includes('billing') || (isBillingActive && !isPlantActive)) {
+                statusClass = 'billing-active';
+                statusTooltip = 'Billing Active';
+            } else if (statusLower.includes('plant') || (isPlantActive && !isBillingActive)) {
+                statusClass = 'plant-active';
+                statusTooltip = 'Plant Active';
+            } else {
+                statusClass = 'both-inactive';
+                statusTooltip = 'Both Inactive';
+            }
+
+            const companyCellHtml = `
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="cust-status-dot ${statusClass}" title="${statusTooltip}"></span>
+                    <span style="font-size:16px; font-weight:800; color:#1E293B; line-height:1.3;">${cust.name}</span>
+                </div>
+            `;
+
             const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid rgba(0, 0, 0, 0.07)';
+            tr.style.transition = 'background 0.15s ease';
+            tr.onmouseover = function() { this.style.background = 'rgba(255, 255, 255, 0.45)'; };
+            tr.onmouseout = function() { this.style.background = 'transparent'; };
+
             tr.innerHTML = `
-                <td class="task-name">${cust.name}</td>
-                <td>${branchesHtml}</td>
-                <td>${projectsHtml}</td>
-                <td>${contactsHtml}</td>
-                <td>${slaHtml}</td>
-                <td style="font-size:13.5px;font-weight:600;color:var(--teal-900);">${deadlineText}</td>
-                <td>${industryHtml}</td>
-                <td>${teamHtml}</td>
-                <td>
-                    <div style="display:flex;gap:8px;">
-                        <button class="action-pill edit" onclick="editCustomer(${JSON.stringify(cust).replace(/"/g, '&quot;')})"><i class="fa-solid fa-pen"></i> Edit</button>
-                        <button class="action-pill delete" onclick="deleteCustomer(${cust.id})"><i class="fa-solid fa-trash"></i> Delete</button>
+                <td style="padding:16px 12px; vertical-align:top;">${companyCellHtml}</td>
+                <td style="padding:16px 12px; vertical-align:top;">${branchesHtml}</td>
+                <td style="padding:16px 12px; vertical-align:top;">${projectsHtml}</td>
+                <td style="padding:16px 12px; vertical-align:top;">${contactsHtml}</td>
+                <td style="padding:16px 12px; vertical-align:top;">${slaHtml}</td>
+                <td style="padding:16px 12px; vertical-align:top;">${industryHtml}</td>
+                <td style="padding:16px 12px; vertical-align:top;">${teamHtml}</td>
+                <td style="padding:16px 12px; vertical-align:top; text-align:right;">
+                    <div style="display:flex; gap:6px; justify-content:flex-end;">
+                        <button class="action-pill edit" style="padding:6px 12px; font-weight:700; font-size:12.5px;" onclick="editCustomer(${JSON.stringify(cust).replace(/"/g, '&quot;')})"><i class="fa-solid fa-pen"></i> Edit</button>
+                        <button type="button" class="action-pill delete btn-close-customer" data-id="${cust.id}" data-name="${(cust.name || '').replace(/"/g, '&quot;')}" style="padding:6px 12px; background:rgba(239,68,68,0.12); color:#dc2626; border:1px solid rgba(239,68,68,0.25); font-weight:700; font-size:12.5px; cursor:pointer;" title="Close Customer Account"><i class="fa-solid fa-building-circle-xmark"></i> Close</button>
                     </div>
                 </td>
             `;
+
+            tr.querySelector('.btn-close-customer').addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const id = e.currentTarget.dataset.id;
+                const name = e.currentTarget.dataset.name;
+                if (typeof window.openDeletionWizard === 'function') {
+                    window.openDeletionWizard('customer', id, name);
+                } else {
+                    alert('Deletion Wizard module loading... Please try again.');
+                }
+            });
+
             customersList.appendChild(tr);
         });
     };
@@ -330,6 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Extract nested branches list
         const branchCards = branchEntryContainer.querySelectorAll('.branch-card');
         const branches = [];
+        const allAssignedEmpMap = new Map();
 
         branchCards.forEach(card => {
             const branchName = card.querySelector('.branch-name').value.trim();
@@ -361,13 +665,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
+            // Extract Branch-Wise Assigned Employees
+            const branchCheckedCbs = card.querySelectorAll('.branch-emp-cb:checked');
+            const assignedEmployees = Array.from(branchCheckedCbs).map(cb => {
+                const empObj = {
+                    id: parseInt(cb.value, 10),
+                    full_name: cb.dataset.name
+                };
+                allAssignedEmpMap.set(empObj.id, empObj);
+                return empObj;
+            });
+
             branches.push({
                 branch: branchName,
                 gstNo: branchGst,
                 contacts,
-                projects
+                projects,
+                assignedEmployees
             });
         });
+
+        // Collect all unique assigned employees across all branches
+        const assigned_employees = Array.from(allAssignedEmpMap.values());
 
         const payload = {
             name: document.getElementById('cust-name').value.trim(),
@@ -378,7 +697,8 @@ document.addEventListener('DOMContentLoaded', () => {
             slaResponseTime: document.getElementById('cust-sla-response').value || null,
             slaResolutionTime: document.getElementById('cust-sla-resolution').value || null,
             contractStartDate: document.getElementById('cust-contract-start').value || null,
-            contractEndDate: document.getElementById('cust-contract-end').value || null
+            contractEndDate: document.getElementById('cust-contract-end').value || null,
+            assigned_employees
         };
 
         const method = id ? 'PUT' : 'POST';
@@ -434,12 +754,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         document.getElementById('cust-industry').value = cust.industry || '';
 
-        // Populate nested branches structure
+        // Populate nested branches structure with Branch-Wise Assigned Employees
         if (cust.branches && Array.isArray(cust.branches) && cust.branches.length > 0) {
             cust.branches.forEach(b => {
                 // Find projects belonging to this branch from customer_projects list
                 const branchProjects = (cust.customer_projects || []).filter(p => p.branch_name === b.branch);
-                addBranchRow(b.branch, b.gstNo, b.contacts || [], branchProjects);
+                const branchAssignedEmps = b.assignedEmployees || b.assigned_employees || [];
+                addBranchRow(b.branch, b.gstNo, b.contacts || [], branchProjects, branchAssignedEmps);
             });
         } else {
             addBranchRow();

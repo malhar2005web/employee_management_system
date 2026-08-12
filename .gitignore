@@ -30,3 +30,11 @@ pnpm-debug.log*
 # System Files
 .DS_Store
 Thumbs.db
+
+# .NET and MAUI Build Artifacts
+**/bin/
+**/obj/
+**/[Bb]in/
+**/[Oo]bj/
+*.user
+

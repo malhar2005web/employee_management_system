@@ -187,13 +187,30 @@
             // Update topbar & sidebar name
             document.getElementById('profile-name').textContent = me.full_name || me.username || 'Employee';
 
-            // Initials Avatar
-            if (me.full_name) {
-                const parts = me.full_name.split(' ');
-                const initials = parts.map(p => p.charAt(0)).join('').substring(0, 2).toUpperCase();
-                document.getElementById('hdr-avatar').textContent = initials;
+            // Initials Avatar or Saved Profile Picture
+            const hdrAvatarText = document.getElementById('hdr-avatar-text');
+            const hdrAvatarImg = document.getElementById('hdr-avatar-img');
+            const savedPic = localStorage.getItem('user_profile_pic') || localStorage.getItem('admin_profile_pic') || (me && me.profile_picture && !me.profile_picture.includes('pravatar.cc') ? me.profile_picture : null);
+            if (savedPic) {
+                localStorage.setItem('user_profile_pic', savedPic);
+                if (hdrAvatarImg) {
+                    hdrAvatarImg.src = savedPic;
+                    hdrAvatarImg.style.display = 'block';
+                }
+                if (hdrAvatarText) hdrAvatarText.style.display = 'none';
+                if (typeof window.syncAllTopbarAvatars === 'function') window.syncAllTopbarAvatars();
             } else {
-                document.getElementById('hdr-avatar').textContent = 'EE';
+                if (hdrAvatarImg) hdrAvatarImg.style.display = 'none';
+                if (hdrAvatarText) {
+                    hdrAvatarText.style.display = 'inline';
+                    if (me.full_name) {
+                        const parts = me.full_name.split(' ');
+                        const initials = parts.map(p => p.charAt(0)).join('').substring(0, 2).toUpperCase();
+                        hdrAvatarText.textContent = initials;
+                    } else {
+                        hdrAvatarText.textContent = 'EE';
+                    }
+                }
             }
 
             // Set Header Information
@@ -477,6 +494,123 @@
             showToast("Network error", "error");
         }
     });
+
+    // --- Profile Picture Edit & Upload System ---
+    const avatarTrigger = document.getElementById('btn-avatar-upload-trigger');
+    const avatarPencil = document.getElementById('btn-avatar-pencil');
+    const picInput = document.getElementById('profile-pic-input');
+    const hdrAvatarText = document.getElementById('hdr-avatar-text');
+    const hdrAvatarImg = document.getElementById('hdr-avatar-img');
+
+    function applyAvatarImage(dataUrl) {
+        if (hdrAvatarImg) {
+            hdrAvatarImg.src = dataUrl;
+            hdrAvatarImg.style.display = 'block';
+        }
+        if (hdrAvatarText) hdrAvatarText.style.display = 'none';
+        localStorage.setItem('user_profile_pic', dataUrl);
+        localStorage.setItem('admin_profile_pic', dataUrl);
+        if (typeof window.syncAllTopbarAvatars === 'function') {
+            window.syncAllTopbarAvatars();
+        } else {
+            document.querySelectorAll('.topbar-user img').forEach(img => {
+                img.src = dataUrl;
+            });
+        }
+    }
+
+    if (picInput) {
+        if (avatarTrigger) {
+            avatarTrigger.addEventListener('click', (e) => {
+                if (e.target !== avatarPencil && !avatarPencil.contains(e.target)) {
+                    picInput.click();
+                }
+            });
+        }
+        if (avatarPencil) {
+            avatarPencil.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                picInput.click();
+            });
+        }
+
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB limit
+        picInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (!file.type.startsWith('image/')) {
+                    showToast('Please select a valid image file (PNG, JPG, WebP)', 'error');
+                    return;
+                }
+                if (file.size > MAX_FILE_SIZE) {
+                    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+                    showToast(`Image size is too large (${sizeMB}MB). Maximum allowed limit is 5MB.`, 'error');
+                    picInput.value = '';
+                    return;
+                }
+                try {
+                    const dataUrl = await compressAvatarImage(file, 360, 0.85);
+                    applyAvatarImage(dataUrl);
+
+                    try {
+                        localStorage.setItem('user_profile_pic', dataUrl);
+                        localStorage.setItem('admin_profile_pic', dataUrl);
+                    } catch(quotaErr) {
+                        console.warn("LocalStorage save warning:", quotaErr);
+                    }
+
+                    try {
+                        await fetch('/api/v1/employee/profile', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ profile_picture: dataUrl })
+                        });
+                    } catch(err) {
+                        console.error("DB Profile pic save error:", err);
+                    }
+                    showToast('Profile picture updated & synced successfully!');
+                } catch(compressErr) {
+                    console.error("Compression error:", compressErr);
+                    showToast('Error processing image file', 'error');
+                }
+            }
+        });
+    }
+
+    function compressAvatarImage(file, maxWidth = 360, quality = 0.85) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth || height > maxWidth) {
+                        if (width > height) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        } else {
+                            width = Math.round((width * maxWidth) / height);
+                            height = maxWidth;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.onerror = reject;
+                img.src = e.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
 
     await loadProfile();
 })();

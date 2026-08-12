@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS Admin — Workstation Monitoring & Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css?v=3">
+<style>
+  /* Custom Glassmorphism Theme Additions */
+  .health-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 1024px) {
+    .health-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  @media (max-width: 640px) {
+    .health-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .health-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    border-radius: var(--radius-md);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: var(--glass-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .health-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+  }
+
+  .health-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+
+  .health-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+  }
+  .health-icon.online { background: rgba(35, 184, 153, 0.15); color: #10b981; }
+  .health-icon.offline { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+  .health-icon.working { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+  .health-icon.idle { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+  .health-icon.alert { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+  .health-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-dark);
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Sleek Single-Line Controls Bar */
+  .controls-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 16px;
+    margin-bottom: 24px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    padding: 12px 20px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--glass-shadow-soft);
+  }
+
+  .controls-left, .controls-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .select-pill, .btn-pill {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 20px;
+    border: 1px solid var(--glass-border);
+    background: white;
+    color: var(--text-dark);
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+  .btn-pill.primary {
+    background: var(--teal-900);
+    color: white;
+    border: none;
+  }
+  .btn-pill.primary:hover {
+    background: #0d4439;
+  }
+
+  .tab-nav {
+    display: flex;
+    gap: 8px;
+    border-bottom: 2px solid rgba(0,0,0,0.06);
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .tab-btn.active {
+    color: var(--teal-900);
+    border-bottom-color: var(--teal-900);
+  }
+
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: block;
+  }
+
+  .data-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .badge-status {
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .badge-status.online { background: rgba(16, 185, 129, 0.15); color: #047857; }
+  .badge-status.offline { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
+  .badge-status.productive { background: rgba(16, 185, 129, 0.15); color: #047857; }
+  .badge-status.unproductive { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
+  .badge-status.neutral { background: rgba(107, 114, 128, 0.15); color: #374151; }
+
+  /* App & Web Analytics Grid */
+  .analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media(max-width: 900px) {
+    .analytics-grid { grid-template-columns: 1fr; }
+  }
+
+  .usage-bar-row {
+    margin-bottom: 14px;
+  }
+  .usage-bar-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .usage-bar-track {
+    height: 10px;
+    border-radius: 5px;
+    background: rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .usage-bar-fill {
+    height: 100%;
+    border-radius: 5px;
+    background: linear-gradient(90deg, #10b981, #059669);
+  }
+  .usage-bar-fill.neutral { background: linear-gradient(90deg, #9ca3af, #6b7280); }
+  .usage-bar-fill.unproductive { background: linear-gradient(90deg, #f87171, #ef4444); }
+
+  /* Modal Overlay */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 42, 36, 0.4);
+    backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .modal-overlay.active {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    z-index: 99999 !important;
+  }
+  .modal-box {
+    width: 100%;
+    max-width: 520px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+  }
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text-dark);
+  }
+  .form-control {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 13px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: white;
+    outline: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Admin</h1>
+        <span>Enterprise Suite</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-support.html'"><i class="fa-solid fa-headset"></i> Support Desk</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
+    </ul>
+
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search workstations, apps, domains...</div>
+
+      <nav class="topbar-nav">
+        <a href="/admin-dashboard.html">Dashboard</a>
+        <a href="#" class="active">Workstation Monitoring</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-bell"></i><span class="badge">2</span></button>
+        <button class="icon-btn" id="open-config-btn" title="Workstation Telemetry Settings"><i class="fa-solid fa-sliders"></i></button>
+        <div class="topbar-user" onclick="window.location.href='/admin-profile.html'" style="cursor:pointer;">
+          <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header" style="margin-bottom:16px;">
+      <div>
+        <h2>Workstation Telemetry &amp; Monitoring</h2>
+        <p>Real-time machine status, work time distribution, application &amp; web telemetry (Privacy Whitelist Protected).</p>
+      </div>
+    </div>
+
+    <!-- Controls Bar (Single Line Layout) -->
+    <div class="controls-bar">
+      <div class="controls-left">
+        <label style="font-size:13.5px; font-weight:700;"><i class="fa-solid fa-arrows-rotate"></i> Auto Refresh:</label>
+        <select class="select-pill" id="auto-refresh-select">
+          <option value="manual">Manual Only</option>
+          <option value="30000" selected>Every 30 Seconds</option>
+          <option value="60000">Every 1 Minute</option>
+          <option value="300000">Every 5 Minutes</option>
+        </select>
+
+        <label style="font-size:13.5px; font-weight:700; margin-left:12px;"><i class="fa-regular fa-calendar"></i> Date Range:</label>
+        <select class="select-pill" id="date-range-select">
+          <option value="Today" selected>Today</option>
+          <option value="Yesterday">Yesterday</option>
+          <option value="7days">Last 7 Days</option>
+          <option value="30days">Last 30 Days</option>
+        </select>
+      </div>
+
+      <div class="controls-right">
+        <button class="btn-pill" id="sync-now-btn"><i class="fa-solid fa-cloud-arrow-down"></i> Sync Now</button>
+        <button class="btn-pill" onclick="exportModuleCSV('monitoring')" style="background:linear-gradient(135deg, #047857, #065f46); color:white; font-weight:700; border:none; box-shadow:0 4px 12px rgba(4,120,87,0.25);"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+      </div>
+    </div>
+
+    <!-- 🌟 Executive Health Cards (5 Balanced Cards Row) -->
+    <div class="health-grid">
+      <div class="health-card">
+        <div class="health-header">Online Machines <div class="health-icon online"><i class="fa-solid fa-desktop"></i></div></div>
+        <div class="health-value" id="card-online-comp">4</div>
+      </div>
+
+      <div class="health-card">
+        <div class="health-header">Offline Machines <div class="health-icon offline"><i class="fa-solid fa-power-off"></i></div></div>
+        <div class="health-value" id="card-offline-comp">1</div>
+      </div>
+
+      <div class="health-card">
+        <div class="health-header">Employees Working <div class="health-icon working"><i class="fa-solid fa-user-gear"></i></div></div>
+        <div class="health-value" id="card-working-emp">4</div>
+      </div>
+
+      <div class="health-card">
+        <div class="health-header">Employees Idle <div class="health-icon idle"><i class="fa-solid fa-mug-hot"></i></div></div>
+        <div class="health-value" id="card-idle-emp">1</div>
+      </div>
+
+      <div class="health-card">
+        <div class="health-header">Alerts Today <div class="health-icon alert"><i class="fa-solid fa-triangle-exclamation"></i></div></div>
+        <div class="health-value" id="card-alerts">2</div>
+      </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('tab-workstations', this)"><i class="fa-solid fa-laptop-code"></i> Workstations &amp; Live Activity</button>
+      <button class="tab-btn" onclick="switchTab('tab-apps', this)"><i class="fa-solid fa-layer-group"></i> Application Analytics</button>
+      <button class="tab-btn" onclick="switchTab('tab-websites', this)"><i class="fa-solid fa-globe"></i> Website Analytics</button>
+      <button class="tab-btn" onclick="switchTab('tab-alerts', this)"><i class="fa-solid fa-shield-cat"></i> Behavior Alerts &amp; Policy</button>
+    </div>
+
+    <!-- TAB 1: WORKSTATIONS & LIVE ACTIVITY -->
+    <div class="tab-content active" id="tab-workstations">
+      <div class="data-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="font-size:16px; font-weight:800; color:var(--teal-900);"><i class="fa-solid fa-network-wired"></i> Employee Workstation Live Monitor</h3>
+          <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-shield-halved"></i> Whitelist Active (No Keystrokes/Files Captured)</span>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table class="data-table" style="width:100%; border-collapse:collapse;" id="table-workstations">
+            <thead>
+              <tr style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.06); font-size:13px; color:var(--text-muted);">
+                <th style="padding:12px;">Employee</th>
+                <th style="padding:12px;">Workstation / OS</th>
+                <th style="padding:12px;">Current Active App</th>
+                <th style="padding:12px;">Current Website</th>
+                <th style="padding:12px;">Work Time Today</th>
+                <th style="padding:12px;">Input Level</th>
+                <th style="padding:12px; text-align:right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="workstations-tbody">
+              <!-- Loaded via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: APPLICATION ANALYTICS -->
+    <div class="tab-content" id="tab-apps">
+      <div class="analytics-grid">
+        <div class="data-card">
+          <h3 style="font-size:16px; font-weight:800; color:var(--teal-900); margin-bottom:16px;"><i class="fa-solid fa-window-restore"></i> Top Applications Used</h3>
+          <div id="apps-bars-container">
+            <!-- Loaded via JS -->
+          </div>
+        </div>
+
+        <div class="data-card">
+          <h3 style="font-size:16px; font-weight:800; color:var(--teal-900); margin-bottom:16px;"><i class="fa-solid fa-list-check"></i> Application Details Table</h3>
+          <table style="width:100%; border-collapse:collapse;" id="table-apps-detail">
+            <thead>
+              <tr style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.06); font-size:12px; color:var(--text-muted);">
+                <th style="padding:8px;">Application</th>
+                <th style="padding:8px;">Category</th>
+                <th style="padding:8px;">Duration</th>
+                <th style="padding:8px;">Usage %</th>
+              </tr>
+            </thead>
+            <tbody id="apps-detail-tbody">
+              <!-- Loaded via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: WEBSITE ANALYTICS -->
+    <div class="tab-content" id="tab-websites">
+      <div class="analytics-grid">
+        <div class="data-card">
+          <h3 style="font-size:16px; font-weight:800; color:var(--teal-900); margin-bottom:16px;"><i class="fa-solid fa-compass"></i> Top Visited Web Domains</h3>
+          <div id="web-bars-container">
+            <!-- Loaded via JS -->
+          </div>
+        </div>
+
+        <div class="data-card">
+          <h3 style="font-size:16px; font-weight:800; color:var(--teal-900); margin-bottom:16px;"><i class="fa-solid fa-chart-pie"></i> Website Traffic Audit</h3>
+          <table style="width:100%; border-collapse:collapse;" id="table-web-detail">
+            <thead>
+              <tr style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.06); font-size:12px; color:var(--text-muted);">
+                <th style="padding:8px;">Domain URL</th>
+                <th style="padding:8px;">Category</th>
+                <th style="padding:8px;">Visits</th>
+                <th style="padding:8px;">Duration</th>
+              </tr>
+            </thead>
+            <tbody id="web-detail-tbody">
+              <!-- Loaded via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: BEHAVIOR ALERTS & POLICY -->
+    <div class="tab-content" id="tab-alerts">
+      <div class="data-card">
+        <h3 style="font-size:16px; font-weight:800; color:var(--teal-900); margin-bottom:16px;"><i class="fa-solid fa-triangle-exclamation"></i> Security &amp; Policy Behavior Violations</h3>
+        <table style="width:100%; border-collapse:collapse;" id="table-alerts-detail">
+          <thead>
+            <tr style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.06); font-size:13px; color:var(--text-muted);">
+              <th style="padding:10px;">Alert ID</th>
+              <th style="padding:10px;">Employee / Machine</th>
+              <th style="padding:10px;">Severity</th>
+              <th style="padding:10px;">Rule Violation</th>
+              <th style="padding:10px;">Description</th>
+              <th style="padding:10px;">Triggered At</th>
+            </tr>
+          </thead>
+          <tbody id="alerts-detail-tbody">
+            <!-- Loaded via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Telemetry Settings Modal -->
+<div class="modal-overlay" id="config-modal">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3 style="font-size:18px; font-weight:800; color:var(--teal-900);"><i class="fa-solid fa-sliders"></i> Workstation Telemetry API Settings</h3>
+      <span style="font-size:20px; cursor:pointer;" onclick="document.getElementById('config-modal').classList.remove('active')">&times;</span>
+    </div>
+
+    <form id="config-form">
+      <div class="form-group">
+        <label>Telemetry Instance URL</label>
+        <input type="url" class="form-control" id="cfg-url" placeholder="https://company.teramind.co" required>
+      </div>
+
+      <div class="form-group">
+        <label>Access Token (x-access-token)</label>
+        <input type="password" class="form-control" id="cfg-token" placeholder="Enter API Access Token (or set in .env)">
+      </div>
+
+      <div class="form-group">
+        <label>Telemetry Sync Interval (Minutes)</label>
+        <select class="form-control" id="cfg-interval">
+          <option value="1">1 Minute</option>
+          <option value="5" selected>5 Minutes</option>
+          <option value="15">15 Minutes</option>
+          <option value="30">30 Minutes</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="cfg-input-rate">
+        <label for="cfg-input-rate" style="margin:0; font-size:13px;">Enable Input Activity Level Monitoring (Mouse/Keyboard score only)</label>
+      </div>
+
+      <div id="connection-test-result" style="display:none; padding:10px; border-radius:6px; font-size:12.5px; margin-bottom:16px;"></div>
+
+      <div style="display:flex; justify-content:space-between; gap:12px; margin-top:20px;">
+        <button type="button" class="btn-pill" id="btn-test-conn"><i class="fa-solid fa-plug"></i> Test Connection</button>
+        <div>
+          <button type="button" class="btn-pill" onclick="document.getElementById('config-modal').classList.remove('active')">Cancel</button>
+          <button type="submit" class="btn-pill primary"><i class="fa-solid fa-floppy-disk"></i> Save Settings</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 🌟 Employee Workstation Detailed Activity Logs Modal (Ultra-Wide Modern Layout) -->
+<div class="modal-overlay" id="emp-logs-modal">
+  <div class="modal-box" style="max-width:1380px; width:96vw; height:88vh; max-height:880px; display:flex; flex-direction:column; padding:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; border-bottom:1px solid rgba(0,0,0,0.1); padding-bottom:16px; flex-shrink:0;">
+      <div style="display:flex; align-items:center; gap:16px;">
+        <img src="https://i.pravatar.cc/80?img=12" id="emp-log-avatar" style="width:56px; height:56px; border-radius:50%; border:3px solid var(--teal-900); box-shadow: 0 2px 8px rgba(0,0,0,0.15);" alt="Employee avatar">
+        <div>
+          <h3 style="font-size:22px; font-weight:800; color:#0f172a; margin:0;" id="emp-log-name">Corporate Admin</h3>
+          <div style="font-size:13.5px; margin-top:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span id="emp-log-code" style="font-weight:800; background:#ea580c; color:white; padding:3px 12px; border-radius:12px; font-size:12px; letter-spacing:0.5px; box-shadow:0 1px 3px rgba(0,0,0,0.2);">EMP-0001</span>
+            <span style="color:#64748b;">•</span>
+            <span id="emp-log-workstation" style="font-weight:700; color:#0f172a;"><i class="fa-solid fa-desktop" style="color:#047857; margin-right:4px;"></i> DESKTOP-EMP1</span>
+            <span style="color:#64748b;">•</span>
+            <span id="emp-log-os" style="font-weight:700; color:#0f172a;"><i class="fa-brands fa-windows" style="color:#0284c7; margin-right:4px;"></i> Windows 11</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:16px;">
+        <div style="text-align:right; font-size:12.5px; color:#0f172a; font-weight:700; line-height:1.4;">
+          <div>IP: <span id="emp-log-ip" style="color:#047857; font-weight:800;">192.168.1.101</span></div>
+          <div>Agent: <span id="emp-log-agent" style="color:#ea580c; font-weight:800;">v26.27.4174</span></div>
+        </div>
+        <span class="badge-status online" id="emp-log-status" style="font-weight:800; font-size:12.5px; padding:6px 14px;">Online (Active)</span>
+        <span style="font-size:28px; cursor:pointer; color:#0f172a; font-weight:800; margin-left:8px; line-height:1; transition: transform 0.15s ease;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#0f172a'" onclick="window.closeEmployeeLogsModal()" title="Close Modal">&times;</span>
+      </div>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:16px; flex-wrap:wrap; flex-shrink:0;">
+      <div style="position:relative; flex:1; min-width:320px;">
+        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+        <input type="text" id="emp-log-search" class="form-control" style="padding-left:38px; height:42px; font-size:13.5px;" placeholder="Search process name (e.g. code.exe, chrome.exe) or window title...">
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <label style="font-size:13px; font-weight:700; color:#0f172a;"><i class="fa-solid fa-clock"></i> Filter Time:</label>
+        <select class="select-pill" id="emp-log-time-filter" style="font-size:13px; padding:8px 16px; background:white; height:42px;">
+          <option value="today" selected>📅 Today (Full Day Logs)</option>
+          <option value="1hr">⏱️ Past 1 Hour</option>
+          <option value="4hr">🕒 Past 4 Hours</option>
+          <option value="yesterday">🗓️ Yesterday</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Logs Table Container (Expands to Fill Screen Height) -->
+    <div style="flex:1; overflow-y:auto; overflow-x:auto; border-radius:12px; border:1px solid rgba(0,0,0,0.08); background:white; box-shadow:0 4px 16px rgba(0,0,0,0.03);">
+      <table style="width:100%; border-collapse:collapse; min-width:1000px;" id="table-emp-logs">
+        <thead style="position:sticky; top:0; background:#f1f5f9; z-index:2;">
+          <tr style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.08); font-size:12.5px; color:#475569; font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">
+            <th style="padding:12px 16px; white-space:nowrap; width:170px;">Start Time</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:170px;">End Time</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:120px;">Duration</th>
+            <th style="padding:12px 16px; min-width:320px;">App / Webpage Title</th>
+            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:110px;">Category</th>
+            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:150px;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="emp-logs-tbody">
+          <!-- Loaded dynamically via JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Modal Footer / Status Bar -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:12px; color:var(--text-muted); flex-shrink:0;">
+      <div><i class="fa-solid fa-shield-halved" style="color:var(--teal-600); margin-right:4px;"></i> Privacy Protected • Sensitive Keystrokes & Personal Files Excluded</div>
+      <div style="font-weight:700; color:#475569;">Teramind Enterprise Telemetry Connected</div>
+    </div>
+  </div>
+</div>
+
+<!-- Enterprise Process Video Player Modal -->
+<div class="modal-overlay" id="emp-video-player-modal" style="z-index:99999; opacity:0; pointer-events:none; transition:opacity 0.25s ease;">
+  <div class="modal-box" style="max-width:1100px; width:92vw; background:#0f172a; color:white; border-radius:16px; padding:24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.1);">
+    <!-- Modal Header -->
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:14px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div style="width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg, #047857, #065f46); display:flex; align-items:center; justify-content:center; font-size:22px; color:white; box-shadow:0 4px 12px rgba(4,120,87,0.4);">
+          <i class="fa-solid fa-circle-play"></i>
+        </div>
+        <div>
+          <h3 style="font-size:20px; font-weight:800; color:white; margin:0; display:flex; align-items:center; gap:10px;">
+            <span id="video-process-title">pentaerp.exe</span>
+            <span id="video-duration-badge" style="font-size:12px; background:#047857; color:white; padding:3px 10px; border-radius:12px; font-weight:700;">00:04:15</span>
+          </h3>
+          <div style="font-size:13px; color:#94a3b8; margin-top:4px; display:flex; align-items:center; gap:8px;">
+            <span id="video-emp-name" style="color:white; font-weight:700;">Sarah Jenkins</span>
+            <span>•</span>
+            <span id="video-app-title" style="color:#cbd5e1;">PentaERP Accounting Suite</span>
+            <span>•</span>
+            <span id="video-time-range" style="color:#38bdf8; font-weight:700;"><i class="fa-regular fa-clock"></i> 14:54:38 → 14:58:53</span>
+          </div>
+        </div>
+      </div>
+      <span style="font-size:28px; cursor:pointer; color:#94a3b8; font-weight:800; line-height:1;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'" onclick="window.closeProcessVideoModal()">&times;</span>
+    </div>
+
+    <!-- Video Container -->
+    <div style="position:relative; width:100%; height:520px; background:#020617; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:center;">
+      <video id="process-video-element" controls style="width:100%; height:100%; object-fit:contain; display:none;" poster="">
+        Your browser does not support the video tag.
+      </video>
+
+      <!-- Loading / Buffering Overlay -->
+      <div id="video-loading-state" style="text-align:center; padding:40px; display:block;">
+        <i class="fa-solid fa-circle-notch fa-spin" style="font-size:48px; color:#10b981; margin-bottom:16px;"></i>
+        <h4 style="font-size:17px; font-weight:700; color:white; margin-bottom:6px;">Retrieving Process Recording Clip...</h4>
+        <p style="font-size:13px; color:#94a3b8; max-width:480px; margin:0 auto;" id="video-status-text">Connecting to Teramind API player for exact process timestamps...</p>
+      </div>
+
+      <!-- Message / Info Overlay (when video unavailable or completed) -->
+      <div id="video-message-state" style="text-align:center; padding:40px; display:none; max-width:550px; margin:0 auto;">
+        <div id="video-message-icon" style="font-size:48px; color:#f87171; margin-bottom:16px;">
+          <i class="fa-solid fa-video-slash"></i>
+        </div>
+        <h4 id="video-message-title" style="font-size:18px; font-weight:800; color:white; margin-bottom:8px;">Screen Recording Not Available</h4>
+        <p id="video-message-desc" style="font-size:13.5px; color:#94a3b8; line-height:1.5; margin:0 auto;">No screen video recording captured by Teramind for this specific activity timeframe.</p>
+      </div>
+    </div>
+
+    <!-- Video Modal Footer / Toolbar -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; font-size:13px; color:#94a3b8;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="color:#10b981; font-weight:700;"><i class="fa-solid fa-video" style="margin-right:4px;"></i> Process-Bound Stream</span>
+        <span>•</span>
+        <span id="video-frame-info">Target Window: 4m 15s</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button id="video-download-btn" onclick="window.downloadProcessVideo()" class="btn" style="background:#334155; color:white; font-weight:700; font-size:12px; padding:6px 14px; border-radius:8px; display:flex; align-items:center; gap:6px; border:none; cursor:pointer;" disabled>
+          <i class="fa-solid fa-download"></i> Export MP4 Clip
+        </button>
+        <button onclick="window.closeProcessVideoModal()" class="btn" style="background:#047857; color:white; font-weight:700; font-size:12px; padding:6px 16px; border-radius:8px; border:none; cursor:pointer;">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="script.js"></script>
+<script src="js/csv-exporter.js"></script>
+<script src="js/admin-monitoring.js"></script>
+</body>
+</html>

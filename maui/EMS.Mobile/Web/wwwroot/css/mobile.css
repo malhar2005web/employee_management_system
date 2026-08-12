@@ -1,0 +1,73 @@
+body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide original fixed desktop sidebar */
+.sidebar {
+    display: none !important;
+}
+
+/* Expand main content area to full width and offset for mobile toolbars */
+.main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 80px 16px 100px 16px !important;
+    box-sizing: border-box;
+}
+
+/* Responsive Grid overrides: force single column on mobile */
+.grid-2, .grid-3, .grid-4, .dashboard-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+}
+
+/* Mobile Touch targets */
+.form-control, .btn, button, select, input {
+    min-height: 48px !important;
+    font-size: 16px !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+/* Transform desktop tables into clean card structures */
+table, thead, tbody, th, td, tr {
+    display: block !important;
+    width: 100% !important;
+}
+
+thead {
+    display: none !important;
+}
+
+tr {
+    margin-bottom: 16px !important;
+    border-radius: var(--radius-md) !important;
+    background: var(--glass-bg) !important;
+    border: 1px solid var(--glass-border) !important;
+    padding: 16px !important;
+    box-shadow: var(--glass-shadow) !important;
+    box-sizing: border-box !important;
+}
+
+td {
+    border: none !important;
+    position: relative !important;
+    padding-left: 45% !important;
+    text-align: right !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+}
+
+td::before {
+    position: absolute !important;
+    left: 12px !important;
+    width: 40% !important;
+    text-align: left !important;
+    font-weight: 700 !important;
+    color: var(--teal-900) !important;
+    content: attr(data-label) !important;
+}

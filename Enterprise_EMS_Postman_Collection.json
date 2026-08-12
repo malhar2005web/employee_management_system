@@ -1,0 +1,227 @@
+{
+  "info": {
+    "_postman_id": "a928472f-103a-414b-b8ce-8945c0cee139",
+    "name": "PCS Enterprise EMS API Collection (100% Verified Server Mounts)",
+    "description": "Verified Postman collection matching exact server.js mounts line-by-line.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5008",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Create Workflow",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Q3 Enterprise Security Audit\",\n  \"projectId\": 4,\n  \"description\": \"Full vulnerability scanning and penetration test workflow\",\n  \"startDate\": \"2026-08-01\",\n  \"targetCompletion\": \"2026-08-31\",\n  \"priority\": \"High\",\n  \"status\": \"Planning\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/tasks/workflows",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "tasks", "workflows"]
+            }
+          }
+        },
+        {
+          "name": "Start Task Timer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"taskId\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tracking/start",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tracking", "start"]
+            }
+          }
+        },
+        {
+          "name": "Stop Task Timer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": 13,\n  \"endReason\": \"Task completed successfully\",\n  \"isTaskCompleted\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tracking/stop",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tracking", "stop"]
+            }
+          }
+        },
+        {
+          "name": "Create Shift Schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Evening Shift B\",\n  \"code\": \"SHIFT-EVENING\",\n  \"startTime\": \"14:00:00\",\n  \"endTime\": \"22:00:00\",\n  \"gracePeriod\": 15\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/shifts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "shifts"]
+            }
+          }
+        },
+        {
+          "name": "User Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@ems.com\",\n  \"password\": \"adminPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Employee & Department Management",
+      "item": [
+        {
+          "name": "Get Employees List",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/employees",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "employees"]
+            }
+          }
+        },
+        {
+          "name": "Create Department",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Software Engineering & DevOps\",\n  \"code\": \"ENG-DEV\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/employees/departments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "employees", "departments"]
+            }
+          }
+        },
+        {
+          "name": "Create Designation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Lead System Architect\",\n  \"departmentId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/employees/designations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "employees", "designations"]
+            }
+          }
+        },
+        {
+          "name": "Onboard New Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Rohan Deshmukh\",\n  \"email\": \"rohan.deshmukh@pcscorp.com\",\n  \"employeeCode\": \"EMP-2006\",\n  \"phone\": \"+91 9823011223\",\n  \"departmentId\": 1,\n  \"designationId\": 1,\n  \"joiningDate\": \"2026-08-01\",\n  \"address\": \"Baner, Pune, MH\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/employees",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "employees"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Support Desk Module",
+      "item": [
+        {
+          "name": "Get Support Tickets List",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/support",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "support"]
+            }
+          }
+        },
+        {
+          "name": "Raise Support Ticket (SUP-XXXXXX)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": 1,\n  \"project_id\": 1,\n  \"category\": \"Bug\",\n  \"priority\": \"High\",\n  \"assigned_to\": 1,\n  \"reported_by\": \"John Doe (john@client.com)\",\n  \"title\": \"Login scanner QR code failure after deployment\",\n  \"description\": \"Customer scanner camera fails to decode binary QR payload on Android app v3.2.\",\n  \"attachments\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/support",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "support"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

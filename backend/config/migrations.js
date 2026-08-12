@@ -109,6 +109,13 @@ export async function runMigrations() {
             );
         `);
 
+        // Ensure shifts table columns
+        await client.query(`
+            ALTER TABLE shifts ADD COLUMN IF NOT EXISTS name VARCHAR(100);
+            ALTER TABLE shifts ADD COLUMN IF NOT EXISTS code VARCHAR(50);
+            ALTER TABLE shifts ADD COLUMN IF NOT EXISTS grace_period INT DEFAULT 15;
+        `);
+
         await client.query(`
             CREATE TABLE IF NOT EXISTS activity_logs (
                 id SERIAL PRIMARY KEY,
@@ -196,6 +203,8 @@ export async function runMigrations() {
             ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_offer_letter JSONB DEFAULT '{}'::jsonb;
             ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_adhar_card JSONB DEFAULT '{}'::jsonb;
             ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_pan_card JSONB DEFAULT '{}'::jsonb;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_picture TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture TEXT;
             ALTER TABLE customers ADD COLUMN IF NOT EXISTS gst_no VARCHAR(100);
             ALTER TABLE customers ADD COLUMN IF NOT EXISTS branches JSONB DEFAULT '[]'::jsonb;
             ALTER TABLE customers ADD COLUMN IF NOT EXISTS deadline DATE;
@@ -205,6 +214,7 @@ export async function runMigrations() {
             ALTER TABLE customers ADD COLUMN IF NOT EXISTS sla_resolution_time VARCHAR(50);
             ALTER TABLE customers ADD COLUMN IF NOT EXISTS contract_start_date DATE;
             ALTER TABLE customers ADD COLUMN IF NOT EXISTS contract_end_date DATE;
+            ALTER TABLE customers ADD COLUMN IF NOT EXISTS assigned_employees JSONB DEFAULT '[]'::jsonb;
             ALTER TABLE projects ADD COLUMN IF NOT EXISTS customer_id INT REFERENCES customers(id) ON DELETE CASCADE;
             ALTER TABLE projects ADD COLUMN IF NOT EXISTS branch_name VARCHAR(150);
             ALTER TABLE projects ADD COLUMN IF NOT EXISTS account_manager_id INT REFERENCES employees(id) ON DELETE SET NULL;
@@ -213,14 +223,381 @@ export async function runMigrations() {
             ALTER TABLE workflow_tasks ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '[]'::jsonb;
         `);
 
+        // ── Phase 7: Task Session Tracking Engine Tables ─────────────────────────────
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS task_sessions (
+                id SERIAL PRIMARY KEY,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                task_id INT REFERENCES tasks(id) ON DELETE SET NULL,
+                workflow_task_id INT REFERENCES workflow_tasks(id) ON DELETE SET NULL,
+                project_id INT REFERENCES projects(id) ON DELETE SET NULL,
+                subtask_id VARCHAR(100),
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                ended_at TIMESTAMP,
+                duration_seconds INT DEFAULT 0,
+                status VARCHAR(30) NOT NULL DEFAULT 'Running',
+                end_reason VARCHAR(100),
+                platform VARCHAR(50) DEFAULT 'Web',
+                last_heartbeat_at TIMESTAMP DEFAULT NOW(),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
 
-        console.log('✅ All Phase 6 tables ensured.');
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_one_running_session_per_employee 
+            ON task_sessions (employee_id) WHERE status = 'Running';
+
+            CREATE TABLE IF NOT EXISTS task_session_events (
+                id SERIAL PRIMARY KEY,
+                session_id INT NOT NULL REFERENCES task_sessions(id) ON DELETE CASCADE,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                event_type VARCHAR(50) NOT NULL,
+                reason VARCHAR(100),
+                details JSONB DEFAULT '{}'::jsonb,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS heartbeat_logs (
+                id SERIAL PRIMARY KEY,
+                session_id INT REFERENCES task_sessions(id) ON DELETE CASCADE,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                ping_time TIMESTAMP DEFAULT NOW(),
+                platform VARCHAR(50),
+                active_window VARCHAR(255)
+            );
+
+            CREATE TABLE IF NOT EXISTS idle_logs (
+                id SERIAL PRIMARY KEY,
+                session_id INT REFERENCES task_sessions(id) ON DELETE CASCADE,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                idle_seconds INT NOT NULL,
+                detected_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS task_session_configs (
+                id SERIAL PRIMARY KEY,
+                heartbeat_timeout_seconds INT DEFAULT 120,
+                idle_threshold_seconds INT DEFAULT 300,
+                auto_pause_enabled BOOLEAN DEFAULT true
+            );
+
+            -- ── Phase 8: Task Assignment & Handover Engine ────────────────────────────────
+            CREATE TABLE IF NOT EXISTS task_assignments (
+                id SERIAL PRIMARY KEY,
+                task_id INT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                assignee_type VARCHAR(30) NOT NULL DEFAULT 'Employee',
+                assignee_id INT NOT NULL,
+                role VARCHAR(30) NOT NULL DEFAULT 'Primary',
+                assigned_by INT NOT NULL REFERENCES employees(id),
+                assigned_at TIMESTAMP DEFAULT NOW(),
+                unassigned_at TIMESTAMP,
+                is_active BOOLEAN DEFAULT true
+            );
+
+            -- Immutable Audit History Table (ONLY INSERT, never update/delete)
+            CREATE TABLE IF NOT EXISTS task_assignment_history (
+                id SERIAL PRIMARY KEY,
+                task_id INT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                assignee_type VARCHAR(30) NOT NULL,
+                assignee_id INT NOT NULL,
+                role VARCHAR(30) NOT NULL,
+                action VARCHAR(50) NOT NULL,
+                old_owner_id INT REFERENCES employees(id),
+                new_owner_id INT REFERENCES employees(id),
+                reason_code VARCHAR(50),
+                comments TEXT,
+                performed_by INT NOT NULL REFERENCES employees(id),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS task_transfers (
+                id SERIAL PRIMARY KEY,
+                task_id INT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                transfer_type VARCHAR(40) NOT NULL,
+                from_employee_id INT REFERENCES employees(id),
+                to_employee_id INT REFERENCES employees(id),
+                to_team_id INT,
+                to_department_id INT,
+                reason_code VARCHAR(50) NOT NULL,
+                reason_description TEXT NOT NULL,
+                status VARCHAR(30) DEFAULT 'Approved',
+                requires_approval BOOLEAN DEFAULT false,
+                requested_by INT NOT NULL REFERENCES employees(id),
+                expiry_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS task_transfer_attachments (
+                id SERIAL PRIMARY KEY,
+                transfer_id INT NOT NULL REFERENCES task_transfers(id) ON DELETE CASCADE,
+                file_name VARCHAR(255) NOT NULL,
+                file_path TEXT NOT NULL,
+                file_size INT,
+                mime_type VARCHAR(100),
+                uploaded_by INT NOT NULL REFERENCES employees(id),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS task_transfer_approvals (
+                id SERIAL PRIMARY KEY,
+                transfer_id INT NOT NULL REFERENCES task_transfers(id) ON DELETE CASCADE,
+                approver_id INT NOT NULL REFERENCES employees(id),
+                approver_role VARCHAR(50) NOT NULL,
+                approval_order INT NOT NULL DEFAULT 1,
+                status VARCHAR(30) DEFAULT 'Pending',
+                comments TEXT,
+                responded_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS task_escalations (
+                id SERIAL PRIMARY KEY,
+                task_id INT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                escalation_type VARCHAR(40) NOT NULL,
+                triggered_by VARCHAR(30) NOT NULL,
+                old_priority VARCHAR(20),
+                new_priority VARCHAR(20),
+                escalated_to_id INT REFERENCES employees(id),
+                reason TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS task_followers (
+                id SERIAL PRIMARY KEY,
+                task_id INT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                subscribed_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(task_id, employee_id)
+            );
+
+            -- ── PHASE 9: ACTIVITY TIMELINE, AUDIT TRAIL & PERFORMANCE INTELLIGENCE ENGINE ──
+            CREATE TABLE IF NOT EXISTS activity_events (
+                event_id VARCHAR(64) PRIMARY KEY,
+                correlation_id VARCHAR(64) NOT NULL,
+                event_type VARCHAR(100) NOT NULL,
+                category VARCHAR(50) NOT NULL DEFAULT 'Work',
+                module VARCHAR(50) NOT NULL,
+                severity VARCHAR(20) DEFAULT 'INFO',
+                entity_type VARCHAR(50) NOT NULL,
+                entity_id INT,
+                entity_name VARCHAR(255),
+                action VARCHAR(100) NOT NULL,
+                performed_by INT REFERENCES employees(id),
+                old_value TEXT,
+                new_value TEXT,
+                reason TEXT,
+                impact_type VARCHAR(50) DEFAULT 'Time',
+                impact_description TEXT,
+                metadata JSONB,
+                ip_address VARCHAR(45),
+                platform VARCHAR(50),
+                browser VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS performance_snapshots (
+                id SERIAL PRIMARY KEY,
+                entity_type VARCHAR(50) NOT NULL,
+                entity_id INT NOT NULL,
+                snapshot_type VARCHAR(20) DEFAULT 'Daily',
+                estimated_seconds INT DEFAULT 0,
+                actual_seconds INT DEFAULT 0,
+                variance_seconds INT DEFAULT 0,
+                efficiency_percentage NUMERIC(8,2) DEFAULT 100.00,
+                schedule_accuracy_percentage NUMERIC(8,2) DEFAULT 100.00,
+                risk_level VARCHAR(20) DEFAULT 'Low',
+                projected_seconds INT DEFAULT 0,
+                snapshot_date DATE DEFAULT CURRENT_DATE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_activity_events_corr ON activity_events (correlation_id);
+            CREATE INDEX IF NOT EXISTS idx_activity_events_entity ON activity_events (entity_type, entity_id);
+            CREATE INDEX IF NOT EXISTS idx_activity_events_category ON activity_events (category);
+            CREATE INDEX IF NOT EXISTS idx_activity_events_module ON activity_events (module);
+            CREATE INDEX IF NOT EXISTS idx_activity_events_performed ON activity_events (performed_by);
+            CREATE INDEX IF NOT EXISTS idx_activity_events_created ON activity_events (created_at DESC);
+
+            -- ── PHASE 10: CHAT CHANNELS, SLA POLICIES & CAPACITY INTELLIGENCE ENGINE ──
+            CREATE TABLE IF NOT EXISTS chat_channels (
+                id SERIAL PRIMARY KEY,
+                channel_type VARCHAR(30) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                task_id INT REFERENCES tasks(id) ON DELETE CASCADE,
+                project_id INT REFERENCES projects(id) ON DELETE CASCADE,
+                department_id INT REFERENCES departments(id) ON DELETE CASCADE,
+                customer_id INT REFERENCES customers(id) ON DELETE CASCADE,
+                is_pinned BOOLEAN DEFAULT false,
+                pinned_message_id INT,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS customer_id INT REFERENCES customers(id) ON DELETE CASCADE;
+
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id SERIAL PRIMARY KEY,
+                channel_id INT NOT NULL REFERENCES chat_channels(id) ON DELETE CASCADE,
+                sender_id INT NOT NULL REFERENCES employees(id),
+                message_type VARCHAR(30) DEFAULT 'TEXT',
+                reply_to_message_id INT REFERENCES chat_messages(id) ON DELETE SET NULL,
+                message_text TEXT NOT NULL,
+                mentions JSONB DEFAULT '[]'::jsonb,
+                attachments JSONB DEFAULT '[]'::jsonb,
+                seen_by JSONB DEFAULT '[]'::jsonb,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS chat_channel_members (
+                id SERIAL PRIMARY KEY,
+                channel_id INT NOT NULL REFERENCES chat_channels(id) ON DELETE CASCADE,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                role VARCHAR(30) DEFAULT 'Member',
+                joined_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(channel_id, employee_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS sla_policies (
+                id SERIAL PRIMARY KEY,
+                policy_name VARCHAR(100) NOT NULL,
+                priority VARCHAR(30) NOT NULL,
+                business_hours_only BOOLEAN DEFAULT true,
+                level1_mins INT DEFAULT 30,
+                level2_mins INT DEFAULT 60,
+                level3_mins INT DEFAULT 120,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS employee_capacity_settings (
+                employee_id INT PRIMARY KEY REFERENCES employees(id) ON DELETE CASCADE,
+                weekly_capacity_hours NUMERIC(6,2) DEFAULT 40.00,
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages (channel_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_chat_members_emp ON chat_channel_members (employee_id);
+            CREATE INDEX IF NOT EXISTS idx_chat_channels_dept ON chat_channels (department_id);
+            CREATE INDEX IF NOT EXISTS idx_chat_channels_task ON chat_channels (task_id);
+        `);
+
+        await client.query(`
+            ALTER TABLE notifications ADD COLUMN IF NOT EXISTS sender_id INT REFERENCES employees(id) ON DELETE SET NULL;
+            ALTER TABLE notifications ADD COLUMN IF NOT EXISTS channel_id INT REFERENCES chat_channels(id) ON DELETE CASCADE;
+        `);
+
+        // Phase 11: Add file attachment columns to direct_messages
+        await client.query(`
+            ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS file_url TEXT;
+            ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);
+            ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS file_type VARCHAR(100);
+            ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS file_size BIGINT;
+        `);
+
+        console.log('✅ Phase 10 Chat Channels, SLA Engine & Capacity Intelligence tables ensured.');
     } catch (error) {
         console.error('❌ Table migration error:', error.message);
     }
 
     // ── STEP 2: Seed Leave Types ───────────────────────────────────────────────────
     try {
+        // ── Phase 7: Teramind Integration & Monitoring Tables ─────────────────────
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS teramind_settings (
+                id SERIAL PRIMARY KEY,
+                instance_url VARCHAR(500) DEFAULT '',
+                api_token TEXT DEFAULT '',
+                is_enabled BOOLEAN DEFAULT true,
+                sync_interval_minutes INT DEFAULT 5,
+                enable_input_rate BOOLEAN DEFAULT false,
+                last_sync_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        await client.query(`
+            INSERT INTO teramind_settings (id, instance_url, api_token, is_enabled, sync_interval_minutes, enable_input_rate)
+            VALUES (1, 'https://planexsoftwa.teramind.co', '02182bf72232fb8749b499a78140356ddb1d5c4e', true, 5, false)
+            ON CONFLICT (id) DO UPDATE SET instance_url = EXCLUDED.instance_url, api_token = EXCLUDED.api_token;
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS employee_teramind_mapping (
+                id SERIAL PRIMARY KEY,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                computer_id INT UNIQUE,
+                computer_name VARCHAR(255),
+                last_sync TIMESTAMP DEFAULT NOW(),
+                UNIQUE(employee_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_emp_teramind_emp_id ON employee_teramind_mapping(employee_id);
+            CREATE INDEX IF NOT EXISTS idx_emp_teramind_comp_id ON employee_teramind_mapping(computer_id);
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS teramind_computer_cache (
+                id SERIAL PRIMARY KEY,
+                computer_id INT UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                os VARCHAR(100),
+                user_name VARCHAR(150),
+                is_online BOOLEAN DEFAULT false,
+                agent_status VARCHAR(50) DEFAULT 'Offline',
+                last_seen TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS teramind_export_cache (
+                id SERIAL PRIMARY KEY,
+                computer_id INT NOT NULL,
+                start_ts INT NOT NULL,
+                end_ts INT NOT NULL,
+                export_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(computer_id, start_ts, end_ts)
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS teramind_activity_cache (
+                id SERIAL PRIMARY KEY,
+                employee_id INT REFERENCES employees(id) ON DELETE CASCADE,
+                computer_id INT,
+                timestamp TIMESTAMP DEFAULT NOW(),
+                work_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                productive_seconds INT DEFAULT 0,
+                unproductive_seconds INT DEFAULT 0,
+                idle_seconds INT DEFAULT 0,
+                active_seconds INT DEFAULT 0,
+                break_seconds INT DEFAULT 0,
+                active_app VARCHAR(255) DEFAULT '',
+                active_website VARCHAR(255) DEFAULT '',
+                top_apps JSONB DEFAULT '[]',
+                top_websites JSONB DEFAULT '[]',
+                input_score INT DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(employee_id, work_date)
+            );
+            ALTER TABLE teramind_activity_cache ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT NOW();
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS teramind_alerts (
+                id SERIAL PRIMARY KEY,
+                alert_id VARCHAR(100) UNIQUE,
+                employee_id INT REFERENCES employees(id) ON DELETE CASCADE,
+                computer_id INT,
+                severity VARCHAR(30) DEFAULT 'Medium',
+                title VARCHAR(300) NOT NULL,
+                description TEXT,
+                triggered_at TIMESTAMP DEFAULT NOW(),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+        console.log('✅ Teramind tables, indexes, and settings ensured.');
+
         const ltCheck = await client.query('SELECT COUNT(*) FROM leave_types');
         if (parseInt(ltCheck.rows[0].count, 10) === 0) {
             await client.query(`
@@ -236,7 +613,7 @@ export async function runMigrations() {
             console.log('✅ Default leave types seeded.');
         }
     } catch (e) {
-        console.error('❌ Leave types seed error:', e.message);
+        console.error('❌ Teramind & Leave seed error:', e.message);
     }
 
     // ── STEP 3: Seed Leave Balances for all employees ─────────────────────────────
@@ -259,6 +636,221 @@ export async function runMigrations() {
         console.error('❌ Leave balances seed error:', e.message);
     }
 
+    // ── Phase 11: Enterprise Deletion, Offboarding & Retention System ────────────
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS deletion_requests (
+                id SERIAL PRIMARY KEY,
+                record_type VARCHAR(50) NOT NULL,
+                target_id INT NOT NULL,
+                target_name VARCHAR(255),
+                reason TEXT NOT NULL,
+                category VARCHAR(100),
+                effective_date DATE,
+                hr_remarks TEXT,
+                requested_by INT REFERENCES employees(id),
+                requested_at TIMESTAMP DEFAULT NOW(),
+                status VARCHAR(50) DEFAULT 'pending_documents',
+                retention_days INT DEFAULT 60,
+                purge_eligible_at TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS deletion_documents (
+                id SERIAL PRIMARY KEY,
+                request_id INT NOT NULL REFERENCES deletion_requests(id) ON DELETE CASCADE,
+                document_type VARCHAR(100) NOT NULL,
+                document_version INT DEFAULT 1,
+                storage_provider VARCHAR(50) DEFAULT 'local',
+                storage_key VARCHAR(255),
+                file_path TEXT NOT NULL,
+                file_name VARCHAR(255) NOT NULL,
+                file_size INT,
+                mime_type VARCHAR(100),
+                checksum VARCHAR(64),
+                virus_scan_status VARCHAR(50) DEFAULT 'clean',
+                uploaded_by INT REFERENCES employees(id),
+                uploaded_at TIMESTAMP DEFAULT NOW(),
+                verified_by INT REFERENCES employees(id),
+                verification_status VARCHAR(50) DEFAULT 'verified'
+            );
+
+            CREATE TABLE IF NOT EXISTS deletion_approval_stages (
+                id SERIAL PRIMARY KEY,
+                record_type VARCHAR(50) NOT NULL,
+                sequence_order INT NOT NULL,
+                stage_name VARCHAR(100) NOT NULL,
+                required_role VARCHAR(50) NOT NULL,
+                is_mandatory BOOLEAN DEFAULT true
+            );
+
+            CREATE TABLE IF NOT EXISTS deletion_approvals (
+                id SERIAL PRIMARY KEY,
+                request_id INT NOT NULL REFERENCES deletion_requests(id) ON DELETE CASCADE,
+                stage_id INT REFERENCES deletion_approval_stages(id),
+                approver_id INT REFERENCES employees(id),
+                status VARCHAR(50) DEFAULT 'pending',
+                comments TEXT,
+                approved_at TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS deletion_audit_logs (
+                id SERIAL PRIMARY KEY,
+                request_id INT REFERENCES deletion_requests(id) ON DELETE SET NULL,
+                record_type VARCHAR(50) NOT NULL,
+                record_id INT NOT NULL,
+                record_name VARCHAR(255),
+                action_type VARCHAR(50) NOT NULL,
+                performed_by INT REFERENCES employees(id),
+                approved_by INT REFERENCES employees(id),
+                reason TEXT,
+                ip_address VARCHAR(50),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            -- Seed dynamic approval stages
+            INSERT INTO deletion_approval_stages (record_type, sequence_order, stage_name, required_role, is_mandatory)
+            VALUES 
+                ('employee', 1, 'HR Offboarding Review', 'HR', true),
+                ('employee', 2, 'Department Manager Clearance', 'Manager', true),
+                ('employee', 3, 'IT & Asset Revocation Clearance', 'IT', true),
+                ('employee', 4, 'Finance & Payroll Settlement Clearance', 'Finance', true),
+                ('customer', 1, 'Account Closure Review', 'Account Manager', true),
+                ('customer', 2, 'Finance & Billing Audit', 'Finance', true),
+                ('project', 1, 'Delivery Completion Audit', 'Project Manager', true),
+                ('project', 2, 'Client Sign-off & Billing Audit', 'Finance', true),
+                ('task', 1, 'Task Supervisor Sign-off', 'Manager', false)
+            ON CONFLICT DO NOTHING;
+        `);
+        console.log('✅ Phase 11 Deletion & Offboarding System tables & approval stages ensured.');
+    } catch (e) {
+        console.error('❌ Phase 11 Migration Error:', e.message);
+    }
+
+    // ── PHASE 12: BI-DIRECTIONAL DATA SYNC & STAGING ENGINE ──
+    try {
+        await client.query(`
+            -- Ensure UUID extension & UUID columns across core tables
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
+            ALTER TABLE customers ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
+            ALTER TABLE tasks ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
+            ALTER TABLE projects ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
+            ALTER TABLE attendance ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
+
+            CREATE TABLE IF NOT EXISTS import_jobs (
+                id SERIAL PRIMARY KEY,
+                job_id VARCHAR(64) UNIQUE NOT NULL,
+                module_name VARCHAR(50) NOT NULL,
+                status VARCHAR(30) NOT NULL DEFAULT 'pending',
+                progress_percent INT DEFAULT 0,
+                processed_rows INT DEFAULT 0,
+                total_rows INT DEFAULT 0,
+                rows_added INT DEFAULT 0,
+                rows_updated INT DEFAULT 0,
+                rows_failed INT DEFAULT 0,
+                rows_skipped INT DEFAULT 0,
+                file_name VARCHAR(255) NOT NULL,
+                file_hash VARCHAR(64),
+                storage_provider VARCHAR(30) DEFAULT 'local',
+                storage_key VARCHAR(500),
+                storage_path TEXT,
+                error_message TEXT,
+                created_by INT REFERENCES users(id),
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS import_staging_records (
+                id SERIAL PRIMARY KEY,
+                job_id VARCHAR(64) REFERENCES import_jobs(job_id) ON DELETE CASCADE,
+                batch_number INT DEFAULT 1,
+                row_index INT NOT NULL,
+                raw_data JSONB NOT NULL,
+                validation_status VARCHAR(20) DEFAULT 'valid',
+                error_details JSONB,
+                is_committed BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS import_audit_logs (
+                id SERIAL PRIMARY KEY,
+                job_id VARCHAR(64) NOT NULL,
+                module_name VARCHAR(50) NOT NULL,
+                file_name VARCHAR(255) NOT NULL,
+                file_format VARCHAR(10) DEFAULT 'csv',
+                imported_by INT REFERENCES users(id),
+                imported_at TIMESTAMP DEFAULT NOW(),
+                total_rows INT DEFAULT 0,
+                rows_added INT DEFAULT 0,
+                rows_updated INT DEFAULT 0,
+                rows_failed INT DEFAULT 0,
+                rows_skipped INT DEFAULT 0,
+                status VARCHAR(30) DEFAULT 'completed',
+                details JSONB
+            );
+        `);
+        console.log('✅ Phase 12 Bi-Directional Data Sync tables & UUID columns ensured.');
+    } catch (e) {
+        console.error('❌ Phase 12 Migration Error:', e.message);
+    }
+
+    // Phase 13: Support Desk Module Tables (Post-Delivery Maintenance Lifecycle)
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS support_tickets (
+                id SERIAL PRIMARY KEY,
+                ticket_code VARCHAR(30) UNIQUE NOT NULL,
+                customer_id INT REFERENCES customers(id) ON DELETE CASCADE,
+                project_id INT REFERENCES projects(id) ON DELETE SET NULL,
+                workflow_id INT REFERENCES workflows(id) ON DELETE SET NULL,
+                task_id INT REFERENCES tasks(id) ON DELETE SET NULL,
+                reported_by VARCHAR(150),
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                category VARCHAR(50) DEFAULT 'Bug',
+                priority VARCHAR(20) DEFAULT 'Medium',
+                status VARCHAR(30) DEFAULT 'Open',
+                assigned_to INT REFERENCES employees(id) ON DELETE SET NULL,
+                response_deadline TIMESTAMP,
+                resolution_deadline TIMESTAMP,
+                responded_at TIMESTAMP,
+                resolved_at TIMESTAMP,
+                attachments JSONB DEFAULT '[]'::jsonb,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS support_ticket_comments (
+                id SERIAL PRIMARY KEY,
+                ticket_id INT REFERENCES support_tickets(id) ON DELETE CASCADE,
+                author_id INT REFERENCES employees(id) ON DELETE SET NULL,
+                author_name VARCHAR(150),
+                comment_text TEXT NOT NULL,
+                is_internal_note BOOLEAN DEFAULT FALSE,
+                attachments JSONB DEFAULT '[]'::jsonb,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS support_ticket_history (
+                id SERIAL PRIMARY KEY,
+                ticket_id INT REFERENCES support_tickets(id) ON DELETE CASCADE,
+                performed_by VARCHAR(150),
+                action VARCHAR(100) NOT NULL,
+                previous_status VARCHAR(30),
+                new_status VARCHAR(30),
+                details TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+        console.log('✅ Phase 13 Support Desk (Post-Delivery Maintenance) tables ensured.');
+    } catch (e) {
+        console.error('❌ Phase 13 Migration Error:', e.message);
+    }
+
     client.release();
-    console.log('🎉 Phase 6 migrations complete.');
+    console.log('🎉 All migrations complete.');
 }
+
+

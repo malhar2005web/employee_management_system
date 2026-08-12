@@ -25,6 +25,7 @@
 
     <ul class="nav-list">
       <li class="nav-item" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
       <li class="nav-item" onclick="window.location.href='/admin-employees.html'"><i class="fa-solid fa-people-group"></i> Employee Management</li>
       <li class="nav-item" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
       <li class="nav-item" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
@@ -33,12 +34,7 @@
       <li class="nav-item" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
       <li class="nav-item" onclick="window.location.href='/admin-shifts.html'"><i class="fa-regular fa-clock"></i> Shifts</li>
       <li class="nav-item" onclick="window.location.href='/admin-leaves.html'"><i class="fa-solid fa-plane-departure"></i> Leave Management</li>
-      <li class="nav-item" onclick="window.location.href='/admin-timesheets.html'"><i class="fa-solid fa-stopwatch"></i> Timesheets</li>
-      <li class="nav-item" onclick="window.location.href='/admin-goals.html'"><i class="fa-solid fa-bullseye"></i> Goals &amp; Performance</li>
-      <li class="nav-item" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Remote Monitoring</li>
-      <li class="nav-item" onclick="window.location.href='/admin-screenshots.html'"><i class="fa-regular fa-image"></i> Screenshots</li>
       <li class="nav-item active" onclick="window.location.href='/admin-workload.html'"><i class="fa-solid fa-chart-column"></i> Workload</li>
-      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-trainings.html'"><i class="fa-solid fa-graduation-cap"></i> Training</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-reports.html'"><i class="fa-regular fa-file-lines"></i> Reports</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-audit-logs.html'"><i class="fa-solid fa-list-check"></i> Audit Logs</li>
@@ -73,11 +69,12 @@
     </div>
 
     <!-- Page header -->
-    <div class="page-header">
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
       <div>
         <h2>Workload &amp; Capacity Planning</h2>
         <p>Review staff allocations density, project volumes, task weights, and average logged hours ratios.</p>
       </div>
+      <button type="button" onclick="exportModuleCSV('workload')" style="background:#047857; color:white; font-weight:700; padding:10px 18px; border-radius:var(--radius-pill); border:none; cursor:pointer;"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
     </div>
 
     <!-- Metrics Cards -->
@@ -105,6 +102,9 @@
       </div>
     </div>
 
+    <!-- Dynamic Workload Heatmap Widget Container -->
+    <div id="workload-heatmap-widget-container" style="margin-top:24px;"></div>
+
     <!-- Table Card -->
     <div class="card table-card">
       <div class="card-head">
@@ -130,6 +130,17 @@
   </main>
 </div>
 
+<script src="js/workloadHeatmapWidget.js"></script>
+<script src="auth.js"></script>
+<script src="script.js"></script>
+<script src="js/csv-exporter.js"></script>
 <script src="workload.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof window.renderWorkloadHeatmapDashboard === 'function') {
+      window.renderWorkloadHeatmapDashboard('workload-heatmap-widget-container');
+    }
+  });
+</script>
 </body>
 </html>

@@ -1,0 +1,19 @@
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.4);
+    --glass-blur: 20px;
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+    --radius-sm: 12px;
+    --radius-md: 16px;
+    --radius-lg: 24px;
+    --teal-glow: 0 8px 32px 0 rgba(15, 139, 115, 0.15);
+    --ease-premium: cubic-bezier(.22, .61, .36, 1);
+}
+
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}

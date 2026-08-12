@@ -1,7 +1,9 @@
 import { pool } from '../config/db.js';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { generateTokenAndSetCookie } from '../utils/generate.Token.js';
+import { ENV_VARS } from '../config/envVars.js';
 
 export async function login(req, res) {
     try {
@@ -25,10 +27,21 @@ export async function login(req, res) {
             return res.status(403).json({ success: false, message: "User account is suspended" });
         }
 
-        generateTokenAndSetCookie(user.id, res);
+        const token = generateTokenAndSetCookie(user.id, res);
+
+        const client = req.headers['x-ems-client'];
+        const platform = req.headers['x-ems-platform'];
+
+        if (user.role === 'Employee' && (client === 'Mobile' || platform === 'Android' || platform === 'iOS')) {
+            return res.status(403).json({
+                success: false,
+                message: "Desktop Required\nEmployee accounts are restricted to desktop access for secure attendance monitoring and work tracking. Please login using your office laptop."
+            });
+        }
 
         res.status(200).json({
             success: true,
+            token,
             user: {
                 id: user.id,
                 username: user.username,
@@ -71,7 +84,7 @@ export async function getMe(req, res) {
                     e.skills,
                     mgr.full_name AS manager_name,
                     mgr.employee_code AS manager_code,
-                    e.phone, e.whatsapp_no, e.anydesk_id, '' AS profile_picture,
+                    e.phone, e.whatsapp_no, e.anydesk_id, COALESCE(NULLIF(e.profile_picture, ''), NULLIF(u.profile_picture, '')) AS profile_picture,
                     e.dob, e.joining_date, e.citizenship, e.address,
                     e.emergency_name, e.emergency_relationship, e.emergency_phone,
                     e.degree, e.linkedin, e.gender, e.salary_grade,
@@ -163,6 +176,36 @@ export async function resetPassword(req, res) {
         res.status(200).json({ success: true, message: "Password reset successfully" });
     } catch (error) {
         console.log("Error in resetPassword", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export async function refresh(req, res) {
+    try {
+        let token = req.cookies["jwt-moma"];
+        if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+            token = req.headers.authorization.split(" ")[1];
+        }
+
+        if (!token) {
+            return res.status(401).json({ success: false, message: "No token provided" });
+        }
+
+        const decoded = jwt.verify(token, ENV_VARS.JWT_SECRET, { ignoreExpiration: true });
+        const userQuery = await pool.query("SELECT id, role, is_active FROM users WHERE id = $1", [decoded.userId]);
+        if (userQuery.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const user = userQuery.rows[0];
+        if (!user.is_active) {
+            return res.status(403).json({ success: false, message: "User account suspended" });
+        }
+
+        const newToken = generateTokenAndSetCookie(user.id, res);
+        res.status(200).json({ success: true, token: newToken });
+    } catch (error) {
+        console.log("Error in refresh", error.message);
         res.status(500).json({ success: false, message: "Internal server error" });
     }
 }

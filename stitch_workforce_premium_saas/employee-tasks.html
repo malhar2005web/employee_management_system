@@ -78,6 +78,9 @@
       </div>
     </div>
 
+    <!-- Active Task Banner Container -->
+    <div id="active-task-banner-container"></div>
+
     <!-- Task Summary Cards -->
     <div class="stat-grid" style="margin-bottom:24px;">
       <div class="card stat-card">
@@ -137,7 +140,7 @@
           </tr>
         </thead>
         <tbody id="tasks-tbody">
-          <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:32px;">Loading tasks...</td></tr>
+          <tr><td colspan="7" style="text-align:center;color:var(--teal-700);padding:32px;font-size:13.5px;font-weight:600;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;margin-bottom:8px;color:var(--teal-600);display:block;"></i> Loading tasks...</td></tr>
         </tbody>
       </table>
     </div>
@@ -146,7 +149,7 @@
 </div>
 
 <!-- Update Progress Modal -->
-<div class="modal-overlay" id="modal-progress" style="display:none;">
+<div class="modal-overlay" id="modal-progress" style="display:none; z-index:9999999;">
   <div class="modal-card" style="max-width:480px;">
     <div class="modal-header">
       <h3><i class="fa-solid fa-chart-line"></i> Update Task Progress</h3>
@@ -182,6 +185,8 @@
 
 <script src="script.js"></script>
 <script src="js/employee-tasks.js"></script>
+<script src="js/trackingService.js"></script>
+<script src="js/taskHandoverModal.js"></script>
 </body>
 </html>
 

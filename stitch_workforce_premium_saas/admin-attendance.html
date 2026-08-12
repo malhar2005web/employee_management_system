@@ -3,45 +3,62 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PCS Admin — Attendance</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<title>Attendance &amp; Leave — PCS Enterprise</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* Modal Overlay Styling */
+  .tab-group {
+    display: inline-flex;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.25);
+    padding: 6px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .tab-group button {
+    padding: 8px 18px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .tab-group button.active {
+    background: rgba(255, 255, 255, 0.65);
+    color: var(--teal-900);
+    box-shadow: 0 4px 12px rgba(31, 42, 36, 0.06);
+  }
   .modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(31, 42, 36, 0.4);
     backdrop-filter: blur(10px);
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
     padding: 20px;
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.25s ease;
   }
   .modal-overlay.active {
-    display: flex;
     opacity: 1;
+    pointer-events: auto;
   }
   .modal-box {
     width: 100%;
-    max-width: 480px;
+    max-width: 540px;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(var(--glass-blur));
     box-shadow: var(--glass-shadow);
     border-radius: var(--radius-lg);
     padding: 30px;
-    position: relative;
-    transform: translateY(-20px);
-    transition: transform 0.25s var(--ease-liquid);
-  }
-  .modal-overlay.active .modal-box {
-    transform: translateY(0);
   }
   .modal-header {
     display: flex;
@@ -63,12 +80,11 @@
   .modal-close:hover {
     color: var(--red);
   }
-  /* Form elements */
   .form-group {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-bottom: 12px;
+    margin-bottom: 15px;
   }
   .form-group label {
     font-size: 12.5px;
@@ -87,64 +103,13 @@
     transition: all 0.2s ease;
   }
   .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-    background: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.65);
     border-color: var(--teal-600);
   }
   .grid-two-col {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 15px;
-  }
-  .action-btn-group {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-  }
-  .btn-secondary {
-    padding: 10px 18px;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255,255,255,0.55);
-    background: rgba(255,255,255,0.25);
-    font-weight: 700;
-    font-size: 13.5px;
-    color: var(--text-dark);
-  }
-  .btn-secondary:hover {
-    background: rgba(255,255,255,0.45);
-  }
-  .action-pill {
-    padding: 4px 8px;
-    border-radius: 8px;
-    font-size: 11.5px;
-    font-weight: 700;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .action-pill.edit {
-    background: rgba(79, 124, 255, 0.15);
-    color: var(--blue);
-  }
-  .action-pill.edit:hover {
-    background: rgba(79, 124, 255, 0.25);
-  }
-  .action-pill.approve {
-    background: rgba(35, 184, 153, 0.15);
-    color: var(--teal-900);
-  }
-  .action-pill.approve:hover {
-    background: rgba(35, 184, 153, 0.25);
-  }
-  .action-pill.reject {
-    background: rgba(214, 79, 79, 0.15);
-    color: var(--red);
-  }
-  .action-pill.reject:hover {
-    background: rgba(214, 79, 79, 0.25);
   }
 </style>
 </head>
@@ -163,11 +128,12 @@
     </div>
 
     <ul class="nav-list">
-      <li class="nav-item" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
-      <li class="nav-item" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
-      <li class="nav-item" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
-      <li class="nav-item active" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
     </ul>
@@ -188,10 +154,8 @@
       </nav>
 
       <div class="topbar-actions">
-        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
-        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
-        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
-        <div class="topbar-user">
+        <button class="icon-btn" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <div class="topbar-user" onclick="window.location.href='/admin-profile.html'" style="cursor:pointer;">
           <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
           <i class="fa-solid fa-chevron-down"></i>
         </div>
@@ -199,12 +163,15 @@
     </div>
 
     <!-- Page header -->
-    <div class="page-header">
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
       <div>
         <h2 id="page-title">Attendance &amp; Leave</h2>
         <p id="page-description">Track employee daily clock-in/out records, approve manual corrections, and manage leave requests.</p>
       </div>
-      <div style="display: flex; gap: 10px;">
+      <div style="display: flex; gap: 10px; align-items:center;">
+        <button type="button" onclick="window.downloadCurrentModuleTemplate('attendance')" class="btn-pill-action btn-pill-template"><i class="fa-solid fa-file-download"></i> Template</button>
+        <button type="button" onclick="window.exportModuleDataFile('attendance', 'xlsx')" class="btn-pill-action btn-pill-export"><i class="fa-solid fa-file-export"></i> Export Data</button>
+        <button type="button" onclick="window.openImportModal('attendance')" class="btn-pill-action btn-pill-import"><i class="fa-solid fa-file-import"></i> Import Data</button>
         <button class="btn-primary" id="btn-add-correction"><i class="fa-solid fa-circle-plus"></i> Manual Correction</button>
         <button class="btn-primary" id="btn-add-leave" style="display: none;"><i class="fa-solid fa-circle-plus"></i> Manual Leave Entry</button>
       </div>
@@ -217,34 +184,34 @@
     </div>
 
     <!-- ==================== TAB CONTENT: ATTENDANCE ==================== -->
-    <div id="tab-content-attendance" style="display: block;">
+    <div id="tab-content-attendance">
       <!-- Metrics Cards -->
-      <div class="stat-grid">
+      <div class="stat-grid" style="margin-bottom:24px;">
         <div class="card stat-card">
           <div class="stat-card-top">
             <span class="label">Present Today</span>
-            <div class="stat-icon" style="background:rgba(74,222,128,0.2);color:#4ade80;"><i class="fa-solid fa-user-check"></i></div>
+            <div class="stat-icon teal"><i class="fa-solid fa-user-check"></i></div>
           </div>
           <div class="stat-value" id="count-present">0</div>
         </div>
         <div class="card stat-card">
           <div class="stat-card-top">
-            <span class="label">Late Logins</span>
-            <div class="stat-icon" style="background:rgba(251,146,60,0.2);color:#fb923c;"><i class="fa-solid fa-business-time"></i></div>
+            <span class="label">Late Arrivals</span>
+            <div class="stat-icon" style="background:rgba(245,158,11,0.2);color:#f59e0b;"><i class="fa-solid fa-clock"></i></div>
           </div>
           <div class="stat-value" id="count-late">0</div>
         </div>
         <div class="card stat-card">
           <div class="stat-card-top">
-            <span class="label">Early Logouts</span>
-            <div class="stat-icon" style="background:rgba(248,113,113,0.2);color:#f87171;"><i class="fa-solid fa-door-open"></i></div>
+            <span class="label">Absent Today</span>
+            <div class="stat-icon" style="background:rgba(239,68,68,0.2);color:#ef4444;"><i class="fa-solid fa-user-xmark"></i></div>
           </div>
-          <div class="stat-value" id="count-early">0</div>
+          <div class="stat-value" id="count-absent">0</div>
         </div>
         <div class="card stat-card">
           <div class="stat-card-top">
             <span class="label">Pending Corrections</span>
-            <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-envelope-open-text"></i></div>
+            <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-pen-to-square"></i></div>
           </div>
           <div class="stat-value" id="count-pending">0</div>
         </div>
@@ -253,17 +220,14 @@
       <!-- Table Card -->
       <div class="card table-card">
         <div class="card-head">
-          <h3 id="view-title">Daily Check-Ins</h3>
-          <div style="display:flex;gap:12px;align-items:center;">
-            <input type="date" id="filter-date" class="glass" style="padding:6px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:12.5px;">
-            <div class="tab-group" id="attendance-tabs">
-              <button class="active" id="tab-logs">Daily Logs</button>
-              <button id="tab-pending">Corrections Requests</button>
-            </div>
+          <h3 id="table-title">Daily Logs</h3>
+          <div class="tab-group" id="attendance-subtabs">
+            <button class="active" id="tab-logs">Daily Logs</button>
+            <button id="tab-pending">Pending Corrections</button>
           </div>
         </div>
 
-        <!-- Logs View -->
+        <!-- Daily Logs View -->
         <div id="view-logs">
           <table>
             <thead>
@@ -470,7 +434,10 @@
   </div>
 </div>
 
+<script src="auth.js"></script>
 <script src="script.js"></script>
+<script src="js/csv-exporter.js"></script>
+<script src="js/csvImportExportModal.js"></script>
 <script src="attendance.js"></script>
 </body>
 </html>

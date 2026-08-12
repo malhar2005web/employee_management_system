@@ -26,7 +26,12 @@ const defaultSettings = {
         gracePeriod: 15,
         workingDays: [1, 2, 3, 4, 5]
     },
-    ipWhitelist: "127.0.0.1, ::1, 173.249.59.181"
+    ipWhitelist: "127.0.0.1, ::1, 173.249.59.181",
+    whatsappTemplate: {
+        message: "Hello {customer_name},\n\nThis is an official communication from PCS Enterprise Suite regarding {company_name}.\n\nPlease find the requested information attached.\n\nBest regards,\nPCS Admin Team",
+        attachmentUrl: "",
+        attachmentName: ""
+    }
 };
 
 async function readSettingsFile() {
@@ -52,7 +57,7 @@ export async function getSettings(req, res) {
 
 export async function updateSettings(req, res) {
     try {
-        const { company, smtp, preferences, ipWhitelist } = req.body;
+        const { company, smtp, preferences, ipWhitelist, whatsappTemplate } = req.body;
 
         if (!company || !smtp || !preferences) {
             return res.status(400).json({ success: false, message: "Invalid settings payload" });
@@ -78,7 +83,12 @@ export async function updateSettings(req, res) {
                 gracePeriod: parseInt(preferences.gracePeriod, 10) || 15,
                 workingDays: Array.isArray(preferences.workingDays) ? preferences.workingDays.map(Number) : [1, 2, 3, 4, 5]
             },
-            ipWhitelist: ipWhitelist || ""
+            ipWhitelist: ipWhitelist || "",
+            whatsappTemplate: {
+                message: whatsappTemplate?.message || "",
+                attachmentUrl: whatsappTemplate?.attachmentUrl || "",
+                attachmentName: whatsappTemplate?.attachmentName || ""
+            }
         };
 
         await fs.writeFile(settingsPath, JSON.stringify(newSettings, null, 2), 'utf-8');
@@ -86,5 +96,25 @@ export async function updateSettings(req, res) {
     } catch (error) {
         console.log("Error in updateSettings:", error.message);
         res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export async function uploadWhatsappAttachment(req, res) {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "No attachment file uploaded" });
+        }
+        const fileUrl = `/uploads/whatsapp/${req.file.filename}`;
+        const fileName = req.file.originalname;
+
+        res.status(200).json({
+            success: true,
+            message: "Attachment uploaded successfully",
+            attachmentUrl: fileUrl,
+            attachmentName: fileName
+        });
+    } catch (error) {
+        console.error("Error in uploadWhatsappAttachment:", error);
+        res.status(500).json({ success: false, message: "Server error uploading attachment" });
     }
 }

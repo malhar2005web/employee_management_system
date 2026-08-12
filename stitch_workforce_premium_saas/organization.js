@@ -31,6 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
             chatView.style.display = 'block';
             viewTitle.textContent = 'Chat Room';
             loadChatContacts();
+
+            // Mark chat notifications read & update badge
+            fetch('/api/v1/employee/inbox/mark-read', { method: 'POST', credentials: 'include' })
+                .then(() => { if (typeof window.checkChatUnreadBadge === 'function') window.checkChatUnreadBadge(); })
+                .catch(() => {});
         });
     }
 
@@ -167,14 +172,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 empEditId.value = '';
                 resetDocumentViews();
                 modalTitle.textContent = 'Add New Employee';
-                empModal.style.display = 'flex';
-                setTimeout(() => { empModal.style.opacity = '1'; }, 10);
+                if (typeof window.openModal === 'function') {
+                    window.openModal(empModal);
+                } else {
+                    empModal.style.display = 'flex';
+                    setTimeout(() => { empModal.style.opacity = '1'; }, 10);
+                }
             });
         }
 
         const closeModal = () => {
-            empModal.style.opacity = '0';
-            setTimeout(() => { empModal.style.display = 'none'; }, 250);
+            if (typeof window.closeModal === 'function') {
+                window.closeModal(empModal);
+            } else {
+                empModal.style.opacity = '0';
+                setTimeout(() => { empModal.style.display = 'none'; }, 250);
+            }
             empForm.reset();
             empEditId.value = '';
             resetDocumentViews();
@@ -227,10 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusClass = emp.status === 'Active' || emp.status === 'active' ? 'progress' : 'todo';
                 const statusLabel = emp.status || 'Active';
 
-                const toggleActionPill = emp.status === 'Active' || emp.status === 'active'
-                    ? `<button class="action-pill suspend" onclick="toggleStatus(${emp.id}, false)"><i class="fa-solid fa-ban"></i> Suspend</button>`
-                    : `<button class="action-pill activate" onclick="toggleStatus(${emp.id}, true)"><i class="fa-solid fa-check"></i> Activate</button>`;
-
                 const whatsapp = emp.whatsapp_no || '';
                 const anydesk = emp.anydesk_id || '';
                 const waLink = whatsapp ? `<a href="https://wa.me/${whatsapp.replace(/[^0-9]/g, '')}" target="_blank" style="color:var(--teal-600);font-weight:600;text-decoration:none;display:flex;align-items:center;gap:6px;"><i class="fa-brands fa-whatsapp" style="font-size:16px;color:#25D366;"></i>${whatsapp}</a>` : '<span style="color:var(--text-muted);">—</span>';
@@ -252,10 +261,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>
                         <div style="display:flex;gap:8px;">
                             <button class="action-pill edit" onclick="editEmployee(${JSON.stringify(emp).replace(/"/g, '&quot;')})"><i class="fa-solid fa-pen"></i> Edit</button>
-                            ${toggleActionPill}
+                            <button type="button" class="action-pill delete btn-offboard-emp" data-id="${emp.id}" data-name="${(emp.full_name || '').replace(/"/g, '&quot;')}" style="background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); font-weight:700; border-radius:12px; padding:4px 10px; cursor:pointer;"><i class="fa-solid fa-user-xmark"></i> Offboard</button>
                         </div>
                     </td>
                 `;
+
+                tr.querySelector('.btn-offboard-emp').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const id = e.currentTarget.dataset.id;
+                    const name = e.currentTarget.dataset.name;
+                    if (typeof window.openDeletionWizard === 'function') {
+                        window.openDeletionWizard('employee', id, name);
+                    }
+                });
+
                 employeesList.appendChild(tr);
             });
         };
@@ -736,94 +756,158 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     fetchCurrentUser();
 
+    let chatChannels = { directMessages: [], taskGroups: [], departmentChannels: [] };
+    let selectedChannel = null;
+
     const loadChatContacts = async () => {
         try {
-            const res = await fetch('/api/v1/employee/chat/contacts');
+            const res = await fetch('/api/v1/chat/channels');
             const data = await res.json();
             if (res.ok && data.success) {
-                chatContacts = data.data;
-                renderChatContacts(chatContacts);
-                
-                // If URL has a chat_id query param, select it
-                const params = new URLSearchParams(window.location.search);
-                const chatId = params.get('chat_id');
-                if (chatId) {
-                    const c = chatContacts.find(x => x.id == chatId);
-                    if (c) {
-                        selectContact(c);
-                        // Clean URL so refresh doesn't force switch
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                    }
-                }
+                chatChannels = data.data;
+                renderChatChannels();
             }
         } catch (e) {
-            console.error("Error loading chat contacts:", e);
+            console.error("Error loading chat channels:", e);
         }
     };
 
-    const renderChatContacts = (contacts) => {
+    const renderChatChannels = () => {
         const list = document.getElementById('chat-contacts-list');
         if (!list) return;
-        
         list.innerHTML = '';
-        if (contacts.length === 0) {
-            list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:12px;font-size:12px;">No contacts found</div>';
-            return;
-        }
 
-        contacts.forEach(c => {
+        // 💬 Section 1: Direct Messages
+        const dmHeader = document.createElement('div');
+        dmHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:10px 0 6px 4px;';
+        dmHeader.innerHTML = '<i class="fa-solid fa-user"></i> Direct Messages';
+        list.appendChild(dmHeader);
+
+        chatChannels.directMessages.forEach(c => {
             const item = document.createElement('div');
-            const avatarId = c.id + 10;
-            const isSelected = selectedContact && selectedContact.id === c.id;
-            const isActive = c.status === 'Active' || c.status === 'active';
-            const statusDotColor = isActive ? '#22c55e' : '#9ca3af';
+            const isSelected = selectedChannel && selectedChannel.id === c.employee_id && selectedChannel.type === 'DM';
+            const isBusy = c.presence_status === 'Busy';
+            const statusDotColor = isBusy ? '#ef4444' : '#22c55e';
+            const hasUnread = c.unread_count > 0;
 
             item.style.cssText = `
-                display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; cursor:pointer;
-                background:${isSelected ? 'rgba(255,255,255,0.3)' : 'transparent'};
-                transition: background 0.2s;
+                display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; cursor:pointer;
+                background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
+                margin-bottom:6px; border:1px solid rgba(0,0,0,0.04); transition: background 0.2s;
             `;
             item.innerHTML = `
                 <div style="position:relative;">
-                    <img src="https://i.pravatar.cc/80?img=${avatarId}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;" />
+                    <img src="https://i.pravatar.cc/80?img=${c.employee_id + 10}" style="width:34px; height:34px; border-radius:50%; object-fit:cover;" />
                     <span style="position:absolute; bottom:0; right:0; width:9px; height:9px; border-radius:50%; background:${statusDotColor}; border:1.5px solid #fff;"></span>
                 </div>
                 <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; font-size:13px; color:var(--teal-900); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${c.full_name}</div>
-                    <div style="font-size:11px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${c.designation_name || 'Staff'}</div>
+                    <div style="font-weight:700; font-size:13px; color:var(--teal-900); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; display:flex; align-items:center; justify-content:space-between;">
+                        <span>${c.full_name}</span>
+                        ${hasUnread ? `<span style="width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.8);"></span>` : ''}
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${c.designation || c.department_name || 'Staff'}</div>
                 </div>
+                <span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 6px; background:${statusDotColor}22; color:${statusDotColor};">
+                    ${isBusy ? '🔴 Busy' : '🟢 Online'}
+                </span>
             `;
-            item.addEventListener('click', () => selectContact(c));
+            item.addEventListener('click', () => selectChannelItem('DM', c.employee_id, c.full_name, c.designation || c.department_name));
             list.appendChild(item);
         });
+
+        // 👥 Section 2: Task Groups
+        if (chatChannels.taskGroups.length > 0) {
+            const tgHeader = document.createElement('div');
+            tgHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:16px 0 6px 4px;';
+            tgHeader.innerHTML = '<i class="fa-solid fa-users"></i> Task Groups';
+            list.appendChild(tgHeader);
+
+            chatChannels.taskGroups.forEach(g => {
+                const item = document.createElement('div');
+                const isSelected = selectedChannel && selectedChannel.id === g.id && selectedChannel.type === 'TaskGroup';
+                const hasUnread = g.unread_count > 0;
+
+                item.style.cssText = `
+                    padding:10px; border-radius:12px; cursor:pointer; background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
+                    margin-bottom:6px; border:1px solid rgba(0,0,0,0.04);
+                `;
+                item.innerHTML = `
+                    <div style="font-weight:700; font-size:13px; color:var(--teal-900); display:flex; justify-content:space-between; align-items:center;">
+                        <span><i class="fa-solid fa-list-check" style="color:var(--teal-600);"></i> ${g.name}</span>
+                        ${hasUnread ? `<span style="width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.8);"></span>` : ''}
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted);">${g.task_title || 'Task Group'}</div>
+                `;
+                item.addEventListener('click', () => selectChannelItem('TaskGroup', g.id, g.name, g.task_title || 'Task Group'));
+                list.appendChild(item);
+            });
+        }
+
+        // 🏢 Section 3: Department Channels
+        if (chatChannels.departmentChannels.length > 0) {
+            const deptHeader = document.createElement('div');
+            deptHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:16px 0 6px 4px;';
+            deptHeader.innerHTML = '<i class="fa-solid fa-building"></i> Department Channels';
+            list.appendChild(deptHeader);
+
+            chatChannels.departmentChannels.forEach(d => {
+                const item = document.createElement('div');
+                const isSelected = selectedChannel && selectedChannel.id === d.id && selectedChannel.type === 'Department';
+                const hasUnread = d.unread_count > 0;
+
+                item.style.cssText = `
+                    padding:10px; border-radius:12px; cursor:pointer; background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
+                    margin-bottom:6px; border:1px solid rgba(0,0,0,0.04);
+                `;
+                item.innerHTML = `
+                    <div style="font-weight:700; font-size:13px; color:var(--teal-900); display:flex; justify-content:space-between; align-items:center;">
+                        <span><i class="fa-solid fa-hashtag" style="color:var(--teal-600);"></i> ${d.name}</span>
+                        ${hasUnread ? `<span style="width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.8);"></span>` : ''}
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted);">${d.department_name} Channel</div>
+                `;
+                item.addEventListener('click', () => selectChannelItem('Department', d.id, d.name, `${d.department_name} Channel`));
+                list.appendChild(item);
+            });
+        }
     };
 
-    const selectContact = (contact) => {
-        selectedContact = contact;
-        // Rerender contacts sidebar to show selection
-        renderChatContacts(chatContacts);
+    const selectChannelItem = async (type, id, title, subtitle) => {
+        selectedChannel = { type, id, title, subtitle };
 
-        // Show active thread view
         document.getElementById('chat-thread-empty').style.display = 'none';
         document.getElementById('chat-thread-active').style.display = 'flex';
 
-        // Header info
-        const avatarId = contact.id + 10;
-        document.getElementById('chat-header-avatar').src = `https://i.pravatar.cc/80?img=${avatarId}`;
-        document.getElementById('chat-header-name').textContent = contact.full_name;
-        document.getElementById('chat-header-status').textContent = `${contact.designation_name || 'Staff'} | ${contact.department_name || 'Department'}`;
+        document.getElementById('chat-header-name').textContent = title;
+        document.getElementById('chat-header-status').textContent = subtitle;
 
-        // Load messages
         loadMessages();
-
-        // Start polling
         startMessagePolling();
+
+        // Mark channel notifications read
+        try {
+            const readUrl = type === 'DM' ? `/api/v1/chat/channels/0/read?contactId=${id}` : `/api/v1/chat/channels/${id}/read`;
+            await fetch(readUrl, { method: 'POST' });
+            if (typeof window.checkChatUnreadBadge === 'function') window.checkChatUnreadBadge();
+            // Refresh channel list to update unread badge dots
+            const res = await fetch('/api/v1/chat/channels');
+            const data = await res.json();
+            if (res.ok && data.success) {
+                chatChannels = data.data;
+                renderChatChannels();
+            }
+        } catch (e) {
+            console.error("Error marking channel read:", e);
+        }
     };
 
     const loadMessages = async () => {
-        if (!selectedContact) return;
+        if (!selectedChannel) return;
         try {
-            const res = await fetch(`/api/v1/employee/chat/messages?contact_id=${selectedContact.id}`);
+            const url = selectedChannel.type === 'DM' 
+                ? `/api/v1/employee/chat/messages?contact_id=${selectedChannel.id}`
+                : `/api/v1/chat/messages/${selectedChannel.id}`;
+            const res = await fetch(url);
             const data = await res.json();
             if (res.ok && data.success) {
                 renderMessages(data.data);
@@ -833,51 +917,154 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ── File Attachment Helpers ──
+    const getFileIcon = (type, name) => {
+        if (!type && !name) return 'fa-solid fa-file';
+        const ext = (name || '').split('.').pop().toLowerCase();
+        if (/^image\//.test(type) || ['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return 'fa-solid fa-image';
+        if (type === 'application/pdf' || ext === 'pdf') return 'fa-solid fa-file-pdf';
+        if (/zip|rar|7z|tar|gz/.test(ext)) return 'fa-solid fa-file-zipper';
+        if (/doc|docx/.test(ext)) return 'fa-solid fa-file-word';
+        if (/xls|xlsx/.test(ext)) return 'fa-solid fa-file-excel';
+        if (/ppt|pptx/.test(ext)) return 'fa-solid fa-file-powerpoint';
+        if (ext === 'txt') return 'fa-solid fa-file-lines';
+        return 'fa-solid fa-file';
+    };
+
+    const formatFileSize = (bytes) => {
+        if (!bytes) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    };
+
+    const isImageFile = (type, name) => {
+        if (/^image\//.test(type)) return true;
+        const ext = (name || '').split('.').pop().toLowerCase();
+        return ['jpg','jpeg','png','gif','webp','svg'].includes(ext);
+    };
+
+    const buildAttachmentHTML = (fileUrl, fileName, fileType, fileSize, isMe) => {
+        if (!fileUrl) return '';
+        const linkColor = isMe ? '#a9d94c' : 'var(--teal-700)';
+        if (isImageFile(fileType, fileName)) {
+            return `<div style="margin-top:6px;"><a href="${fileUrl}" target="_blank"><img src="${fileUrl}" alt="${fileName}" style="max-width:220px; max-height:180px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" /></a><div style="font-size:10px; margin-top:3px; opacity:0.8;">📎 ${fileName} ${fileSize ? '(' + formatFileSize(fileSize) + ')' : ''}</div></div>`;
+        }
+        const icon = getFileIcon(fileType, fileName);
+        return `<div style="margin-top:8px; padding:10px 12px; border-radius:10px; background:${isMe ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)'}; display:flex; align-items:center; gap:10px;">
+            <i class="${icon}" style="font-size:22px; color:${linkColor};"></i>
+            <div style="flex:1; min-width:0;">
+                <a href="${fileUrl}" download="${fileName}" target="_blank" style="color:${linkColor}; font-weight:700; font-size:12.5px; text-decoration:underline; display:block; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${fileName}</a>
+                <span style="font-size:10px; opacity:0.7;">${formatFileSize(fileSize)}</span>
+            </div>
+            <a href="${fileUrl}" download="${fileName}" style="color:${linkColor}; font-size:14px;" title="Download"><i class="fa-solid fa-download"></i></a>
+        </div>`;
+    };
+
+    // ── File Input State ──
+    let pendingFile = null;
+    const fileInput = document.getElementById('chat-file-input');
+    const attachBtn = document.getElementById('btn-chat-attach');
+    const filePreview = document.getElementById('chat-file-preview');
+    const filePreviewName = document.getElementById('chat-file-preview-name');
+    const filePreviewSize = document.getElementById('chat-file-preview-size');
+    const filePreviewIcon = document.getElementById('chat-file-preview-icon');
+    const fileCancelBtn = document.getElementById('chat-file-cancel');
+
+    if (attachBtn && fileInput) {
+        attachBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                pendingFile = fileInput.files[0];
+                if (filePreview) {
+                    filePreviewName.textContent = pendingFile.name;
+                    filePreviewSize.textContent = formatFileSize(pendingFile.size);
+                    filePreviewIcon.className = getFileIcon(pendingFile.type, pendingFile.name);
+                    filePreview.style.display = 'flex';
+                }
+            }
+        });
+    }
+    if (fileCancelBtn) {
+        fileCancelBtn.addEventListener('click', () => {
+            pendingFile = null;
+            if (fileInput) fileInput.value = '';
+            if (filePreview) filePreview.style.display = 'none';
+        });
+    }
+
     const renderMessages = (messagesList) => {
         const container = document.getElementById('chat-messages-container');
         if (!container) return;
 
-        // Save scroll position
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
 
         container.innerHTML = '';
         if (messagesList.length === 0) {
-            container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;font-size:12.5px;">No messages yet. Say hello!</div>';
+            container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;font-size:12.5px;">No messages yet. Start the conversation!</div>';
             return;
         }
 
         messagesList.forEach(m => {
-            const isMe = m.sender_id !== selectedContact.id;
+            const isMe = currentUserId && (m.sender_id === currentUserId);
+            const senderName = m.sender_name || 'Staff';
             const time = new Date(m.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
             
             const outerDiv = document.createElement('div');
             outerDiv.style.cssText = `
-                display:flex; flex-direction:column; align-items: ${isMe ? 'flex-end' : 'flex-start'}; width:100%;
+                display:flex; flex-direction:column; align-items: ${isMe ? 'flex-end' : 'flex-start'}; width:100%; margin-bottom:10px;
             `;
 
             const bubble = document.createElement('div');
             bubble.style.cssText = `
-                max-width:70%; padding:10px 14px; border-radius:16px; font-size:13px; line-height:1.4;
-                background:${isMe ? 'var(--teal-600)' : 'rgba(255,255,255,0.7)'};
-                color:${isMe ? '#fff' : 'var(--text-dark)'};
+                max-width:75%; padding:10px 14px; border-radius:16px; font-size:13px; line-height:1.4;
+                background:${isMe ? 'linear-gradient(135deg, var(--teal-600), var(--teal-900))' : 'rgba(255,255,255,0.9)'};
+                color:${isMe ? '#ffffff' : 'var(--text-dark)'};
                 border:1px solid ${isMe ? 'transparent' : 'rgba(0,0,0,0.06)'};
-                box-shadow:0 1px 2px rgba(0,0,0,0.05);
+                box-shadow:0 2px 6px rgba(0,0,0,0.06);
                 border-bottom-right-radius:${isMe ? '4px' : '16px'};
                 border-bottom-left-radius:${isMe ? '16px' : '4px'};
                 word-break: break-word;
             `;
-            // Check for Meet links and make them clickable links
-            let text = m.message;
-            if (text.includes('https://meet.google.com/')) {
-                text = text.replace(/(https:\/\/meet\.google\.com\/[a-z0-9-]+)/g, '<a href="$1" target="_blank" style="color:inherit;text-decoration:underline;font-weight:700;">$1</a>');
-                bubble.innerHTML = text;
-            } else {
-                bubble.textContent = text;
+            let text = m.message_text || m.message || '';
+            const senderHeader = `<strong style="font-size:11px; color:${isMe ? '#a9d94c' : 'var(--teal-900)'}; display:block; margin-bottom:2px;">${isMe ? 'You' : senderName}</strong>`;
+
+            // Detect file attachment (DM: file_url, Channel: attachments array)
+            let fileUrl = m.file_url || null;
+            let fileName = m.file_name || null;
+            let fileType = m.file_type || null;
+            let fileSize = m.file_size || null;
+
+            // Channel messages use attachments JSONB array
+            if (!fileUrl && m.attachments) {
+                const atts = typeof m.attachments === 'string' ? JSON.parse(m.attachments) : m.attachments;
+                if (Array.isArray(atts) && atts.length > 0) {
+                    fileUrl = atts[0].url;
+                    fileName = atts[0].name;
+                    fileType = atts[0].type;
+                    fileSize = atts[0].size;
+                }
             }
+
+            // Text content (hide auto-generated 📎 text if we have actual file to show)
+            let displayText = text;
+            if (fileUrl && text.startsWith('📎')) displayText = '';
+
+            let bubbleContent = senderHeader;
+            if (displayText) {
+                if (displayText.includes('https://meet.google.com/')) {
+                    displayText = displayText.replace(/(https:\/\/meet\.google\.com\/[a-z0-9-]+)/g, `<a href="$1" target="_blank" style="color:${isMe ? '#a9d94c' : 'var(--teal-700)'};text-decoration:underline;font-weight:700;">$1</a>`);
+                }
+                bubbleContent += `<span>${displayText}</span>`;
+            }
+            if (fileUrl) {
+                bubbleContent += buildAttachmentHTML(fileUrl, fileName, fileType, fileSize, isMe);
+            }
+            bubble.innerHTML = bubbleContent;
 
             const infoDiv = document.createElement('div');
             infoDiv.style.cssText = `
-                font-size:10px; color:var(--text-muted); margin-top:4px; margin-left:4px; margin-right:4px;
+                font-size:10px; color:var(--text-muted); margin-top:3px; margin-left:4px; margin-right:4px;
             `;
             infoDiv.textContent = time;
 
@@ -886,7 +1073,6 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(outerDiv);
         });
 
-        // Scroll to bottom
         if (isNearBottom || container.scrollTop === 0) {
             container.scrollTop = container.scrollHeight;
         }
@@ -894,22 +1080,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sendChatMessage = async () => {
         const input = document.getElementById('chat-message-input');
-        if (!input || !selectedContact) return;
+        if (!input || !selectedChannel) return;
         const msg = input.value.trim();
-        if (!msg) return;
+        if (!msg && !pendingFile) return;
 
         try {
-            const res = await fetch('/api/v1/employee/chat/send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ recipient_id: selectedContact.id, message: msg }),
-                credentials: 'include'
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                input.value = '';
-                await loadMessages();
+            const formData = new FormData();
+            if (pendingFile) formData.append('file', pendingFile);
+
+            if (selectedChannel.type === 'DM') {
+                formData.append('recipient_id', selectedChannel.id);
+                if (msg) formData.append('message', msg);
+                await fetch('/api/v1/employee/chat/send', {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                formData.append('channelId', selectedChannel.id);
+                if (msg) formData.append('messageText', msg);
+                await fetch('/api/v1/chat/messages', {
+                    method: 'POST',
+                    body: formData
+                });
             }
+            input.value = '';
+            pendingFile = null;
+            if (fileInput) fileInput.value = '';
+            if (filePreview) filePreview.style.display = 'none';
+            loadMessages();
         } catch (e) {
             console.error("Error sending message:", e);
         }
@@ -935,7 +1133,41 @@ document.addEventListener('DOMContentLoaded', () => {
         msgInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') sendChatMessage();
         });
+
+        // `@mention` Auto-Complete suggestion popup
+        msgInput.addEventListener('keyup', (e) => {
+            const val = msgInput.value;
+            const lastAtPos = val.lastIndexOf('@');
+            if (lastAtPos !== -1 && lastAtPos === val.length - 1) {
+                let popup = document.getElementById('mention-suggestion-popup-org');
+                if (!popup) {
+                    popup = document.createElement('div');
+                    popup.id = 'mention-suggestion-popup-org';
+                    popup.style.cssText = 'position:absolute; bottom:60px; left:20px; background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border-radius:14px; padding:10px; box-shadow:0 10px 30px rgba(0,0,0,0.2); border:1px solid rgba(0,0,0,0.1); z-index:99999;';
+                    msgInput.parentElement.appendChild(popup);
+                }
+
+                popup.innerHTML = `
+                    <div style="font-size:10px; font-weight:800; color:var(--teal-900); margin-bottom:6px;">MENTION TEAM MEMBER</div>
+                    ${(chatChannels.directMessages || []).slice(0, 4).map(e => `
+                        <div onclick="window.insertMentionOrg('${e.full_name}')" style="padding:6px 10px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; color:var(--text-dark);">
+                            @${e.full_name}
+                        </div>
+                    `).join('')}
+                `;
+            }
+        });
     }
+
+    window.insertMentionOrg = (name) => {
+        if (!msgInput) return;
+        const val = msgInput.value;
+        const lastAtPos = val.lastIndexOf('@');
+        msgInput.value = val.substring(0, lastAtPos) + `@${name} `;
+        const popup = document.getElementById('mention-suggestion-popup-org');
+        if (popup) popup.remove();
+        msgInput.focus();
+    };
 
     // Contact Search Listener
     const contactSearchInput = document.getElementById('chat-contact-search');

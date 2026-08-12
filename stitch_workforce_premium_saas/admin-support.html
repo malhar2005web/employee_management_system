@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support Desk &amp; Issue Resolution — PCS Enterprise</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  .support-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 860px) {
+    .support-metrics-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .metric-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-md);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  }
+  .metric-info h4 {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .metric-info .val {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--teal-950);
+  }
+  .metric-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+
+  /* Support Filter Bar (Ultra-Sleek Single Line Bar) */
+  .support-filter-bar {
+    display: flex;
+    align-items: center;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    width: 100%;
+    box-shadow: var(--glass-shadow-soft);
+  }
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+  .filter-group select, .filter-group input {
+    padding: 10px 14px !important;
+    border-radius: var(--radius-sm) !important;
+    border: 1.5px solid #CBD5E1 !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    font-size: 14.5px !important;
+    outline: none;
+    font-weight: 600 !important;
+    color: #1E293B !important;
+    min-width: 0;
+  }
+    font-size: 13px;
+    outline: none;
+    font-weight: 500;
+    color: var(--text-dark);
+  }
+
+  /* Support Ticket Workspace Modal */
+  .ticket-modal-box {
+    max-width: 980px !important;
+    width: 95% !important;
+  }
+  .ticket-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+  }
+  @media (max-width: 860px) {
+    .ticket-detail-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Comment / Timeline Stream */
+  .conversation-box {
+    background: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    max-height: 380px;
+    overflow-y: auto;
+  }
+  .chat-msg-item {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+  .chat-msg-item.internal-note {
+    background: rgba(254, 243, 199, 0.55);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+  .chat-msg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .chat-msg-author {
+    font-weight: 700;
+    color: var(--teal-950);
+  }
+
+  .timeline-stream {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    position: relative;
+  }
+  .timeline-stream::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 11px;
+    width: 2px;
+    background: rgba(0,0,0,0.1);
+  }
+  .timeline-item {
+    position: relative;
+    padding-left: 28px;
+    margin-bottom: 12px;
+    font-size: 12px;
+  }
+  .timeline-dot {
+    position: absolute;
+    left: 6px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--teal-600);
+    border: 2px solid #fff;
+  }
+
+  /* Priority & Status Badges */
+  .badge-critical { background: rgba(239, 68, 68, 0.15); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 800; }
+  .badge-high { background: rgba(249, 115, 22, 0.15); color: #ea580c; border: 1px solid rgba(249, 115, 22, 0.3); font-weight: 700; }
+  .badge-medium { background: rgba(234, 179, 8, 0.15); color: #ca8a04; border: 1px solid rgba(234, 179, 8, 0.3); font-weight: 700; }
+  .badge-low { background: rgba(14, 165, 233, 0.15); color: #0284c7; border: 1px solid rgba(14, 165, 233, 0.3); font-weight: 600; }
+
+  /* HIGH CONTRAST PALETTE TOKENS DIRECTIVE */
+  :root {
+    --color-main-heading: #1E293B;      /* Dark Slate */
+    --color-section-heading: #0F766E;   /* Deep Teal */
+    --color-normal-text: #334155;       /* Dark Gray */
+    --color-secondary-text: #64748B;    /* Slate Gray */
+    --color-muted-placeholder: #94A3B8; /* Cool Gray */
+    --color-label: #475569;             /* Charcoal */
+    --color-success: #059669;           /* Emerald */
+    --color-warning: #D97706;           /* Amber */
+    --color-critical: #DC2626;          /* Red */
+    --color-link: #2563EB;              /* Blue */
+  }
+
+  /* Main Headings */
+  h1, h2, h3, .modal-header h3, .main-heading {
+    color: #1E293B !important;
+    font-weight: 800 !important;
+    font-size: 21px !important;
+  }
+
+  /* Section Headings */
+  h4, h5, .form-section-heading, .form-section-title, .section-heading {
+    color: #0F766E !important;
+    font-weight: 800 !important;
+    font-size: 16.5px !important;
+  }
+
+  /* Labels */
+  label, .form-group label, .form-label-clean {
+    color: #475569 !important;
+    font-weight: 700 !important;
+    font-size: 14.5px !important;
+    margin-bottom: 6px;
+  }
+
+  /* Normal Text */
+  body, p, span, td, .normal-text {
+    color: #334155;
+    font-size: 15px;
+  }
+
+  /* Secondary Text & Timestamps */
+  .secondary-text, .text-muted, p.sub, small, .timestamp, #view-ticket-sub {
+    color: #64748B !important;
+    font-size: 13.5px !important;
+  }
+
+  /* Muted / Placeholders */
+  input::placeholder, textarea::placeholder {
+    color: #94A3B8 !important;
+    opacity: 1 !important;
+    font-size: 14.5px !important;
+  }
+
+  /* Links */
+  a, .link-text {
+    color: #2563EB !important;
+  }
+
+  /* High Contrast Status & Severity Badges */
+  .badge-critical, .badge-high { background: rgba(220, 38, 38, 0.12) !important; color: #DC2626 !important; border: 1px solid rgba(220, 38, 38, 0.3) !important; font-weight: 700; font-size: 13.5px; }
+  .badge-medium, .badge-warning { background: rgba(217, 119, 6, 0.12) !important; color: #D97706 !important; border: 1px solid rgba(217, 119, 6, 0.3) !important; font-weight: 700; font-size: 13.5px; }
+  .badge-low, .badge-success { background: rgba(5, 150, 105, 0.12) !important; color: #059669 !important; border: 1px solid rgba(5, 150, 105, 0.3) !important; font-weight: 700; font-size: 13.5px; }
+
+  /* Ultra-Clean Liquid Glass Modals matching Add Employee / Add Task style */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 42, 36, 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .modal-overlay.active {
+    display: flex !important;
+    opacity: 1 !important;
+  }
+  .modal-box, .modal-box-solid {
+    width: 95% !important;
+    max-width: 1100px !important;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: var(--glass-bg, rgba(255, 255, 255, 0.55)) !important;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.75)) !important;
+    backdrop-filter: blur(var(--glass-blur, 24px)) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur, 24px)) !important;
+    box-shadow: var(--glass-shadow) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 32px !important;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+  }
+  .modal-header h3 {
+    font-size: 21px !important;
+    font-weight: 800;
+    color: #1E293B !important;
+    margin: 0;
+  }
+  .modal-close {
+    font-size: 20px;
+    color: #64748B !important;
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+  .modal-close:hover {
+    color: #DC2626 !important;
+  }
+
+  .form-section-heading {
+    margin: 0 0 14px;
+    color: #0F766E !important;
+    font-weight: 800;
+    font-size: 16.5px !important;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .form-group label {
+    font-size: 14.5px !important;
+    font-weight: 700;
+    color: #475569 !important;
+  }
+  .form-control, .form-input-clean, .form-select-clean, .form-textarea-clean, input[type="text"], input[type="email"], select, textarea {
+    padding: 12px 16px !important;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid #CBD5E1 !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    color: #1E293B !important;
+    font-family: inherit;
+    font-size: 15.5px !important;
+    font-weight: 600 !important;
+    outline: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  }
+  .form-control:focus, .form-input-clean:focus, .form-select-clean:focus, .form-textarea-clean:focus, input:focus, select:focus, textarea:focus {
+    background: #FFFFFF !important;
+    border-color: #0F766E !important;
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18) !important;
+    color: #0F172A !important;
+  }
+  .form-select-clean option, select option {
+    background: #ffffff !important;
+    color: #1E293B !important;
+    font-size: 15px !important;
+  }
+
+  /* File Attachment Dropzone */
+  .dropzone-box {
+    border: 2px dashed #0F766E;
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .dropzone-box:hover {
+    border-color: #0F766E;
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  /* Modal Footer Action Buttons */
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 26px;
+  }
+  .btn-secondary {
+    padding: 12px 24px !important;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.6);
+    border: 1.5px solid #CBD5E1;
+    font-weight: 700;
+    color: #334155 !important;
+    font-size: 15px !important;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.9);
+  }
+  .btn-primary, .btn-gradient-submit {
+    padding: 12px 26px !important;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, #0F766E, #0D9488) !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 15px !important;
+    border: none !important;
+    box-shadow: 0 4px 15px rgba(15, 118, 110, 0.35);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-primary:hover, .btn-gradient-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 118, 110, 0.45);
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><img src="/assets/logo.jpg" alt="PCS Logo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>
+      <div class="brand-text">
+        <h1>PCS Admin</h1>
+        <span>Enterprise Suite</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-projects.html'"><i class="fa-solid fa-folder-tree"></i> Projects</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Workflows</li>
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/admin-support.html'"><i class="fa-solid fa-headset"></i> Support Desk</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
+    </ul>
+
+    <div class="sidebar-logout" id="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search tickets, customers...</div>
+
+      <nav class="topbar-nav">
+        <a href="/admin-dashboard.html">Dashboard</a>
+        <a href="/admin-support.html" class="active">Support Desk</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <div class="topbar-user" onclick="window.location.href='/admin-profile.html'" style="cursor:pointer;">
+          <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Header Section -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+      <div>
+        <h2 style="font-size:26px; font-weight:800; color:var(--teal-950); display:flex; align-items:center; gap:10px;">
+          <i class="fa-solid fa-headset" style="color:var(--teal-600);"></i> Support Desk &amp; Issue Lifecycle
+        </h2>
+        <p style="font-size:13.5px; color:var(--text-muted); margin-top:4px;">
+          Decoupled post-delivery issue management, SLA timers, customer verification &amp; conversion pipeline.
+        </p>
+      </div>
+
+      <button id="btn-open-create-ticket" class="btn-primary" style="padding:10px 20px; font-weight:700; font-size:13.5px; display:inline-flex; align-items:center; gap:8px;">
+        <i class="fa-solid fa-plus"></i> Raise Support Ticket
+      </button>
+    </div>
+
+    <!-- Metrics Cards (3 Cards Row) -->
+    <div class="support-metrics-grid">
+      <div class="metric-card">
+        <div class="metric-info">
+          <h4>Total Tickets</h4>
+          <div class="val" id="metric-total-tickets">0</div>
+        </div>
+        <div class="metric-icon" style="background:rgba(6,182,212,0.15); color:#0891b2;">
+          <i class="fa-solid fa-ticket"></i>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-info">
+          <h4>Active / Open</h4>
+          <div class="val" id="metric-open-tickets" style="color:#d97706;">0</div>
+        </div>
+        <div class="metric-icon" style="background:rgba(245,158,11,0.15); color:#d97706;">
+          <i class="fa-solid fa-spinner"></i>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-info">
+          <h4>Resolved Today</h4>
+          <div class="val" id="metric-resolved-today" style="color:#16a34a;">0</div>
+        </div>
+        <div class="metric-icon" style="background:rgba(34,197,94,0.15); color:#16a34a;">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ultra-Sleek Single Line Filter & Action Bar -->
+    <div class="support-filter-bar">
+      <div class="filter-group">
+        <input type="text" id="ticket-search" placeholder="Search ticket SUP-..., title..." style="flex: 1.5; min-width: 160px;">
+        
+        <select id="filter-customer" style="flex: 1;">
+          <option value="all">All Customers</option>
+        </select>
+
+        <select id="filter-category" style="flex: 1;">
+          <option value="all">All Categories</option>
+          <option value="Bug">Bug</option>
+          <option value="Feature Request">Feature Request</option>
+          <option value="Configuration">Configuration</option>
+          <option value="Training">Training</option>
+          <option value="Data Issue">Data Issue</option>
+          <option value="Performance">Performance</option>
+          <option value="Security">Security</option>
+          <option value="Billing">Billing</option>
+          <option value="General Question">General Question</option>
+        </select>
+
+        <select id="filter-priority" style="flex: 1;">
+          <option value="all">All Priorities</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+
+        <select id="filter-status" style="flex: 1;">
+          <option value="all">All Statuses</option>
+          <option value="Open">Open</option>
+          <option value="Assigned">Assigned</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Waiting Customer">Waiting Customer</option>
+          <option value="Resolved">Resolved</option>
+          <option value="Closed">Closed</option>
+        </select>
+
+        <button id="btn-refresh-tickets" class="btn-primary" style="padding:10px 18px; font-weight:700; font-size:14.5px; white-space:nowrap; flex-shrink:0; display:inline-flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-rotate-right"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Ticket Master Table Card -->
+    <div class="card glass-card">
+      <div class="card-head" style="display:flex; justify-content:space-between; align-items:center;">
+        <h3>Support Tickets Repository</h3>
+        <span style="font-size:12px; color:var(--text-muted); font-weight:600;">SLA Matrix Integrated</span>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="data-table" id="tickets-table">
+          <thead>
+            <tr>
+              <th>Ticket Code</th>
+              <th>Customer &amp; Project</th>
+              <th>Issue Title &amp; Category</th>
+              <th>Priority &amp; SLA Countdown</th>
+              <th>Status</th>
+              <th>Assigned To</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tickets-list">
+            <tr>
+              <td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size:20px; color:var(--teal-600);"></i><br>
+                Loading support tickets...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ============================= MODAL 1: CREATE SUPPORT TICKET ============================= -->
+<div class="modal-overlay" id="create-ticket-modal">
+  <div class="modal-box" style="max-width: 1100px;">
+    <div class="modal-header">
+      <h3 style="font-size:18.5px; font-weight:800; color:var(--teal-900); display:flex; align-items:center; gap:8px; margin:0;">
+        <i class="fa-solid fa-headset"></i> Raise New Support Ticket
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" id="create-ticket-close"></i>
+    </div>
+
+    <form id="create-ticket-form">
+      <h4 class="form-section-heading"><i class="fa-solid fa-building"></i> Customer &amp; Project Scope</h4>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:16px;">
+        <div class="form-group">
+          <label for="ticket-customer">Customer Account *</label>
+          <select id="ticket-customer" class="form-select-clean" required>
+            <option value="">Select Customer...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="ticket-project">Related Project (Optional)</label>
+          <select id="ticket-project" class="form-select-clean">
+            <option value="">None / General Maintenance</option>
+          </select>
+        </div>
+      </div>
+
+      <h4 class="form-section-heading"><i class="fa-solid fa-sliders"></i> Issue Parameters &amp; SLA Level</h4>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:15px; margin-bottom:16px;">
+        <div class="form-group">
+          <label for="ticket-category">Issue Category</label>
+          <select id="ticket-category" class="form-select-clean">
+            <option value="Bug">Bug / Defect</option>
+            <option value="Feature Request">Feature Request</option>
+            <option value="Configuration">Configuration</option>
+            <option value="Training">Training</option>
+            <option value="Data Issue">Data Issue</option>
+            <option value="Performance">Performance</option>
+            <option value="Security">Security</option>
+            <option value="Billing">Billing</option>
+            <option value="General Question">General Question</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="ticket-priority">Priority &amp; SLA Matrix</label>
+          <select id="ticket-priority" class="form-select-clean">
+            <option value="Critical">Critical (30m Resp / 4h Reso)</option>
+            <option value="High">High (2h Resp / 24h Reso)</option>
+            <option value="Medium" selected>Medium (8h Resp / 3d Reso)</option>
+            <option value="Low">Low (24h Resp / 7d Reso)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="ticket-assignee">Assignee Staff (Optional)</label>
+          <select id="ticket-assignee" class="form-select-clean">
+            <option value="">Unassigned</option>
+          </select>
+        </div>
+      </div>
+
+      <h4 class="form-section-heading"><i class="fa-solid fa-pen-to-square"></i> Reporter &amp; Problem Details</h4>
+      <div class="form-group">
+        <label for="ticket-reported-by">Reported By (Contact Person Name)</label>
+        <input type="text" id="ticket-reported-by" class="form-input-clean" placeholder="e.g. John Doe (john@client.com)">
+      </div>
+      <div class="form-group">
+        <label for="ticket-title">Issue Summary / Title *</label>
+        <input type="text" id="ticket-title" class="form-input-clean" placeholder="Brief issue summary (e.g. Login button unresponsive after deployment)" required>
+      </div>
+      <div class="form-group">
+        <label for="ticket-description">Detailed Description &amp; Reproduction Steps</label>
+        <textarea id="ticket-description" class="form-textarea-clean" rows="3" placeholder="Provide complete context, steps to reproduce..."></textarea>
+      </div>
+
+      <h4 class="form-section-heading"><i class="fa-solid fa-paperclip"></i> File Attachments (Optional)</h4>
+      <input type="file" id="ticket-file-input" accept="image/*,.pdf,.zip,.log,.txt,.docx" style="display:none;">
+      <input type="hidden" id="ticket-file-url" value="">
+      <div class="dropzone-box" id="btn-upload-ticket-file">
+        <div style="font-size:22px; color:var(--teal-600); margin-bottom:4px;"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+        <div style="font-size:13px; font-weight:700; color:var(--text-dark);">Click to browse attachment file</div>
+        <div id="ticket-file-name" style="margin-top:6px; font-size:12px; font-weight:700; color:var(--teal-600);">No file attached</div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="create-ticket-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">
+          <i class="fa-solid fa-check-double"></i> Create Support Ticket
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================= MODAL 2: TICKET WORKSPACE & CONVERSATION ============================= -->
+<div class="modal-overlay" id="ticket-workspace-modal">
+  <div class="modal-box" style="max-width: 1180px;">
+    <div class="modal-header">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span id="view-ticket-code" class="badge" style="background:rgba(13,148,136,0.2); color:var(--teal-900); font-weight:800; font-size:13.5px; padding:4px 10px; border-radius:6px; border:1px solid rgba(13,148,136,0.3);">SUP-000000</span>
+        <div>
+          <h3 id="view-ticket-title" style="margin:0; font-size:18px; font-weight:800; color:var(--teal-900);">Ticket Summary Title</h3>
+          <p id="view-ticket-sub" style="margin-top:2px; font-size:12px; color:var(--text-muted);">Reported by Customer</p>
+        </div>
+      </div>
+      <i class="fa-solid fa-xmark modal-close" id="ticket-workspace-close"></i>
+    </div>
+
+    <div class="ticket-detail-grid" style="display:grid; grid-template-columns: 1fr 320px; gap:20px;">
+      <!-- Left Column -->
+      <div>
+        <!-- Status Bar -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label style="font-weight:700; font-size:12.5px; color:var(--text-dark);">Status:</label>
+            <select id="workspace-status-select" class="form-select-clean" style="padding:6px 12px; font-weight:700; font-size:12.5px; width:auto;">
+              <option value="Open">Open</option>
+              <option value="Assigned">Assigned</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Waiting Customer">Waiting Customer</option>
+              <option value="Resolved">Resolved</option>
+              <option value="Closed">Closed</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="btn-convert-task" class="btn-secondary" style="padding:6px 12px; font-size:12px; font-weight:700; background:rgba(14,165,233,0.15); color:#0284c7; border:1px solid rgba(14,165,233,0.35);">
+              <i class="fa-solid fa-list-check"></i> Convert to Task
+            </button>
+            <button type="button" id="btn-convert-workflow" class="btn-secondary" style="padding:6px 12px; font-size:12px; font-weight:700; background:rgba(168,85,247,0.15); color:#9333ea; border:1px solid rgba(168,85,247,0.35);">
+              <i class="fa-solid fa-diagram-project"></i> Convert to Workflow
+            </button>
+          </div>
+        </div>
+
+        <!-- Issue Details -->
+        <div style="margin-bottom:16px;">
+          <h5 style="font-size:12px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin-bottom:6px;">Issue Details</h5>
+          <p id="view-ticket-description" style="font-size:13.5px; color:var(--text-dark); line-height:1.5; white-space:pre-wrap; margin:0;">No details provided.</p>
+          <div id="view-ticket-attachments-area" style="margin-top:10px; display:none;">
+            <span style="font-size:12px; font-weight:700; color:var(--text-muted);">Attachments:</span>
+            <div id="view-ticket-attachments-list" style="margin-top:4px; display:flex; gap:8px; flex-wrap:wrap;"></div>
+          </div>
+        </div>
+
+        <!-- Comments -->
+        <h4 style="font-size:14px; font-weight:800; color:var(--teal-900); margin-bottom:10px;">
+          <i class="fa-regular fa-comments" style="color:var(--teal-600);"></i> Activity &amp; Conversation Thread
+        </h4>
+        <div class="conversation-box" id="workspace-comments-list" style="margin-bottom:14px; background:rgba(255,255,255,0.25); border:1px solid rgba(255,255,255,0.45); border-radius:var(--radius-sm); padding:14px; max-height:260px; overflow-y:auto;">
+          <div style="text-align:center; padding:15px; color:var(--text-muted); font-size:12.5px;">No comments yet.</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <textarea id="new-comment-text" class="form-textarea-clean" rows="2" placeholder="Type public response or internal note..."></textarea>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:12px; font-weight:700; color:var(--text-dark); display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="chk-internal-note" style="accent-color:var(--teal-600);">
+              <span style="color:#d97706;"><i class="fa-solid fa-lock" style="font-size:11px;"></i> Internal Note (Private to Staff)</span>
+            </label>
+            <button type="button" id="btn-post-comment" class="btn-primary" style="padding:8px 18px; font-size:12.5px;">
+              <i class="fa-solid fa-paper-plane"></i> Post Comment
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column -->
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <h4 style="font-size:13px; font-weight:800; color:var(--teal-900); margin-bottom:10px;">Ticket Parameters</h4>
+          <div style="font-size:12.5px; margin-bottom:6px;">
+            <span style="color:var(--text-muted); font-weight:600;">Customer:</span>
+            <div id="meta-customer-name" style="font-weight:700; color:var(--text-dark);">Customer Name</div>
+          </div>
+          <div style="font-size:12.5px; margin-bottom:6px;">
+            <span style="color:var(--text-muted); font-weight:600;">Project:</span>
+            <div id="meta-project-name" style="font-weight:600;">-</div>
+          </div>
+          <div style="font-size:12.5px; margin-bottom:6px;">
+            <span style="color:var(--text-muted); font-weight:600;">Category:</span>
+            <div id="meta-category-badge"><span class="badge" style="background:rgba(13,148,136,0.15); color:#0d9488;">Bug</span></div>
+          </div>
+          <div style="font-size:12.5px; margin-bottom:6px;">
+            <span style="color:var(--text-muted); font-weight:600;">Priority:</span>
+            <div id="meta-priority-badge"><span class="badge badge-medium">Medium</span></div>
+          </div>
+          <div style="font-size:12.5px; margin-bottom:10px;">
+            <span style="color:var(--text-muted); font-weight:600;">Assigned Staff:</span>
+            <select id="meta-assignee-select" class="form-select-clean" style="width:100%; margin-top:4px; padding:6px 10px; font-size:12px; font-weight:600;">
+              <option value="">Unassigned</option>
+            </select>
+          </div>
+          <div id="meta-linked-task" style="display:none; font-size:12px; margin-bottom:6px; padding:6px 8px; background:rgba(14,165,233,0.1); border:1px solid rgba(14,165,233,0.25); border-radius:6px; color:#0284c7; font-weight:700;">
+            <i class="fa-solid fa-link"></i> Linked Task: <span id="meta-linked-task-id"></span>
+          </div>
+          <div id="meta-linked-workflow" style="display:none; font-size:12px; margin-bottom:6px; padding:6px 8px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.25); border-radius:6px; color:#9333ea; font-weight:700;">
+            <i class="fa-solid fa-diagram-project"></i> Linked Workflow: <span id="meta-linked-workflow-id"></span>
+          </div>
+        </div>
+
+        <div>
+          <h4 style="font-size:13px; font-weight:800; color:var(--teal-900); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+            <i class="fa-regular fa-clock" style="color:var(--teal-600);"></i> SLA Resolution Timer
+          </h4>
+          <div id="meta-sla-countdown" style="font-size:13px; font-weight:700; color:var(--text-dark);">
+            Computing deadline...
+          </div>
+        </div>
+
+        <div>
+          <h4 style="font-size:13px; font-weight:800; color:var(--teal-900); margin-bottom:10px;">Timeline Audit Stream</h4>
+          <ul class="timeline-stream" id="workspace-history-list">
+            <li class="timeline-item">
+              <div class="timeline-dot"></div>
+              <div style="font-weight:700; color:var(--text-dark);">Ticket Created</div>
+              <div style="font-size:11px; color:var(--text-muted);">Just now</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= MODAL 3: EDIT SUPPORT TICKET ============================= -->
+<div class="modal-overlay" id="edit-ticket-modal">
+  <div class="modal-box" style="max-width: 1100px;">
+    <div class="modal-header">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span id="edit-ticket-code-badge" class="badge" style="background:rgba(217,119,6,0.2); color:#d97706; font-weight:800; font-size:13.5px; padding:4px 10px; border-radius:6px; border:1px solid rgba(217,119,6,0.3);">SUP-000000</span>
+        <h3 style="font-size:18.5px; font-weight:800; color:var(--teal-900); margin:0;">Edit Support Ticket Details</h3>
+      </div>
+      <i class="fa-solid fa-xmark modal-close" id="edit-ticket-close"></i>
+    </div>
+
+    <form id="edit-ticket-form">
+      <input type="hidden" id="edit-ticket-id">
+
+      <h4 class="form-section-heading"><i class="fa-solid fa-building"></i> Customer &amp; Project Scope</h4>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:16px;">
+        <div class="form-group">
+          <label>Customer Account</label>
+          <select id="edit-ticket-customer" class="form-select-clean">
+            <option value="">Select Customer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Related Project</label>
+          <select id="edit-ticket-project" class="form-select-clean">
+            <option value="">Select Project</option>
+          </select>
+        </div>
+      </div>
+
+      <h4 class="form-section-heading"><i class="fa-solid fa-sliders"></i> Issue Parameters &amp; SLA Level</h4>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:15px; margin-bottom:14px;">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="edit-ticket-category" class="form-select-clean">
+            <option value="Bug">Bug / Defect</option>
+            <option value="Security">Security Concern</option>
+            <option value="Feature Request">Feature Request</option>
+            <option value="Maintenance">Maintenance</option>
+            <option value="Infrastructure">Infrastructure</option>
+            <option value="Downtime">Downtime / Outage</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority Level</label>
+          <select id="edit-ticket-priority" class="form-select-clean">
+            <option value="Low">Low (Resp: 24h, Reso: 7D)</option>
+            <option value="Medium">Medium (Resp: 8h, Reso: 3D)</option>
+            <option value="High">High (Resp: 2h, Reso: 24h)</option>
+            <option value="Critical">Critical (Resp: 30m, Reso: 4h)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Current Status</label>
+          <select id="edit-ticket-status" class="form-select-clean">
+            <option value="Open">Open</option>
+            <option value="Assigned">Assigned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Waiting Customer">Waiting Customer</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Closed">Closed</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px;">
+        <label>Assigned Staff</label>
+        <select id="edit-ticket-assignee" class="form-select-clean">
+          <option value="">Unassigned</option>
+        </select>
+      </div>
+
+      <h4 class="form-section-heading"><i class="fa-solid fa-align-left"></i> Problem Summary &amp; Description</h4>
+      <div class="form-group">
+        <label>Issue Title / Summary *</label>
+        <input type="text" id="edit-ticket-title" class="form-input-clean" required>
+      </div>
+      <div class="form-group">
+        <label>Detailed Problem Description</label>
+        <textarea id="edit-ticket-description" class="form-textarea-clean" rows="4"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="edit-ticket-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">
+          <i class="fa-solid fa-floppy-disk"></i> Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="script.js"></script>
+<script src="support.js"></script>
+</body>
+</html>

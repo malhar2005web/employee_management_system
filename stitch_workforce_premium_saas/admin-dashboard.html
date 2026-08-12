@@ -452,26 +452,6 @@
     width: 30px;
     background: linear-gradient(90deg, #8b5cf6, #14b8a6);
   }
-  body {
-    background-color: #F8F7F4 !important;
-    background-image:
-      radial-gradient(circle at 10% 20%, rgba(24, 194, 156, 0.07) 0%, transparent 40%),
-      radial-gradient(circle at 80% 10%, rgba(221, 214, 254, 0.35) 0%, transparent 50%),
-      radial-gradient(circle at 50% 80%, rgba(107, 140, 255, 0.05) 0%, transparent 45%),
-      radial-gradient(circle at 50% 50%, #F8F7F4 0%, #F3F1EB 100%) !important;
-    background-attachment: fixed !important;
-  }
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background-size: 36px 36px;
-    background-image: 
-      linear-gradient(to right, rgba(0, 0, 0, 0.012) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(0, 0, 0, 0.012) 1px, transparent 1px);
-  }
   .pi-glass-highlight {
     position: absolute;
     inset: 0;
@@ -684,9 +664,11 @@
 
     <ul class="nav-list">
       <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-support.html'"><i class="fa-solid fa-headset"></i> Support Desk</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
@@ -708,9 +690,7 @@
 
       <div class="topbar-actions">
         <button class="icon-btn" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
-        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
-        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
-        <div class="topbar-user">
+        <div class="topbar-user" onclick="window.location.href='/admin-profile.html'" style="cursor:pointer;">
           <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
           <i class="fa-solid fa-chevron-down"></i>
         </div>
@@ -718,7 +698,7 @@
     </div>
 
     <!-- Page header -->
-    <div class="page-header">
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
       <div>
         <h2>Overview</h2>
         <p>Welcome back, Admin! Here's what's happening today.</p>
@@ -766,104 +746,224 @@
 
     <!-- Chart + Activity -->
     <div class="content-grid admin-dashboard-grid">
-      <div class="card table-card performance-card" style="grid-column: span 1;">
+      <!-- ================= PERFORMANCE INTELLIGENCE CARD ================= -->
+      <div class="card table-card performance-card" id="performance-intelligence-card" style="grid-column: span 1; position: relative;">
         <div class="pi-glass-highlight"></div>
-        <div class="card-head">
-          <h3>Performance Intelligence</h3>
-          <span class="status-pill progress">Auto Calculated</span>
+        
+        <!-- Header & Controls Toolbar -->
+        <div class="card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; border-bottom: 1px solid var(--glass-border); padding-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h3 style="font-size: 18px; font-weight: 800; color: var(--teal-900);">Performance Intelligence</h3>
+            <span class="status-pill progress" style="font-size: 11px; font-weight: 800;"><i class="fa-solid fa-brain"></i> Executive Suite</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <!-- Live Auto Refresh Indicator -->
+            <div id="pi-live-indicator" style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--teal-700); background: rgba(4, 120, 87, 0.1); padding: 4px 10px; border-radius: 99px; border: 1px solid rgba(4, 120, 87, 0.2);">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+              <span id="pi-live-text">Live · Updated 15s ago</span>
+            </div>
+
+            <!-- Preset Dropdown Switcher -->
+            <select id="pi-preset-select" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.4); font-size: 12px; font-weight: 700; color: var(--text-dark); outline: none; cursor: pointer;">
+              <option value="executive" selected>Preset: Executive</option>
+              <option value="hr">Preset: HR &amp; Onboarding</option>
+              <option value="operations">Preset: Operations</option>
+              <option value="pm">Preset: Project Manager</option>
+              <option value="custom">Preset: Custom</option>
+            </select>
+
+            <!-- Action Options Menu Dropdown -->
+            <div style="position: relative;">
+              <button type="button" class="icon-btn" id="pi-menu-btn" title="Widget Settings" style="width: 32px; height: 32px; font-size: 14px;"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+              <div id="pi-options-dropdown" style="display: none; position: absolute; right: 0; top: 38px; z-index: 100; min-width: 160px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(16px); border: 1px solid var(--glass-border); border-radius: 12px; box-shadow: var(--glass-shadow-soft); padding: 6px;">
+                <div class="pi-menu-item" id="btn-pi-refresh" style="padding: 8px 12px; font-size: 12px; font-weight: 700; color: var(--text-dark); cursor: pointer; border-radius: 6px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-rotate-right"></i> Refresh Data</div>
+                <div class="pi-menu-item" id="btn-pi-export-csv" style="padding: 8px 12px; font-size: 12px; font-weight: 700; color: var(--text-dark); cursor: pointer; border-radius: 6px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-file-csv"></i> Export CSV</div>
+                <div class="pi-menu-item" id="btn-pi-fullscreen" style="padding: 8px 12px; font-size: 12px; font-weight: 700; color: var(--text-dark); cursor: pointer; border-radius: 6px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-expand"></i> Fullscreen</div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- KPI Cards Grid -->
-        <div class="pi-kpi-grid">
-          <div class="pi-kpi-card glass" id="kpi-completed-tasks">
+        <!-- ✨ AI Recommendation Banner -->
+        <div id="pi-ai-banner" style="margin-bottom: 16px; padding: 12px 16px; background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(6, 182, 212, 0.12)); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: var(--radius-md); display: flex; align-items: flex-start; gap: 12px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #8b5cf6, #06b6d4); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; margin-top: 2px;">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+          </div>
+          <div>
+            <div style="font-size: 12.5px; font-weight: 800; color: var(--teal-900); margin-bottom: 2px;">AI Intelligence Recommendation</div>
+            <p id="pi-ai-text" style="font-size: 12px; color: var(--text-dark); line-height: 1.4; margin: 0;">Development Team efficiency dropped 8% due to 12 overdue subtasks. Recommendation: Reassign 3 tasks to Testing Team.</p>
+          </div>
+        </div>
+
+        <!-- Micro KPI Grid (Clickable Drill-downs) -->
+        <div class="pi-kpi-grid" style="margin-bottom: 20px;">
+          <div class="pi-kpi-card glass" id="kpi-completed-tasks" style="cursor: pointer;" title="Click to view Task Board">
             <div class="pi-glass-highlight"></div>
             <div class="pi-kpi-header">
               <span class="pi-kpi-label">Tasks Completed</span>
               <div class="pi-kpi-icon"><i class="fa-solid fa-circle-check"></i></div>
             </div>
             <div class="pi-kpi-value-row">
-              <span class="pi-kpi-number" id="kpi-val-completed">0</span>
-              <span class="pi-kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +4.2%</span>
+              <span class="pi-kpi-number" id="kpi-val-completed">483</span>
+              <span class="pi-kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +6.2%</span>
             </div>
             <div class="pi-kpi-sparkline" id="kpi-spark-completed"></div>
           </div>
 
-          <div class="pi-kpi-card glass" id="kpi-productivity">
+          <div class="pi-kpi-card glass" id="kpi-productivity" style="cursor: pointer;" title="Click to view Capacity Heatmap">
             <div class="pi-glass-highlight"></div>
             <div class="pi-kpi-header">
               <span class="pi-kpi-label">Productivity</span>
               <div class="pi-kpi-icon"><i class="fa-solid fa-bolt"></i></div>
             </div>
             <div class="pi-kpi-value-row">
-              <span class="pi-kpi-number" id="kpi-val-productivity">0%</span>
-              <span class="pi-kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +2.1%</span>
+              <span class="pi-kpi-number" id="kpi-val-productivity">89%</span>
+              <span class="pi-kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +4.1%</span>
             </div>
             <div class="pi-kpi-sparkline" id="kpi-spark-productivity"></div>
           </div>
 
-          <div class="pi-kpi-card glass" id="kpi-project-health">
+          <div class="pi-kpi-card glass" id="kpi-project-health" style="cursor: pointer;" title="Click to view Customer Projects">
             <div class="pi-glass-highlight"></div>
             <div class="pi-kpi-header">
               <span class="pi-kpi-label">Project Health</span>
               <div class="pi-kpi-icon"><i class="fa-solid fa-heart-pulse"></i></div>
             </div>
             <div class="pi-kpi-value-row">
-              <span class="pi-kpi-number" id="kpi-val-health">0%</span>
+              <span class="pi-kpi-number" id="kpi-val-health">95%</span>
               <span class="pi-kpi-trend flat">— stable</span>
             </div>
             <div class="pi-kpi-sparkline" id="kpi-spark-health"></div>
           </div>
 
-          <div class="pi-kpi-card glass" id="kpi-completion-time">
+          <div class="pi-kpi-card glass" id="kpi-completion-time" style="cursor: pointer;" title="Click to view SLA Metrics">
             <div class="pi-glass-highlight"></div>
             <div class="pi-kpi-header">
               <span class="pi-kpi-label">Avg. Lead Time</span>
               <div class="pi-kpi-icon"><i class="fa-solid fa-clock"></i></div>
             </div>
             <div class="pi-kpi-value-row">
-              <span class="pi-kpi-number" id="kpi-val-leadtime">0.0d</span>
+              <span class="pi-kpi-number" id="kpi-val-leadtime">2.1d</span>
               <span class="pi-kpi-trend down"><i class="fa-solid fa-arrow-trend-down"></i> -0.4d</span>
             </div>
             <div class="pi-kpi-sparkline" id="kpi-spark-leadtime"></div>
           </div>
         </div>
 
-        <div class="performance-shell">
+        <!-- Panel 1: Workflow Status Stacked Horizontal Progress Bars -->
+        <div class="card glass" style="padding: 16px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--glass-border);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="font-size: 14.5px; font-weight: 800; color: var(--teal-900);"><i class="fa-solid fa-bars-staggered"></i> Workflow Status Breakdown</h4>
+            <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);">48 Total Workflows</span>
+          </div>
 
-          <div id="performance-intelligence">
-            <div class="read-only-box">
-              <div class="pi-card-title"><span>Workflow Status</span><span>count</span></div>
-              <div id="pi-workflow-donut"></div>
+          <!-- Stacked Bars Grid -->
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
+                <span>Running</span>
+                <span>14 Workflows (29%)</span>
+              </div>
+              <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
+                <div style="width: 29%; height: 100%; background: var(--teal-600); border-radius: 4px;"></div>
+              </div>
             </div>
-            <div class="read-only-box">
-              <div class="pi-card-title"><span>Productivity vs On-Time</span><span>%</span></div>
-              <div id="pi-bar-chart" style="display:grid;grid-template-rows:1fr auto;height:154px;padding:4px 6px 0;position:relative;"></div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
+                <span>Planning</span>
+                <span>8 Workflows (17%)</span>
+              </div>
+              <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
+                <div style="width: 17%; height: 100%; background: #0284c7; border-radius: 4px;"></div>
+              </div>
             </div>
-            <div class="read-only-box">
-              <div class="pi-card-title"><span>Team Efficiency</span><span>rating</span></div>
-              <div id="pi-team-bars" style="min-height:118px;position:relative;"></div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
+                <span>Testing</span>
+                <span>5 Workflows (10%)</span>
+              </div>
+              <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
+                <div style="width: 10%; height: 100%; background: #8b5cf6; border-radius: 4px;"></div>
+              </div>
             </div>
-            <div class="read-only-box">
-              <div class="pi-card-title"><span>Project Health</span><span>share</span></div>
-              <div id="pi-health-pie"></div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
+                <span>Completed</span>
+                <span>19 Workflows (40%)</span>
+              </div>
+              <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
+                <div style="width: 40%; height: 100%; background: #10b981; border-radius: 4px;"></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px;">
+                <span>Blocked</span>
+                <span>2 Workflows (4%)</span>
+              </div>
+              <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.06); overflow: hidden;">
+                <div style="width: 4%; height: 100%; background: #ef4444; border-radius: 4px;"></div>
+              </div>
             </div>
           </div>
-          <div class="pi-carousel-dots" id="pi-carousel-dots"></div>
+
+          <!-- Insight Chips -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--glass-border);">
+            <div style="background: rgba(255,255,255,0.3); padding: 8px 12px; border-radius: 8px;">
+              <span style="font-size: 10.5px; font-weight: 700; color: var(--text-muted); display: block;">Avg Completion Time</span>
+              <strong style="font-size: 13px; color: var(--teal-900); font-weight: 800;">4.2 Days</strong>
+            </div>
+            <div style="background: rgba(255,255,255,0.3); padding: 8px 12px; border-radius: 8px;">
+              <span style="font-size: 10.5px; font-weight: 700; color: var(--text-muted); display: block;">Bottleneck Stage</span>
+              <strong style="font-size: 13px; color: #8b5cf6; font-weight: 800;">Testing</strong>
+            </div>
+            <div style="background: rgba(255,255,255,0.3); padding: 8px 12px; border-radius: 8px;">
+              <span style="font-size: 10.5px; font-weight: 700; color: var(--text-muted); display: block;">Longest Workflow</span>
+              <strong style="font-size: 13px; color: var(--teal-900); font-weight: 800;">Website Migration (34d)</strong>
+            </div>
+          </div>
         </div>
-        <div style="margin-top:14px;overflow-x:auto;width:100%;">
-          <table>
-            <thead>
-              <tr>
-                <th>Team</th>
-                <th>Allocated</th>
-                <th>Completed</th>
-                <th>Efficiency</th>
-              </tr>
-            </thead>
-            <tbody id="team-performance-list">
-              <tr><td colspan="4" style="text-align:center;padding:18px;color:var(--text-muted);">Loading team analytics...</td></tr>
-            </tbody>
-          </table>
+
+        <!-- Panel 2: Team Performance Heatmap & Capacity Table -->
+        <div class="card glass" style="padding: 16px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--glass-border);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="font-size: 14.5px; font-weight: 800; color: var(--teal-900);"><i class="fa-solid fa-table-cells"></i> Team Utilization &amp; Heatmap</h4>
+            <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);">Real-time Capacity</span>
+          </div>
+
+          <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="text-align: left; font-size: 11px; text-transform: uppercase; color: var(--text-muted);">
+                  <th style="padding: 8px;">Team</th>
+                  <th style="padding: 8px;">Allocated</th>
+                  <th style="padding: 8px;">Completed</th>
+                  <th style="padding: 8px;">Delayed</th>
+                  <th style="padding: 8px;">Efficiency</th>
+                  <th style="padding: 8px;">Utilization</th>
+                  <th style="padding: 8px;">Burnout Risk</th>
+                  <th style="padding: 8px;">Avg Age</th>
+                </tr>
+              </thead>
+              <tbody id="team-performance-list">
+                <!-- Populated via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Panel 3: Productivity Intelligence (Work vs Idle Stacked Area Chart) -->
+        <div class="card glass" style="padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--glass-border);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="font-size: 14.5px; font-weight: 800; color: var(--teal-900);"><i class="fa-solid fa-chart-area"></i> Productive vs. Idle Time Breakdown (30 Days)</h4>
+            <span style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);">Stacked Hours</span>
+          </div>
+
+          <div id="pi-area-chart" style="width: 100%; height: 220px;"></div>
         </div>
       </div>
 
@@ -1065,6 +1165,8 @@
   </div>
 </div>
 
+<script src="auth.js"></script>
+<script src="js/csv-exporter.js"></script>
 <script src="script.js"></script>
 <script src="admin-dashboard-workflows.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>

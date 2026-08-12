@@ -11,18 +11,17 @@
     "port": 2525,
     "user": "smtpuser",
     "pass": "",
-    "sender": "noreply@pcscorp.com"
+    "sender": ""
   },
   "preferences": {
     "standardHours": 8,
     "gracePeriod": 15,
-    "workingDays": [
-      1,
-      2,
-      3,
-      4,
-      5
-    ]
+    "workingDays": []
   },
-  "ipWhitelist": "127.0.0.1, ::1, 173.249.59.181"
+  "ipWhitelist": "",
+  "whatsappTemplate": {
+    "message": "",
+    "attachmentUrl": "",
+    "attachmentName": ""
+  }
 }

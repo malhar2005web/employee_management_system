@@ -81,6 +81,9 @@
       <div class="date-picker"><i class="fa-regular fa-calendar cal"></i> <span id="today-date-label"></span> <i class="fa-solid fa-chevron-down chev"></i></div>
     </div>
 
+    <!-- Active Task Session Banner Container -->
+    <div id="active-task-banner-container"></div>
+
     <!-- Stat cards -->
     <div class="stat-grid" style="grid-template-columns:repeat(5,1fr);">
       <div class="card stat-card" style="display:flex; flex-direction:column; gap:8px;">
@@ -198,7 +201,7 @@
           <a href="/employee-tasks.html" class="link">View All Tasks</a>
         </div>
         <div class="task-list" id="dashboard-task-list">
-          <div style="text-align:center;color:var(--text-muted);padding:32px;font-size:13px;">Loading tasks...</div>
+          <div style="text-align:center;color:var(--teal-700);padding:32px;font-size:13.5px;font-weight:600;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;margin-bottom:8px;color:var(--teal-600);display:block;"></i> Loading tasks...</div>
         </div>
       </div>
 
@@ -661,6 +664,10 @@
         const statusClass = isCompleted ? 'done' : t.status === 'In Progress' ? 'progress' : 'to-do';
         const due = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
         const strike = isCompleted ? 'text-decoration:line-through;opacity:0.5;' : '';
+        const startBtn = isCompleted 
+          ? `<button class="action-pill" disabled style="background:rgba(0,0,0,0.08);color:var(--text-muted);font-size:11px;font-weight:700;border:1px solid rgba(0,0,0,0.1);padding:4px 8px;border-radius:12px;cursor:not-allowed;opacity:0.6;"><i class="fa-solid fa-check"></i> Completed</button>`
+          : `<button class="action-pill" style="background:linear-gradient(135deg,var(--teal-600),var(--teal-900));color:#fff;font-size:11px;font-weight:700;border:none;padding:4px 8px;border-radius:12px;cursor:pointer;" onclick="window.startTaskSession(${t.id}, ${t.project_id || 'null'})"><i class="fa-solid fa-play"></i> Start Work</button>`;
+
         return `
           <div class="task-row" style="${strike}" data-task-id="${t.id}">
             <input type="checkbox" ${isCompleted ? 'checked disabled' : ''} onchange="markTaskComplete(${t.id}, this)">
@@ -671,6 +678,7 @@
             <span class="priority-pill ${priorityClass}">${t.priority || 'Normal'}</span>
             <span class="col">${due}</span>
             <span class="status-pill ${statusClass}">${t.status || 'To Do'}</span>
+            ${startBtn}
           </div>
         `;
       }).join('');
@@ -862,6 +870,7 @@
     await loadDashboardSummary();
   })();
 </script>
+<script src="/js/trackingService.js"></script>
 
 </body>
 </html>

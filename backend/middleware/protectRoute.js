@@ -4,7 +4,11 @@ import { ENV_VARS } from '../config/envVars.js';
 
 export const protectRoute = async (req, res, next) => {
     try {
-        const token = req.cookies["jwt-moma"];
+        let token = req.cookies["jwt-moma"];
+        if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+            token = req.headers.authorization.split(" ")[1];
+        }
+
         if (!token) {
             return res.status(401).json({ success: false, message: "Unauthorized - no token provided" });
         }

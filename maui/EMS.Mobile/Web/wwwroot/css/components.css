@@ -1,0 +1,204 @@
+/* mobile-header layout */
+.mobile-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    height: calc(60px + env(safe-area-inset-top));
+    border-bottom: 1px solid var(--glass-border);
+    border-bottom-left-radius: var(--radius-sm);
+    border-bottom-right-radius: var(--radius-sm);
+}
+
+.mobile-header-hamburger {
+    font-size: 22px;
+    color: var(--teal-900);
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-header-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--teal-900);
+}
+
+/* mobile-drawer navigation panel */
+.mobile-drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s var(--ease-premium), visibility 0.3s var(--ease-premium);
+}
+
+.mobile-drawer-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.mobile-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 290px;
+    height: 100%;
+    z-index: 1001;
+    box-sizing: border-box;
+    padding: 24px 16px;
+    transform: translate3d(-100%, 0, 0);
+    transition: transform 0.35s var(--ease-premium);
+    border-top-right-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-lg);
+}
+
+.mobile-drawer.active {
+    transform: translate3d(0, 0, 0);
+}
+
+/* bottom-nav bar layout */
+.mobile-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 999;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(65px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--glass-border);
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
+}
+
+.mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 6px 0;
+    width: 20%;
+}
+
+.mobile-nav-item i {
+    font-size: 18px;
+    margin-bottom: 4px;
+}
+
+.mobile-nav-item.active {
+    color: var(--teal-600);
+}
+
+/* Floating Action Button (FAB) center trigger */
+.mobile-fab-container {
+    width: 20%;
+    display: flex;
+    justify-content: center;
+    position: relative;
+    top: -14px;
+}
+
+.mobile-fab {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--teal-500), var(--teal-700));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 8px 24px rgba(15, 139, 115, 0.35);
+    transition: transform 0.2s var(--ease-premium);
+}
+
+.mobile-fab:active {
+    transform: scale(0.9);
+}
+
+/* Card Skeleton Loader Shimmer */
+.shimmer-card {
+    min-height: 120px;
+    border-radius: var(--radius-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: var(--glass-shadow);
+}
+
+.shimmer-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: shimmer-swipe 1.6s infinite;
+}
+
+@keyframes shimmer-swipe {
+    100% {
+        left: 150%;
+    }
+}
+
+/* Offline Banner notification */
+.offline-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(231, 76, 60, 0.95);
+    backdrop-filter: blur(10px);
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    z-index: 1002;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+.offline-banner button {
+    background: white;
+    color: #e74c3c;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}

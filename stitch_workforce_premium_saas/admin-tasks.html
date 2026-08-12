@@ -207,10 +207,12 @@
     </div>
 
     <ul class="nav-list">
-      <li class="nav-item" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
-      <li class="nav-item" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
-      <li class="nav-item" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
-      <li class="nav-item active" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-support.html'"><i class="fa-solid fa-headset"></i> Support Desk</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
@@ -232,10 +234,8 @@
       </nav>
 
       <div class="topbar-actions">
-        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
-        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
-        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
-        <div class="topbar-user">
+        <button class="icon-btn" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <div class="topbar-user" onclick="window.location.href='/admin-profile.html'" style="cursor:pointer;">
           <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
           <i class="fa-solid fa-chevron-down"></i>
         </div>
@@ -248,7 +248,12 @@
         <h2 id="page-title">Workflows &amp; Audit Logs</h2>
         <p id="page-description">Build project workflows, assign teams, connect task nodes, and track delivery progress.</p>
       </div>
-      <button class="btn-primary" id="btn-add-task-modal"><i class="fa-solid fa-plus"></i> Create Workflow</button>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button type="button" onclick="window.downloadCurrentModuleTemplate('tasks')" class="btn-pill-action btn-pill-template"><i class="fa-solid fa-file-download"></i> Template</button>
+        <button type="button" onclick="window.exportModuleDataFile('tasks', 'xlsx')" class="btn-pill-action btn-pill-export"><i class="fa-solid fa-file-export"></i> Export Data</button>
+        <button type="button" onclick="window.openImportModal('tasks')" class="btn-pill-action btn-pill-import"><i class="fa-solid fa-file-import"></i> Import Data</button>
+        <button class="btn-primary" id="btn-add-task-modal"><i class="fa-solid fa-plus"></i> Create Workflow</button>
+      </div>
     </div>
 
     <!-- Table Card -->
@@ -257,15 +262,16 @@
         <h3 id="view-title">Active Workflows</h3>
         <div class="tab-group" id="task-tabs">
           <button class="active" id="tab-tasks">Workflows</button>
-          <button id="tab-templates">Auto Templates</button>
+          <button id="tab-templates">Workflow Blueprint Library</button>
           <button id="tab-audit-logs">Audit Logs</button>
+          <button id="tab-workload">Workload &amp; Capacity</button>
         </div>
       </div>
 
       <!-- Tasks View -->
       <div id="view-tasks">
         <div class="table-responsive" style="overflow-x: auto; width: 100%;">
-          <table style="min-width: 1100px;">
+          <table id="table-tasks" style="min-width: 1100px;">
             <thead>
               <tr>
                 <th>Workflow</th>
@@ -287,65 +293,52 @@
         </div>
       </div>
 
-      <!-- Templates View -->
-      <div id="view-templates" style="display:none;padding:15px;">
-        <div class="grid-two-col">
-          <div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Template Name</th>
-                  <th>Frequency</th>
-                  <th>Priority</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="templates-list">
-                <!-- Dynamic rows -->
-              </tbody>
-            </table>
+      <!-- Workflow Blueprint Library View (Hidden by default) -->
+      <div id="view-templates" style="display:none; padding: 20px;">
+        <!-- Header Controls & Filters -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--glass-border);">
+          <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 320px;">
+            <div class="search-box" style="flex: 1; margin: 0; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--glass-border);">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="search-blueprint-input" placeholder="Search blueprints by title, category..." style="background: transparent; border: none; outline: none; width: 100%; font-size: 13.5px; color: var(--text-dark); font-weight: 600;">
+            </div>
+            <select id="filter-blueprint-category" style="padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.4); font-size: 13px; font-weight: 700; color: var(--text-dark); outline: none; cursor: pointer;">
+              <option value="">All Categories</option>
+              <option value="Software & Tech">Software & Tech</option>
+              <option value="HR & Onboarding">HR & Onboarding</option>
+              <option value="Operations">Operations</option>
+              <option value="Customer Success">Customer Success</option>
+              <option value="Marketing">Marketing</option>
+              <option value="QA & Testing">QA & Testing</option>
+            </select>
+            <select id="filter-blueprint-dept" style="padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.4); font-size: 13px; font-weight: 700; color: var(--text-dark); outline: none; cursor: pointer;">
+              <option value="">All Departments</option>
+              <option value="Engineering">Engineering</option>
+              <option value="HR">HR</option>
+              <option value="Sales & Support">Sales & Support</option>
+              <option value="Operations">Operations</option>
+              <option value="Marketing">Marketing</option>
+            </select>
           </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button type="button" class="btn-primary" id="btn-open-create-blueprint-modal" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700;"><i class="fa-solid fa-plus-circle"></i> Create Blueprint</button>
+          </div>
+        </div>
 
-          <!-- Add Template Form -->
-          <div class="card glass" style="padding:20px;box-shadow:none;border-radius:var(--radius-md);">
-            <h4 style="margin-bottom:15px;color:var(--teal-900);">Create Task Template</h4>
-            <form id="template-form">
-              <div class="form-group">
-                <label for="temp-title">Title</label>
-                <input type="text" id="temp-title" required placeholder="e.g. Daily DB Backup Check">
-              </div>
-              <div class="form-group">
-                <label for="temp-desc">Description</label>
-                <textarea id="temp-desc" rows="2" placeholder="Tasks details..."></textarea>
-              </div>
-              <div class="form-group">
-                <label for="temp-freq">Frequency</label>
-                <select id="temp-freq" required>
-                  <option value="Daily">Daily</option>
-                  <option value="Weekly">Weekly</option>
-                  <option value="Monthly">Monthly</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Assigned To</label>
-                <div class="checkbox-group" id="temp-assignee-checkboxes">
-                  <!-- Populate employees checkboxes -->
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="temp-priority">Priority</label>
-                <select id="temp-priority">
-                  <option value="Low">Low</option>
-                  <option value="Medium" selected>Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="temp-hours">Est. Hours</label>
-                <input type="number" step="0.5" id="temp-hours" placeholder="e.g. 1.5">
-              </div>
-              <button type="submit" class="btn-primary" style="width:100%;margin-top:10px;">Create Template</button>
-            </form>
+        <!-- Blueprint Cards Grid -->
+        <div id="blueprint-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+          <!-- Dynamic Blueprint Cards -->
+        </div>
+
+        <!-- Empty State Container -->
+        <div id="blueprint-empty-state" style="display: none; text-align: center; padding: 60px 20px; background: rgba(255, 255, 255, 0.15); border: 1px dashed var(--glass-border); border-radius: var(--radius-lg); margin-top: 10px;">
+          <div style="width: 70px; height: 70px; border-radius: 50%; background: rgba(4, 120, 87, 0.12); color: var(--teal-700); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; font-size: 28px;">
+            <i class="fa-solid fa-cubes-stacked"></i>
+          </div>
+          <h3 style="font-size: 20px; font-weight: 800; color: var(--teal-900); margin-bottom: 8px;">No Workflow Blueprints Yet</h3>
+          <p style="font-size: 14px; color: var(--text-muted); max-width: 460px; margin: 0 auto 24px auto;">Create your first reusable workflow blueprint to automate future projects and standardize team execution.</p>
+          <div style="display: flex; gap: 12px; justify-content: center;">
+            <button type="button" class="btn-primary" id="btn-empty-create-blueprint"><i class="fa-solid fa-plus"></i> Create Blueprint</button>
           </div>
         </div>
       </div>
@@ -360,23 +353,31 @@
 
         <!-- Panel: Actions Audit -->
         <div id="panel-action" style="display:block;">
-          <div style="display:flex;gap:15px;align-items:center;margin-bottom:20px;padding:12px;background:rgba(255,255,255,0.05);border-radius:var(--radius-sm);border:1px solid var(--glass-border);">
-            <select class="glass" id="act-filter-action" style="padding:6px 12px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:13px;outline:none;background:rgba(255,255,255,0.25);">
-              <option value="">All Actions</option>
-              <option value="CREATE">CREATE</option>
-              <option value="UPDATE">UPDATE</option>
-              <option value="DELETE">DELETE</option>
-            </select>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom:20px; padding:12px; background:rgba(255,255,255,0.05); border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+            <div style="display:flex; gap:12px; align-items:center;">
+              <select class="glass" id="act-filter-action" style="padding:6px 12px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:13px;outline:none;background:rgba(255,255,255,0.25);">
+                <option value="">All Actions</option>
+                <option value="CREATE">CREATE</option>
+                <option value="UPDATE">UPDATE</option>
+                <option value="DELETE">DELETE</option>
+              </select>
 
-            <select class="glass" id="act-filter-entity" style="padding:6px 12px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:13px;outline:none;background:rgba(255,255,255,0.25);">
-              <option value="">All Entities</option>
-              <option value="Employee">Employee</option>
-              <option value="Customer">Customer</option>
-              <option value="Project">Project</option>
-              <option value="Task">Task</option>
-              <option value="Leave">Leave</option>
-              <option value="Timesheet">Timesheet</option>
-            </select>
+              <select class="glass" id="act-filter-entity" style="padding:6px 12px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:13px;outline:none;background:rgba(255,255,255,0.25);">
+                <option value="">All Entities</option>
+                <option value="Employee">Employee</option>
+                <option value="Customer">Customer</option>
+                <option value="Project">Project</option>
+                <option value="Task">Task</option>
+                <option value="Leave">Leave</option>
+                <option value="Timesheet">Timesheet</option>
+              </select>
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button type="button" onclick="window.downloadCurrentModuleTemplate('audit_logs')" class="btn-pill-action btn-pill-template"><i class="fa-solid fa-file-download"></i> Template</button>
+              <button type="button" onclick="window.exportModuleDataFile('audit_logs', 'xlsx')" class="btn-pill-action btn-pill-export"><i class="fa-solid fa-file-export"></i> Export Data</button>
+              <button type="button" onclick="window.openImportModal('audit_logs')" class="btn-pill-action btn-pill-import"><i class="fa-solid fa-file-import"></i> Import Data</button>
+            </div>
           </div>
 
           <div class="table-responsive" style="overflow-x: auto; width: 100%;">
@@ -417,6 +418,11 @@
           </div>
         </div>
       </div>
+
+      <!-- Workload & Capacity View -->
+      <div id="view-workload" style="display:none; padding:20px;">
+        <div id="workload-heatmap-widget-container"></div>
+      </div>
     </div>
 
   </main>
@@ -424,7 +430,7 @@
 
 <!-- ================= CREATE WORKFLOW MODAL ================= -->
 <div class="modal-overlay" id="task-modal">
-  <div class="modal-box" style="max-width: 980px;">
+  <div class="modal-box" style="max-width: 1150px;">
     <div class="modal-header">
       <h3 id="modal-title">Create Workflow</h3>
       <i class="fa-solid fa-xmark modal-close" id="task-modal-close"></i>
@@ -554,7 +560,260 @@
   </div>
 </div>
 
+<!-- ================= WORKFLOW CREATION CHOICE MODAL ================= -->
+<div class="modal-overlay" id="workflow-creation-choice-modal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(31, 42, 36, 0.4); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); align-items:center; justify-content:center; padding:20px; opacity:0; pointer-events:none; transition:opacity 0.25s ease;">
+  <div class="modal-box" style="max-width: 900px;">
+    <div class="modal-header">
+      <div>
+        <h3 style="font-size:18px; font-weight:800; color:var(--teal-900);">Create Workflow</h3>
+        <p style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">How would you like to create this workflow?</p>
+      </div>
+      <i class="fa-solid fa-xmark modal-close" id="creation-choice-modal-close" style="cursor:pointer;"></i>
+    </div>
+    
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin: 20px 0;">
+      <!-- Option 1: Blueprint (Recommended) -->
+      <div class="card glass creation-mode-card" id="mode-select-blueprint" style="padding:20px; cursor:pointer; border:2px solid var(--teal-600); background:rgba(4, 120, 87, 0.08); border-radius:var(--radius-md); transition:transform 0.2s, box-shadow 0.2s;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+          <div style="width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,var(--teal-600),var(--teal-900)); color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px;">
+            <i class="fa-solid fa-cubes-stacked"></i>
+          </div>
+          <span style="font-size:10px; font-weight:800; padding:2px 8px; border-radius:12px; background:var(--teal-600); color:#fff; text-transform:uppercase;">Recommended</span>
+        </div>
+        <h4 style="font-size:14.5px; font-weight:800; color:var(--teal-900); margin-bottom:6px;">Use Workflow Blueprint</h4>
+        <p style="font-size:12px; color:var(--text-muted); line-height:1.4;">Select a pre-built blueprint with ready phases, tasks, subtasks, and teams.</p>
+      </div>
+
+      <!-- Option 2: Blank Workflow -->
+      <div class="card glass creation-mode-card" id="mode-select-blank" style="padding:20px; cursor:pointer; border:1px solid var(--glass-border); border-radius:var(--radius-md); transition:transform 0.2s;">
+        <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.4); color:var(--teal-900); display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;">
+          <i class="fa-solid fa-file-pen"></i>
+        </div>
+        <h4 style="font-size:14.5px; font-weight:800; color:var(--teal-900); margin-bottom:6px;">Blank Workflow</h4>
+        <p style="font-size:12px; color:var(--text-muted); line-height:1.4;">Build a custom workflow node-by-node from scratch.</p>
+      </div>
+
+      <!-- Option 3: Duplicate Workflow -->
+      <div class="card glass creation-mode-card" id="mode-select-duplicate" style="padding:20px; cursor:pointer; border:1px solid var(--glass-border); border-radius:var(--radius-md); transition:transform 0.2s;">
+        <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.4); color:var(--teal-900); display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;">
+          <i class="fa-solid fa-copy"></i>
+        </div>
+        <h4 style="font-size:14.5px; font-weight:800; color:var(--teal-900); margin-bottom:6px;">Duplicate Existing</h4>
+        <p style="font-size:12px; color:var(--text-muted); line-height:1.4;">Clone an active workflow structure and timeline.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 3-STEP BLUEPRINT WIZARD MODAL ================= -->
+<div class="modal-overlay" id="blueprint-wizard-modal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(31, 42, 36, 0.4); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); align-items:center; justify-content:center; padding:20px; opacity:0; pointer-events:none; transition:opacity 0.25s ease;">
+  <div class="modal-box" style="max-width: 1100px; max-height: 90vh; overflow-y: auto;">
+    <div class="modal-header">
+      <div>
+        <h3 id="wizard-title" style="font-size:18px; font-weight:800; color:var(--teal-900);">Create Workflow Blueprint</h3>
+        <p style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">Step <span id="wizard-step-num">1</span> of 3: <span id="wizard-step-name">Blueprint Information</span></p>
+      </div>
+      <i class="fa-solid fa-xmark modal-close" id="blueprint-wizard-close" style="cursor:pointer;"></i>
+    </div>
+
+    <!-- Step Progress Indicator -->
+    <div style="display:flex; align-items:center; gap:8px; margin: 16px 0 24px 0;">
+      <div id="step-pill-1" class="wizard-step-pill active" style="flex:1; height:6px; border-radius:3px; background:var(--teal-600); transition:background 0.3s;"></div>
+      <div id="step-pill-2" class="wizard-step-pill" style="flex:1; height:6px; border-radius:3px; background:rgba(0,0,0,0.1); transition:background 0.3s;"></div>
+      <div id="step-pill-3" class="wizard-step-pill" style="flex:1; height:6px; border-radius:3px; background:rgba(0,0,0,0.1); transition:background 0.3s;"></div>
+    </div>
+
+    <!-- STEP 1: Information -->
+    <div id="wizard-step-1-content">
+      <form id="blueprint-info-form">
+        <div class="grid-two-col">
+          <div class="form-group">
+            <label>Blueprint Name *</label>
+            <input type="text" id="bp-name" required placeholder="e.g. Website Development & Deployment" style="padding:10px; border-radius:8px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.4);">
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="bp-category" required style="padding:10px; border-radius:8px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.4);">
+              <option value="Software & Tech">Software & Tech</option>
+              <option value="HR & Onboarding">HR & Onboarding</option>
+              <option value="Operations">Operations</option>
+              <option value="Customer Success">Customer Success</option>
+              <option value="Marketing">Marketing</option>
+              <option value="QA & Testing">QA & Testing</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-two-col">
+          <div class="form-group">
+            <label>Department</label>
+            <select id="bp-dept" style="padding:10px; border-radius:8px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.4);">
+              <option value="Engineering">Engineering</option>
+              <option value="HR">HR</option>
+              <option value="Sales & Support">Sales & Support</option>
+              <option value="Operations">Operations</option>
+              <option value="Marketing">Marketing</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Estimated Duration (Days) *</label>
+            <input type="number" id="bp-days" min="1" value="14" required style="padding:10px; border-radius:8px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.4);">
+          </div>
+        </div>
+
+        <div class="grid-two-col">
+          <div class="form-group">
+            <label>Default Priority</label>
+            <select id="bp-priority" style="padding:10px; border-radius:8px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.4);">
+              <option value="Low">Low</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tags (comma-separated)</label>
+            <input type="text" id="bp-tags" placeholder="e.g. Agile, Web, Compliance" style="padding:10px; border-radius:8px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.4);">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="bp-desc" rows="3" placeholder="Brief explanation of when and why to use this blueprint..." style="padding:10px; border-radius:8px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.4); resize:none;"></textarea>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+          <button type="button" class="btn-primary" id="btn-wizard-step1-next">Next: Choose Starter →</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- STEP 2: Choose Starting Point -->
+    <div id="wizard-step-2-content" style="display:none;">
+      <h4 style="font-size:14.5px; font-weight:800; color:var(--teal-900); margin-bottom:16px;">Select How To Build Your Blueprint</h4>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+        <div class="card glass starter-option-card" data-starter="blank" style="padding:16px; cursor:pointer; border:2px solid var(--teal-600); background:rgba(4, 120, 87, 0.08); border-radius:var(--radius-md);">
+          <div style="font-size:24px; color:var(--teal-900); margin-bottom:8px;"><i class="fa-solid fa-plus-square"></i></div>
+          <strong style="font-size:13.5px; color:var(--teal-900); display:block; margin-bottom:4px;">Blank Blueprint</strong>
+          <span style="font-size:11.5px; color:var(--text-muted);">Start from an empty canvas and build phases manually.</span>
+        </div>
+
+        <div class="card glass starter-option-card" data-starter="ai" style="padding:16px; cursor:pointer; border:1px solid var(--glass-border); border-radius:var(--radius-md);">
+          <div style="font-size:24px; color:var(--teal-900); margin-bottom:8px;"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+          <strong style="font-size:13.5px; color:var(--teal-900); display:block; margin-bottom:4px;">✨ AI Generate</strong>
+          <span style="font-size:11.5px; color:var(--text-muted);">Auto-generate phases, tasks, &amp; subtasks from a prompt.</span>
+        </div>
+
+        <div class="card starter-option-card" data-starter="industry" style="padding:16px; cursor:pointer; border:1px solid var(--glass-border); border-radius:var(--radius-md);">
+          <div style="font-size:24px; color:var(--teal-900); margin-bottom:8px;"><i class="fa-solid fa-briefcase"></i></div>
+          <strong style="font-size:13.5px; color:var(--teal-900); display:block; margin-bottom:4px;">Industry Starter</strong>
+          <span style="font-size:11.5px; color:var(--text-muted);">Use standard enterprise workflow structure.</span>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px;">
+        <button type="button" class="btn-secondary" id="btn-wizard-step2-back">← Back</button>
+        <button type="button" class="btn-primary" id="btn-wizard-step2-next">Next: Open Builder →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Workflow Builder Integration -->
+    <div id="wizard-step-3-content" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h4 style="font-size:14.5px; font-weight:800; color:var(--teal-900);">Phases &amp; Task Structures</h4>
+        <button type="button" class="btn-primary" id="btn-wizard-add-phase" style="padding:6px 12px; font-size:12px;"><i class="fa-solid fa-layer-group"></i> + Add Phase</button>
+      </div>
+
+      <!-- Collapsible Phase Cards List -->
+      <div id="wizard-phases-container" style="display:flex; flex-direction:column; gap:16px;"></div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px;">
+        <button type="button" class="btn-secondary" id="btn-wizard-step3-back">← Back</button>
+        <button type="button" class="btn-primary" id="btn-wizard-save-blueprint" style="padding:10px 24px; font-weight:800;"><i class="fa-solid fa-floppy-disk"></i> Save Blueprint to Library</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= BLUEPRINT PREVIEW MODAL ================= -->
+<div class="modal-overlay" id="blueprint-preview-modal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(31, 42, 36, 0.4); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); align-items:center; justify-content:center; padding:20px; opacity:0; pointer-events:none; transition:opacity 0.25s ease;">
+  <div class="modal-box" style="max-width: 1100px; max-height: 85vh; overflow-y: auto;">
+    <div class="modal-header">
+      <div>
+        <h3 id="preview-bp-title" style="font-size:18px; font-weight:800; color:var(--teal-900);">Blueprint Preview</h3>
+        <span id="preview-bp-category" class="status-pill progress" style="margin-top:4px; display:inline-block;">Software</span>
+      </div>
+      <i class="fa-solid fa-xmark modal-close" id="blueprint-preview-close" style="cursor:pointer;"></i>
+    </div>
+
+    <!-- Quick Summary Metrics Bar -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:10px; margin: 16px 0; padding: 14px; background: rgba(255, 255, 255, 0.2); border: 1px solid var(--glass-border); border-radius: var(--radius-md);">
+      <div style="text-align:center;">
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Phases</span>
+        <strong id="preview-stat-phases" style="display:block; font-size:16px; color:var(--teal-900); font-weight:800;">5</strong>
+      </div>
+      <div style="text-align:center;">
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Tasks</span>
+        <strong id="preview-stat-tasks" style="display:block; font-size:16px; color:var(--teal-900); font-weight:800;">8</strong>
+      </div>
+      <div style="text-align:center;">
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Subtasks</span>
+        <strong id="preview-stat-subtasks" style="display:block; font-size:16px; color:var(--teal-900); font-weight:800;">31</strong>
+      </div>
+      <div style="text-align:center;">
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Teams</span>
+        <strong id="preview-stat-teams" style="display:block; font-size:16px; color:var(--teal-900); font-weight:800;">4</strong>
+      </div>
+      <div style="text-align:center;">
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Duration</span>
+        <strong id="preview-stat-days" style="display:block; font-size:16px; color:var(--teal-900); font-weight:800;">18 Days</strong>
+      </div>
+    </div>
+
+    <!-- Description -->
+    <p id="preview-bp-desc" style="font-size:13px; color:var(--text-dark); line-height:1.5; margin-bottom:16px; padding:12px; background:rgba(255,255,255,0.15); border-radius:8px;"></p>
+
+    <!-- Phases List Timeline -->
+    <h4 style="font-size:14px; font-weight:800; color:var(--teal-900); margin-bottom:10px;">Workflow Phases Timeline</h4>
+    <div id="preview-phases-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
+      <button type="button" class="btn-secondary" id="preview-bp-cancel">Close</button>
+      <button type="button" class="btn-primary" id="preview-bp-use-btn" style="font-weight:800;"><i class="fa-solid fa-play"></i> Use This Blueprint</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ✨ AI BLUEPRINT GENERATOR MODAL ================= -->
+<div class="modal-overlay" id="ai-blueprint-generator-modal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(31, 42, 36, 0.4); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); align-items:center; justify-content:center; padding:20px; opacity:0; pointer-events:none; transition:opacity 0.25s ease;">
+  <div class="modal-box" style="max-width: 520px;">
+    <div class="modal-header">
+      <div>
+        <h3 style="font-size:18px; font-weight:800; color:var(--teal-900);">✨ Generate Blueprint with AI</h3>
+        <p style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">Describe your project to generate ready phases &amp; tasks.</p>
+      </div>
+      <i class="fa-solid fa-xmark modal-close" id="ai-generator-modal-close" style="cursor:pointer;"></i>
+    </div>
+    
+    <div class="form-group" style="margin: 16px 0;">
+      <label>Describe your workflow project *</label>
+      <textarea id="ai-blueprint-prompt" rows="3" placeholder="e.g. Website Development, Hospital Construction, Employee Onboarding" style="padding:10px; border-radius:8px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.4); font-size:13.5px; font-family:inherit; outline:none; resize:none;"></textarea>
+    </div>
+
+    <div class="action-btn-group" style="display:flex; gap:12px;">
+      <button type="button" class="btn-secondary" id="ai-generator-cancel">Cancel</button>
+      <button type="button" class="btn-primary" id="btn-submit-ai-generate" style="flex:1; font-weight:800;"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Blueprint</button>
+    </div>
+  </div>
+</div>
+
 <script src="script.js"></script>
+<script src="js/workloadHeatmapWidget.js"></script>
+<script src="auth.js"></script>
+<script src="js/csv-exporter.js"></script>
+<script src="js/csvImportExportModal.js"></script>
+<script src="js/deletionWizardModal.js"></script>
 <script src="tasks.js"></script>
+<script src="js/taskHandoverModal.js"></script>
 </body>
 </html>

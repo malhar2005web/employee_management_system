@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="EMS.Desktop/EMS.Desktop.csproj" />
+  <Project Path="EMS.Mobile/EMS.Mobile.csproj" />
+  <Project Path="EMS.Shared/EMS.Shared.csproj" />
+</Solution>

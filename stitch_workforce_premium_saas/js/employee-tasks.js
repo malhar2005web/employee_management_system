@@ -18,6 +18,9 @@
         setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3000);
     }
 
+    window.loadTasks = loadTasks;
+    window.loadEmployeeTasks = loadTasks;
+
     async function loadTasks() {
         try {
             const res = await fetch('/api/v1/employee/tasks', { credentials: 'include' });
@@ -61,8 +64,20 @@
             const due = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
             const isOverdue = t.due_date && new Date(t.due_date) < now && t.status !== 'Completed';
             const priorityClass = (t.priority || '').toLowerCase();
-            const statusClass = t.status === 'Completed' ? 'done' : t.status === 'In Progress' ? 'progress' : t.status === 'On Hold' ? 'pending' : 'to-do';
             const pct = t.completion_percentage || 0;
+            const statusClass = t.status === 'Completed' ? 'done' : t.status === 'In Progress' ? 'progress' : t.status === 'On Hold' ? 'pending' : 'to-do';
+            const isCompleted = t.status === 'Completed';
+            const isRunning = window.currentRunningTaskId && Number(window.currentRunningTaskId) === Number(t.id);
+
+            let startBtn = "";
+            if (isCompleted) {
+                startBtn = `<button class="action-pill" disabled style="background:rgba(0,0,0,0.08);color:var(--text-muted);font-weight:700;border:1px solid rgba(0,0,0,0.1);padding:5px 10px;cursor:not-allowed;opacity:0.6;"><i class="fa-solid fa-check"></i> Completed</button>`;
+            } else if (isRunning) {
+                startBtn = `<button class="action-pill" disabled style="background:rgba(4,120,87,0.15);color:#047857;font-weight:800;border:1px solid #047857;padding:5px 10px;cursor:not-allowed;opacity:0.75;box-shadow:0 0 10px rgba(4,120,87,0.2);"><i class="fa-solid fa-spinner fa-spin"></i> Active Session</button>`;
+            } else {
+                startBtn = `<button class="action-pill" style="background:linear-gradient(135deg,var(--teal-600),var(--teal-900));color:#fff;font-weight:700;border:none;padding:5px 10px;cursor:pointer;" onclick="window.startTaskSession(${t.id}, ${t.project_id || 'null'})"><i class="fa-solid fa-play"></i> Start Work</button>`;
+            }
+
             return `<tr>
                 <td><strong>${t.title || 'Untitled'}</strong></td>
                 <td style="color:var(--text-muted);font-size:12.5px;">${t.project_id || '—'}</td>
@@ -76,9 +91,15 @@
                 </td>
                 <td><span class="status-pill ${statusClass}">${t.status || 'To Do'}</span></td>
                 <td>
-                    <button class="action-pill approve" onclick="openProgressModal(${t.id}, '${(t.title||'').replace(/'/g,"\\'")}', ${pct}, '${t.status||'To Do'}', '${(t.work_done||'').replace(/'/g,"\\'")}')">
-                        <i class="fa-solid fa-pen"></i> Update
-                    </button>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        ${startBtn}
+                        <button class="action-pill approve" onclick="window.openProgressModalById(${t.id})">
+                            <i class="fa-solid fa-pen"></i> Update
+                        </button>
+                        <button class="action-pill" style="background:rgba(0,0,0,0.06);color:var(--teal-900);font-weight:700;border:1px solid rgba(0,0,0,0.1);padding:5px 10px;cursor:pointer;" onclick="window.openHandoverModal(${t.id}, '${(t.title||'').replace(/'/g,"\\'")}')">
+                            <i class="fa-solid fa-arrow-right-arrow-left"></i> Handover
+                        </button>
+                    </div>
                 </td>
             </tr>`;
         }).join('');
@@ -122,22 +143,38 @@
     }
 
     // --- Progress Modal ---
-    window.openProgressModal = function (id, title, pct, status, workDone) {
-        document.getElementById('progress-task-id').value = id;
-        document.getElementById('progress-task-name').textContent = title;
-        document.getElementById('progress-slider').value = pct;
-        document.getElementById('progress-val-label').textContent = pct;
-        document.getElementById('progress-status').value = status;
-        document.getElementById('progress-work-done').value = workDone || '';
+    window.openProgressModalById = function (id) {
+        const task = allTasks.find(t => t.id === Number(id));
+        if (!task) return;
+        document.getElementById('progress-task-id').value = task.id;
+        document.getElementById('progress-task-name').textContent = task.title || `Task #${task.id}`;
+        document.getElementById('progress-slider').value = task.completion_percentage || 0;
+        document.getElementById('progress-val-label').textContent = task.completion_percentage || 0;
+        document.getElementById('progress-status').value = task.status || 'To Do';
+        document.getElementById('progress-work-done').value = task.work_done || '';
         
         updateSliderBackground();
         
-        if (status === 'In Progress') {
+        if (task.status === 'In Progress') {
             workDoneGroup.style.display = 'block';
         } else {
             workDoneGroup.style.display = 'none';
         }
-        document.getElementById('modal-progress').style.display = 'flex';
+        if (typeof window.clearSpotlightCard === 'function') window.clearSpotlightCard();
+        const modal = document.getElementById('modal-progress');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'auto';
+            modal.classList.add('active');
+            if (typeof window.openModal === 'function') {
+                window.openModal(modal);
+            }
+        }
+    };
+
+    window.openProgressModal = function (id, title, pct, status, workDone) {
+        window.openProgressModalById(id);
     };
 
     document.getElementById('progress-slider').addEventListener('input', function () {

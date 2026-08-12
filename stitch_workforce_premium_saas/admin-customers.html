@@ -3,47 +3,205 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PCS Admin — Customers</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<title>Customer Management — PCS Enterprise</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* Modal Overlay Styling */
+  .contact-entry-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 32px;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+  }
+  .contact-entry-row-nested {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1fr 28px;
+    gap: 6px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .project-entry-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 28px;
+    gap: 6px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .branch-card {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .branch-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .branch-card-header h5 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--teal-900);
+  }
+
+  /* Customer Status 3D Glowing Orb System */
+  .cust-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    position: relative;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, filter 0.25s ease;
+    animation: orbPulse 2.8s ease-in-out infinite;
+    cursor: pointer;
+  }
+
+  @keyframes orbPulse {
+    0%, 100% {
+      transform: scale(1);
+      filter: brightness(1) drop-shadow(0 0 4px rgba(255,255,255,0.2));
+    }
+    50% {
+      transform: scale(1.08);
+      filter: brightness(1.18) drop-shadow(0 0 8px rgba(255,255,255,0.4));
+    }
+  }
+
+  .cust-status-dot:hover {
+    transform: scale(1.22) !important;
+  }
+
+  /* 1. Plant Active (3D Cyan Glass Orb #22D3EE) */
+  .cust-status-dot.plant-active {
+    background: radial-gradient(circle at 35% 32%, #FFFFFF 0%, #67E8F9 28%, #06B6D4 72%, #0891B2 100%);
+    box-shadow: 
+      inset 0 -2px 4px rgba(8, 145, 178, 0.95),
+      inset 0 2px 4px rgba(255, 255, 255, 0.9),
+      0 0 8px rgba(34, 211, 238, 0.9),
+      0 0 18px rgba(34, 211, 238, 0.6),
+      0 3px 6px rgba(0, 0, 0, 0.28);
+  }
+  .cust-status-dot.plant-active:hover {
+    box-shadow: 
+      inset 0 -2px 4px rgba(8, 145, 178, 0.95),
+      inset 0 2px 4px rgba(255, 255, 255, 1),
+      0 0 12px rgba(34, 211, 238, 1),
+      0 0 24px rgba(34, 211, 238, 0.8),
+      0 4px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  /* 2. Billing Active (3D Gold Glass Orb #FACC15) */
+  .cust-status-dot.billing-active {
+    background: radial-gradient(circle at 35% 32%, #FFFFFF 0%, #FDE047 28%, #EAB308 72%, #CA8A04 100%);
+    box-shadow: 
+      inset 0 -2px 4px rgba(202, 138, 4, 0.95),
+      inset 0 2px 4px rgba(255, 255, 255, 0.9),
+      0 0 8px rgba(250, 204, 21, 0.9),
+      0 0 18px rgba(250, 204, 21, 0.6),
+      0 3px 6px rgba(0, 0, 0, 0.28);
+  }
+  .cust-status-dot.billing-active:hover {
+    box-shadow: 
+      inset 0 -2px 4px rgba(202, 138, 4, 0.95),
+      inset 0 2px 4px rgba(255, 255, 255, 1),
+      0 0 12px rgba(250, 204, 21, 1),
+      0 0 24px rgba(250, 204, 21, 0.8),
+      0 4px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  /* 3. Plant + Billing Active (3D Emerald Green Glass Orb #80FF80) */
+  .cust-status-dot.both-active {
+    background: radial-gradient(circle at 35% 32%, #FFFFFF 0%, #86EFAC 28%, #22C55E 72%, #15803D 100%);
+    box-shadow: 
+      inset 0 -2px 4px rgba(21, 128, 61, 0.95),
+      inset 0 2px 4px rgba(255, 255, 255, 0.9),
+      0 0 8px rgba(128, 255, 128, 0.95),
+      0 0 20px rgba(34, 197, 94, 0.65),
+      0 3px 6px rgba(0, 0, 0, 0.28);
+  }
+  .cust-status-dot.both-active:hover {
+    box-shadow: 
+      inset 0 -2px 4px rgba(21, 128, 61, 0.95),
+      inset 0 2px 4px rgba(255, 255, 255, 1),
+      0 0 14px rgba(128, 255, 128, 1),
+      0 0 26px rgba(34, 197, 94, 0.85),
+      0 4px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  /* 4. Both Inactive (3D Ruby Red Glass Orb #EF4444) */
+  .cust-status-dot.both-inactive {
+    background: radial-gradient(circle at 35% 32%, #FFFFFF 0%, #F87171 28%, #EF4444 72%, #B91C1C 100%);
+    box-shadow: 
+      inset 0 -2px 4px rgba(185, 28, 28, 0.95),
+      inset 0 2px 4px rgba(255, 255, 255, 0.9),
+      0 0 8px rgba(239, 68, 68, 0.9),
+      0 0 18px rgba(239, 68, 68, 0.6),
+      0 3px 6px rgba(0, 0, 0, 0.28);
+  }
+  .cust-status-dot.both-inactive:hover {
+    box-shadow: 
+      inset 0 -2px 4px rgba(185, 28, 28, 0.95),
+      inset 0 2px 4px rgba(255, 255, 255, 1),
+      0 0 12px rgba(239, 68, 68, 1),
+      0 0 24px rgba(239, 68, 68, 0.8),
+      0 4px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Legend Footer */
+  .cust-legend-container {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.15);
+    border-bottom-left-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-lg);
+  }
+
+  .cust-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--teal-900);
+  }
   .modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(31, 42, 36, 0.4);
     backdrop-filter: blur(10px);
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
     padding: 20px;
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.25s ease;
   }
   .modal-overlay.active {
-    display: flex;
     opacity: 1;
+    pointer-events: auto;
   }
   .modal-box {
     width: 100%;
-    max-width: 620px;
+    max-width: 760px;
+    max-height: 90vh;
+    overflow-y: auto;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(var(--glass-blur));
     box-shadow: var(--glass-shadow);
     border-radius: var(--radius-lg);
-    padding: 24px 28px;
+    padding: 30px;
     position: relative;
-    transform: translateY(-20px);
-    transition: transform 0.25s var(--ease-liquid);
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-  .modal-overlay.active .modal-box {
-    transform: translateY(0);
   }
   .modal-header {
     display: flex;
@@ -65,7 +223,6 @@
   .modal-close:hover {
     color: var(--red);
   }
-  /* Form elements */
   .form-group {
     display: flex;
     flex-direction: column;
@@ -89,101 +246,19 @@
     transition: all 0.2s ease;
   }
   .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-    background: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.65);
     border-color: var(--teal-600);
   }
-  /* Dynamic Contact Row */
-  .contact-entry-list {
-    margin-bottom: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .contact-entry-row {
-    display: grid;
-    grid-template-columns: 1.1fr 1.3fr 1.1fr auto;
-    gap: 8px;
-    align-items: center;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-  }
-  .branch-entry-row {
-    display: grid;
-    grid-template-columns: 1.5fr 2fr auto;
-    gap: 8px;
-    align-items: center;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-  }
-  .project-entry-row {
-    display: grid;
-    grid-template-columns: 1.5fr 2fr auto;
-    gap: 8px;
-    align-items: center;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-  }
-  .btn-remove-contact, .btn-remove-branch, .btn-remove-project {
-    color: var(--red);
-    cursor: pointer;
-    font-size: 15px;
-    padding: 8px;
-    border-radius: 8px;
-    transition: background 0.2s ease;
-  }
-  .btn-remove-contact:hover, .btn-remove-branch:hover, .btn-remove-project:hover {
-    background: rgba(214, 79, 79, 0.15);
-  }
-  .action-btn-group {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-  }
-  .btn-secondary {
-    padding: 10px 18px;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255,255,255,0.55);
-    background: rgba(255,255,255,0.25);
-    font-weight: 700;
-    font-size: 13.5px;
-    color: var(--text-dark);
-  }
-  .btn-secondary:hover {
-    background: rgba(255,255,255,0.45);
-  }
-  /* Tiny action pills */
-  .action-pill {
-    padding: 4px 8px;
-    border-radius: 8px;
-    font-size: 11.5px;
-    font-weight: 700;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s ease;
+  .contact-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-  }
-  .action-pill.edit {
-    background: rgba(79, 124, 255, 0.15);
-    color: var(--blue);
-  }
-  .action-pill.edit:hover {
-    background: rgba(79, 124, 255, 0.25);
-  }
-  .action-pill.delete {
-    background: rgba(214, 79, 79, 0.15);
-    color: var(--red);
-  }
-  .action-pill.delete:hover {
-    background: rgba(214, 79, 79, 0.25);
+    background: rgba(255, 255, 255, 0.35);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    margin: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
   }
 </style>
 </head>
@@ -202,10 +277,12 @@
     </div>
 
     <ul class="nav-list">
-      <li class="nav-item" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
-      <li class="nav-item" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
-      <li class="nav-item active" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-support.html'"><i class="fa-solid fa-headset"></i> Support Desk</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-settings.html'"><i class="fa-solid fa-gear"></i> Settings</li>
@@ -227,10 +304,8 @@
       </nav>
 
       <div class="topbar-actions">
-        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
-        <button class="icon-btn"><i class="fa-regular fa-envelope"></i><span class="badge">3</span></button>
-        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
-        <div class="topbar-user">
+        <button class="icon-btn" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <div class="topbar-user" onclick="window.location.href='/admin-profile.html'" style="cursor:pointer;">
           <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
           <i class="fa-solid fa-chevron-down"></i>
         </div>
@@ -238,12 +313,17 @@
     </div>
 
     <!-- Page header -->
-    <div class="page-header">
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
       <div>
         <h2>Customer Management</h2>
         <p>Maintain customer accounts, branch locations, SLAs, and primary contacts.</p>
       </div>
-      <button class="btn-primary" id="btn-add-cust-modal"><i class="fa-solid fa-plus"></i> Add Customer</button>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button type="button" onclick="window.downloadCurrentModuleTemplate('customers')" class="btn-pill-action btn-pill-template"><i class="fa-solid fa-file-download"></i> Template</button>
+        <button type="button" onclick="window.exportModuleDataFile('customers', 'xlsx')" class="btn-pill-action btn-pill-export"><i class="fa-solid fa-file-export"></i> Export Data</button>
+        <button type="button" onclick="window.openImportModal('customers')" class="btn-pill-action btn-pill-import"><i class="fa-solid fa-file-import"></i> Import Data</button>
+        <button class="btn-primary" id="btn-add-cust-modal"><i class="fa-solid fa-plus"></i> Add Customer</button>
+      </div>
     </div>
 
     <!-- Filters and Table Card -->
@@ -269,25 +349,44 @@
         </div>
       </div>
 
-      <div class="table-responsive" style="overflow-x: auto; width: 100%;">
-        <table style="min-width: 1200px;">
+      <div class="table-responsive" style="width: 100%; overflow-x: auto;">
+        <table id="table-customers" style="width: 100%; border-collapse: collapse;">
           <thead>
-            <tr>
-              <th>Company Name</th>
-              <th>Branches / GST</th>
-              <th>Projects / Modules</th>
-              <th>Contact Persons</th>
-              <th>SLA & Contract Settings</th>
-              <th>Deadline</th>
-              <th>Industry</th>
-              <th>Assigned Team</th>
-              <th>Actions</th>
+            <tr style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.08); font-size:13.5px; color:#475569;">
+              <th style="padding:14px 12px; font-weight:800; min-width:180px;">COMPANY &amp; STATUS</th>
+              <th style="padding:14px 12px; font-weight:800; min-width:140px;">BRANCHES / GST</th>
+              <th style="padding:14px 12px; font-weight:800; min-width:150px;">PROJECTS / MODULES</th>
+              <th style="padding:14px 12px; font-weight:800; min-width:240px;">CONTACT PERSONS</th>
+              <th style="padding:14px 12px; font-weight:800; min-width:160px;">SLA &amp; CONTRACT</th>
+              <th style="padding:14px 12px; font-weight:800; min-width:120px;">INDUSTRY</th>
+              <th style="padding:14px 12px; font-weight:800; min-width:150px;">ASSIGNED TEAM</th>
+              <th style="padding:14px 12px; text-align:right; font-weight:800; min-width:100px;">ACTIONS</th>
             </tr>
           </thead>
           <tbody id="customers-list">
             <!-- Dynamic rows -->
           </tbody>
         </table>
+      </div>
+
+      <!-- Legend Footer -->
+      <div class="cust-legend-container">
+        <div class="cust-legend-item">
+          <span class="cust-status-dot plant-active" style="animation:none;" title="Plant Active"></span>
+          <span>Plant Active</span>
+        </div>
+        <div class="cust-legend-item">
+          <span class="cust-status-dot billing-active" style="animation:none;" title="Billing Active"></span>
+          <span>Billing Active</span>
+        </div>
+        <div class="cust-legend-item">
+          <span class="cust-status-dot both-active" style="animation:none;" title="Plant + Billing Active"></span>
+          <span>Plant + Billing Active</span>
+        </div>
+        <div class="cust-legend-item">
+          <span class="cust-status-dot both-inactive" style="animation:none;" title="Both Inactive"></span>
+          <span>Both Inactive</span>
+        </div>
       </div>
     </div>
 
@@ -319,7 +418,7 @@
       </div>
 
       <div style="border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius-md); padding: 12px; margin-bottom: 15px; background: rgba(255,255,255,0.05);">
-        <label style="font-size: 13.5px; font-weight: 800; color: var(--teal-900); display: block; margin-bottom: 10px;">SLA & Contract Settings</label>
+        <label style="font-size: 13.5px; font-weight: 800; color: var(--teal-900); display: block; margin-bottom: 10px;">SLA &amp; Contract Settings</label>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
           <div class="form-group" style="margin-bottom: 0;">
@@ -393,7 +492,7 @@
         </div>
       </div>
 
-      <!-- Nested contacts and projects are managed directly inside the branch cards above -->
+      <!-- Note: Assigned Employees are now configured Branch-Wise inside each Branch box above -->
 
       <div class="action-btn-group">
         <button type="button" class="btn-secondary" id="cust-modal-cancel">Cancel</button>
@@ -421,7 +520,11 @@
   </div>
 </div>
 
+<script src="auth.js"></script>
 <script src="script.js"></script>
+<script src="js/csv-exporter.js"></script>
+<script src="js/csvImportExportModal.js"></script>
+<script src="js/deletionWizardModal.js"></script>
 <script src="customers.js"></script>
 </body>
 </html>

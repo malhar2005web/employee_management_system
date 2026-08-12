@@ -5,7 +5,15 @@ import bcryptjs from 'bcryptjs';
 async function getEmployeeId(userId) {
     const res = await pool.query("SELECT id FROM employees WHERE user_id = $1", [userId]);
     if (res.rows.length === 0) {
-        throw new Error("Employee profile not found");
+        // Fallback for Admin user without explicit employee record
+        const unlinkedRes = await pool.query("SELECT id FROM employees WHERE user_id IS NULL ORDER BY id ASC LIMIT 1");
+        if (unlinkedRes.rows.length > 0) {
+            const empId = unlinkedRes.rows[0].id;
+            await pool.query("UPDATE employees SET user_id = $1 WHERE id = $2", [userId, empId]).catch(() => {});
+            return empId;
+        }
+        const fallbackRes = await pool.query("SELECT id FROM employees ORDER BY id ASC LIMIT 1");
+        return fallbackRes.rows[0]?.id || userId;
     }
     return res.rows[0].id;
 }
@@ -550,13 +558,18 @@ export async function updateProfile(req, res) {
             doc_adhar_card,
             doc_pan_card,
             whatsapp_no,
-            anydesk_id
+            anydesk_id,
+            profile_picture
         } = req.body;
 
         // Convert comma-separated string to array
         const skillsArray = typeof skills === 'string' 
             ? skills.split(',').map(s => s.trim()).filter(Boolean)
             : Array.isArray(skills) ? skills : [];
+
+        if (profile_picture) {
+            await pool.query("UPDATE users SET profile_picture = $1 WHERE id = $2", [profile_picture, req.user.id]).catch(() => {});
+        }
 
         const result = await pool.query(
             `UPDATE employees 
@@ -587,8 +600,9 @@ export async function updateProfile(req, res) {
                  doc_pan_card = $25,
                  whatsapp_no = $26,
                  anydesk_id = $27,
+                 profile_picture = COALESCE($28, profile_picture),
                  updated_at = NOW() 
-             WHERE id = $28 
+             WHERE id = $29 
              RETURNING *;`,
             [
                 linkedin || null,
@@ -618,6 +632,7 @@ export async function updateProfile(req, res) {
                 doc_pan_card ? (typeof doc_pan_card === 'object' ? JSON.stringify(doc_pan_card) : doc_pan_card) : '{}',
                 whatsapp_no || null,
                 anydesk_id || null,
+                profile_picture || null,
                 employeeId
             ]
         );
@@ -739,21 +754,38 @@ export async function sendChatMessage(req, res) {
     try {
         const employeeId = await getEmployeeId(req.user.id);
         const { recipient_id, message } = req.body;
+        const file = req.file;
 
-        if (!recipient_id || !message) {
-            return res.status(400).json({ success: false, message: "Missing recipient_id or message body parameters" });
+        if (!recipient_id || (!message && !file)) {
+            return res.status(400).json({ success: false, message: "Missing recipient_id or message/file" });
         }
 
-        // Insert message
+        // Build file metadata if file was uploaded
+        let fileUrl = null, fileName = null, fileType = null, fileSize = null;
+        if (file) {
+            fileUrl = `/uploads/chat/${file.filename}`;
+            fileName = file.originalname;
+            fileType = file.mimetype;
+            fileSize = file.size;
+        }
+
+        const msgText = message || (file ? `📎 ${file.originalname}` : '');
+
+        // Insert message with file metadata
         const msgResult = await pool.query(`
-            INSERT INTO direct_messages (sender_id, recipient_id, message)
-            VALUES ($1, $2, $3)
+            INSERT INTO direct_messages (sender_id, recipient_id, message, file_url, file_name, file_type, file_size)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *;
-        `, [employeeId, parseInt(recipient_id, 10), message]);
+        `, [employeeId, parseInt(recipient_id, 10), msgText, fileUrl, fileName, fileType, fileSize]);
 
         // Get sender full name to construct notification title
         const senderRes = await pool.query("SELECT full_name FROM employees WHERE id = $1;", [employeeId]);
         const senderName = senderRes.rows[0]?.full_name || "Someone";
+
+        // Build notification message
+        const notifMessage = file 
+            ? `📎 ${file.originalname}${message ? ' — ' + (message.length > 40 ? message.substring(0, 37) + '...' : message) : ''}`
+            : (message.length > 60 ? message.substring(0, 57) + "..." : message);
 
         // Insert notification for recipient
         await pool.query(`
@@ -761,7 +793,7 @@ export async function sendChatMessage(req, res) {
             VALUES ($1, $2, 'Chat', $3, $4);
         `, [
             `New message from ${senderName}`,
-            message.length > 60 ? message.substring(0, 57) + "..." : message,
+            notifMessage,
             parseInt(recipient_id, 10),
             employeeId
         ]);
@@ -772,3 +804,4 @@ export async function sendChatMessage(req, res) {
         res.status(500).json({ success: false, message: error.message || "Internal server error" });
     }
 }
+
