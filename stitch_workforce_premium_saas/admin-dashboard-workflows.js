@@ -156,6 +156,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (productivityValEl) productivityValEl.textContent = `${avgWorkflowCompletion}%`;
     if (healthValEl) healthValEl.textContent = `${healthScore}%`;
 
+    const piAiTextEl = document.getElementById('pi-ai-text');
+    if (piAiTextEl) {
+      if (workflows.length === 0) {
+        piAiTextEl.textContent = 'No active workflows created yet. Click "+ Create Workflow" to begin tracking performance.';
+      } else if (overdueTasks.length > 0) {
+        piAiTextEl.textContent = `${overdueTasks.length} overdue task(s) detected across ${workflows.length} active workflow(s). Recommendation: Review task timelines and reassign if necessary.`;
+      } else {
+        piAiTextEl.textContent = `All ${workflows.length} active workflow(s) running efficiently with 0 overdue tasks. System status: Optimal.`;
+      }
+    }
+
     // 1. Avg Lead Time & Workflow Stats
     let totalLeadTime = 0;
     let completedLeadCount = 0;
@@ -357,4 +368,73 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     })
     .catch(err => console.error("Error loading dashboard summary:", err));
+
+  // Load Real Recent Activity Log
+  const loadRecentActivity = () => {
+    const listEl = document.getElementById('recent-activity-list');
+    if (!listEl) return;
+
+    fetch('/api/v1/admin/audit/actions', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success || !Array.isArray(data.data?.audits) || data.data.audits.length === 0) {
+          listEl.innerHTML = `
+            <div style="text-align:center; padding:24px 12px; color:var(--text-muted); font-size:13px;">
+              <i class="fa-solid fa-clock-rotate-left" style="font-size:20px; opacity:0.4; display:block; margin-bottom:6px;"></i>
+              No recent activity recorded yet.
+            </div>`;
+          return;
+        }
+
+        const audits = data.data.audits.slice(0, 5);
+        listEl.innerHTML = audits.map(item => {
+          const actionText = (item.action || 'SYSTEM_EVENT').replace(/_/g, ' ').toLowerCase();
+          const desc = item.description || (item.full_name ? `Action by ${item.full_name}` : 'System action');
+          const timeAgo = formatTimeAgo(item.created_at);
+          
+          let iconClass = 'grey';
+          let iconFa = 'fa-file-lines';
+          
+          if (item.action?.includes('SESSION') || item.action?.includes('START')) {
+            iconClass = 'green';
+            iconFa = 'fa-play';
+          } else if (item.action?.includes('PAUSE') || item.action?.includes('STOP')) {
+            iconClass = 'yellow';
+            iconFa = 'fa-pause';
+          } else if (item.action?.includes('ALERT') || item.action?.includes('WARN')) {
+            iconClass = 'red';
+            iconFa = 'fa-triangle-exclamation';
+          } else if (item.action?.includes('USER') || item.action?.includes('EMPLOYEE')) {
+            iconClass = 'green';
+            iconFa = 'fa-user-check';
+          }
+
+          return `
+            <div class="activity-item">
+              <div class="activity-icon ${iconClass}"><i class="fa-solid ${iconFa}"></i></div>
+              <div>
+                <div class="activity-title" style="text-transform: capitalize;">${actionText}</div>
+                <div class="activity-desc">${desc}</div>
+                <div class="activity-time">${timeAgo}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      })
+      .catch(err => console.error('Error loading recent activity:', err));
+  };
+
+  function formatTimeAgo(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffSec = Math.floor((now - date) / 1000);
+    if (diffSec < 60) return 'Just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} mins ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} hours ago`;
+    if (diffSec < 172800) return 'Yesterday';
+    return `${Math.floor(diffSec / 86400)} days ago`;
+  }
+
+  loadRecentActivity();
 });

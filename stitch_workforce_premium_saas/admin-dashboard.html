@@ -792,7 +792,7 @@
           </div>
           <div>
             <div style="font-size: 12.5px; font-weight: 800; color: var(--teal-900); margin-bottom: 2px;">AI Intelligence Recommendation</div>
-            <p id="pi-ai-text" style="font-size: 12px; color: var(--text-dark); line-height: 1.4; margin: 0;">Development Team efficiency dropped 8% due to 12 overdue subtasks. Recommendation: Reassign 3 tasks to Testing Team.</p>
+            <p id="pi-ai-text" style="font-size: 12px; color: var(--text-dark); line-height: 1.4; margin: 0;">Analyzing live workflow performance metrics...</p>
           </div>
         </div>
 
@@ -805,8 +805,8 @@
               <div class="pi-kpi-icon"><i class="fa-solid fa-circle-check"></i></div>
             </div>
             <div class="pi-kpi-value-row">
-              <span class="pi-kpi-number" id="kpi-val-completed">483</span>
-              <span class="pi-kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +6.2%</span>
+              <span class="pi-kpi-number" id="kpi-val-completed">0</span>
+              <span class="pi-kpi-trend flat">— stable</span>
             </div>
             <div class="pi-kpi-sparkline" id="kpi-spark-completed"></div>
           </div>
@@ -818,8 +818,8 @@
               <div class="pi-kpi-icon"><i class="fa-solid fa-bolt"></i></div>
             </div>
             <div class="pi-kpi-value-row">
-              <span class="pi-kpi-number" id="kpi-val-productivity">89%</span>
-              <span class="pi-kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +4.1%</span>
+              <span class="pi-kpi-number" id="kpi-val-productivity">0%</span>
+              <span class="pi-kpi-trend flat">— stable</span>
             </div>
             <div class="pi-kpi-sparkline" id="kpi-spark-productivity"></div>
           </div>
@@ -831,7 +831,7 @@
               <div class="pi-kpi-icon"><i class="fa-solid fa-heart-pulse"></i></div>
             </div>
             <div class="pi-kpi-value-row">
-              <span class="pi-kpi-number" id="kpi-val-health">95%</span>
+              <span class="pi-kpi-number" id="kpi-val-health">100%</span>
               <span class="pi-kpi-trend flat">— stable</span>
             </div>
             <div class="pi-kpi-sparkline" id="kpi-spark-health"></div>
@@ -844,8 +844,8 @@
               <div class="pi-kpi-icon"><i class="fa-solid fa-clock"></i></div>
             </div>
             <div class="pi-kpi-value-row">
-              <span class="pi-kpi-number" id="kpi-val-leadtime">2.1d</span>
-              <span class="pi-kpi-trend down"><i class="fa-solid fa-arrow-trend-down"></i> -0.4d</span>
+              <span class="pi-kpi-number" id="kpi-val-leadtime">0.0d</span>
+              <span class="pi-kpi-trend flat">— stable</span>
             </div>
             <div class="pi-kpi-sparkline" id="kpi-spark-leadtime"></div>
           </div>
@@ -971,41 +971,13 @@
         <div class="card-head">
           <h3>Recent Activity</h3>
         </div>
-        <div class="activity-list">
-          <div class="activity-item">
-            <div class="activity-icon green"><i class="fa-solid fa-check"></i></div>
-            <div>
-              <div class="activity-title">23 Report Finalized</div>
-              <div class="activity-desc">Sarah Jenkins uploaded new files.</div>
-              <div class="activity-time">10 mins ago</div>
-            </div>
-          </div>
-          <div class="activity-item">
-            <div class="activity-icon green"><i class="fa-solid fa-user-plus"></i></div>
-            <div>
-              <div class="activity-title">New Hire Onboarding</div>
-              <div class="activity-desc">Engineering team added 3 members.</div>
-              <div class="activity-time">2 hours ago</div>
-            </div>
-          </div>
-          <div class="activity-item">
-            <div class="activity-icon red"><i class="fa-solid fa-triangle-exclamation"></i></div>
-            <div>
-              <div class="activity-title">Server Load Alert</div>
-              <div class="activity-desc">Node 4 reached 90% capacity.</div>
-              <div class="activity-time">Yesterday</div>
-            </div>
-          </div>
-          <div class="activity-item">
-            <div class="activity-icon grey"><i class="fa-solid fa-file-lines"></i></div>
-            <div>
-              <div class="activity-title">Policy Update Draft</div>
-              <div class="activity-desc">HR policy draft is ready for review.</div>
-              <div class="activity-time">2 days ago</div>
-            </div>
+        <div class="activity-list" id="recent-activity-list">
+          <div style="text-align:center; padding:24px 12px; color:var(--text-muted); font-size:13px;">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size:18px; margin-bottom:6px; display:block;"></i>
+            Loading activity log...
           </div>
         </div>
-        <a href="#" class="view-all-link">View All Activity <i class="fa-solid fa-arrow-right"></i></a>
+        <a href="/admin-tasks-audit.html" class="view-all-link">View All Activity <i class="fa-solid fa-arrow-right"></i></a>
       </div>
     </div>
 

@@ -90,25 +90,29 @@ export async function categorizeProductivity(req, res) {
     }
 }
 
-// ── TERAMIND EXECUTIVE HEALTH CARDS (ALL FROM DB — ZERO FALLBACKS) ─────────────
+// ── TERAMIND EXECUTIVE HEALTH CARDS (ONLY MAPPED COMPANY DEVICES & EMPLOYEES) ─────────────
 export async function getExecutiveHealthCards(req, res) {
     try {
         const computers = await pool.query(`
             SELECT 
-                COUNT(*) FILTER (WHERE c.is_online = true) as online_computers,
-                COUNT(*) FILTER (WHERE c.is_online = false) as offline_computers,
-                COUNT(*) as total_computers
-            FROM teramind_computer_cache c
-            INNER JOIN employee_teramind_mapping m ON c.computer_id = m.computer_id;
+                COUNT(DISTINCT m.computer_id) FILTER (WHERE c.is_online = true) as online_computers,
+                COUNT(DISTINCT m.computer_id) FILTER (WHERE c.is_online = false OR c.is_online IS NULL) as offline_computers,
+                COUNT(DISTINCT m.computer_id) as total_computers
+            FROM employee_teramind_mapping m
+            LEFT JOIN teramind_computer_cache c ON m.computer_id::text = c.computer_id::text;
         `);
 
-        const employees = await pool.query(`
-            SELECT 
-                COUNT(*) FILTER (WHERE active_app != '' AND active_app IS NOT NULL) as employees_working,
-                COUNT(*) FILTER (WHERE active_app = '' OR active_app IS NULL OR idle_seconds > 1800) as employees_idle
+        const empTotalRes = await pool.query(`SELECT COUNT(*) as total FROM employees;`);
+        const totalEmp = parseInt(empTotalRes.rows[0]?.total || 5, 10);
+
+        const workingRes = await pool.query(`
+            SELECT COUNT(DISTINCT employee_id) as working_count
             FROM teramind_activity_cache
-            WHERE work_date = CURRENT_DATE;
+            WHERE work_date = CURRENT_DATE AND active_app != '' AND active_app IS NOT NULL;
         `);
+
+        const employeesWorking = parseInt(workingRes.rows[0]?.working_count || 0, 10);
+        const employeesIdle = Math.max(0, totalEmp - employeesWorking);
 
         const alerts = await pool.query(`
             SELECT COUNT(*) as alerts_today 
@@ -130,8 +134,8 @@ export async function getExecutiveHealthCards(req, res) {
             data: {
                 online_computers: parseInt(computers.rows[0]?.online_computers || 0, 10),
                 offline_computers: parseInt(computers.rows[0]?.offline_computers || 0, 10),
-                employees_working: parseInt(employees.rows[0]?.employees_working || 0, 10),
-                employees_idle: parseInt(employees.rows[0]?.employees_idle || 0, 10),
+                employees_working: employeesWorking,
+                employees_idle: employeesIdle,
                 alerts_today: parseInt(alerts.rows[0]?.alerts_today || 0, 10),
                 avg_productivity: Math.round(parseFloat(prod.rows[0]?.avg_productivity || 0))
             }
