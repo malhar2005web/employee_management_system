@@ -305,6 +305,86 @@ window.openEmployeeLogsModal = async function openEmployeeLogsModal(empId, empNa
     }
 };
 
+function formatLogDateTime(dtStr, unixTs = null) {
+    if (unixTs && !isNaN(unixTs) && unixTs > 0) {
+        try {
+            const d = new Date(unixTs * 1000);
+            const parts = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Kolkata',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).formatToParts(d);
+            const p = {};
+            parts.forEach(({ type, value }) => { p[type] = value; });
+            return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}:${p.second}`;
+        } catch (e) {}
+    }
+    if (!dtStr || dtStr === '—') return '—';
+    // If it's already in DD-MM-YYYY HH:mm:ss format, return as is
+    if (/^\d{2}-\d{2}-\d{4}\s\d{2}:\d{2}:\d{2}$/.test(dtStr)) return dtStr;
+    // If it's in YYYY-MM-DD HH:mm:ss format, reformat to DD-MM-YYYY HH:mm:ss
+    const match = dtStr.match(/^(\d{4})-(\d{2})-(\d{2})\s(\d{2}:\d{2}:\d{2})$/);
+    if (match) {
+        return `${match[3]}-${match[2]}-${match[1]} ${match[4]}`;
+    }
+    // Try parsing as ISO or timestamp and format in Asia/Kolkata (IST)
+    try {
+        const d = new Date(dtStr);
+        if (!isNaN(d.getTime())) {
+            const parts = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Kolkata',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).formatToParts(d);
+            const p = {};
+            parts.forEach(({ type, value }) => { p[type] = value; });
+            return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}:${p.second}`;
+        }
+    } catch (e) {}
+    return dtStr;
+}
+
+function formatCompactDuration(dur) {
+    if (!dur && dur !== 0) return '0s';
+    let totalSecs = 0;
+    if (typeof dur === 'number') {
+        totalSecs = dur;
+    } else if (typeof dur === 'string') {
+        // If already formatted like "14m 11s" or "2h 15m" or "9s", return as is
+        if (/[hms]/.test(dur) && !/^\d{2}:\d{2}/.test(dur)) return dur;
+        // If it's HH:MM:SS format
+        const parts = dur.split(':').map(p => parseInt(p, 10));
+        if (parts.length === 3) {
+            totalSecs = (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+        } else if (parts.length === 2) {
+            totalSecs = (parts[0] * 60) + parts[1];
+        } else {
+            totalSecs = parseInt(dur, 10) || 0;
+        }
+    }
+    if (totalSecs <= 0) return '0s';
+    const hrs = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    if (hrs > 0) {
+        return `${hrs}h ${mins}m ${secs > 0 ? secs + 's' : ''}`.trim();
+    }
+    if (mins > 0) {
+        return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    }
+    return `${secs}s`;
+}
+
 function renderEmpLogsTable(logs) {
     const tbody = document.getElementById("emp-logs-tbody");
     if (!tbody) return;
@@ -350,8 +430,10 @@ function renderEmpLogsTable(logs) {
         const iconTag = group.is_task_bound ? 'fa-list-check' : 'fa-laptop';
         const badgeLabel = group.is_task_bound ? `TASK SESSION ${group.session_id ? '#' + group.session_id : ''}` : 'GENERAL WORKSTATION ACTIVITY';
         const cleanGroupTitle = (group.title || '').replace(/'/g, "\\'");
-        const startShort = (group.session_start_str || '').split(' ')[1] || 'Start';
-        const endShort = (group.session_end_str || '').split(' ')[1] || 'End';
+        const formattedSessStart = formatLogDateTime(group.session_start_str, group.session_start_unix);
+        const formattedSessEnd = formatLogDateTime(group.session_end_str, group.session_end_unix);
+        const startShort = formattedSessStart.split(' ')[1] || 'Start';
+        const endShort = formattedSessEnd.split(' ')[1] || 'End';
 
         html += `
             <tr style="background:${headerBg}; border-left:4px solid ${borderColor}; border-bottom:1px solid rgba(0,0,0,0.08);">
@@ -366,7 +448,7 @@ function renderEmpLogsTable(logs) {
                         </div>
                         <div style="display:flex; align-items:center; gap:10px;">
                             ${group.is_task_bound ? `
-                                <button onclick="window.playProcessRecording('${group.session_start_unix}', '${group.session_end_unix}', 'Task Session', '${group.computer_id}', '${cleanGroupTitle}', '${group.session_start_str}', '${group.session_end_str}', 'Session Window')" style="background:linear-gradient(135deg, #047857, #065f46); color:white; border:none; padding:6px 12px; border-radius:8px; font-weight:800; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(4,120,87,0.35);" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+                                <button onclick="window.playProcessRecording('${group.session_start_unix}', '${group.session_end_unix}', 'Task Session', '${group.computer_id}', '${cleanGroupTitle}', '${formattedSessStart}', '${formattedSessEnd}', 'Session Window')" style="background:linear-gradient(135deg, #047857, #065f46); color:white; border:none; padding:6px 12px; border-radius:8px; font-weight:800; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(4,120,87,0.35);" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
                                     <i class="fa-solid fa-circle-play"></i> Play Task Session Video (${startShort} → ${endShort})
                                 </button>
                             ` : ''}
@@ -391,15 +473,16 @@ function renderEmpLogsTable(logs) {
             else if (row.process.includes("slack")) iconClass = "fa-comments";
             else if (row.process.includes("outlook")) iconClass = "fa-envelope";
 
-            const startTime = row.start_time || row.time || '—';
-            const endTime = row.end_time || row.time || '—';
+            const startTime = formatLogDateTime(row.start_time || row.time || '—', row.start_unix);
+            const endTime = formatLogDateTime(row.end_time || row.time || '—', row.end_unix);
+            const durDisplay = formatCompactDuration(row.duration);
             const cleanTitle = (row.app_title || '').replace(/'/g, "\\'");
 
             html += `
                 <tr style="border-bottom:1px solid rgba(0,0,0,0.06); font-size:13px; background:#fff;">
                     <td style="padding:12px 16px; white-space:nowrap; font-weight:700; color:#334155;">${startTime}</td>
                     <td style="padding:12px 16px; white-space:nowrap; font-weight:700; color:#475569;">${endTime}</td>
-                    <td style="padding:12px 16px; white-space:nowrap; font-weight:800; color:#047857;">${row.duration}</td>
+                    <td style="padding:12px 16px; white-space:nowrap; font-weight:800; color:#047857;">${durDisplay}</td>
                     <td style="padding:12px 16px; font-weight:600; color:#0f172a;">
                         <div style="display:flex; align-items:center; gap:8px;">
                             <i class="fa-solid ${iconClass}" style="color:#64748b; font-size:14px; flex-shrink:0;"></i>
@@ -413,7 +496,7 @@ function renderEmpLogsTable(logs) {
                         <span class="badge-status ${catClass}" style="font-weight:700;">${row.category}</span>
                     </td>
                     <td style="padding:12px 16px; white-space:nowrap; text-align:center;">
-                        <button onclick="window.playProcessRecording('${row.start_unix || 0}', '${row.end_unix || 0}', '${row.process}', '${row.computer_id || ''}', '${cleanTitle}', '${startTime}', '${endTime}', '${row.duration}')" style="background:linear-gradient(135deg, #047857, #065f46); color:white; border:none; padding:7px 14px; border-radius:8px; font-weight:800; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(4,120,87,0.3); transition:all 0.15s ease;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+                        <button onclick="window.playProcessRecording('${row.start_unix || 0}', '${row.end_unix || 0}', '${row.process}', '${row.computer_id || ''}', '${cleanTitle}', '${startTime}', '${endTime}', '${durDisplay}')" style="background:linear-gradient(135deg, #047857, #065f46); color:white; border:none; padding:7px 14px; border-radius:8px; font-weight:800; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(4,120,87,0.3); transition:all 0.15s ease;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
                             <i class="fa-solid fa-circle-play" style="font-size:12px;"></i> View Recording
                         </button>
                     </td>
@@ -549,11 +632,7 @@ window.playProcessRecording = async function(startUnix, endUnix, processName, co
                             videoEl.onloadedmetadata = () => {
                                 if (videoEl.duration && !isNaN(videoEl.duration) && isFinite(videoEl.duration)) {
                                     const totalSecs = Math.floor(videoEl.duration);
-                                    const hrs = Math.floor(totalSecs / 3600);
-                                    const mins = Math.floor((totalSecs % 3600) / 60);
-                                    const secs = totalSecs % 60;
-                                    let formattedDur = (hrs > 0) ? `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}` : `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-                                    if (durationBadgeEl) durationBadgeEl.innerText = formattedDur;
+                                    if (durationBadgeEl) durationBadgeEl.innerText = formatCompactDuration(totalSecs);
                                 }
                             };
                             videoEl.play().catch(e => console.warn("Auto-play:", e.message));

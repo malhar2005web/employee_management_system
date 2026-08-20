@@ -556,14 +556,46 @@ export async function getEmployeeActivityLogs(req, res) {
         // If no matched rows for this employee, return empty — NO cross-employee data leaking
         const displayRows = matchedRows;
 
-        function formatLocalDateTime(d) {
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const hh = String(d.getHours()).padStart(2, '0');
-            const min = String(d.getMinutes()).padStart(2, '0');
-            const ss = String(d.getSeconds()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+        function formatISTDateTime(d) {
+            try {
+                const parts = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'Asia/Kolkata',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }).formatToParts(d);
+                const p = {};
+                parts.forEach(({ type, value }) => { p[type] = value; });
+                return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}:${p.second}`;
+            } catch (e) {
+                const istOffsetMs = 5.5 * 60 * 60 * 1000;
+                const istDate = new Date(d.getTime() + (d.getTimezoneOffset() * 60 * 1000) + istOffsetMs);
+                const yyyy = istDate.getFullYear();
+                const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(istDate.getDate()).padStart(2, '0');
+                const hh = String(istDate.getHours()).padStart(2, '0');
+                const min = String(istDate.getMinutes()).padStart(2, '0');
+                const ss = String(istDate.getSeconds()).padStart(2, '0');
+                return `${dd}-${mm}-${yyyy} ${hh}:${min}:${ss}`;
+            }
+        }
+
+        function formatCompactDuration(durSec) {
+            if (!durSec || durSec <= 0) return '0s';
+            const hours = Math.floor(durSec / 3600);
+            const mins = Math.floor((durSec % 3600) / 60);
+            const secs = durSec % 60;
+            if (hours > 0) {
+                return `${hours}h ${mins}m ${secs > 0 ? secs + 's' : ''}`.trim();
+            }
+            if (mins > 0) {
+                return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+            }
+            return `${secs}s`;
         }
 
         // Fetch task sessions for this employee to map activity logs to active/past Task Sessions
@@ -588,13 +620,10 @@ export async function getEmployeeActivityLogs(req, res) {
             const durSec = r.duration || 0;
             const endTs = new Date(startTs.getTime() + (durSec * 1000));
 
-            const startStr = formatLocalDateTime(startTs);
-            const endStr = formatLocalDateTime(endTs);
+            const startStr = formatISTDateTime(startTs);
+            const endStr = formatISTDateTime(endTs);
 
-            const hours = Math.floor(durSec / 3600);
-            const mins = Math.floor((durSec % 3600) / 60);
-            const secs = durSec % 60;
-            const durStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            const durStr = formatCompactDuration(durSec);
 
             const logStartUnix = Math.floor(startTs.getTime() / 1000);
             const logEndUnix = Math.floor(endTs.getTime() / 1000);
@@ -628,8 +657,8 @@ export async function getEmployeeActivityLogs(req, res) {
                 task_status: matchedSession ? matchedSession.task_status : 'Activity',
                 session_start_unix: sessStartUnix,
                 session_end_unix: sessEndUnix,
-                session_start_str: matchedSession ? formatLocalDateTime(new Date(matchedSession.started_at)) : startStr,
-                session_end_str: matchedSession ? (matchedSession.ended_at ? formatLocalDateTime(new Date(matchedSession.ended_at)) : formatLocalDateTime(new Date())) : endStr,
+                session_start_str: matchedSession ? formatISTDateTime(new Date(matchedSession.started_at)) : startStr,
+                session_end_str: matchedSession ? (matchedSession.ended_at ? formatISTDateTime(new Date(matchedSession.ended_at)) : formatISTDateTime(new Date())) : endStr,
                 is_task_bound: !!matchedSession
             };
         });
