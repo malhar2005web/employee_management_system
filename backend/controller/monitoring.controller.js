@@ -532,7 +532,8 @@ export async function getEmployeeActivityLogs(req, res) {
         try {
             const raw = await getWebPagesApplicationsGrid({
                 periodStart: String(startUnix),
-                periodEnd: String(nowUnix)
+                periodEnd: String(nowUnix),
+                pageSize: 5000
             });
             realGridLogs = raw?.rows || [];
         } catch (e) {

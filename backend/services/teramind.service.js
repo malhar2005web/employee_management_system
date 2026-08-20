@@ -126,7 +126,7 @@ export async function getComputersGrid(viewMode = 1) {
 // 1.2 Get Web Pages Applications Grid (POST /tm-api/report/web-pages-applications/grid)
 export async function getWebPagesApplicationsGrid(params = {}) {
     try {
-        return await callTeramindApi('/tm-api/report/web-pages-applications/grid', 'POST', { viewMode: 1, ...params });
+        return await callTeramindApi('/tm-api/report/web-pages-applications/grid', 'POST', { viewMode: 1, pageSize: 5000, ...params });
     } catch (e) {
         console.warn("Teramind live getWebPagesApplicationsGrid failed:", e.message);
         return [];
