@@ -223,7 +223,7 @@ async function loadWorkstationsData() {
                             <span style="font-size:11px; color:var(--text-muted); opacity:0.8;">No hardware linked</span>
                         `}
                         <div style="margin-top:5px;">
-                            <button type="button" class="btn-pill" style="font-size:11px; padding:3px 10px; border:1px solid #cbd5e1; background:#f8fafc; color:#334155; display:inline-flex; align-items:center; gap:5px; font-weight:700; cursor:pointer;" onclick="event.stopPropagation(); window.openAssignModal(${row.employee_id}, '${safeName}', ${row.computer_id || 'null'})" title="Assign or change workstation for ${safeName}">
+                            <button type="button" class="btn-pill btn-select-pc" style="font-size:11px; padding:4px 10px; border:1px solid #cbd5e1; background:#f8fafc; color:#334155; display:inline-flex; align-items:center; gap:5px; font-weight:700; cursor:pointer; position:relative; z-index:5;" onclick="event.stopPropagation(); event.preventDefault(); window.openAssignModal(event, ${row.employee_id}, '${safeName}', ${row.computer_id || 'null'})" title="Assign or change workstation for ${safeName}">
                                 <i class="fa-solid fa-pen-to-square" style="color:var(--teal-900);"></i> Select PC
                             </button>
                         </div>
@@ -928,7 +928,17 @@ async function loadTeramindConfig() {
 }
 
 // ── WORKSTATION MANUAL ASSIGNMENT MODAL & LOGIC ─────────────────────────────
-window.openAssignModal = async function(empId, empName, currentCompId) {
+window.openAssignModal = async function(e, empId, empName, currentCompId) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (e && e.preventDefault) e.preventDefault();
+
+    // Support both signatures: openAssignModal(event, empId, empName, currentCompId) and openAssignModal(empId, empName, currentCompId)
+    if (typeof e === 'number' || (typeof e === 'string' && !isNaN(e))) {
+        currentCompId = empName;
+        empName = empId;
+        empId = e;
+    }
+
     const modal = document.getElementById("assign-ws-modal");
     const empIdInput = document.getElementById("assign-emp-id");
     const empNameEl = document.getElementById("assign-emp-name");
@@ -939,7 +949,11 @@ window.openAssignModal = async function(empId, empName, currentCompId) {
     empIdInput.value = empId;
     empNameEl.innerText = empName;
     selectEl.innerHTML = '<option value="" disabled selected>Loading available computers...</option>';
+    
+    modal.classList.add("active");
     modal.style.display = "flex";
+    modal.style.opacity = "1";
+    modal.style.pointerEvents = "auto";
 
     try {
         const res = await fetch("/api/v1/admin/monitoring/available-workstations");
@@ -980,7 +994,12 @@ window.openAssignModal = async function(empId, empName, currentCompId) {
 
 window.closeAssignModal = function() {
     const modal = document.getElementById("assign-ws-modal");
-    if (modal) modal.style.display = "none";
+    if (modal) {
+        modal.classList.remove("active");
+        modal.style.display = "none";
+        modal.style.opacity = "0";
+        modal.style.pointerEvents = "none";
+    }
 };
 
 window.saveWorkstationAssignment = async function(event) {
