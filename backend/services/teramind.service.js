@@ -526,6 +526,16 @@ export async function syncTeramindDataToCache() {
 
         for (let i = 0; i < employees.rows.length; i++) {
             const emp = employees.rows[i];
+
+            // If already manually assigned by Admin, preserve Admin's selection!
+            const existingMapping = await pool.query(
+                "SELECT is_manual FROM employee_teramind_mapping WHERE employee_id = $1", 
+                [emp.id]
+            );
+            if (existingMapping.rows.length > 0 && existingMapping.rows[0].is_manual === true) {
+                continue; // Admin manually selected this, do not override
+            }
+
             const empFullName = (emp.full_name || '').trim().toLowerCase();
             const nameParts = empFullName.split(' ').filter(p => p.length > 2);
             const empCode = (emp.employee_code || '').toLowerCase();

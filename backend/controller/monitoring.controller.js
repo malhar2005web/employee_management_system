@@ -901,3 +901,98 @@ export async function proxyVideoStream(req, res) {
         res.status(500).send("Stream proxy error");
     }
 }
+
+// ── FETCH ALL DETECTED TERAMIND WORKSTATIONS FOR DROPDOWN ────────────────────
+export async function getAvailableWorkstations(req, res) {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                c.computer_id,
+                c.name as computer_name,
+                c.user_name,
+                c.os,
+                c.is_online,
+                c.agent_status,
+                c.last_seen,
+                m.employee_id as currently_assigned_to,
+                e.full_name as assigned_employee_name,
+                e.employee_code as assigned_employee_code
+            FROM teramind_computer_cache c
+            LEFT JOIN employee_teramind_mapping m ON c.computer_id = m.computer_id
+            LEFT JOIN employees e ON m.employee_id = e.id
+            WHERE c.computer_id NOT IN (101, 102, 103, 104, 105)
+            ORDER BY c.is_online DESC, c.name ASC;
+        `);
+
+        res.status(200).json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error("Error in getAvailableWorkstations:", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+// ── MANUALLY ASSIGN OR UNASSIGN A WORKSTATION TO AN EMPLOYEE ─────────────────
+export async function assignWorkstation(req, res) {
+    try {
+        const { employee_id, computer_id, computer_name } = req.body;
+        const empId = parseInt(employee_id, 10);
+
+        if (!empId || isNaN(empId)) {
+            return res.status(400).json({ success: false, message: "Valid employee_id is required." });
+        }
+
+        // Verify employee exists
+        const empCheck = await pool.query("SELECT id, full_name FROM employees WHERE id = $1", [empId]);
+        if (empCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, message: `Employee #${empId} not found.` });
+        }
+        const empName = empCheck.rows[0].full_name;
+
+        // If computer_id is null / 'none' / 0 -> Unassign
+        if (!computer_id || computer_id === 'none' || computer_id === 'unassign' || computer_id === 0) {
+            await pool.query("DELETE FROM employee_teramind_mapping WHERE employee_id = $1;", [empId]);
+            return res.status(200).json({
+                success: true,
+                message: `Workstation unassigned successfully for ${empName}.`
+            });
+        }
+
+        const compId = parseInt(computer_id, 10);
+
+        // Fetch computer info from cache if computer_name not provided
+        let targetCompName = computer_name;
+        if (!targetCompName) {
+            const compRes = await pool.query("SELECT name FROM teramind_computer_cache WHERE computer_id = $1", [compId]);
+            if (compRes.rows.length > 0) {
+                targetCompName = compRes.rows[0].name;
+            } else {
+                targetCompName = `Workstation-${compId}`;
+            }
+        }
+
+        // Release this computer from any other employee (1 PC = 1 Employee)
+        await pool.query("DELETE FROM employee_teramind_mapping WHERE computer_id = $1 AND employee_id != $2;", [compId, empId]);
+
+        // Upsert assignment with is_manual = true
+        await pool.query(`
+            INSERT INTO employee_teramind_mapping (employee_id, computer_id, computer_name, is_manual, last_sync)
+            VALUES ($1, $2, $3, true, NOW())
+            ON CONFLICT (employee_id) DO UPDATE SET
+                computer_id = EXCLUDED.computer_id,
+                computer_name = EXCLUDED.computer_name,
+                is_manual = true,
+                last_sync = NOW();
+        `, [empId, compId, targetCompName]);
+
+        res.status(200).json({
+            success: true,
+            message: `Workstation '${targetCompName}' successfully assigned to ${empName}!`
+        });
+    } catch (error) {
+        console.error("Error in assignWorkstation:", error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}

@@ -527,9 +527,11 @@ export async function runMigrations() {
                 employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
                 computer_id INT UNIQUE,
                 computer_name VARCHAR(255),
+                is_manual BOOLEAN DEFAULT false,
                 last_sync TIMESTAMP DEFAULT NOW(),
                 UNIQUE(employee_id)
             );
+            ALTER TABLE employee_teramind_mapping ADD COLUMN IF NOT EXISTS is_manual BOOLEAN DEFAULT false;
             CREATE INDEX IF NOT EXISTS idx_emp_teramind_emp_id ON employee_teramind_mapping(employee_id);
             CREATE INDEX IF NOT EXISTS idx_emp_teramind_comp_id ON employee_teramind_mapping(computer_id);
         `);

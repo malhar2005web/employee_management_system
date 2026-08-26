@@ -16,7 +16,9 @@ import {
     getSingleComputerDetails,
     getLoginSessionHistory,
     getProcessVideo,
-    proxyVideoStream
+    proxyVideoStream,
+    getAvailableWorkstations,
+    assignWorkstation
 } from '../controller/monitoring.controller.js';
 import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
 
@@ -36,6 +38,8 @@ router.post("/categorize", categorizeProductivity);
 // Teramind Integration & Dashboard Endpoints
 router.get("/health", getExecutiveHealthCards);
 router.get("/dashboard", getMonitoringDashboard);
+router.get("/available-workstations", getAvailableWorkstations);
+router.post("/assign-workstation", assignWorkstation);
 router.get("/computer/:id", getSingleComputerDetails);
 router.get("/session-history", getLoginSessionHistory);
 router.get("/employee/:id/logs", getEmployeeActivityLogs);

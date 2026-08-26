@@ -216,12 +216,17 @@ async function loadWorkstationsData() {
                     </td>
                     <td style="padding:12px;">
                         ${hasWorkstation ? `
-                            <div style="font-weight:600;"><i class="fa-solid fa-desktop"></i> ${compName}</div>
+                            <div style="font-weight:700; color:#0f172a;"><i class="fa-solid fa-desktop" style="color:var(--teal-900);"></i> ${compName}</div>
                             <span style="font-size:11.5px; color:var(--text-muted);">${osLabel}</span>
                         ` : `
                             <div style="color:var(--text-muted); font-size:12.5px; font-weight:600;"><i class="fa-solid fa-ban" style="opacity:0.4;"></i> Unassigned</div>
                             <span style="font-size:11px; color:var(--text-muted); opacity:0.8;">No hardware linked</span>
                         `}
+                        <div style="margin-top:5px;">
+                            <button type="button" class="btn-pill" style="font-size:11px; padding:3px 10px; border:1px solid #cbd5e1; background:#f8fafc; color:#334155; display:inline-flex; align-items:center; gap:5px; font-weight:700; cursor:pointer;" onclick="event.stopPropagation(); window.openAssignModal(${row.employee_id}, '${safeName}', ${row.computer_id || 'null'})" title="Assign or change workstation for ${safeName}">
+                                <i class="fa-solid fa-pen-to-square" style="color:var(--teal-900);"></i> Select PC
+                            </button>
+                        </div>
                     </td>
                     <td style="padding:12px; font-weight:600; color:${activeApp === '—' ? 'var(--text-muted)' : 'var(--teal-900)'};">
                         <i class="fa-solid fa-window-maximize" style="color:var(--text-muted);"></i> ${activeApp}
@@ -921,3 +926,107 @@ async function loadTeramindConfig() {
         console.error("Error loading config:", e);
     }
 }
+
+// ── WORKSTATION MANUAL ASSIGNMENT MODAL & LOGIC ─────────────────────────────
+window.openAssignModal = async function(empId, empName, currentCompId) {
+    const modal = document.getElementById("assign-ws-modal");
+    const empIdInput = document.getElementById("assign-emp-id");
+    const empNameEl = document.getElementById("assign-emp-name");
+    const selectEl = document.getElementById("assign-computer-select");
+
+    if (!modal || !selectEl) return;
+
+    empIdInput.value = empId;
+    empNameEl.innerText = empName;
+    selectEl.innerHTML = '<option value="" disabled selected>Loading available computers...</option>';
+    modal.style.display = "flex";
+
+    try {
+        const res = await fetch("/api/v1/admin/monitoring/available-workstations");
+        const json = await res.json();
+
+        if (json.success && Array.isArray(json.data)) {
+            let optionsHtml = '<option value="unassign">❌ Unassign (No Workstation Assigned)</option>';
+            
+            json.data.forEach(c => {
+                const isCurrent = currentCompId && currentCompId == c.computer_id;
+                const statusDot = c.is_online ? '🟢' : '🔴';
+                const userLabel = c.user_name ? ` (User: ${c.user_name})` : '';
+                const alreadyAssigned = (c.currently_assigned_to && c.currently_assigned_to != empId)
+                    ? ` — [Currently with ${c.assigned_employee_name}]`
+                    : '';
+
+                optionsHtml += `
+                    <option value="${c.computer_id}" data-name="${c.computer_name}" ${isCurrent ? 'selected' : ''}>
+                        ${statusDot} ${c.computer_name}${userLabel}${alreadyAssigned}
+                    </option>
+                `;
+            });
+
+            selectEl.innerHTML = optionsHtml;
+
+            // If employee had no computer mapped, select unassign by default
+            if (!currentCompId) {
+                selectEl.value = 'unassign';
+            }
+        } else {
+            selectEl.innerHTML = '<option value="unassign">❌ Unassign (No Workstation Assigned)</option>';
+        }
+    } catch (e) {
+        console.error("Error fetching available workstations:", e);
+        selectEl.innerHTML = '<option value="unassign">❌ Unassign (No Workstation Assigned)</option>';
+    }
+};
+
+window.closeAssignModal = function() {
+    const modal = document.getElementById("assign-ws-modal");
+    if (modal) modal.style.display = "none";
+};
+
+window.saveWorkstationAssignment = async function(event) {
+    event.preventDefault();
+    const btn = document.getElementById("btn-save-assign");
+    const empId = document.getElementById("assign-emp-id").value;
+    const selectEl = document.getElementById("assign-computer-select");
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    const selectedCompId = selectEl.value;
+    const selectedCompName = selectedOption ? selectedOption.getAttribute("data-name") : "";
+
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+    try {
+        const payload = {
+            employee_id: empId,
+            computer_id: selectedCompId === 'unassign' ? null : selectedCompId,
+            computer_name: selectedCompId === 'unassign' ? null : selectedCompName
+        };
+
+        const res = await fetch("/api/v1/admin/monitoring/assign-workstation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+
+        if (json.success) {
+            window.closeAssignModal();
+            if (typeof window.showToast === 'function') {
+                window.showToast(json.message || "Workstation assigned successfully!", "success");
+            } else {
+                alert(json.message || "Workstation assigned successfully!");
+            }
+            await loadWorkstationsData();
+            await loadHealthCards();
+        } else {
+            alert(json.message || "Failed to assign workstation.");
+        }
+    } catch (e) {
+        console.error("Error saving workstation assignment:", e);
+        alert("Failed to save assignment: " + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+};
