@@ -526,12 +526,16 @@ export async function syncTeramindDataToCache() {
         for (let i = 0; i < employees.rows.length; i++) {
             const emp = employees.rows[i];
 
-            // Try to match employee by name or employee_code to an active Teramind computer
+            // Match employee by full_name or name parts against computer.user_name, computer.name, or logged_in_users
             const nameParts = (emp.full_name || '').toLowerCase().split(' ');
             const matchedComp = availablePool.find(c => {
                 const compName = (c.name || '').toLowerCase();
                 const userLogin = (c.logged_in_users || '').toLowerCase();
-                return nameParts.some(part => part.length > 2 && (compName.includes(part) || userLogin.includes(part)));
+                const userName = (c.user_name || '').toLowerCase();
+                const empCode = (emp.employee_code || '').toLowerCase();
+                
+                return nameParts.some(part => part.length > 2 && (compName.includes(part) || userLogin.includes(part) || userName.includes(part))) ||
+                       (empCode && (compName.includes(empCode) || userLogin.includes(empCode) || userName.includes(empCode)));
             });
 
             if (!matchedComp) {
