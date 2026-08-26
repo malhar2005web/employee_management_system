@@ -473,14 +473,19 @@ export async function syncTeramindDataToCache() {
         // 1. UPSERT Computer Cache (Never Truncate)
         if (Array.isArray(computers)) {
             for (const comp of computers) {
-                const compId = comp.id || comp.computer_id || Math.floor(Math.random() * 1000);
+                const compId = comp.id || comp.computer_id;
+                if (!compId) continue;
+
                 const gridData = gridMap[compId] || {};
                 const pingedTime = comp.pinged_at || (gridData.last_seen ? new Date(gridData.last_seen * 1000).toISOString() : comp.last_seen);
                 const isPingedRecently = pingedTime
-                    ? (Date.now() - new Date(pingedTime).getTime()) < 15 * 60 * 1000
+                    ? (Date.now() - new Date(pingedTime).getTime()) < 10 * 60 * 1000
                     : false;
-                const isOnline = !comp.deleted && comp.is_monitored !== false && isPingedRecently;
-                const agentStatus = isOnline ? 'Running' : 'Stopped';
+
+                const onlineAgentsCount = parseInt(gridData.online_agents_count || '0', 10);
+                const hasOnlineAgent = onlineAgentsCount > 0 || (!!gridData.online_agents && gridData.online_agents.trim().length > 0);
+                const isOnline = !comp.deleted && comp.is_monitored !== false && isPingedRecently && hasOnlineAgent;
+                const agentStatus = isOnline ? 'Running' : (isPingedRecently ? 'Idle' : 'Stopped');
                 const userName = gridData.online_agents || comp.user || comp.user_name || 'Employee';
 
                 await pool.query(`
@@ -556,20 +561,6 @@ export async function syncTeramindDataToCache() {
                     last_sync = NOW();
             `, [emp.id, compId, compName]);
 
-            const lastConTime = realComp?.last_seen || realComp?.pinged_at || new Date();
-            const isOnline = realComp?.is_online === true;
-            const agentStatus = isOnline ? 'Running' : 'Stopped';
-
-            // Ensure teramind_computer_cache stays in sync
-            if (realComp) {
-                await pool.query(`
-                    UPDATE teramind_computer_cache 
-                    SET is_online = $1, agent_status = $2, last_seen = $3, updated_at = NOW()
-                    WHERE computer_id = $4
-                `, [isOnline, agentStatus, lastConTime, compId]);
-            }
-
-
             // NOTE: Teramind REST API does not expose live active_app, work_time, or input_score
             // via the /tm-api/reports POST (it creates report definitions, not data queries).
             // We store real computer assignments + real last_seen timestamps.
@@ -587,7 +578,7 @@ export async function syncTeramindDataToCache() {
                     active_app = EXCLUDED.active_app,
                     active_website = EXCLUDED.active_website,
                     updated_at = NOW();
-            `, [emp.id, compId, lastConTime || new Date()]);
+            `, [emp.id, compId, new Date()]);
         }
 
         // 3. Seed alerts via UPSERT if missing

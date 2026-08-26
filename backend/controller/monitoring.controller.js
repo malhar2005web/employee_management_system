@@ -212,11 +212,12 @@ export async function getMonitoringDashboard(req, res) {
 
                 const activeApp = realRow ? (realRow.process_host || realRow.friendly_name || '') : '';
                 const activeWeb = realRow ? (realRow.url || realRow.title || '') : '';
+                const isOnline = row.is_online === true;
 
                 return {
                     ...row,
-                    active_app: compId ? (activeApp || row.active_app || '—') : '—',
-                    active_website: compId ? (activeWeb || row.active_website || '—') : '—',
+                    active_app: (compId && isOnline) ? (activeApp || row.active_app || '—') : '—',
+                    active_website: (compId && isOnline) ? (activeWeb || row.active_website || '—') : '—',
                     productive_seconds: compId ? (row.productive_seconds || (realRow ? (realRow.duration || 0) : 0)) : 0,
                     active_seconds: compId ? (row.active_seconds || (realRow ? (realRow.duration || 0) : 0)) : 0,
                     input_score: compId ? (row.input_score || 0) : 0
