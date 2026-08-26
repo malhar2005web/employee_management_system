@@ -183,28 +183,54 @@ const runMigrations = async () => {
         `);
         console.log("Default roles verified.");
 
-        // Insert Default Department
-        await pool.query(`
-            INSERT INTO departments (id, dept_name) 
-            VALUES (1, 'Administration'), (2, 'Engineering')
-            ON CONFLICT (id) DO NOTHING;
-        `);
-        console.log("Default departments verified.");
+        // Insert Default Department (Optional)
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS departments (id SERIAL PRIMARY KEY, dept_name VARCHAR(100) UNIQUE NOT NULL);
+            `);
+            await pool.query(`
+                INSERT INTO departments (id, dept_name) 
+                VALUES (1, 'Administration'), (2, 'Engineering')
+                ON CONFLICT (id) DO NOTHING;
+            `);
+            console.log("Default departments verified.");
+        } catch (depErr) {
+            console.log("Departments table skipped or already managed.");
+        }
 
         // Check if admin already exists
-        const adminCheck = await pool.query("SELECT * FROM employees WHERE email = $1", ["admin@ems.com"]);
-        if (adminCheck.rows.length === 0) {
-            const salt = await bcryptjs.genSalt(10);
-            const hashedPassword = await bcryptjs.hash("adminPassword123", salt);
+        try {
+            const adminCheck = await pool.query("SELECT * FROM employees WHERE company_email = $1", ["admin@ems.com"]);
+            if (adminCheck.rows.length === 0) {
+                const salt = await bcryptjs.genSalt(10);
+                const hashedPassword = await bcryptjs.hash("adminPassword123", salt);
 
-            await pool.query(`
-                INSERT INTO employees (email, password, first_name, last_name, designation, role_id, department_id, is_active)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            `, ["admin@ems.com", hashedPassword, "System", "Administrator", "Administrator", 1, 1, true]);
-            console.log("🚀 Default admin account created: admin@ems.com / adminPassword123");
-        } else {
-            console.log("Admin account already exists.");
+                await pool.query(`
+                    INSERT INTO employees (employee_code, company_email, password_hash, full_name, designation, role, status)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                `, ["EMP000", "admin@ems.com", hashedPassword, "System Administrator", "Administrator", "admin", "active"]);
+                console.log("🚀 Default admin account verified/created: admin@ems.com / adminPassword123");
+            } else {
+                console.log("Admin account already exists.");
+            }
+        } catch (adminErr) {
+            console.log("Admin seed check skipped/already initialized.");
         }
+
+        // Execute PCS Attendance Schema & Procedures Migrations
+        console.log("Starting PCS Attendance Migrations...");
+        const fs = await import('fs');
+        const path = await import('path');
+        const { fileURLToPath } = await import('url');
+        const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+        const schemaMigrationSql = fs.readFileSync(path.join(__dirname, 'migrations', 'pcs_attendance_migration.sql'), 'utf8');
+        await pool.query(schemaMigrationSql);
+        console.log("✅ PCS Attendance Schema & Views Migration verified.");
+
+        const procsMigrationSql = fs.readFileSync(path.join(__dirname, 'migrations', 'pcs_procedures_migration.sql'), 'utf8');
+        await pool.query(procsMigrationSql);
+        console.log("✅ PCS Attendance PL/pgSQL Business Engine verified.");
 
         console.log("Migration run completed successfully.");
     } catch (error) {

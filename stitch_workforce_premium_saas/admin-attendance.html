@@ -219,11 +219,15 @@
 
       <!-- Table Card -->
       <div class="card table-card">
-        <div class="card-head">
+        <div class="card-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <h3 id="table-title">Daily Logs</h3>
-          <div class="tab-group" id="attendance-subtabs">
-            <button class="active" id="tab-logs">Daily Logs</button>
-            <button id="tab-pending">Pending Corrections</button>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="tab-group" id="attendance-subtabs">
+              <button class="active" id="tab-logs">Daily Logs</button>
+              <button id="tab-pcs-summary"><i class="fa-solid fa-chart-pie"></i> Monthly Summary</button>
+              <button id="tab-pending">Pending Corrections</button>
+            </div>
+            <button type="button" class="btn-primary" id="btn-run-calc" style="display:none; padding:7px 14px; font-size:12.5px; border-radius:var(--radius-sm);"><i class="fa-solid fa-bolt"></i> Calculate Attendance</button>
           </div>
         </div>
 
@@ -246,6 +250,42 @@
               <!-- Dynamic rows -->
             </tbody>
           </table>
+        </div>
+
+        <!-- Monthly PCS Summary View -->
+        <div id="view-pcs-summary" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:4px 2px;">
+            <div style="font-size:13px; color:var(--text-muted); font-weight:700;">
+              <i class="fa-solid fa-calculator"></i> Rule Engine: Mon–Fri 09:45–19:00 | Sat 09:45–16:30 | Sun/Holiday Off
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <label style="font-size:12px; font-weight:700; color:var(--text-dark);">Month:</label>
+              <input type="month" id="filter-pcs-month" style="padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:rgba(255,255,255,0.7);">
+              <button type="button" class="btn-secondary" id="btn-refresh-pcs" style="padding:6px 12px; font-size:12px;"><i class="fa-solid fa-rotate"></i> Refresh</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Employee / Computer</th>
+                  <th>Month</th>
+                  <th>Total Days</th>
+                  <th>Present</th>
+                  <th>Absent</th>
+                  <th>Leave</th>
+                  <th>Late In</th>
+                  <th>Early Out</th>
+                  <th>Office Hours</th>
+                  <th>Overtime</th>
+                  <th>Total Login</th>
+                </tr>
+              </thead>
+              <tbody id="pcs-summary-list">
+                <!-- Dynamic summary rows -->
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Pending Corrections View -->

@@ -99,20 +99,28 @@ export async function getExecutiveHealthCards(req, res) {
                 COUNT(DISTINCT m.computer_id) FILTER (WHERE c.is_online = false OR c.is_online IS NULL) as offline_computers,
                 COUNT(DISTINCT m.computer_id) as total_computers
             FROM employee_teramind_mapping m
-            LEFT JOIN teramind_computer_cache c ON m.computer_id::text = c.computer_id::text;
+            LEFT JOIN teramind_computer_cache c ON m.computer_id = c.computer_id;
         `);
 
-        const empTotalRes = await pool.query(`SELECT COUNT(*) as total FROM employees;`);
-        const totalEmp = parseInt(empTotalRes.rows[0]?.total || 5, 10);
+        const onlineCount = parseInt(computers.rows[0]?.online_computers || 0, 10);
+        const offlineCount = parseInt(computers.rows[0]?.offline_computers || 0, 10);
 
+        // Count active/working employees ONLY among mapped online workstations
         const workingRes = await pool.query(`
-            SELECT COUNT(DISTINCT employee_id) as working_count
-            FROM teramind_activity_cache
-            WHERE work_date = CURRENT_DATE AND active_app != '' AND active_app IS NOT NULL;
+            SELECT COUNT(DISTINCT m.employee_id) as working_count
+            FROM employee_teramind_mapping m
+            JOIN teramind_computer_cache c ON m.computer_id = c.computer_id
+            LEFT JOIN teramind_activity_cache ac ON m.employee_id = ac.employee_id AND ac.work_date = CURRENT_DATE
+            WHERE c.is_online = true 
+              AND (
+                  (ac.active_app != '' AND ac.active_app IS NOT NULL) 
+                  OR c.agent_status = 'Running'
+                  OR (ac.productive_seconds > 0)
+              );
         `);
 
-        const employeesWorking = parseInt(workingRes.rows[0]?.working_count || 0, 10);
-        const employeesIdle = Math.max(0, totalEmp - employeesWorking);
+        const employeesWorking = parseInt(workingRes.rows[0]?.working_count || onlineCount, 10);
+        const employeesIdle = Math.max(0, onlineCount - employeesWorking);
 
         const alerts = await pool.query(`
             SELECT COUNT(*) as alerts_today 
@@ -132,8 +140,8 @@ export async function getExecutiveHealthCards(req, res) {
         res.status(200).json({
             success: true,
             data: {
-                online_computers: parseInt(computers.rows[0]?.online_computers || 0, 10),
-                offline_computers: parseInt(computers.rows[0]?.offline_computers || 0, 10),
+                online_computers: onlineCount,
+                offline_computers: offlineCount,
                 employees_working: employeesWorking,
                 employees_idle: employeesIdle,
                 alerts_today: parseInt(alerts.rows[0]?.alerts_today || 0, 10),
@@ -195,25 +203,23 @@ export async function getMonitoringDashboard(req, res) {
             const formatted = result.rows.map(row => {
                 const compId = row.computer_id;
                 const compName = (row.computer_name || '').toLowerCase();
-                const empName = (row.full_name || '').toLowerCase();
 
-                // Find real activity row for this computer
-                const realRow = gridRows.find(r => 
+                // Find real activity row for this computer ONLY if a workstation is mapped
+                const realRow = compId ? gridRows.find(r => 
                     r.computer?.computer_id == compId ||
-                    (r.computer?.name && r.computer.name.toLowerCase() === compName) ||
-                    (r.agent?.name && empName && r.agent.name.toLowerCase().includes(empName.split(' ')[0]))
-                );
+                    (compName && r.computer?.name && r.computer.name.toLowerCase() === compName)
+                ) : null;
 
                 const activeApp = realRow ? (realRow.process_host || realRow.friendly_name || '') : '';
                 const activeWeb = realRow ? (realRow.url || realRow.title || '') : '';
 
                 return {
                     ...row,
-                    active_app: activeApp || row.active_app || '—',
-                    active_website: activeWeb || row.active_website || '—',
-                    productive_seconds: row.productive_seconds || (realRow ? (realRow.duration || 0) : 0),
-                    active_seconds: row.active_seconds || (realRow ? (realRow.duration || 0) : 0),
-                    input_score: row.input_score || 0
+                    active_app: compId ? (activeApp || row.active_app || '—') : '—',
+                    active_website: compId ? (activeWeb || row.active_website || '—') : '—',
+                    productive_seconds: compId ? (row.productive_seconds || (realRow ? (realRow.duration || 0) : 0)) : 0,
+                    active_seconds: compId ? (row.active_seconds || (realRow ? (realRow.duration || 0) : 0)) : 0,
+                    input_score: compId ? (row.input_score || 0) : 0
                 };
             });
 
@@ -524,6 +530,37 @@ export async function getEmployeeActivityLogs(req, res) {
 
         const empInfo = empRes.rows[0];
 
+        const compId = empInfo.computer_id;
+        const compNameLower = (empInfo.computer_name || '').toLowerCase();
+
+        // If employee has no workstation, return empty cleanly
+        if (!compId) {
+            return res.status(200).json({
+                success: true,
+                employee: {
+                    id: empInfo.id,
+                    full_name: empInfo.full_name,
+                    employee_code: empInfo.employee_code,
+                    designation: "Staff",
+                    computer_id: null,
+                    computer_name: "Unassigned",
+                    os: "—",
+                    is_online: false,
+                    agent_status: "No Workstation"
+                },
+                period: "Last 30 Days",
+                total_records: 0,
+                metrics: {
+                    total_records: 0,
+                    active_apps_count: 0,
+                    websites_visited_count: 0,
+                    total_active_seconds: 0,
+                    total_active_hours: "0.0h"
+                },
+                logs: []
+            });
+        }
+
         // Fetch real Teramind grid activity for this workstation (30 days window)
         const nowUnix = Math.floor(Date.now() / 1000);
         const startUnix = nowUnix - (30 * 24 * 3600);
@@ -540,18 +577,11 @@ export async function getEmployeeActivityLogs(req, res) {
             console.warn("Error fetching real grid logs for employee:", e.message);
         }
 
-        const compId = empInfo.computer_id;
-        const compNameLower = (empInfo.computer_name || '').toLowerCase();
-        const empFirstName = (empInfo.full_name || '').toLowerCase().split(' ')[0];
-
-        // Filter rows belonging to this workstation or agent ONLY
+        // Filter rows belonging to THIS workstation ONLY
         const matchedRows = realGridLogs.filter(r => {
             const rCompId = r.computer?.computer_id;
             const rCompName = (r.computer?.name || '').toLowerCase();
-            const rAgentName = (r.agent?.name || '').toLowerCase();
-            return (compId && rCompId == compId) ||
-                   (compNameLower && rCompName.includes(compNameLower)) ||
-                   (empFirstName && empFirstName.length > 2 && rAgentName.includes(empFirstName));
+            return (compId && rCompId == compId) || (compNameLower && rCompName === compNameLower);
         });
 
         // If no matched rows for this employee, return empty — NO cross-employee data leaking

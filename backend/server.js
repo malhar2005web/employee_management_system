@@ -36,6 +36,7 @@ import monitoringRoutes from "./routes/monitoring.route.js";
 import deletionRoutes from "./routes/deletion.route.js";
 import importExportRoutes from "./routes/importExport.route.js";
 import supportRoutes from "./routes/support.route.js";
+import pcsAttendanceRoutes from "./routes/pcsAttendance.route.js";
 import { syncTeramindDataToCache } from "./services/teramind.service.js";
 
 // ESM fix
@@ -140,6 +141,7 @@ app.use("/api/v1/admin/monitoring", monitoringRoutes);
 app.use("/api/v1/admin/deletion", deletionRoutes);
 app.use("/api/v1/admin/import-export", importExportRoutes);
 app.use("/api/v1/support", supportRoutes);
+app.use("/api/v1/attendance/pcs", pcsAttendanceRoutes);
 
 // Fallback to login page
 app.get("/", (req, res) => {

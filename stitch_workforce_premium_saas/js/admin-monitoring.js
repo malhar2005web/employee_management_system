@@ -171,10 +171,20 @@ async function loadWorkstationsData() {
         }
 
         tbody.innerHTML = dataRows.map(row => {
+            const hasWorkstation = !!(row.computer_name && row.computer_name !== '—');
             const isIdle = row.agent_status === 'Idle' || row.agent_status === 'Stopped';
             const isOnline = row.is_online === true;
-            const dotColor = isOnline ? (isIdle ? '#d97706' : '#059669') : '#dc2626';
-            const dotTitle = isOnline ? (isIdle ? 'Idle / Agent Stopped' : 'Online (Active)') : 'Offline';
+            
+            let dotColor = '#dc2626'; // Red (Offline)
+            let dotTitle = 'Offline';
+            if (!hasWorkstation) {
+                dotColor = '#94a3b8'; // Grey (Unassigned)
+                dotTitle = 'No Workstation Assigned';
+            } else if (isOnline) {
+                dotColor = isIdle ? '#d97706' : '#059669'; // Orange (Idle) or Green (Active)
+                dotTitle = isIdle ? 'Online (Idle)' : 'Online (Active)';
+            }
+
             const prodSec = row.productive_seconds || 0;
             const activeSec = row.active_seconds || 0;
             const prodHours = (prodSec / 3600).toFixed(1);
@@ -205,8 +215,13 @@ async function loadWorkstationsData() {
                         </div>
                     </td>
                     <td style="padding:12px;">
-                        <div style="font-weight:600;"><i class="fa-solid fa-desktop"></i> ${compName}</div>
-                        <span style="font-size:11.5px; color:var(--text-muted);">${osLabel}</span>
+                        ${hasWorkstation ? `
+                            <div style="font-weight:600;"><i class="fa-solid fa-desktop"></i> ${compName}</div>
+                            <span style="font-size:11.5px; color:var(--text-muted);">${osLabel}</span>
+                        ` : `
+                            <div style="color:var(--text-muted); font-size:12.5px; font-weight:600;"><i class="fa-solid fa-ban" style="opacity:0.4;"></i> Unassigned</div>
+                            <span style="font-size:11px; color:var(--text-muted); opacity:0.8;">No hardware linked</span>
+                        `}
                     </td>
                     <td style="padding:12px; font-weight:600; color:${activeApp === '—' ? 'var(--text-muted)' : 'var(--teal-900)'};">
                         <i class="fa-solid fa-window-maximize" style="color:var(--text-muted);"></i> ${activeApp}

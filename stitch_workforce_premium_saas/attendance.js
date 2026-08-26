@@ -11,101 +11,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Inner Attendance Tabs
     const tabLogs = document.getElementById('tab-logs');
+    const tabPcsSummary = document.getElementById('tab-pcs-summary');
     const tabPending = document.getElementById('tab-pending');
     const viewLogs = document.getElementById('view-logs');
+    const viewPcsSummary = document.getElementById('view-pcs-summary');
     const viewPending = document.getElementById('view-pending');
-    const viewTitle = document.getElementById('view-title');
+    const viewTitle = document.getElementById('table-title') || document.getElementById('view-title');
+    const btnRunCalc = document.getElementById('btn-run-calc');
+    const filterPcsMonth = document.getElementById('filter-pcs-month');
+    const btnRefreshPcs = document.getElementById('btn-refresh-pcs');
+    const pcsSummaryList = document.getElementById('pcs-summary-list');
 
-    // Modals
-    const correctionModal = document.getElementById('correction-modal');
-    const correctionClose = document.getElementById('correction-close');
-    const correctionCancel = document.getElementById('correction-cancel');
-    const correctionForm = document.getElementById('correction-form');
-
-    const leaveModal = document.getElementById('leave-modal');
-    const leaveClose = document.getElementById('leave-close');
-    const leaveCancel = document.getElementById('leave-cancel');
-    const leaveForm = document.getElementById('leave-form');
-
-    // Selectors / Lists
-    const corrEmployee = document.getElementById('corr-employee');
-    const corrDate = document.getElementById('corr-date');
-    const logsList = document.getElementById('logs-list');
-    const pendingList = document.getElementById('pending-list');
-    const filterDate = document.getElementById('filter-date');
-    const logoutBtn = document.getElementById('logout-btn');
-
-    const leaveEmployee = document.getElementById('leave-employee');
-    const leavesList = document.getElementById('leaves-list');
-
-    // Metrics elements (Attendance)
-    const countPresent = document.getElementById('count-present');
-    const countLate = document.getElementById('count-late');
-    const countEarly = document.getElementById('count-early');
-    const countPending = document.getElementById('count-pending'); // Pending Corrections
-
-    // Metrics elements (Leaves)
-    const countTotal = document.getElementById('count-total');
-    const countLeavePending = document.getElementById('count-leave-pending'); // Pending Leaves
-    const countAnnual = document.getElementById('count-annual');
-    const countSick = document.getElementById('count-sick');
-
-    // Cache
-    let employeesCache = [];
-    let leavesCache = [];
-
-    // Pre-fill today's date in filter input
-    const today = new Date().toISOString().split('T')[0];
-    if (filterDate) {
-        filterDate.value = today;
-    }
-
-    // Switch Main Tabs (Attendance vs Leaves)
-    if (tabBtnAttendance && tabBtnLeave) {
-        tabBtnAttendance.addEventListener('click', () => {
-            tabBtnAttendance.classList.add('active');
-            tabBtnLeave.classList.remove('active');
-            tabContentAttendance.style.display = 'block';
-            tabContentLeave.style.display = 'none';
-            if (btnAddCorrection) btnAddCorrection.style.display = 'block';
-            if (btnAddLeave) btnAddLeave.style.display = 'none';
-        });
-
-        tabBtnLeave.addEventListener('click', () => {
-            tabBtnLeave.classList.add('active');
-            tabBtnAttendance.classList.remove('active');
-            tabContentLeave.style.display = 'block';
-            tabContentAttendance.style.display = 'none';
-            if (btnAddCorrection) btnAddCorrection.style.display = 'none';
-            if (btnAddLeave) btnAddLeave.style.display = 'block';
-            loadLeaves();
-        });
-    }
-
-    // Switch Inner Attendance Tabs (Logs vs Corrections)
+    // Switch Inner Attendance Tabs (Logs vs Monthly Summary vs Corrections)
     const switchAttendanceTab = (tabName) => {
-        tabLogs.classList.remove('active');
-        tabPending.classList.remove('active');
-        viewLogs.style.display = 'none';
-        viewPending.style.display = 'none';
+        if (tabLogs) tabLogs.classList.remove('active');
+        if (tabPcsSummary) tabPcsSummary.classList.remove('active');
+        if (tabPending) tabPending.classList.remove('active');
+
+        if (viewLogs) viewLogs.style.display = 'none';
+        if (viewPcsSummary) viewPcsSummary.style.display = 'none';
+        if (viewPending) viewPending.style.display = 'none';
+        if (btnRunCalc) btnRunCalc.style.display = 'none';
 
         if (tabName === 'logs') {
-            tabLogs.classList.add('active');
-            viewLogs.style.display = 'block';
-            viewTitle.textContent = 'Daily Check-Ins';
+            if (tabLogs) tabLogs.classList.add('active');
+            if (viewLogs) viewLogs.style.display = 'block';
+            if (viewTitle) viewTitle.textContent = 'Daily Check-Ins';
             loadLogs();
+        } else if (tabName === 'pcs-summary') {
+            if (tabPcsSummary) tabPcsSummary.classList.add('active');
+            if (viewPcsSummary) viewPcsSummary.style.display = 'block';
+            if (btnRunCalc) btnRunCalc.style.display = 'inline-flex';
+            if (viewTitle) viewTitle.textContent = 'Monthly Attendance Summary';
+            loadPcsMonthlySummary();
         } else {
-            tabPending.classList.add('active');
-            viewPending.style.display = 'block';
-            viewTitle.textContent = 'Correction Requests';
+            if (tabPending) tabPending.classList.add('active');
+            if (viewPending) viewPending.style.display = 'block';
+            if (viewTitle) viewTitle.textContent = 'Correction Requests';
             loadPendingCorrections();
         }
     };
 
-    if (tabLogs && tabPending) {
-        tabLogs.addEventListener('click', () => switchAttendanceTab('logs'));
-        tabPending.addEventListener('click', () => switchAttendanceTab('pending'));
-    }
+    if (tabLogs) tabLogs.addEventListener('click', () => switchAttendanceTab('logs'));
+    if (tabPcsSummary) tabPcsSummary.addEventListener('click', () => switchAttendanceTab('pcs-summary'));
+    if (tabPending) tabPending.addEventListener('click', () => switchAttendanceTab('pending'));
 
     // Modal open (Correction)
     if (btnAddCorrection) {
@@ -520,6 +469,87 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error deleting leave request:", error);
         }
     };
+
+    // Load Monthly PCS Attendance Summary
+    const loadPcsMonthlySummary = async () => {
+        if (!pcsSummaryList) return;
+        pcsSummaryList.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading monthly summary...</td></tr>';
+
+        try {
+            const selectedMonth = (filterPcsMonth && filterPcsMonth.value) ? filterPcsMonth.value.replace('-', '') : new Date().toISOString().slice(0, 7).replace('-', '');
+            const response = await fetch(`/api/v1/attendance/pcs/monthly-summary?month=${selectedMonth}`);
+            const result = await response.json();
+
+            if (!response.ok || !result.success || !result.data || result.data.length === 0) {
+                pcsSummaryList.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--text-muted);">No attendance records found for ${selectedMonth}. Click "Calculate Attendance" to run calculations.</td></tr>`;
+                return;
+            }
+
+            pcsSummaryList.innerHTML = '';
+            result.data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <div style="font-weight:700; color:var(--text-dark);">${row.full_name || row.USERNAME}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${row.employee_code || row.USERNAME} ${row.department ? '• ' + row.department : ''}</div>
+                    </td>
+                    <td><strong>${row.YYYYMM}</strong></td>
+                    <td>${row.TOTALDAYS || 0}</td>
+                    <td><span class="badge" style="background:rgba(34,197,94,0.15); color:#16a34a; font-weight:700; padding:3px 8px; border-radius:6px;">${row.PRESENT || 0}</span></td>
+                    <td><span class="badge" style="background:rgba(239,68,68,0.15); color:#dc2626; font-weight:700; padding:3px 8px; border-radius:6px;">${row.ABSENT || 0}</span></td>
+                    <td><span class="badge" style="background:rgba(59,130,246,0.15); color:#2563eb; font-weight:700; padding:3px 8px; border-radius:6px;">${row.LEAVE || 0}</span></td>
+                    <td style="color:${row.LATINTIME && row.LATINTIME !== '00:00' ? '#d97706' : 'inherit'}; font-weight:${row.LATINTIME && row.LATINTIME !== '00:00' ? '700' : 'normal'};">${row.LATINTIME || '00:00'}</td>
+                    <td style="color:${row.PREOUTTIME && row.PREOUTTIME !== '00:00' ? '#dc2626' : 'inherit'}; font-weight:${row.PREOUTTIME && row.PREOUTTIME !== '00:00' ? '700' : 'normal'};">${row.PREOUTTIME || '00:00'}</td>
+                    <td><strong>${row.WORKIMGHR || '00:00'}</strong></td>
+                    <td style="color:#059669; font-weight:700;">${row.OTHOURS || '00:00'}</td>
+                    <td><strong>${row.LOGIMHOURS || '00:00'}</strong></td>
+                `;
+                pcsSummaryList.appendChild(tr);
+            });
+        } catch (error) {
+            console.error("Error loading PCS monthly summary:", error);
+            pcsSummaryList.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--red);">Failed to load monthly summary.</td></tr>';
+        }
+    };
+
+    // Pre-fill current month in PCS filter
+    if (filterPcsMonth) {
+        filterPcsMonth.value = new Date().toISOString().slice(0, 7);
+        filterPcsMonth.addEventListener('change', loadPcsMonthlySummary);
+    }
+    if (btnRefreshPcs) {
+        btnRefreshPcs.addEventListener('click', loadPcsMonthlySummary);
+    }
+
+    // Run Calculation Trigger
+    if (btnRunCalc) {
+        btnRunCalc.addEventListener('click', async () => {
+            const targetM = (filterPcsMonth && filterPcsMonth.value) ? `${filterPcsMonth.value}-01` : `${new Date().toISOString().slice(0, 7)}-01`;
+            btnRunCalc.disabled = true;
+            btnRunCalc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Calculating...';
+
+            try {
+                const resp = await fetch('/api/v1/attendance/pcs/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ month: targetM, username: 'All' })
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    alert(`✅ Calculation Completed! ${data.affected_days} day records processed.`);
+                    loadPcsMonthlySummary();
+                } else {
+                    alert(`❌ Calculation failed: ${data.message || 'Unknown error'}`);
+                }
+            } catch (e) {
+                console.error("Calculation trigger error:", e);
+                alert("Error triggering calculation: " + e.message);
+            } finally {
+                btnRunCalc.disabled = false;
+                btnRunCalc.innerHTML = '<i class="fa-solid fa-bolt"></i> Calculate Attendance';
+            }
+        });
+    }
 
     // Filter Listeners
     if (filterDate) {

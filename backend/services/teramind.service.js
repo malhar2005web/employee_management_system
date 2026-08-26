@@ -526,17 +526,23 @@ export async function syncTeramindDataToCache() {
         for (let i = 0; i < employees.rows.length; i++) {
             const emp = employees.rows[i];
 
-            // Try to match employee by name to an active Teramind computer
+            // Try to match employee by name or employee_code to an active Teramind computer
             const nameParts = (emp.full_name || '').toLowerCase().split(' ');
             const matchedComp = availablePool.find(c => {
                 const compName = (c.name || '').toLowerCase();
-                return nameParts.some(part => part.length > 2 && compName.includes(part));
+                const userLogin = (c.logged_in_users || '').toLowerCase();
+                return nameParts.some(part => part.length > 2 && (compName.includes(part) || userLogin.includes(part)));
             });
 
-            // Use matched active computer, or assign by round-robin from active pool
-            const realComp = matchedComp || availablePool[i % availablePool.length];
-            const compId = realComp ? (realComp.id || realComp.computer_id) : (101 + i);
-            const compName = realComp ? realComp.name : `DESKTOP-EMP${emp.id}`;
+            if (!matchedComp) {
+                // Employee has NO active workstation assigned - remove any stale mapping
+                await pool.query("DELETE FROM employee_teramind_mapping WHERE employee_id = $1;", [emp.id]);
+                continue;
+            }
+
+            const realComp = matchedComp;
+            const compId = realComp.id || realComp.computer_id;
+            const compName = realComp.name;
 
             await pool.query(`
                 INSERT INTO employee_teramind_mapping (employee_id, computer_id, computer_name, last_sync)
