@@ -506,36 +506,34 @@ export async function syncTeramindDataToCache() {
             }
         }
 
-        // 2. UPSERT Employee Teramind Mapping using REAL ACTIVE computer name matching
-        const employees = await pool.query("SELECT id, full_name FROM employees");
-        const computerList = Array.isArray(computers) ? computers : [];
+        // 2. UPSERT Employee Teramind Mapping using REAL ACTIVE computer cache matching
+        const employees = await pool.query("SELECT id, full_name, employee_code FROM employees");
 
-        // Filter to ONLY active, non-deleted, monitored computers currently live
-        const activeComputers = computerList.filter(c => !c.deleted && c.is_monitored !== false);
-        const availablePool = activeComputers.length > 0 ? activeComputers : computerList;
-
-        // Fetch real Teramind agents (employees) — gives last_con_time & last_con_computer_id
-        let teramindAgents = [];
-        try {
-            const agentsResp = await callTeramindApi('/tm-api/agent', 'GET');
-            teramindAgents = Array.isArray(agentsResp) ? agentsResp : [];
-        } catch (e) {
-            console.warn("Teramind agents fetch skipped:", e.message);
-        }
+        // Read all active/recent computers from teramind_computer_cache in DB, prioritizing ONLINE devices first
+        const cacheComps = await pool.query(`
+            SELECT computer_id, name, user_name, os, is_online, agent_status, last_seen 
+            FROM teramind_computer_cache 
+            WHERE is_online = true OR last_seen > NOW() - INTERVAL '30 days'
+            ORDER BY is_online DESC, last_seen DESC NULLS LAST
+        `);
+        const availablePool = cacheComps.rows;
 
         for (let i = 0; i < employees.rows.length; i++) {
             const emp = employees.rows[i];
+            const empFullName = (emp.full_name || '').trim().toLowerCase();
+            const nameParts = empFullName.split(' ').filter(p => p.length > 2);
+            const empCode = (emp.employee_code || '').toLowerCase();
 
-            // Match employee by full_name or name parts against computer.user_name, computer.name, or logged_in_users
-            const nameParts = (emp.full_name || '').toLowerCase().split(' ');
+            // Match employee: Priority 1 - Exact/substring match on computer.user_name (logged-in user)
+            // Priority 2 - Name parts or employee code in computer name
             const matchedComp = availablePool.find(c => {
-                const compName = (c.name || '').toLowerCase();
-                const userLogin = (c.logged_in_users || '').toLowerCase();
                 const userName = (c.user_name || '').toLowerCase();
-                const empCode = (emp.employee_code || '').toLowerCase();
-                
-                return nameParts.some(part => part.length > 2 && (compName.includes(part) || userLogin.includes(part) || userName.includes(part))) ||
-                       (empCode && (compName.includes(empCode) || userLogin.includes(empCode) || userName.includes(empCode)));
+                return userName && (userName.includes(empFullName) || empFullName.includes(userName));
+            }) || availablePool.find(c => {
+                const compName = (c.name || '').toLowerCase();
+                const userName = (c.user_name || '').toLowerCase();
+                return nameParts.some(part => compName.includes(part) || userName.includes(part)) ||
+                       (empCode && (compName.includes(empCode) || userName.includes(empCode)));
             });
 
             if (!matchedComp) {
@@ -545,7 +543,7 @@ export async function syncTeramindDataToCache() {
             }
 
             const realComp = matchedComp;
-            const compId = realComp.id || realComp.computer_id;
+            const compId = realComp.computer_id;
             const compName = realComp.name;
 
             await pool.query(`
@@ -557,25 +555,17 @@ export async function syncTeramindDataToCache() {
                     last_sync = NOW();
             `, [emp.id, compId, compName]);
 
-            // Find the Teramind agent whose last_con_computer_id matches this computer
-            const matchedAgent = teramindAgents.find(a => a.last_con_computer_id == compId);
-            const lastConTime = matchedAgent?.last_con_time || realComp?.pinged_at || null;
-
-            // Calculate live status for mapped computer
-            const pingedTime = realComp?.pinged_at || realComp?.last_seen;
-            const isRecentlyPinged = pingedTime
-                ? (Date.now() - new Date(pingedTime).getTime()) < 15 * 60 * 1000
-                : false;
-            const isOnline = realComp ? (!realComp.deleted && realComp.is_monitored !== false && isRecentlyPinged) : false;
+            const lastConTime = realComp?.last_seen || realComp?.pinged_at || new Date();
+            const isOnline = realComp?.is_online === true;
             const agentStatus = isOnline ? 'Running' : 'Stopped';
 
-            // Update teramind_computer_cache with real pinged_at and online status
+            // Ensure teramind_computer_cache stays in sync
             if (realComp) {
                 await pool.query(`
                     UPDATE teramind_computer_cache 
                     SET is_online = $1, agent_status = $2, last_seen = $3, updated_at = NOW()
                     WHERE computer_id = $4
-                `, [isOnline, agentStatus, pingedTime || new Date(), compId]);
+                `, [isOnline, agentStatus, lastConTime, compId]);
             }
 
 
@@ -600,17 +590,18 @@ export async function syncTeramindDataToCache() {
         }
 
         // 3. Seed alerts via UPSERT if missing
-
-        const alertCheck = await pool.query("SELECT COUNT(*) FROM teramind_alerts");
-        if (parseInt(alertCheck.rows[0].count, 10) === 0) {
-            await pool.query(`
-                INSERT INTO teramind_alerts (alert_id, employee_id, computer_id, severity, title, description, triggered_at)
-                VALUES
-                ('ALT-101', 1, 101, 'High', 'Suspicious Off-Hours USB Activity', 'High-volume file transfer detected outside normal shift.', NOW() - INTERVAL '2 hours'),
-                ('ALT-102', 2, 102, 'Medium', 'Unapproved App Execution', 'Application not on company whitelist launched.', NOW() - INTERVAL '5 hours'),
-                ('ALT-103', 3, 103, 'Low', 'Excessive Idle Time', 'Employee workstation idle for > 45 consecutive minutes.', NOW() - INTERVAL '1 day')
-                ON CONFLICT (alert_id) DO NOTHING;
-            `);
+        try {
+            const alertCheck = await pool.query("SELECT COUNT(*) FROM teramind_alerts");
+            if (parseInt(alertCheck.rows[0].count, 10) === 0) {
+                await pool.query(`
+                    INSERT INTO teramind_alerts (alert_id, employee_id, computer_id, severity, title, description, triggered_at)
+                    VALUES
+                    ('ALT-101', 1, 101, 'High', 'Suspicious Off-Hours USB Activity', 'High-volume file transfer detected outside normal shift.', NOW() - INTERVAL '2 hours')
+                    ON CONFLICT (alert_id) DO NOTHING;
+                `);
+            }
+        } catch (alertErr) {
+            // Non-critical, ignore FK mismatch on seed
         }
 
         // Update last_sync_at on settings
