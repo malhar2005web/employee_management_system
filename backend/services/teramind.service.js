@@ -513,7 +513,8 @@ export async function syncTeramindDataToCache() {
         const cacheComps = await pool.query(`
             SELECT computer_id, name, user_name, os, is_online, agent_status, last_seen 
             FROM teramind_computer_cache 
-            WHERE is_online = true OR last_seen > NOW() - INTERVAL '30 days'
+            WHERE (is_online = true OR last_seen > NOW() - INTERVAL '30 days')
+              AND computer_id NOT IN (101, 102, 103, 104, 105)
             ORDER BY is_online DESC, last_seen DESC NULLS LAST
         `);
         const availablePool = cacheComps.rows;
