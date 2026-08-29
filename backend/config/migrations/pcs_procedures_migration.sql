@@ -536,17 +536,17 @@ BEGIN
 
     RETURN QUERY
     SELECT 
-        s."USERNAME",
-        s."YYYYMM",
-        s."TOTALDAYS",
-        s."PRESENT",
-        s."ABSENT",
-        s."LEAVE",
-        s."LATINTIME",
-        s."PREOUTTIME",
-        s."WORKIMGHR",
-        s."OTHOURS",
-        s."LOGIMHOURS"
+        s."USERNAME"::VARCHAR,
+        s."YYYYMM"::VARCHAR,
+        s."TOTALDAYS"::BIGINT,
+        s."PRESENT"::BIGINT,
+        s."ABSENT"::BIGINT,
+        s."LEAVE"::BIGINT,
+        s."LATINTIME"::VARCHAR,
+        s."PREOUTTIME"::VARCHAR,
+        s."WORKIMGHR"::VARCHAR,
+        s."OTHOURS"::VARCHAR,
+        s."LOGIMHOURS"::VARCHAR
     FROM "ATTENDANCE_SUM" s
     WHERE (p_username = 'All' OR s."USERNAME" = p_username)
       AND s."YYYYMM" >= TO_CHAR(p_startdate, 'YYYYMM')
