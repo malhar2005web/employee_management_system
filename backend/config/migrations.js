@@ -879,6 +879,56 @@ export async function runMigrations() {
         console.error('❌ Phase 14 Migration Error:', e.message);
     }
 
+    // Phase 15: Leave Types & Leave Requests Seeding
+    try {
+        await client.query(`
+            INSERT INTO leave_types (name, code, default_balance, carry_forward, max_carry_forward, is_active)
+            VALUES 
+                ('Paid / Annual Leave', 'PL', 15.0, true, 10.0, true),
+                ('Half Day Leave', 'HD', 6.0, false, 0.0, true),
+                ('Compensatory Off', 'CO', 5.0, false, 0.0, true)
+            ON CONFLICT DO NOTHING;
+        `);
+
+        const leaveCountRes = await client.query('SELECT COUNT(*) FROM leave_requests;');
+        if (parseInt(leaveCountRes.rows[0].count, 10) === 0) {
+            const emps = await client.query('SELECT id, full_name FROM employees ORDER BY id ASC;');
+            if (emps.rows.length > 0) {
+                const sampleLeaves = [
+                    { name: 'Malhar', type: 'Casual Leave', start: '2026-08-25', end: '2026-08-26', status: 'Approved', reason: 'Family function in native place (Pune)' },
+                    { name: 'Malhar', type: 'Sick Leave', start: '2026-07-14', end: '2026-07-14', status: 'Approved', reason: 'High fever and doctor consultation' },
+                    { name: 'Nitin', type: 'Paid / Annual Leave', start: '2026-08-10', end: '2026-08-14', status: 'Approved', reason: 'Annual family vacation tour' },
+                    { name: 'Nitin', type: 'Half Day Leave', start: '2026-08-28', end: '2026-08-28', status: 'Approved', reason: 'Vehicle RTO document verification' },
+                    { name: 'Vaibhav', type: 'Sick Leave', start: '2026-08-18', end: '2026-08-19', status: 'Approved', reason: 'Severe migraine & advised 2 days rest' },
+                    { name: 'Vaibhav', type: 'Casual Leave', start: '2026-09-04', end: '2026-09-04', status: 'Pending', reason: 'Bank work & home property registry' },
+                    { name: 'Ganpati', type: 'Casual Leave', start: '2026-08-01', end: '2026-08-02', status: 'Approved', reason: 'Sister wedding preparation and rituals' },
+                    { name: 'Ganpati', type: 'Compensatory Off', start: '2026-07-28', end: '2026-07-28', status: 'Approved', reason: 'Worked on Sunday server maintenance deployment' },
+                    { name: 'Haresh', type: 'Paid / Annual Leave', start: '2026-07-06', end: '2026-07-08', status: 'Approved', reason: 'Village temple annual festival' },
+                    { name: 'Haresh', type: 'Casual Leave', start: '2026-09-01', end: '2026-09-02', status: 'Pending', reason: 'Personal emergency at hometown' },
+                    { name: 'Vijay', type: 'Sick Leave', start: '2026-08-05', end: '2026-08-06', status: 'Approved', reason: 'Food poisoning and recovery' },
+                    { name: 'Vijay', type: 'Casual Leave', start: '2026-06-18', end: '2026-06-19', status: 'Approved', reason: 'Home shifting and renovation setup' },
+                    { name: 'Kunal', type: 'Casual Leave', start: '2026-08-20', end: '2026-08-21', status: 'Approved', reason: 'Attending cousin engagement ceremony' },
+                    { name: 'Kunal', type: 'Half Day Leave', start: '2026-09-03', end: '2026-09-03', status: 'Pending', reason: 'Passport renewal appointment' },
+                    { name: 'Biswas', type: 'Sick Leave', start: '2026-07-20', end: '2026-07-21', status: 'Approved', reason: 'Eye infection & rest advised by ophthalmologist' },
+                    { name: 'Biswas', type: 'Casual Leave', start: '2026-08-11', end: '2026-08-12', status: 'Rejected', reason: 'Shortage of critical project deadline (Declined by Manager)' }
+                ];
+
+                for (const sl of sampleLeaves) {
+                    const emp = emps.rows.find(e => e.full_name.toLowerCase().includes(sl.name.toLowerCase()));
+                    if (emp) {
+                        await client.query(`
+                            INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status, approved_by, created_at)
+                            VALUES ($1, $2, $3, $4, $5, $6, 1, $3::date - INTERVAL '3 days');
+                        `, [emp.id, sl.type, sl.start, sl.end, sl.reason, sl.status]);
+                    }
+                }
+            }
+        }
+        console.log('✅ Phase 15 Leave Types & Leave Requests ensured.');
+    } catch (e) {
+        console.error('❌ Phase 15 Migration Error:', e.message);
+    }
+
     client.release();
     console.log('🎉 All migrations complete.');
 }
