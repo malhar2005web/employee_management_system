@@ -847,8 +847,32 @@ export async function runMigrations() {
             );
         `);
         console.log('✅ Phase 13 Support Desk (Post-Delivery Maintenance) tables ensured.');
+    // Phase 14: Out Entry & Movement Register Tables
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS out_entries (
+                id SERIAL PRIMARY KEY,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                date DATE NOT NULL DEFAULT CURRENT_DATE,
+                out_time TIME NOT NULL,
+                in_time TIME,
+                duration_minutes INT DEFAULT 0,
+                purpose VARCHAR(50) NOT NULL,
+                destination VARCHAR(255),
+                reason TEXT,
+                status VARCHAR(30) DEFAULT 'Out',
+                approved_by INT REFERENCES employees(id) ON DELETE SET NULL,
+                remarks TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_out_entries_emp_dt ON out_entries(employee_id, date);
+            CREATE INDEX IF NOT EXISTS idx_out_entries_status ON out_entries(status);
+        `);
+        console.log('✅ Phase 14 Out Entry & Movement Register tables ensured.');
     } catch (e) {
-        console.error('❌ Phase 13 Migration Error:', e.message);
+        console.error('❌ Phase 14 Migration Error:', e.message);
     }
 
     client.release();

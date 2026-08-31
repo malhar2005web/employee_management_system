@@ -1,15 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Main Tabs (Attendance vs Leaves)
+    // Main Top-Level Tabs (Attendance vs Leaves vs Out Entry)
     const tabBtnAttendance = document.getElementById('tab-btn-attendance');
     const tabBtnLeave = document.getElementById('tab-btn-leave');
+    const tabBtnOutEntry = document.getElementById('tab-btn-out-entry');
+
     const tabContentAttendance = document.getElementById('tab-content-attendance');
     const tabContentLeave = document.getElementById('tab-content-leave');
+    const tabContentOutEntry = document.getElementById('tab-content-out-entry');
     
     // Page Header Action Buttons
     const btnAddCorrection = document.getElementById('btn-add-correction');
     const btnAddLeave = document.getElementById('btn-add-leave');
+    const btnAddOutEntry = document.getElementById('btn-add-out-entry');
 
-    // Inner Attendance Tabs
+    // Inner Attendance Sub-Tabs
     const tabLogs = document.getElementById('tab-logs');
     const tabPcsSummary = document.getElementById('tab-pcs-summary');
     const tabPending = document.getElementById('tab-pending');
@@ -22,7 +26,107 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRefreshPcs = document.getElementById('btn-refresh-pcs');
     const pcsSummaryList = document.getElementById('pcs-summary-list');
 
-    // Switch Inner Attendance Tabs (Logs vs Monthly Summary vs Corrections)
+    // DOM Elements - Correction Modal
+    const correctionModal = document.getElementById('correction-modal');
+    const correctionForm = document.getElementById('correction-form');
+    const correctionClose = document.getElementById('correction-close');
+    const correctionCancel = document.getElementById('correction-cancel');
+    const corrEmployee = document.getElementById('corr-employee');
+    const corrDate = document.getElementById('corr-date');
+
+    // DOM Elements - Leave Modal
+    const leaveModal = document.getElementById('leave-modal');
+    const leaveForm = document.getElementById('leave-form');
+    const leaveClose = document.getElementById('leave-close');
+    const leaveCancel = document.getElementById('leave-cancel');
+    const leaveEmployee = document.getElementById('leave-employee');
+
+    // DOM Elements - Out Entry Modal & Mark Return Modal
+    const outEntryModal = document.getElementById('out-entry-modal');
+    const outEntryForm = document.getElementById('out-entry-form');
+    const outEntryClose = document.getElementById('out-entry-close');
+    const outEntryCancel = document.getElementById('out-entry-cancel');
+    const outEmployee = document.getElementById('out-employee');
+    const outDate = document.getElementById('out-date');
+    const outTimeVal = document.getElementById('out-time-val');
+
+    const markReturnModal = document.getElementById('mark-return-modal');
+    const markReturnForm = document.getElementById('mark-return-form');
+    const markReturnClose = document.getElementById('mark-return-close');
+    const markReturnCancel = document.getElementById('mark-return-cancel');
+    const returnEntryId = document.getElementById('return-entry-id');
+    const returnInTime = document.getElementById('return-in-time');
+
+    // Table Lists & Metrics DOM
+    const logsList = document.getElementById('logs-list');
+    const pendingList = document.getElementById('pending-list');
+    const leavesList = document.getElementById('leaves-list');
+    const outEntriesList = document.getElementById('out-entries-list');
+
+    const countPresent = document.getElementById('count-present');
+    const countLate = document.getElementById('count-late');
+    const countAbsent = document.getElementById('count-absent');
+    const countPending = document.getElementById('count-pending');
+
+    const countTotal = document.getElementById('count-total');
+    const countLeavePending = document.getElementById('count-leave-pending');
+    const countAnnual = document.getElementById('count-annual');
+    const countSick = document.getElementById('count-sick');
+
+    const countCurrentlyOut = document.getElementById('count-currently-out');
+    const countOutToday = document.getElementById('count-out-today');
+    const countOutOfficial = document.getElementById('count-out-official');
+    const countOutPersonal = document.getElementById('count-out-personal');
+
+    const filterDate = document.getElementById('filter-date');
+    const filterOutDate = document.getElementById('filter-out-date');
+    const filterOutPurpose = document.getElementById('filter-out-purpose');
+    const filterOutStatus = document.getElementById('filter-out-status');
+    const btnRefreshOut = document.getElementById('btn-refresh-out');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    const today = new Date().toISOString().split('T')[0];
+    let employeesCache = [];
+    let leavesCache = [];
+    let outEntriesCache = [];
+
+    // Switch Top-Level Main Tabs (Attendance vs Leaves vs Out Entry)
+    const switchMainTab = (tab) => {
+        if (tabBtnAttendance) tabBtnAttendance.classList.remove('active');
+        if (tabBtnLeave) tabBtnLeave.classList.remove('active');
+        if (tabBtnOutEntry) tabBtnOutEntry.classList.remove('active');
+
+        if (tabContentAttendance) tabContentAttendance.style.display = 'none';
+        if (tabContentLeave) tabContentLeave.style.display = 'none';
+        if (tabContentOutEntry) tabContentOutEntry.style.display = 'none';
+
+        if (btnAddCorrection) btnAddCorrection.style.display = 'none';
+        if (btnAddLeave) btnAddLeave.style.display = 'none';
+        if (btnAddOutEntry) btnAddOutEntry.style.display = 'none';
+
+        if (tab === 'attendance') {
+            if (tabBtnAttendance) tabBtnAttendance.classList.add('active');
+            if (tabContentAttendance) tabContentAttendance.style.display = 'block';
+            if (btnAddCorrection) btnAddCorrection.style.display = 'inline-flex';
+            loadLogs();
+        } else if (tab === 'leave') {
+            if (tabBtnLeave) tabBtnLeave.classList.add('active');
+            if (tabContentLeave) tabContentLeave.style.display = 'block';
+            if (btnAddLeave) btnAddLeave.style.display = 'inline-flex';
+            loadLeaves();
+        } else if (tab === 'out-entry') {
+            if (tabBtnOutEntry) tabBtnOutEntry.classList.add('active');
+            if (tabContentOutEntry) tabContentOutEntry.style.display = 'block';
+            if (btnAddOutEntry) btnAddOutEntry.style.display = 'inline-flex';
+            loadOutEntries();
+        }
+    };
+
+    if (tabBtnAttendance) tabBtnAttendance.addEventListener('click', () => switchMainTab('attendance'));
+    if (tabBtnLeave) tabBtnLeave.addEventListener('click', () => switchMainTab('leave'));
+    if (tabBtnOutEntry) tabBtnOutEntry.addEventListener('click', () => switchMainTab('out-entry'));
+
+    // Switch Inner Attendance Sub-Tabs (Daily Logs vs Monthly Summary vs Corrections)
     const switchAttendanceTab = (tabName) => {
         if (tabLogs) tabLogs.classList.remove('active');
         if (tabPcsSummary) tabPcsSummary.classList.remove('active');
@@ -56,77 +160,109 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabPcsSummary) tabPcsSummary.addEventListener('click', () => switchAttendanceTab('pcs-summary'));
     if (tabPending) tabPending.addEventListener('click', () => switchAttendanceTab('pending'));
 
-    // Modal open (Correction)
+    // --- MODAL CONTROLS ---
+    // Correction Modal
     if (btnAddCorrection) {
         btnAddCorrection.addEventListener('click', () => {
-            correctionForm.reset();
-            corrDate.value = today;
-            correctionModal.classList.add('active');
+            if (correctionForm) correctionForm.reset();
+            if (corrDate) corrDate.value = today;
+            if (correctionModal) correctionModal.classList.add('active');
         });
     }
 
     const closeCorrectionModal = () => {
-        correctionModal.classList.remove('active');
-        correctionForm.reset();
+        if (correctionModal) correctionModal.classList.remove('active');
+        if (correctionForm) correctionForm.reset();
     };
 
     if (correctionClose) correctionClose.addEventListener('click', closeCorrectionModal);
     if (correctionCancel) correctionCancel.addEventListener('click', closeCorrectionModal);
 
-    // Modal open (Leave)
+    // Leave Modal
     if (btnAddLeave) {
         btnAddLeave.addEventListener('click', () => {
-            leaveForm.reset();
-            document.getElementById('leave-start').value = today;
-            document.getElementById('leave-end').value = today;
-            leaveModal.classList.add('active');
+            if (leaveForm) leaveForm.reset();
+            const startInput = document.getElementById('leave-start');
+            const endInput = document.getElementById('leave-end');
+            if (startInput) startInput.value = today;
+            if (endInput) endInput.value = today;
+            if (leaveModal) leaveModal.classList.add('active');
         });
     }
 
     const closeLeaveModal = () => {
-        leaveModal.classList.remove('active');
-        leaveForm.reset();
+        if (leaveModal) leaveModal.classList.remove('active');
+        if (leaveForm) leaveForm.reset();
     };
 
     if (leaveClose) leaveClose.addEventListener('click', closeLeaveModal);
     if (leaveCancel) leaveCancel.addEventListener('click', closeLeaveModal);
 
-    // Fetch and populate daily logs
+    // Out Entry Modal
+    if (btnAddOutEntry) {
+        btnAddOutEntry.addEventListener('click', () => {
+            if (outEntryForm) outEntryForm.reset();
+            if (outDate) outDate.value = today;
+            if (outTimeVal) {
+                const now = new Date();
+                outTimeVal.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            }
+            if (outEntryModal) outEntryModal.classList.add('active');
+        });
+    }
+
+    const closeOutEntryModal = () => {
+        if (outEntryModal) outEntryModal.classList.remove('active');
+        if (outEntryForm) outEntryForm.reset();
+    };
+
+    if (outEntryClose) outEntryClose.addEventListener('click', closeOutEntryModal);
+    if (outEntryCancel) outEntryCancel.addEventListener('click', closeOutEntryModal);
+
+    // Mark Return Modal
+    const closeMarkReturnModal = () => {
+        if (markReturnModal) markReturnModal.classList.remove('active');
+        if (markReturnForm) markReturnForm.reset();
+    };
+
+    if (markReturnClose) markReturnClose.addEventListener('click', closeMarkReturnModal);
+    if (markReturnCancel) markReturnCancel.addEventListener('click', closeMarkReturnModal);
+
+    // --- EMPLOYEE DROPDOWN POPULATOR ---
+    const populateEmployeesDropdowns = () => {
+        const updateDropdown = (el) => {
+            if (!el) return;
+            const currentVal = el.value;
+            el.innerHTML = '<option value="">Select Employee</option>';
+            employeesCache.forEach(emp => {
+                const opt = document.createElement('option');
+                opt.value = emp.id;
+                opt.textContent = `${emp.full_name} (${emp.employee_code || 'EMP-' + emp.id})`;
+                el.appendChild(opt);
+            });
+            if (currentVal) el.value = currentVal;
+        };
+
+        updateDropdown(corrEmployee);
+        updateDropdown(leaveEmployee);
+        updateDropdown(outEmployee);
+    };
+
+    // =========================================================================
+    // 1. ATTENDANCE DAILY LOGS
+    // =========================================================================
     const loadLogs = async () => {
         const dateVal = filterDate ? filterDate.value : today;
         try {
             const response = await fetch(`/api/v1/admin/attendance?date=${dateVal}`);
             const data = await response.json();
             if (response.ok && data.success) {
-                employeesCache = data.data.employees;
+                employeesCache = data.data.employees || [];
                 populateEmployeesDropdowns();
-                renderLogs(data.data.logs);
+                renderLogs(data.data.logs || []);
             }
         } catch (error) {
             console.error("Error loading daily attendance logs:", error);
-        }
-    };
-
-    const populateEmployeesDropdowns = () => {
-        // Populate correction dropdown
-        if (corrEmployee) {
-            corrEmployee.innerHTML = '<option value="">Select Employee</option>';
-            employeesCache.forEach(emp => {
-                const opt = document.createElement('option');
-                opt.value = emp.id;
-                opt.textContent = emp.full_name;
-                corrEmployee.appendChild(opt);
-            });
-        }
-        // Populate leave dropdown
-        if (leaveEmployee) {
-            leaveEmployee.innerHTML = '<option value="">Select Employee</option>';
-            employeesCache.forEach(emp => {
-                const opt = document.createElement('option');
-                opt.value = emp.id;
-                opt.textContent = emp.full_name;
-                leaveEmployee.appendChild(opt);
-            });
         }
     };
 
@@ -134,135 +270,135 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!logsList) return;
         logsList.innerHTML = '';
 
-        // Update metrics counts
-        let presentToday = 0;
-        let lateToday = 0;
-        let earlyToday = 0;
+        let present = 0;
+        let late = 0;
+        let absent = 0;
 
         if (logs.length === 0) {
-            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">No attendance records for selected date</td></tr>`;
+            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">No attendance records found for this date</td></tr>`;
         } else {
             logs.forEach(log => {
-                const inTime = log.login_time ? new Date(log.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
-                const outTime = log.logout_time ? new Date(log.logout_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
-                
-                const statusClass = log.status === 'Present' ? 'progress' : (log.status === 'Late' ? 'pending' : (log.status === 'Half Day' ? 'delayed' : 'todo'));
-                
-                // Counters
-                if (log.status === 'Present' || log.status === 'Late' || log.status === 'Half Day') {
-                    presentToday++;
-                }
-                if (log.is_late_login) {
-                    lateToday++;
-                }
-                if (log.is_early_logout) {
-                    earlyToday++;
-                }
+                if (log.status === 'Present') present++;
+                else if (log.status === 'Late') late++;
+                else if (log.status === 'Absent') absent++;
 
                 const tr = document.createElement('tr');
+                const loginStr = log.login_time ? new Date(log.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+                const logoutStr = log.logout_time ? new Date(log.logout_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+                
+                let statusClass = 'todo';
+                if (log.status === 'Present') statusClass = 'progress';
+                else if (log.status === 'Late') statusClass = 'pending';
+                else if (log.status === 'Absent') statusClass = 'delayed';
+
                 tr.innerHTML = `
-                    <td class="task-name">${log.full_name}</td>
+                    <td>
+                        <div style="font-weight:700; color:var(--text-dark);">${log.full_name || 'Unknown'}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${log.employee_code || ''}</div>
+                    </td>
                     <td>${new Date(log.date).toLocaleDateString()}</td>
-                    <td>${inTime}</td>
-                    <td>${outTime}</td>
-                    <td style="font-weight:600;color:var(--teal-900);">${log.total_working_hours || '-'} hrs</td>
-                    <td>${log.overtime || '0'} min</td>
+                    <td><strong>${loginStr}</strong></td>
+                    <td><strong>${logoutStr}</strong></td>
+                    <td>${log.total_working_hours ? `${log.total_working_hours} hrs` : '—'}</td>
+                    <td>${log.overtime ? `${log.overtime} mins` : '—'}</td>
                     <td><span class="status-pill ${statusClass}">${log.status || 'Absent'}</span></td>
                     <td>
-                        <button class="action-pill edit" onclick="editCorrection(${JSON.stringify(log).replace(/"/g, '&quot;')})"><i class="fa-solid fa-clock"></i> Correct</button>
+                        <button type="button" class="btn-table-action" onclick='editCorrection(${JSON.stringify(log)})' title="Edit/Correct"><i class="fa-solid fa-pen"></i></button>
                     </td>
                 `;
                 logsList.appendChild(tr);
             });
         }
 
-        if (countPresent) countPresent.textContent = presentToday;
-        if (countLate) countLate.textContent = lateToday;
-        if (countEarly) countEarly.textContent = earlyToday;
+        if (countPresent) countPresent.textContent = present;
+        if (countLate) countLate.textContent = late;
+        if (countAbsent) countAbsent.textContent = absent;
     };
 
-    // Fetch and populate pending requests (Corrections)
+    // Pending Corrections
     const loadPendingCorrections = async () => {
         try {
             const response = await fetch('/api/v1/admin/attendance/pending');
             const data = await response.json();
             if (response.ok && data.success) {
-                renderPendingList(data.data);
+                renderPendingCorrections(data.data || []);
             }
         } catch (error) {
             console.error("Error loading pending corrections:", error);
         }
     };
 
-    const renderPendingList = (pending) => {
+    const renderPendingCorrections = (corrections) => {
         if (!pendingList) return;
         pendingList.innerHTML = '';
 
-        if (countPending) countPending.textContent = pending.length;
+        if (countPending) countPending.textContent = corrections.length;
 
-        if (pending.length === 0) {
-            pendingList.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No pending correction requests</td></tr>`;
-            return;
+        if (corrections.length === 0) {
+            pendingList.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No pending corrections</td></tr>`;
+        } else {
+            corrections.forEach(req => {
+                const tr = document.createElement('tr');
+                const reqInStr = req.requested_check_in ? new Date(req.requested_check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+                const reqOutStr = req.requested_check_out ? new Date(req.requested_check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+
+                tr.innerHTML = `
+                    <td>
+                        <div style="font-weight:700; color:var(--text-dark);">${req.full_name || 'Unknown'}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${req.employee_code || ''}</div>
+                    </td>
+                    <td>${new Date(req.date).toLocaleDateString()}</td>
+                    <td><strong>${reqInStr}</strong></td>
+                    <td><strong>${reqOutStr}</strong></td>
+                    <td><span class="status-pill pending">${req.approval_status}</span></td>
+                    <td>
+                        <div style="display:flex; gap:6px;">
+                            <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="approveCorrectionClick(${req.id})" title="Approve"><i class="fa-solid fa-check"></i></button>
+                            <button type="button" class="btn-table-action" style="color:var(--red);" onclick="rejectCorrectionClick(${req.id})" title="Reject"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </td>
+                `;
+                pendingList.appendChild(tr);
+            });
         }
-
-        pending.forEach(req => {
-            const inTime = req.login_time ? new Date(req.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
-            const outTime = req.logout_time ? new Date(req.logout_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td class="task-name">${req.full_name}</td>
-                <td>${new Date(req.date).toLocaleDateString()}</td>
-                <td>${inTime}</td>
-                <td>${outTime}</td>
-                <td><span class="status-pill pending">${req.approval_status}</span></td>
-                <td>
-                    <div style="display:flex;gap:8px;">
-                        <button class="action-pill approve" onclick="approveCorrectionClick(${req.id})"><i class="fa-solid fa-circle-check"></i> Approve</button>
-                        <button class="action-pill reject" onclick="rejectCorrectionClick(${req.id})"><i class="fa-solid fa-circle-xmark"></i> Reject</button>
-                    </div>
-                </td>
-            `;
-            pendingList.appendChild(tr);
-        });
     };
 
     // Correction Form Submit
-    correctionForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    if (correctionForm) {
+        correctionForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                employeeId: corrEmployee.value,
+                date: corrDate.value,
+                loginTime: document.getElementById('corr-in').value || null,
+                logoutTime: document.getElementById('corr-out').value || null,
+                status: document.getElementById('corr-status').value,
+                overtime: document.getElementById('corr-overtime').value || 0
+            };
 
-        const payload = {
-            employeeId: corrEmployee.value,
-            date: corrDate.value,
-            clockIn: document.getElementById('corr-in').value || null,
-            clockOut: document.getElementById('corr-out').value || null,
-            status: document.getElementById('corr-status').value,
-            overtime: document.getElementById('corr-overtime').value || null
-        };
-
-        try {
-            const response = await fetch('/api/v1/admin/attendance/correction', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (response.ok && data.success) {
-                closeCorrectionModal();
-                loadLogs();
-            } else {
-                alert(data.message || 'Error saving correction');
+            try {
+                const response = await fetch('/api/v1/admin/attendance/correction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    closeCorrectionModal();
+                    loadLogs();
+                } else {
+                    alert(data.message || 'Error saving correction');
+                }
+            } catch (error) {
+                console.error("Error saving manual correction:", error);
             }
-        } catch (error) {
-            console.error("Error saving manual correction:", error);
-        }
-    });
+        });
+    }
 
-    // Correction Actions
     window.editCorrection = (log) => {
-        correctionForm.reset();
-        corrEmployee.value = log.employee_id;
-        corrDate.value = new Date(log.date).toISOString().split('T')[0];
+        if (correctionForm) correctionForm.reset();
+        if (corrEmployee) corrEmployee.value = log.employee_id;
+        if (corrDate) corrDate.value = new Date(log.date).toISOString().split('T')[0];
         
         if (log.login_time) {
             const login = new Date(log.login_time);
@@ -276,12 +412,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('corr-status').value = log.status || 'Present';
         document.getElementById('corr-overtime').value = log.overtime || '';
 
-        correctionModal.classList.add('active');
+        if (correctionModal) correctionModal.classList.add('active');
     };
 
     window.approveCorrectionClick = async (id) => {
         if (!confirm("Are you sure you want to approve this correction?")) return;
-
         try {
             const response = await fetch(`/api/v1/admin/attendance/approve/${id}`, { method: 'POST' });
             const data = await response.json();
@@ -298,7 +433,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.rejectCorrectionClick = async (id) => {
         if (!confirm("Are you sure you want to reject this correction?")) return;
-
         try {
             const response = await fetch(`/api/v1/admin/attendance/reject/${id}`, { method: 'POST' });
             const data = await response.json();
@@ -313,15 +447,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- LEAVE MANAGEMENT LOGIC ---
+    // =========================================================================
+    // 2. LEAVE MANAGEMENT
+    // =========================================================================
     const loadLeaves = async () => {
         try {
             const response = await fetch('/api/v1/admin/leaves');
             const data = await response.json();
             if (response.ok && data.success) {
-                employeesCache = data.data.employees;
-                leavesCache = data.data.leaves;
-
+                employeesCache = data.data.employees || [];
+                leavesCache = data.data.leaves || [];
                 populateEmployeesDropdowns();
                 renderLeaves();
             }
@@ -334,7 +469,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!leavesList) return;
         leavesList.innerHTML = '';
 
-        // Update metrics counts
         let total = leavesCache.length;
         let pending = 0;
         let annual = 0;
@@ -350,33 +484,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusClass = req.status === 'Approved' ? 'progress' : (req.status === 'Rejected' ? 'todo' : 'pending');
                 const statusLabel = req.status || 'Pending';
 
-                // Counters
-                if (statusLabel === 'Pending') pending++;
-                if (statusLabel === 'Approved') {
-                    if (req.leave_type === 'Annual Leave') annual++;
-                    if (req.leave_type === 'Sick Leave') sick++;
-                }
-
-                // Actions: render Approve/Reject only if Pending
-                let actionButtons = '';
-                if (statusLabel === 'Pending') {
-                    actionButtons = `
-                        <button class="action-pill approve" onclick="approveLeaveClick(${req.id})"><i class="fa-solid fa-check"></i> Approve</button>
-                        <button class="action-pill reject" onclick="rejectLeaveClick(${req.id})"><i class="fa-solid fa-xmark"></i> Reject</button>
-                    `;
-                } else {
-                    actionButtons = `<button class="action-pill delete" onclick="deleteLeaveClick(${req.id})"><i class="fa-solid fa-trash-can"></i> Delete</button>`;
-                }
+                if (req.status === 'Pending') pending++;
+                if (req.status === 'Approved' && (req.leave_type === 'Annual Leave' || req.leave_type === 'Paid Leave')) annual++;
+                if (req.status === 'Approved' && req.leave_type === 'Sick Leave') sick++;
 
                 const tr = document.createElement('tr');
+                let actionButtons = '';
+
+                if (req.status === 'Pending') {
+                    actionButtons = `
+                        <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="approveLeaveClick(${req.id})" title="Approve"><i class="fa-solid fa-check"></i></button>
+                        <button type="button" class="btn-table-action" style="color:var(--red);" onclick="rejectLeaveClick(${req.id})" title="Reject"><i class="fa-solid fa-xmark"></i></button>
+                    `;
+                } else {
+                    actionButtons = `
+                        <button type="button" class="btn-table-action" style="color:var(--red);" onclick="deleteLeaveClick(${req.id})" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+                    `;
+                }
+
                 tr.innerHTML = `
-                    <td class="task-name">${req.full_name}</td>
-                    <td style="font-weight:600;color:var(--teal-900);">${req.leave_type}</td>
-                    <td>${startDate} to ${endDate}</td>
-                    <td style="font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${req.reason || ''}">${req.reason || '-'}</td>
+                    <td>
+                        <div style="font-weight:700; color:var(--text-dark);">${req.full_name || 'Unknown'}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${req.employee_code || ''}</div>
+                    </td>
+                    <td><span style="font-weight:600;">${req.leave_type}</span></td>
+                    <td>${startDate} &rarr; ${endDate}</td>
+                    <td><span style="color:var(--text-muted); font-size:12.5px;">${req.reason || '—'}</span></td>
                     <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
                     <td>
-                        <div style="display:flex;gap:8px;">
+                        <div style="display:flex; gap:6px;">
                             ${actionButtons}
                         </div>
                     </td>
@@ -391,40 +527,38 @@ document.addEventListener('DOMContentLoaded', () => {
         if (countSick) countSick.textContent = sick;
     };
 
-    // Leave Form Submit
-    leaveForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    if (leaveForm) {
+        leaveForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                employeeId: leaveEmployee.value,
+                leaveType: document.getElementById('leave-type').value,
+                startDate: document.getElementById('leave-start').value,
+                endDate: document.getElementById('leave-end').value,
+                reason: document.getElementById('leave-reason').value.trim()
+            };
 
-        const payload = {
-            employeeId: leaveEmployee.value,
-            leaveType: document.getElementById('leave-type').value,
-            startDate: document.getElementById('leave-start').value,
-            endDate: document.getElementById('leave-end').value,
-            reason: document.getElementById('leave-reason').value.trim()
-        };
-
-        try {
-            const response = await fetch('/api/v1/admin/leaves', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (response.ok && data.success) {
-                closeLeaveModal();
-                loadLeaves();
-            } else {
-                alert(data.message || 'Error saving leave request');
+            try {
+                const response = await fetch('/api/v1/admin/leaves', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    closeLeaveModal();
+                    loadLeaves();
+                } else {
+                    alert(data.message || 'Error saving leave request');
+                }
+            } catch (error) {
+                console.error("Error creating manual leave entry:", error);
             }
-        } catch (error) {
-            console.error("Error creating manual leave entry:", error);
-        }
-    });
+        });
+    }
 
-    // Leave Window Click Handlers
     window.approveLeaveClick = async (id) => {
         if (!confirm("Are you sure you want to approve this leave request?")) return;
-
         try {
             const response = await fetch(`/api/v1/admin/leaves/approve/${id}`, { method: 'POST' });
             const data = await response.json();
@@ -440,7 +574,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.rejectLeaveClick = async (id) => {
         if (!confirm("Are you sure you want to reject this leave request?")) return;
-
         try {
             const response = await fetch(`/api/v1/admin/leaves/reject/${id}`, { method: 'POST' });
             const data = await response.json();
@@ -456,7 +589,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.deleteLeaveClick = async (id) => {
         if (!confirm("Are you sure you want to delete this leave record?")) return;
-
         try {
             const response = await fetch(`/api/v1/admin/leaves/${id}`, { method: 'DELETE' });
             const data = await response.json();
@@ -470,7 +602,230 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Load Monthly PCS Attendance Summary
+    // =========================================================================
+    // 3. OUT ENTRY / GATE PASS MANAGEMENT
+    // =========================================================================
+    const loadOutEntries = async () => {
+        try {
+            const dateVal = filterOutDate ? filterOutDate.value : '';
+            const purposeVal = filterOutPurpose ? filterOutPurpose.value : 'All';
+            const statusVal = filterOutStatus ? filterOutStatus.value : 'All';
+
+            let query = '/api/v1/admin/out-entries?';
+            if (dateVal) query += `date=${dateVal}&`;
+            if (purposeVal && purposeVal !== 'All') query += `purpose=${encodeURIComponent(purposeVal)}&`;
+            if (statusVal && statusVal !== 'All') query += `status=${encodeURIComponent(statusVal)}&`;
+
+            const response = await fetch(query);
+            const data = await response.json();
+            if (response.ok && data.success) {
+                outEntriesCache = data.data.entries || [];
+                employeesCache = data.data.employees || [];
+                populateEmployeesDropdowns();
+                renderOutEntries(data.data.stats || {});
+            }
+        } catch (error) {
+            console.error("Error loading out entries:", error);
+        }
+    };
+
+    const renderOutEntries = (stats) => {
+        if (!outEntriesList) return;
+        outEntriesList.innerHTML = '';
+
+        if (countCurrentlyOut) countCurrentlyOut.textContent = stats.currently_out || 0;
+        if (countOutToday) countOutToday.textContent = stats.total_today || 0;
+        if (countOutOfficial) countOutOfficial.textContent = stats.official_today || 0;
+        if (countOutPersonal) countOutPersonal.textContent = stats.personal_today || 0;
+
+        if (outEntriesCache.length === 0) {
+            outEntriesList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted);">No out entry / gate pass records found</td></tr>`;
+        } else {
+            outEntriesCache.forEach(entry => {
+                const tr = document.createElement('tr');
+                const outDateFormatted = new Date(entry.date).toLocaleDateString();
+                
+                let durationStr = '—';
+                if (entry.duration_minutes > 0) {
+                    const hrs = Math.floor(entry.duration_minutes / 60);
+                    const mins = entry.duration_minutes % 60;
+                    durationStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} mins`;
+                }
+
+                let statusBadge = '';
+                if (entry.status === 'Out') {
+                    statusBadge = `<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800;"><i class="fa-solid fa-person-walking-arrow-right"></i> OUT</span>`;
+                } else if (entry.status === 'Returned') {
+                    statusBadge = `<span class="status-pill progress" style="background:#dcfce7; color:#15803d; font-weight:800;"><i class="fa-solid fa-clock-rotate-left"></i> RETURNED</span>`;
+                } else if (entry.status === 'Approved') {
+                    statusBadge = `<span class="status-pill progress"><i class="fa-solid fa-circle-check"></i> APPROVED</span>`;
+                } else if (entry.status === 'Rejected') {
+                    statusBadge = `<span class="status-pill delayed"><i class="fa-solid fa-circle-xmark"></i> REJECTED</span>`;
+                }
+
+                let purposeBadge = '';
+                if (entry.purpose === 'Official Duty' || entry.purpose === 'Client Visit' || entry.purpose === 'Bank Work') {
+                    purposeBadge = `<span class="badge" style="background:rgba(59,130,246,0.15); color:#2563eb; font-weight:700; padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-briefcase"></i> ${entry.purpose}</span>`;
+                } else {
+                    purposeBadge = `<span class="badge" style="background:rgba(168,85,247,0.15); color:#9333ea; font-weight:700; padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-user"></i> ${entry.purpose}</span>`;
+                }
+
+                let actionBtns = '';
+                if (entry.status === 'Out') {
+                    actionBtns += `
+                        <button type="button" class="btn-primary" style="padding:4px 10px; font-size:11px; border-radius:4px;" onclick="openMarkReturnModal(${entry.id}, '${entry.out_time}')" title="Mark In-Time"><i class="fa-solid fa-clock-rotate-left"></i> Return</button>
+                        <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="updateOutStatus(${entry.id}, 'Approved')" title="Approve"><i class="fa-solid fa-check"></i></button>
+                        <button type="button" class="btn-table-action" style="color:var(--red);" onclick="updateOutStatus(${entry.id}, 'Rejected')" title="Reject"><i class="fa-solid fa-xmark"></i></button>
+                    `;
+                } else {
+                    actionBtns += `
+                        <button type="button" class="btn-table-action" style="color:var(--red);" onclick="deleteOutEntryClick(${entry.id})" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+                    `;
+                }
+
+                tr.innerHTML = `
+                    <td>
+                        <div style="font-weight:700; color:var(--text-dark);">${entry.employee_name || 'Unknown'}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${entry.employee_code || ''} ${entry.department ? '• ' + entry.department : ''}</div>
+                    </td>
+                    <td>${outDateFormatted}</td>
+                    <td><strong style="color:#d97706;">${entry.out_time || '—'}</strong></td>
+                    <td><strong style="color:#059669;">${entry.in_time || '—'}</strong></td>
+                    <td><strong>${durationStr}</strong></td>
+                    <td>${purposeBadge}</td>
+                    <td>
+                        <div style="font-weight:600; font-size:12.5px;">${entry.destination || '—'}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${entry.reason || ''}</div>
+                    </td>
+                    <td>${statusBadge}</td>
+                    <td><span style="font-size:12px; color:var(--text-muted);">${entry.approver_name || '—'}</span></td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            ${actionBtns}
+                        </div>
+                    </td>
+                `;
+                outEntriesList.appendChild(tr);
+            });
+        }
+    };
+
+    // Out Entry Form Submit
+    if (outEntryForm) {
+        outEntryForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                employeeId: outEmployee.value,
+                date: outDate.value,
+                outTime: outTimeVal.value,
+                inTime: document.getElementById('in-time-val').value || null,
+                purpose: document.getElementById('out-purpose').value,
+                destination: document.getElementById('out-destination').value.trim(),
+                reason: document.getElementById('out-reason').value.trim()
+            };
+
+            try {
+                const response = await fetch('/api/v1/admin/out-entries', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    closeOutEntryModal();
+                    loadOutEntries();
+                } else {
+                    alert(data.message || 'Error recording out entry');
+                }
+            } catch (error) {
+                console.error("Error creating out entry:", error);
+            }
+        });
+    }
+
+    // Open Mark Return Modal
+    window.openMarkReturnModal = (id, outTime) => {
+        if (returnEntryId) returnEntryId.value = id;
+        if (returnInTime) {
+            const now = new Date();
+            returnInTime.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        }
+        if (markReturnModal) markReturnModal.classList.add('active');
+    };
+
+    // Mark Return Form Submit
+    if (markReturnForm) {
+        markReturnForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = returnEntryId.value;
+            const payload = {
+                inTime: returnInTime.value,
+                remarks: document.getElementById('return-remarks').value.trim()
+            };
+
+            try {
+                const response = await fetch(`/api/v1/admin/out-entries/${id}/return`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    closeMarkReturnModal();
+                    loadOutEntries();
+                } else {
+                    alert(data.message || 'Error recording return time');
+                }
+            } catch (error) {
+                console.error("Error submitting return time:", error);
+            }
+        });
+    }
+
+    // Update Out Entry Status (Approve / Reject)
+    window.updateOutStatus = async (id, status) => {
+        if (!confirm(`Are you sure you want to mark this entry as ${status}?`)) return;
+        try {
+            const response = await fetch(`/api/v1/admin/out-entries/${id}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                loadOutEntries();
+            } else {
+                alert(data.message || 'Status update failed');
+            }
+        } catch (error) {
+            console.error("Error updating out entry status:", error);
+        }
+    };
+
+    // Delete Out Entry
+    window.deleteOutEntryClick = async (id) => {
+        if (!confirm("Are you sure you want to delete this out entry record?")) return;
+        try {
+            const response = await fetch(`/api/v1/admin/out-entries/${id}`, { method: 'DELETE' });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                loadOutEntries();
+            } else {
+                alert(data.message || 'Deletion failed');
+            }
+        } catch (error) {
+            console.error("Error deleting out entry:", error);
+        }
+    };
+
+    if (filterOutDate) filterOutDate.addEventListener('change', loadOutEntries);
+    if (filterOutPurpose) filterOutPurpose.addEventListener('change', loadOutEntries);
+    if (filterOutStatus) filterOutStatus.addEventListener('change', loadOutEntries);
+    if (btnRefreshOut) btnRefreshOut.addEventListener('click', loadOutEntries);
+
+    // =========================================================================
+    // 4. MONTHLY PCS ATTENDANCE SUMMARY (STORED PROCEDURE ENGINE)
+    // =========================================================================
     const loadPcsMonthlySummary = async () => {
         if (!pcsSummaryList) return;
         pcsSummaryList.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading monthly summary...</td></tr>';
@@ -478,24 +833,27 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const selectedMonth = (filterPcsMonth && filterPcsMonth.value) ? filterPcsMonth.value.replace('-', '') : new Date().toISOString().slice(0, 7).replace('-', '');
             const response = await fetch(`/api/v1/attendance/pcs/monthly-summary?month=${selectedMonth}`);
-            const result = await response.json();
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) {
+                pcsSummaryList.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--red);">${data.message || 'Failed to load summary'}</td></tr>`;
+                return;
+            }
 
-            if (!response.ok || !result.success || !result.data || result.data.length === 0) {
-                pcsSummaryList.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--text-muted);">No attendance records found for ${selectedMonth}. Click "Calculate Attendance" to run calculations.</td></tr>`;
+            const rows = data.data || [];
+            if (rows.length === 0) {
+                pcsSummaryList.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--text-muted);">No PCS calculated records for this month. Click "Calculate Attendance" to run rule engine.</td></tr>';
                 return;
             }
 
             pcsSummaryList.innerHTML = '';
-            result.data.forEach(row => {
+            rows.forEach(row => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>
-                        <div style="font-weight:700; color:var(--text-dark);">${row.full_name || row.USERNAME}</div>
-                        <div style="font-size:11px; color:var(--text-muted);">${row.employee_code || row.USERNAME} ${row.department ? '• ' + row.department : ''}</div>
-                    </td>
-                    <td><strong>${row.YYYYMM}</strong></td>
-                    <td>${row.TOTALDAYS || 0}</td>
-                    <td><span class="badge" style="background:rgba(34,197,94,0.15); color:#16a34a; font-weight:700; padding:3px 8px; border-radius:6px;">${row.PRESENT || 0}</span></td>
+                    <td><strong>${row.USERNAME}</strong></td>
+                    <td>${row.YYYYMM}</td>
+                    <td>${row.TOTALDAYS}</td>
+                    <td><span class="badge" style="background:rgba(16,185,129,0.15); color:#059669; font-weight:700; padding:3px 8px; border-radius:6px;">${row.PRESENT || 0}</span></td>
                     <td><span class="badge" style="background:rgba(239,68,68,0.15); color:#dc2626; font-weight:700; padding:3px 8px; border-radius:6px;">${row.ABSENT || 0}</span></td>
                     <td><span class="badge" style="background:rgba(59,130,246,0.15); color:#2563eb; font-weight:700; padding:3px 8px; border-radius:6px;">${row.LEAVE || 0}</span></td>
                     <td style="color:${row.LATINTIME && row.LATINTIME !== '00:00' ? '#d97706' : 'inherit'}; font-weight:${row.LATINTIME && row.LATINTIME !== '00:00' ? '700' : 'normal'};">${row.LATINTIME || '00:00'}</td>
@@ -512,7 +870,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Pre-fill current month in PCS filter
     if (filterPcsMonth) {
         filterPcsMonth.value = new Date().toISOString().slice(0, 7);
         filterPcsMonth.addEventListener('change', loadPcsMonthlySummary);
@@ -551,7 +908,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Filter Listeners
     if (filterDate) {
         filterDate.addEventListener('change', loadLogs);
     }

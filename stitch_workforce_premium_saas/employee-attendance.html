@@ -72,18 +72,20 @@
     <div class="page-header">
       <div>
         <h2 id="page-title">Attendance &amp; Leave</h2>
-        <p id="page-description">Track your daily clock-in/out, apply for leaves, and request corrections.</p>
+        <p id="page-description">Track your daily clock-in/out, apply for leaves, and record gate-pass out entries.</p>
       </div>
       <div style="display: flex; gap: 10px;">
         <button class="btn-primary" id="btn-correction" style="display: flex;"><i class="fa-solid fa-pen-to-square"></i> Request Correction</button>
         <button class="btn-primary" id="btn-apply-leave" style="display: none;"><i class="fa-solid fa-circle-plus"></i> Apply for Leave</button>
+        <button class="btn-primary" id="btn-apply-out-entry" style="display: none;"><i class="fa-solid fa-person-walking-arrow-right"></i> Apply Gate Pass</button>
       </div>
     </div>
 
     <!-- Combined Main Tab Group -->
     <div class="tab-group" id="main-attendance-leave-tabs" style="margin-bottom: 24px;">
-      <button class="active" id="tab-btn-attendance">Attendance Records</button>
-      <button id="tab-btn-leave">Leave Management</button>
+      <button class="active" id="tab-btn-attendance"><i class="fa-solid fa-calendar-check"></i> Attendance Records</button>
+      <button id="tab-btn-leave"><i class="fa-solid fa-plane-departure"></i> Leave Management</button>
+      <button id="tab-btn-out-entry"><i class="fa-solid fa-person-walking-arrow-right"></i> Out Entry / Gate Pass</button>
     </div>
 
     <!-- ==================== TAB CONTENT: ATTENDANCE ==================== -->
@@ -209,6 +211,73 @@
       </div>
     </div>
 
+    <!-- ==================== TAB CONTENT: OUT ENTRY / GATE PASS ==================== -->
+    <div id="tab-content-out-entry" style="display: none;">
+      <!-- Out Entry Stats Grid -->
+      <div class="stat-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:24px;">
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Current Status</span>
+            <div class="stat-icon" style="background:rgba(245,158,11,0.2);color:#f59e0b;"><i class="fa-solid fa-person-walking-arrow-right"></i></div>
+          </div>
+          <div class="stat-value" style="font-size:20px;" id="emp-out-status">In Office</div>
+          <div class="stat-sub flat">Current state</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Out Passes Today</span>
+            <div class="stat-icon teal"><i class="fa-solid fa-clipboard-check"></i></div>
+          </div>
+          <div class="stat-value" style="font-size:22px;" id="emp-out-count-today">0</div>
+          <div class="stat-sub flat">entries</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Official Duty Out</span>
+            <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-briefcase"></i></div>
+          </div>
+          <div class="stat-value" style="font-size:22px;" id="emp-out-official-today">0</div>
+          <div class="stat-sub flat">trips</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Personal Out</span>
+            <div class="stat-icon" style="background:rgba(168,85,247,0.2);color:#a855f7;"><i class="fa-solid fa-user-clock"></i></div>
+          </div>
+          <div class="stat-value" style="font-size:22px;" id="emp-out-personal-today">0</div>
+          <div class="stat-sub flat">times</div>
+        </div>
+      </div>
+
+      <!-- Out Entry Table Card -->
+      <div class="card table-card">
+        <div class="card-head" style="display:flex; justify-content:space-between; align-items:center;">
+          <h3>My Out Entry &amp; Gate Pass History</h3>
+          <button type="button" class="btn-secondary" id="btn-refresh-emp-out" style="padding:6px 12px; font-size:12px;"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        </div>
+        <div style="overflow-x: auto; width: 100%;">
+          <table style="min-width: 900px;">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Out Time</th>
+                <th>In Time</th>
+                <th>Duration</th>
+                <th>Purpose</th>
+                <th>Destination / Reason</th>
+                <th>Status</th>
+                <th>Approved By</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="emp-out-tbody">
+              <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:32px;">Loading out entry records...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -281,6 +350,77 @@
   </div>
 </div>
 
+<!-- Apply Out Entry Modal -->
+<div class="modal-overlay" id="modal-out-entry" style="display:none;">
+  <div class="modal-card" style="max-width:520px;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-person-walking-arrow-right"></i> Apply Gate Pass / Out Entry</h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-out-modal"></i>
+    </div>
+    <div class="grid-two-col">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="emp-out-date">
+      </div>
+      <div class="form-group">
+        <label>Purpose</label>
+        <select id="emp-out-purpose">
+          <option value="Official Duty">Official Duty</option>
+          <option value="Client Visit">Client Visit</option>
+          <option value="Bank Work">Bank Work</option>
+          <option value="Personal Work">Personal Work</option>
+          <option value="Emergency / Medical">Medical / Emergency</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-two-col">
+      <div class="form-group">
+        <label>Out Time</label>
+        <input type="time" id="emp-out-time">
+      </div>
+      <div class="form-group">
+        <label>Expected In Time</label>
+        <input type="time" id="emp-expected-in">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Destination / Location</label>
+      <input type="text" id="emp-out-destination" placeholder="e.g. Client Office - Andheri, Bank of Baroda">
+    </div>
+    <div class="form-group">
+      <label>Detailed Reason</label>
+      <textarea id="emp-out-reason" rows="2" placeholder="Briefly describe why you are going out..."></textarea>
+    </div>
+    <div class="action-btn-group">
+      <button class="btn-secondary" id="close-out-modal-2">Cancel</button>
+      <button class="btn-primary" id="submit-out-entry"><i class="fa-solid fa-paper-plane"></i> Submit Gate Pass</button>
+    </div>
+  </div>
+</div>
+
+<!-- Employee Mark Return Modal -->
+<div class="modal-overlay" id="modal-emp-return" style="display:none;">
+  <div class="modal-card" style="max-width:420px;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-clock-rotate-left"></i> Mark Return In-Time</h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-emp-return-modal"></i>
+    </div>
+    <input type="hidden" id="emp-return-id">
+    <div class="form-group">
+      <label>Actual Return Time</label>
+      <input type="time" id="emp-return-time">
+    </div>
+    <div class="form-group">
+      <label>Remarks (Optional)</label>
+      <textarea id="emp-return-remarks" rows="2" placeholder="Task completed / back at desk..."></textarea>
+    </div>
+    <div class="action-btn-group">
+      <button class="btn-secondary" id="close-emp-return-2">Cancel</button>
+      <button class="btn-primary" id="submit-emp-return">Confirm Return</button>
+    </div>
+  </div>
+</div>
+
 <!-- Scripts -->
 <script src="script.js"></script>
 <script src="js/employee-attendance.js"></script>
@@ -290,27 +430,58 @@
   document.addEventListener('DOMContentLoaded', () => {
     const tabBtnAttendance = document.getElementById('tab-btn-attendance');
     const tabBtnLeave = document.getElementById('tab-btn-leave');
+    const tabBtnOutEntry = document.getElementById('tab-btn-out-entry');
+
     const tabContentAttendance = document.getElementById('tab-content-attendance');
     const tabContentLeave = document.getElementById('tab-content-leave');
+    const tabContentOutEntry = document.getElementById('tab-content-out-entry');
+
     const btnCorrection = document.getElementById('btn-correction');
     const btnApplyLeave = document.getElementById('btn-apply-leave');
+    const btnApplyOutEntry = document.getElementById('btn-apply-out-entry');
 
     tabBtnAttendance.addEventListener('click', () => {
       tabBtnAttendance.classList.add('active');
       tabBtnLeave.classList.remove('active');
+      tabBtnOutEntry.classList.remove('active');
+
       tabContentAttendance.style.display = 'block';
       tabContentLeave.style.display = 'none';
+      tabContentOutEntry.style.display = 'none';
+
       btnCorrection.style.display = 'flex';
       btnApplyLeave.style.display = 'none';
+      btnApplyOutEntry.style.display = 'none';
     });
 
     tabBtnLeave.addEventListener('click', () => {
       tabBtnLeave.classList.add('active');
       tabBtnAttendance.classList.remove('active');
+      tabBtnOutEntry.classList.remove('active');
+
       tabContentAttendance.style.display = 'none';
       tabContentLeave.style.display = 'block';
+      tabContentOutEntry.style.display = 'none';
+
       btnCorrection.style.display = 'none';
       btnApplyLeave.style.display = 'flex';
+      btnApplyOutEntry.style.display = 'none';
+    });
+
+    tabBtnOutEntry.addEventListener('click', () => {
+      tabBtnOutEntry.classList.add('active');
+      tabBtnAttendance.classList.remove('active');
+      tabBtnLeave.classList.remove('active');
+
+      tabContentAttendance.style.display = 'none';
+      tabContentLeave.style.display = 'none';
+      tabContentOutEntry.style.display = 'block';
+
+      btnCorrection.style.display = 'none';
+      btnApplyLeave.style.display = 'none';
+      btnApplyOutEntry.style.display = 'flex';
+
+      if (window.loadEmployeeOutEntries) window.loadEmployeeOutEntries();
     });
   });
 </script>

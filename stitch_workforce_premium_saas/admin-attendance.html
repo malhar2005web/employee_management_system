@@ -174,13 +174,15 @@
         <button type="button" onclick="window.openImportModal('attendance')" class="btn-pill-action btn-pill-import"><i class="fa-solid fa-file-import"></i> Import Data</button>
         <button class="btn-primary" id="btn-add-correction"><i class="fa-solid fa-circle-plus"></i> Manual Correction</button>
         <button class="btn-primary" id="btn-add-leave" style="display: none;"><i class="fa-solid fa-circle-plus"></i> Manual Leave Entry</button>
+        <button class="btn-primary" id="btn-add-out-entry" style="display: none;"><i class="fa-solid fa-circle-plus"></i> Record Out Entry</button>
       </div>
     </div>
 
     <!-- Combined Main Tab Group -->
     <div class="tab-group" id="main-attendance-leave-tabs" style="margin-bottom: 24px;">
-      <button class="active" id="tab-btn-attendance">Attendance Register</button>
-      <button id="tab-btn-leave">Leave Management</button>
+      <button class="active" id="tab-btn-attendance"><i class="fa-regular fa-calendar-check"></i> Attendance Register</button>
+      <button id="tab-btn-leave"><i class="fa-solid fa-umbrella-beach"></i> Leave Management</button>
+      <button id="tab-btn-out-entry"><i class="fa-solid fa-person-walking-arrow-right"></i> Out Entry / Gate Pass</button>
     </div>
 
     <!-- ==================== TAB CONTENT: ATTENDANCE ==================== -->
@@ -346,7 +348,7 @@
       <!-- Table Card -->
       <div class="card table-card">
         <div class="card-head">
-          <h3>Requests Master</h3>
+          <h3>Leave Requests Master</h3>
         </div>
         <table>
           <thead>
@@ -363,6 +365,88 @@
             <!-- Dynamic rows -->
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- ==================== TAB CONTENT: OUT ENTRY / GATE PASS ==================== -->
+    <div id="tab-content-out-entry" style="display: none;">
+      <!-- Metrics Cards -->
+      <div class="stat-grid" style="margin-bottom:24px;">
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Currently Out</span>
+            <div class="stat-icon" style="background:rgba(245,158,11,0.2);color:#f59e0b;"><i class="fa-solid fa-person-walking-arrow-right"></i></div>
+          </div>
+          <div class="stat-value" id="count-currently-out">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Total Out Today</span>
+            <div class="stat-icon teal"><i class="fa-solid fa-clipboard-list"></i></div>
+          </div>
+          <div class="stat-value" id="count-out-today">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Official Duty Out</span>
+            <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-briefcase"></i></div>
+          </div>
+          <div class="stat-value" id="count-out-official">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Personal Out</span>
+            <div class="stat-icon" style="background:rgba(168,85,247,0.2);color:#a855f7;"><i class="fa-solid fa-user-clock"></i></div>
+          </div>
+          <div class="stat-value" id="count-out-personal">0</div>
+        </div>
+      </div>
+
+      <!-- Table Card -->
+      <div class="card table-card">
+        <div class="card-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <h3>Movement &amp; Gate Pass Register</h3>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input type="date" id="filter-out-date" style="padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:rgba(255,255,255,0.7);">
+            <select id="filter-out-purpose" style="padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:rgba(255,255,255,0.7);">
+              <option value="All">All Purposes</option>
+              <option value="Official Duty">Official Duty</option>
+              <option value="Client Visit">Client Visit</option>
+              <option value="Bank Work">Bank Work</option>
+              <option value="Personal Work">Personal Work</option>
+              <option value="Emergency / Medical">Medical</option>
+            </select>
+            <select id="filter-out-status" style="padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:rgba(255,255,255,0.7);">
+              <option value="All">All Statuses</option>
+              <option value="Out">Out (Active)</option>
+              <option value="Returned">Returned</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+            <button type="button" class="btn-secondary" id="btn-refresh-out" style="padding:6px 12px; font-size:12px;"><i class="fa-solid fa-rotate"></i></button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Employee Name</th>
+                <th>Date</th>
+                <th>Out Time</th>
+                <th>In Time</th>
+                <th>Duration</th>
+                <th>Purpose</th>
+                <th>Destination / Reason</th>
+                <th>Status</th>
+                <th>Approved By</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="out-entries-list">
+              <!-- Dynamic out entry rows -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -469,6 +553,92 @@
       <div class="action-btn-group">
         <button type="button" class="btn-secondary" id="leave-cancel">Cancel</button>
         <button type="submit" class="btn-primary">Record Leave</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= RECORD OUT ENTRY MODAL ================= -->
+<div class="modal-overlay" id="out-entry-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-person-walking-arrow-right"></i> Record Out Entry / Gate Pass</h3>
+      <i class="fa-solid fa-xmark modal-close" id="out-entry-close"></i>
+    </div>
+    <form id="out-entry-form">
+      <div class="form-group">
+        <label for="out-employee">Employee</label>
+        <select id="out-employee" required>
+          <option value="">Select Employee</option>
+        </select>
+      </div>
+
+      <div class="grid-two-col">
+        <div class="form-group">
+          <label for="out-date">Date</label>
+          <input type="date" id="out-date" required>
+        </div>
+        <div class="form-group">
+          <label for="out-purpose">Purpose</label>
+          <select id="out-purpose" required>
+            <option value="Official Duty">Official Duty</option>
+            <option value="Client Visit">Client Visit</option>
+            <option value="Bank Work">Bank Work</option>
+            <option value="Personal Work">Personal Work</option>
+            <option value="Emergency / Medical">Medical / Emergency</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-two-col">
+        <div class="form-group">
+          <label for="out-time-val">Out Time</label>
+          <input type="time" id="out-time-val" required>
+        </div>
+        <div class="form-group">
+          <label for="in-time-val">Expected / In Time (Optional)</label>
+          <input type="time" id="in-time-val">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="out-destination">Destination / Location</label>
+        <input type="text" id="out-destination" placeholder="e.g. Client Office - Andheri, Bank of Baroda">
+      </div>
+
+      <div class="form-group">
+        <label for="out-reason">Detailed Reason</label>
+        <textarea id="out-reason" rows="2" placeholder="State reason for movement..."></textarea>
+      </div>
+
+      <div class="action-btn-group">
+        <button type="button" class="btn-secondary" id="out-entry-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">Submit Out Entry</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MARK RETURN MODAL ================= -->
+<div class="modal-overlay" id="mark-return-modal">
+  <div class="modal-box" style="max-width: 420px;">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-clock-rotate-left"></i> Mark Return Time</h3>
+      <i class="fa-solid fa-xmark modal-close" id="mark-return-close"></i>
+    </div>
+    <form id="mark-return-form">
+      <input type="hidden" id="return-entry-id">
+      <div class="form-group">
+        <label for="return-in-time">Actual In Time (Return Time)</label>
+        <input type="time" id="return-in-time" required>
+      </div>
+      <div class="form-group">
+        <label for="return-remarks">Remarks (Optional)</label>
+        <textarea id="return-remarks" rows="2" placeholder="Task completed / returned..."></textarea>
+      </div>
+      <div class="action-btn-group">
+        <button type="button" class="btn-secondary" id="mark-return-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">Confirm Return</button>
       </div>
     </form>
   </div>

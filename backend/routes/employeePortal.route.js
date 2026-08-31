@@ -81,6 +81,12 @@ router.get("/leaves/balances", getLeaveBalances);
 router.post("/leaves/apply", applyLeave);
 router.get("/leaves/history", getLeaveHistory);
 
+// Out Entry / Gate Pass
+import { getOutEntries, createOutEntry, markReturnInTime } from '../controller/outEntry.controller.js';
+router.get("/out-entries", getOutEntries);
+router.post("/out-entries", createOutEntry);
+router.put("/out-entries/:id/return", markReturnInTime);
+
 // Tasks
 router.get("/tasks", getTasks);
 router.put("/tasks/:id/progress", updateTaskProgress);
