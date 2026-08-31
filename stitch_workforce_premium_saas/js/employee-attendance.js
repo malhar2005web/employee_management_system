@@ -311,7 +311,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Gate pass / Out entry submitted!', 'success');
+                    showToast('Out entry submitted successfully!', 'success');
                     if (modalOutEntry) modalOutEntry.style.display = 'none';
                     loadEmployeeOutEntries();
                 } else {

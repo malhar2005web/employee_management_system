@@ -77,7 +77,7 @@
       <div style="display: flex; gap: 10px;">
         <button class="btn-primary" id="btn-correction" style="display: flex;"><i class="fa-solid fa-pen-to-square"></i> Request Correction</button>
         <button class="btn-primary" id="btn-apply-leave" style="display: none;"><i class="fa-solid fa-circle-plus"></i> Apply for Leave</button>
-        <button class="btn-primary" id="btn-apply-out-entry" style="display: none;"><i class="fa-solid fa-person-walking-arrow-right"></i> Apply Gate Pass</button>
+        <button class="btn-primary" id="btn-apply-out-entry" style="display: none;"><i class="fa-solid fa-person-walking-arrow-right"></i> Apply Out Entry</button>
       </div>
     </div>
 
@@ -85,7 +85,7 @@
     <div class="tab-group" id="main-attendance-leave-tabs" style="margin-bottom: 24px;">
       <button class="active" id="tab-btn-attendance"><i class="fa-solid fa-calendar-check"></i> Attendance Records</button>
       <button id="tab-btn-leave"><i class="fa-solid fa-plane-departure"></i> Leave Management</button>
-      <button id="tab-btn-out-entry"><i class="fa-solid fa-person-walking-arrow-right"></i> Out Entry / Gate Pass</button>
+      <button id="tab-btn-out-entry"><i class="fa-solid fa-person-walking-arrow-right"></i> Out Entry</button>
     </div>
 
     <!-- ==================== TAB CONTENT: ATTENDANCE ==================== -->
@@ -252,7 +252,7 @@
       <!-- Out Entry Table Card -->
       <div class="card table-card">
         <div class="card-head" style="display:flex; justify-content:space-between; align-items:center;">
-          <h3>My Out Entry &amp; Gate Pass History</h3>
+          <h3>My Out Entry History</h3>
           <button type="button" class="btn-secondary" id="btn-refresh-emp-out" style="padding:6px 12px; font-size:12px;"><i class="fa-solid fa-rotate"></i> Refresh</button>
         </div>
         <div style="overflow-x: auto; width: 100%;">
@@ -354,7 +354,7 @@
 <div class="modal-overlay" id="modal-out-entry" style="display:none;">
   <div class="modal-card" style="max-width:520px;">
     <div class="modal-header">
-      <h3><i class="fa-solid fa-person-walking-arrow-right"></i> Apply Gate Pass / Out Entry</h3>
+      <h3><i class="fa-solid fa-person-walking-arrow-right"></i> Apply Out Entry</h3>
       <i class="fa-solid fa-xmark modal-close" id="close-out-modal"></i>
     </div>
     <div class="grid-two-col">
@@ -393,7 +393,7 @@
     </div>
     <div class="action-btn-group">
       <button class="btn-secondary" id="close-out-modal-2">Cancel</button>
-      <button class="btn-primary" id="submit-out-entry"><i class="fa-solid fa-paper-plane"></i> Submit Gate Pass</button>
+      <button class="btn-primary" id="submit-out-entry"><i class="fa-solid fa-paper-plane"></i> Submit Out Entry</button>
     </div>
   </div>
 </div>
