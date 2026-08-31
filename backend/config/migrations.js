@@ -847,6 +847,10 @@ export async function runMigrations() {
             );
         `);
         console.log('✅ Phase 13 Support Desk (Post-Delivery Maintenance) tables ensured.');
+    } catch (e) {
+        console.error('❌ Phase 13 Migration Error:', e.message);
+    }
+
     // Phase 14: Out Entry & Movement Register Tables
     try {
         await client.query(`
