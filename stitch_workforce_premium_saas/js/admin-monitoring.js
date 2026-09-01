@@ -412,6 +412,7 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
     const timeFilter = document.getElementById("emp-log-time-filter")?.value || 'Today';
 
     const clean = str => `"${String(str || '').replace(/"/g, '""').replace(/\r?\n|\r/g, ' ').trim()}"`;
+    const cleanExcelText = str => `="` + String(str || '').replace(/"/g, '""').replace(/\r?\n|\r/g, ' ').trim() + `"`;
     const headers = [
         "Employee Code",
         "Employee Name",
@@ -480,9 +481,9 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
                 clean(empCode),
                 clean(empName),
                 clean(workstation),
-                clean(logDate),
-                clean(startTime),
-                clean(endTime),
+                cleanExcelText(logDate),
+                cleanExcelText(startTime),
+                cleanExcelText(endTime),
                 clean(dur),
                 clean(process),
                 clean(title),
@@ -524,9 +525,9 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
                     clean(empCode),
                     clean(empName),
                     clean(workstation),
-                    clean(logDate),
-                    clean(startTime),
-                    clean(endTime),
+                    cleanExcelText(logDate),
+                    cleanExcelText(startTime),
+                    cleanExcelText(endTime),
                     clean(dur),
                     clean(proc),
                     clean(title),
