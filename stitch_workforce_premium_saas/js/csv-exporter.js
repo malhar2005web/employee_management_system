@@ -90,7 +90,7 @@ window.exportModuleCSV = async function(moduleName) {
         case 'workstations': {
             const rangeSelect = document.getElementById('date-range-select');
             const selectedRange = rangeSelect ? rangeSelect.value : 'Today';
-            window.location.href = `/api/v1/admin/monitoring/export-telemetry?range=${encodeURIComponent(selectedRange)}&format=csv`;
+            await downloadTelemetryCSV(selectedRange);
             break;
         }
 
@@ -234,5 +234,43 @@ function exportDashboardCSV() {
         exportDataToCSV(headers, rows, `Dashboard_KPI_Summary_${todayStr}.csv`);
     } else {
         exportModuleCSV('monitoring');
+    }
+}
+
+async function downloadTelemetryCSV(selectedRange) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const token = localStorage.getItem('token') || '';
+
+    try {
+        const res = await fetch(`/api/v1/admin/monitoring/export-telemetry?range=${encodeURIComponent(selectedRange)}&format=csv`, {
+            credentials: 'include',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (res.ok) {
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Telemetry_Activity_Logs_${selectedRange}_${todayStr}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 500);
+            return;
+        }
+    } catch (e) {
+        console.warn("API direct telemetry export failed, falling back to table:", e);
+    }
+
+    // Fallback if API fails
+    if (document.getElementById('table-workstations')) {
+        exportTableToCSV('table-workstations', `Workstation_Monitoring_${todayStr}.csv`);
+    } else {
+        exportAPIModuleCSV('/api/v1/admin/monitoring/dashboard', `Workstation_Monitoring_${todayStr}.csv`);
     }
 }

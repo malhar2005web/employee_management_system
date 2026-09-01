@@ -402,30 +402,16 @@ window.applyEmpLogsFilters = function applyEmpLogsFilters() {
     renderEmpLogsTable(filtered);
 };
 
-// ── EXPORT INDIVIDUAL EMPLOYEE ACTIVITY LOGS AS EXCEL / CSV ───────────────────
-window.exportCurrentEmployeeLogsCSV = function exportCurrentEmployeeLogsCSV() {
-    let logs = window.currentFilteredEmpLogs;
-    if (!logs || logs.length === 0) {
-        logs = window.allCurrentEmpLogs || [];
-    }
-
+// ── EXPORT INDIVIDUAL EMPLOYEE ACTIVITY LOGS AS EXCEL / CSV (BULLETPROOF) ───
+window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCSV() {
     const emp = window.activeEmployeeMeta || {};
-    const empId = window.currentActiveEmpId || emp.id;
+    const empId = window.currentActiveEmpId || emp.id || document.getElementById("assign-emp-id")?.value;
     const empName = emp.full_name || document.getElementById("emp-log-name")?.innerText || "Employee";
     const empCode = emp.employee_code || document.getElementById("emp-log-code")?.innerText || "EMP";
-    const workstation = emp.computer_name || document.getElementById("emp-log-workstation")?.innerText?.replace(/DESKTOP-/g, '') || "PC";
+    const workstation = emp.computer_name || document.getElementById("emp-log-workstation")?.innerText?.replace(/DESKTOP-/g, '').trim() || "PC";
     const timeFilter = document.getElementById("emp-log-time-filter")?.value || 'Today';
 
-    // If still no logs in memory but we have empId, trigger backend direct export
-    if (!logs || logs.length === 0) {
-        if (empId) {
-            window.location.href = `/api/v1/admin/monitoring/export-telemetry?employee_id=${empId}&range=${encodeURIComponent(timeFilter)}&format=csv`;
-            return;
-        }
-        alert("No activity logs available for this employee to export.");
-        return;
-    }
-
+    const clean = str => `"${String(str || '').replace(/"/g, '""').replace(/\r?\n|\r/g, ' ').trim()}"`;
     const headers = [
         "Employee Code",
         "Employee Name",
@@ -440,55 +426,119 @@ window.exportCurrentEmployeeLogsCSV = function exportCurrentEmployeeLogsCSV() {
     ];
 
     const csvRows = [headers.join(",")];
+    let rowsAdded = 0;
 
-    logs.forEach(row => {
-        const startTime = formatLogDateTime(row.start_time || row.time || '—', row.start_unix);
-        const endTime = formatLogDateTime(row.end_time || row.time || '—', row.end_unix);
-        const dur = formatCompactDuration(row.duration);
-        const process = row.process || '—';
-        const title = row.app_title || '—';
-        const cat = row.category || 'Productive';
-        const task = row.task_title || (row.session_id ? `Task #${row.session_id}` : 'General Workstation Activity');
+    // 1. Try from in-memory logs (filtered or all)
+    let logs = (window.currentFilteredEmpLogs && window.currentFilteredEmpLogs.length > 0) 
+        ? window.currentFilteredEmpLogs 
+        : (window.allCurrentEmpLogs || []);
 
-        const clean = str => `"${String(str || '').replace(/"/g, '""')}"`;
+    if (logs && logs.length > 0) {
+        logs.forEach(row => {
+            const startTime = formatLogDateTime(row.start_time || row.time || '—', row.start_unix);
+            const endTime = formatLogDateTime(row.end_time || row.time || '—', row.end_unix);
+            const dur = formatCompactDuration(row.duration);
+            const process = row.process || '—';
+            const title = row.app_title || '—';
+            const cat = row.category || 'Productive';
+            const task = row.task_title || (row.session_id ? `Task #${row.session_id}` : 'General Workstation Activity');
 
-        csvRows.push([
-            clean(empCode),
-            clean(empName),
-            clean(workstation),
-            clean(startTime),
-            clean(endTime),
-            clean(dur),
-            clean(process),
-            clean(title),
-            clean(cat),
-            clean(task)
-        ].join(","));
-    });
+            csvRows.push([
+                clean(empCode),
+                clean(empName),
+                clean(workstation),
+                clean(startTime),
+                clean(endTime),
+                clean(dur),
+                clean(process),
+                clean(title),
+                clean(cat),
+                clean(task)
+            ].join(","));
+            rowsAdded++;
+        });
+    }
 
+    // 2. If memory was empty, scrape the active DOM table directly
+    if (rowsAdded === 0) {
+        const tableRows = document.querySelectorAll("#emp-logs-tbody tr");
+        tableRows.forEach(tr => {
+            const cells = tr.querySelectorAll("td");
+            if (cells.length >= 5 && !tr.innerText.includes("No activity logs") && !tr.innerText.includes("Loading")) {
+                const startTime = cells[0]?.innerText || '—';
+                const endTime = cells[1]?.innerText || '—';
+                const dur = cells[2]?.innerText || '—';
+                const appTitle = cells[3]?.innerText || '—';
+                const cat = cells[4]?.innerText || 'Productive';
+                const task = 'General Workstation Activity';
+
+                // Extract process name and title
+                const parts = appTitle.split('—');
+                const proc = parts[0]?.trim() || 'app.exe';
+                const title = parts.slice(1).join('—')?.trim() || appTitle;
+
+                csvRows.push([
+                    clean(empCode),
+                    clean(empName),
+                    clean(workstation),
+                    clean(startTime),
+                    clean(endTime),
+                    clean(dur),
+                    clean(proc),
+                    clean(title),
+                    clean(cat),
+                    clean(task)
+                ].join(","));
+                rowsAdded++;
+            }
+        });
+    }
+
+    // 3. If still 0 rows, fetch from backend export-telemetry API directly
+    if (rowsAdded === 0 && empId) {
+        try {
+            const token = localStorage.getItem("token") || "";
+            const res = await fetch(`/api/v1/admin/monitoring/export-telemetry?employee_id=${empId}&range=${encodeURIComponent(timeFilter)}&format=csv`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `Activity_Logs_${empName.replace(/[^a-zA-Z0-9]/g, '_')}_${timeFilter}_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+                return;
+            }
+        } catch (err) {
+            console.warn("Backend direct telemetry fetch failed:", err);
+        }
+    }
+
+    if (rowsAdded === 0) {
+        alert("No activity logs recorded for this workstation yet.");
+        return;
+    }
+
+    // Trigger instant download using standard UTF-8 BOM CSV Blob
     const csvString = "\uFEFF" + csvRows.join("\r\n");
     const safeEmpName = empName.replace(/[^a-zA-Z0-9]/g, '_');
     const filename = `Activity_Logs_${safeEmpName}_${timeFilter}_${new Date().toISOString().split('T')[0]}.csv`;
 
-    try {
-        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        link.style.display = "none";
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }, 500);
-    } catch (e) {
-        console.error("Client Blob Export Error, falling back to backend:", e);
-        if (empId) {
-            window.location.href = `/api/v1/admin/monitoring/export-telemetry?employee_id=${empId}&range=${encodeURIComponent(timeFilter)}&format=csv`;
-        }
-    }
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 500);
 };
 
 function formatLogDateTime(dtStr, unixTs = null) {
