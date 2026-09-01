@@ -282,6 +282,7 @@ window.closeEmployeeLogsModal = function closeEmployeeLogsModal() {
 
 // ── OPEN EMPLOYEE DETAILED LOGS MODAL (IMAGE 2 STYLE) ─────────────────────────
 window.openEmployeeLogsModal = async function openEmployeeLogsModal(empId, empName = '') {
+    window.currentActiveEmpId = empId;
     const modal = document.getElementById("emp-logs-modal");
     const tbody = document.getElementById("emp-logs-tbody");
     if (!modal || !tbody) {
@@ -403,15 +404,25 @@ window.applyEmpLogsFilters = function applyEmpLogsFilters() {
 
 // ── EXPORT INDIVIDUAL EMPLOYEE ACTIVITY LOGS AS EXCEL / CSV ───────────────────
 window.exportCurrentEmployeeLogsCSV = function exportCurrentEmployeeLogsCSV() {
-    const logs = window.currentFilteredEmpLogs || window.allCurrentEmpLogs || [];
+    let logs = window.currentFilteredEmpLogs;
+    if (!logs || logs.length === 0) {
+        logs = window.allCurrentEmpLogs || [];
+    }
+
     const emp = window.activeEmployeeMeta || {};
+    const empId = window.currentActiveEmpId || emp.id;
     const empName = emp.full_name || document.getElementById("emp-log-name")?.innerText || "Employee";
     const empCode = emp.employee_code || document.getElementById("emp-log-code")?.innerText || "EMP";
     const workstation = emp.computer_name || document.getElementById("emp-log-workstation")?.innerText?.replace(/DESKTOP-/g, '') || "PC";
     const timeFilter = document.getElementById("emp-log-time-filter")?.value || 'Today';
 
+    // If still no logs in memory but we have empId, trigger backend direct export
     if (!logs || logs.length === 0) {
-        alert("No activity logs available for the selected filter to export.");
+        if (empId) {
+            window.location.href = `/api/v1/admin/monitoring/export-telemetry?employee_id=${empId}&range=${encodeURIComponent(timeFilter)}&format=csv`;
+            return;
+        }
+        alert("No activity logs available for this employee to export.");
         return;
     }
 
@@ -455,16 +466,29 @@ window.exportCurrentEmployeeLogsCSV = function exportCurrentEmployeeLogsCSV() {
         ].join(","));
     });
 
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(csvRows.join("\r\n"));
+    const csvString = "\uFEFF" + csvRows.join("\r\n");
     const safeEmpName = empName.replace(/[^a-zA-Z0-9]/g, '_');
     const filename = `Activity_Logs_${safeEmpName}_${timeFilter}_${new Date().toISOString().split('T')[0]}.csv`;
 
-    const link = document.createElement("a");
-    link.setAttribute("href", csvContent);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 500);
+    } catch (e) {
+        console.error("Client Blob Export Error, falling back to backend:", e);
+        if (empId) {
+            window.location.href = `/api/v1/admin/monitoring/export-telemetry?employee_id=${empId}&range=${encodeURIComponent(timeFilter)}&format=csv`;
+        }
+    }
 };
 
 function formatLogDateTime(dtStr, unixTs = null) {
