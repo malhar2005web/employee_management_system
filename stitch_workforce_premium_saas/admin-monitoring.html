@@ -564,19 +564,24 @@
     </div>
 
     <!-- Filter & Search Bar -->
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:16px; flex-wrap:wrap; flex-shrink:0;">
-      <div style="position:relative; flex:1; min-width:320px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap; flex-shrink:0;">
+      <div style="position:relative; flex:1; min-width:280px;">
         <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
         <input type="text" id="emp-log-search" class="form-control" style="padding-left:38px; height:42px; font-size:13.5px;" placeholder="Search process name (e.g. code.exe, chrome.exe) or window title...">
       </div>
-      <div style="display:flex; align-items:center; gap:10px;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <label style="font-size:13px; font-weight:700; color:#0f172a;"><i class="fa-solid fa-clock"></i> Filter Time:</label>
         <select class="select-pill" id="emp-log-time-filter" style="font-size:13px; padding:8px 16px; background:white; height:42px;">
           <option value="today" selected>📅 Today (Full Day Logs)</option>
           <option value="1hr">⏱️ Past 1 Hour</option>
           <option value="4hr">🕒 Past 4 Hours</option>
           <option value="yesterday">🗓️ Yesterday</option>
+          <option value="7days">📊 Last 7 Days</option>
+          <option value="30days">📈 Last 30 Days (Full History)</option>
         </select>
+        <button type="button" class="btn-pill" id="btn-export-emp-logs" onclick="window.exportCurrentEmployeeLogsCSV()" style="background:linear-gradient(135deg, #047857, #065f46); color:white; font-weight:700; border:none; height:42px; padding:0 16px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; border-radius:8px; box-shadow:0 2px 8px rgba(4,120,87,0.35);" title="Download full day / filtered logs for this employee as Excel/CSV">
+          <i class="fa-solid fa-file-excel"></i> Export Excel / CSV
+        </button>
       </div>
     </div>
 

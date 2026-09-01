@@ -87,13 +87,12 @@ window.exportModuleCSV = async function(moduleName) {
 
     switch (moduleName) {
         case 'monitoring':
-        case 'workstations':
-            if (document.getElementById('table-workstations')) {
-                exportTableToCSV('table-workstations', `Workstation_Monitoring_${todayStr}.csv`);
-            } else {
-                exportAPIModuleCSV('/api/v1/admin/monitoring/dashboard', `Workstation_Monitoring_${todayStr}.csv`);
-            }
+        case 'workstations': {
+            const rangeSelect = document.getElementById('date-range-select');
+            const selectedRange = rangeSelect ? rangeSelect.value : 'Today';
+            window.location.href = `/api/v1/admin/monitoring/export-telemetry?range=${encodeURIComponent(selectedRange)}&format=csv`;
             break;
+        }
 
         case 'organization':
         case 'employees':

@@ -28,6 +28,14 @@ function setupEventListeners() {
         loadWebAnalytics();
     });
 
+    // Employee Modal Search & Time Filter listeners
+    document.getElementById("emp-log-search")?.addEventListener("input", () => {
+        if (window.applyEmpLogsFilters) window.applyEmpLogsFilters();
+    });
+    document.getElementById("emp-log-time-filter")?.addEventListener("change", () => {
+        if (window.applyEmpLogsFilters) window.applyEmpLogsFilters();
+    });
+
     // Manual sync button
     document.getElementById("sync-now-btn")?.addEventListener("click", async () => {
         const btn = document.getElementById("sync-now-btn");
@@ -316,13 +324,147 @@ window.openEmployeeLogsModal = async function openEmployeeLogsModal(empId, empNa
             }
 
             const logs = (json.success && Array.isArray(json.logs)) ? json.logs : [];
+            window.allCurrentEmpLogs = logs;
+            window.activeEmployeeMeta = json.employee || { full_name: empName, employee_code: `EMP-${empId}` };
             window.currentEmpLogsData = logs;
-            renderEmpLogsTable(logs);
+            
+            if (window.applyEmpLogsFilters) {
+                window.applyEmpLogsFilters();
+            } else {
+                renderEmpLogsTable(logs);
+            }
         }
     } catch (e) {
         console.error("Error fetching employee activity logs:", e);
         renderEmpLogsTable([]);
     }
+};
+
+// ── FILTER EMPLOYEE LOGS IN MODAL BY TIME & SEARCH ───────────────────────────
+window.applyEmpLogsFilters = function applyEmpLogsFilters() {
+    const rawLogs = window.allCurrentEmpLogs || [];
+    const timeFilter = document.getElementById("emp-log-time-filter")?.value || 'today';
+    const searchQuery = (document.getElementById("emp-log-search")?.value || '').toLowerCase().trim();
+
+    const now = Math.floor(Date.now() / 1000);
+    let startUnix = 0;
+    let endUnix = now + 86400;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartUnix = Math.floor(todayStart.getTime() / 1000);
+
+    switch (timeFilter) {
+        case '1hr':
+            startUnix = now - 3600;
+            break;
+        case '4hr':
+            startUnix = now - (4 * 3600);
+            break;
+        case 'yesterday': {
+            const yestStart = new Date(todayStart);
+            yestStart.setDate(yestStart.getDate() - 1);
+            startUnix = Math.floor(yestStart.getTime() / 1000);
+            endUnix = todayStartUnix;
+            break;
+        }
+        case '7days':
+            startUnix = now - (7 * 86400);
+            break;
+        case '30days':
+            startUnix = now - (30 * 86400);
+            break;
+        case 'today':
+        default:
+            startUnix = todayStartUnix;
+            break;
+    }
+
+    let filtered = rawLogs.filter(row => {
+        const rowUnix = row.start_unix || (row.start_time ? Math.floor(new Date(row.start_time).getTime() / 1000) : 0);
+        if (rowUnix > 0) {
+            if (rowUnix < startUnix || rowUnix > endUnix) return false;
+        }
+        if (searchQuery) {
+            const proc = (row.process || '').toLowerCase();
+            const title = (row.app_title || '').toLowerCase();
+            const cat = (row.category || '').toLowerCase();
+            const task = (row.task_title || '').toLowerCase();
+            if (!proc.includes(searchQuery) && !title.includes(searchQuery) && !cat.includes(searchQuery) && !task.includes(searchQuery)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    window.currentFilteredEmpLogs = filtered;
+    renderEmpLogsTable(filtered);
+};
+
+// ── EXPORT INDIVIDUAL EMPLOYEE ACTIVITY LOGS AS EXCEL / CSV ───────────────────
+window.exportCurrentEmployeeLogsCSV = function exportCurrentEmployeeLogsCSV() {
+    const logs = window.currentFilteredEmpLogs || window.allCurrentEmpLogs || [];
+    const emp = window.activeEmployeeMeta || {};
+    const empName = emp.full_name || document.getElementById("emp-log-name")?.innerText || "Employee";
+    const empCode = emp.employee_code || document.getElementById("emp-log-code")?.innerText || "EMP";
+    const workstation = emp.computer_name || document.getElementById("emp-log-workstation")?.innerText?.replace(/DESKTOP-/g, '') || "PC";
+    const timeFilter = document.getElementById("emp-log-time-filter")?.value || 'Today';
+
+    if (!logs || logs.length === 0) {
+        alert("No activity logs available for the selected filter to export.");
+        return;
+    }
+
+    const headers = [
+        "Employee Code",
+        "Employee Name",
+        "Workstation",
+        "Start Time (IST)",
+        "End Time (IST)",
+        "Duration",
+        "Application / Process",
+        "App / Webpage Title",
+        "Category",
+        "Task Session / Context"
+    ];
+
+    const csvRows = [headers.join(",")];
+
+    logs.forEach(row => {
+        const startTime = formatLogDateTime(row.start_time || row.time || '—', row.start_unix);
+        const endTime = formatLogDateTime(row.end_time || row.time || '—', row.end_unix);
+        const dur = formatCompactDuration(row.duration);
+        const process = row.process || '—';
+        const title = row.app_title || '—';
+        const cat = row.category || 'Productive';
+        const task = row.task_title || (row.session_id ? `Task #${row.session_id}` : 'General Workstation Activity');
+
+        const clean = str => `"${String(str || '').replace(/"/g, '""')}"`;
+
+        csvRows.push([
+            clean(empCode),
+            clean(empName),
+            clean(workstation),
+            clean(startTime),
+            clean(endTime),
+            clean(dur),
+            clean(process),
+            clean(title),
+            clean(cat),
+            clean(task)
+        ].join(","));
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(csvRows.join("\r\n"));
+    const safeEmpName = empName.replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `Activity_Logs_${safeEmpName}_${timeFilter}_${new Date().toISOString().split('T')[0]}.csv`;
+
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };
 
 function formatLogDateTime(dtStr, unixTs = null) {

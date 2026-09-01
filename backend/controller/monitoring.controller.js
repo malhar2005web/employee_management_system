@@ -996,3 +996,183 @@ export async function assignWorkstation(req, res) {
         res.status(500).json({ success: false, message: error.message });
     }
 }
+
+// ── EXPORT MONITORING TELEMETRY (CSV / JSON ACROSS DATE RANGE) ───────────────
+export async function exportMonitoringTelemetry(req, res) {
+    try {
+        const { range = 'Today', employee_id, format = 'json' } = req.query;
+
+        const now = Math.floor(Date.now() / 1000);
+        let startUnix;
+        let rangeLabel = 'Today';
+
+        const rLow = (range || '').toLowerCase();
+        if (rLow.includes('30') || rLow === '30d' || rLow === '30days') {
+            startUnix = now - (30 * 24 * 3600);
+            rangeLabel = 'Last_30_Days';
+        } else if (rLow.includes('7') || rLow === '7d' || rLow === '7days') {
+            startUnix = now - (7 * 24 * 3600);
+            rangeLabel = 'Last_7_Days';
+        } else if (rLow === 'yesterday') {
+            const yest = new Date();
+            yest.setDate(yest.getDate() - 1);
+            yest.setHours(0, 0, 0, 0);
+            startUnix = Math.floor(yest.getTime() / 1000);
+            rangeLabel = 'Yesterday';
+        } else {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            startUnix = Math.floor(today.getTime() / 1000);
+            rangeLabel = 'Today';
+        }
+
+        // Fetch employee mappings
+        const empQuery = employee_id 
+            ? "SELECT e.id, e.full_name, e.employee_code, m.computer_id, m.computer_name FROM employees e LEFT JOIN employee_teramind_mapping m ON e.id = m.employee_id WHERE e.id = $1"
+            : "SELECT e.id, e.full_name, e.employee_code, m.computer_id, m.computer_name FROM employees e LEFT JOIN employee_teramind_mapping m ON e.id = m.employee_id";
+        const empValues = employee_id ? [parseInt(employee_id, 10)] : [];
+        const empRes = await pool.query(empQuery, empValues);
+
+        const empMapByCompId = new Map();
+        const empMapByCompName = new Map();
+        const empList = empRes.rows;
+
+        empList.forEach(e => {
+            if (e.computer_id) empMapByCompId.set(String(e.computer_id), e);
+            if (e.computer_name) empMapByCompName.set(e.computer_name.toLowerCase(), e);
+        });
+
+        // Fetch raw Teramind grid data
+        let gridRows = [];
+        try {
+            const raw = await getWebPagesApplicationsGrid({
+                periodStart: String(startUnix),
+                periodEnd: String(now),
+                pageSize: 10000
+            });
+            gridRows = raw?.rows || [];
+        } catch (e) {
+            console.warn("exportMonitoringTelemetry grid fetch failed:", e.message);
+        }
+
+        function formatIST(unixTs) {
+            if (!unixTs || isNaN(unixTs)) return '—';
+            try {
+                const d = new Date(unixTs * 1000);
+                const parts = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'Asia/Kolkata',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }).formatToParts(d);
+                const p = {};
+                parts.forEach(({ type, value }) => { p[type] = value; });
+                return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}:${p.second}`;
+            } catch {
+                return '—';
+            }
+        }
+
+        function formatDur(sec) {
+            if (!sec || sec <= 0) return '0s';
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = sec % 60;
+            if (h > 0) return `${h}h ${m}m ${s > 0 ? s + 's' : ''}`.trim();
+            if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+            return `${s}s`;
+        }
+
+        // Process and map rows
+        const records = [];
+        for (const row of gridRows) {
+            const rCompId = row.computer?.computer_id ? String(row.computer.computer_id) : null;
+            const rCompName = (row.computer?.name || '').toLowerCase();
+
+            let matchedEmp = null;
+            if (rCompId && empMapByCompId.has(rCompId)) {
+                matchedEmp = empMapByCompId.get(rCompId);
+            } else if (rCompName && empMapByCompName.has(rCompName)) {
+                matchedEmp = empMapByCompName.get(rCompName);
+            }
+
+            // If filtering by single employee, skip non-matches
+            if (employee_id && (!matchedEmp || matchedEmp.id !== parseInt(employee_id, 10))) {
+                continue;
+            }
+
+            const startTs = row.time || (row.start_time ? Math.floor(new Date(row.start_time).getTime() / 1000) : null);
+            const dur = row.duration || 0;
+            const endTs = startTs ? (startTs + dur) : null;
+
+            records.push({
+                employee_code: matchedEmp?.employee_code || '—',
+                employee_name: matchedEmp?.full_name || row.agent?.name || 'Unassigned Staff',
+                workstation: row.computer?.name || matchedEmp?.computer_name || '—',
+                start_time: formatIST(startTs),
+                end_time: formatIST(endTs),
+                duration_formatted: formatDur(dur),
+                duration_seconds: dur,
+                application_process: row.process_host || row.friendly_name || '—',
+                app_webpage_title: row.title || row.url || '—',
+                category: row.activity_cat || 'Productive',
+                url: row.url || ''
+            });
+        }
+
+        if (format === 'csv') {
+            const headers = [
+                "Employee Code",
+                "Employee Name",
+                "Workstation",
+                "Start Time (IST)",
+                "End Time (IST)",
+                "Duration",
+                "Duration (Seconds)",
+                "Application / Process",
+                "Window / Webpage Title",
+                "Category",
+                "Web URL"
+            ];
+
+            const csvRows = [headers.join(",")];
+            for (const r of records) {
+                const values = [
+                    `"${r.employee_code.replace(/"/g, '""')}"`,
+                    `"${r.employee_name.replace(/"/g, '""')}"`,
+                    `"${r.workstation.replace(/"/g, '""')}"`,
+                    `"${r.start_time.replace(/"/g, '""')}"`,
+                    `"${r.end_time.replace(/"/g, '""')}"`,
+                    `"${r.duration_formatted.replace(/"/g, '""')}"`,
+                    r.duration_seconds,
+                    `"${r.application_process.replace(/"/g, '""')}"`,
+                    `"${r.app_webpage_title.replace(/"/g, '""')}"`,
+                    `"${r.category.replace(/"/g, '""')}"`,
+                    `"${(r.url || '').replace(/"/g, '""')}"`
+                ];
+                csvRows.push(values.join(","));
+            }
+
+            const csvContent = csvRows.join("\r\n");
+            const filename = `Telemetry_Activity_Logs_${rangeLabel}_${new Date().toISOString().split('T')[0]}.csv`;
+
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            return res.status(200).send(csvContent);
+        }
+
+        res.status(200).json({
+            success: true,
+            range: rangeLabel,
+            total_records: records.length,
+            data: records
+        });
+    } catch (error) {
+        console.error("Error in exportMonitoringTelemetry:", error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
