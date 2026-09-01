@@ -175,7 +175,7 @@ export async function getAttendanceLogs(req, res) {
                 const logoutTimeStr = formatISTIso(checkOutDate);
                 const totalHoursNum = (totalActiveSecs / 3600).toFixed(2);
 
-                // Rule Check: Shift starts 09:45 AM
+                // Rule Check: Grace period up to 10:15 AM (Present <= 10:15, Late > 10:15)
                 let isLate = false;
                 if (checkInDate) {
                     const checkInParts = new Intl.DateTimeFormat('en-GB', {
@@ -185,8 +185,41 @@ export async function getAttendanceLogs(req, res) {
                     checkInParts.forEach(({ type, value }) => { p[type] = value; });
                     const hh = parseInt(p.hour, 10);
                     const mm = parseInt(p.minute, 10);
-                    if (hh > 9 || (hh === 9 && mm > 45)) {
+                    // Check-in up to 10:15 AM is Present. After 10:15 AM (10:16+) is Late.
+                    if (hh > 10 || (hh === 10 && mm > 15)) {
                         isLate = true;
+                    }
+                }
+
+                // Check-out Time Rule:
+                // For Today's logs, office working hours are till 7:00 PM (19:00).
+                // Keep Check-Out as null ('—') while shift is in progress before 7:00 PM.
+                const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+                const isToday = targetDateStr === todayIST;
+                
+                const nowParts = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                }).formatToParts(new Date());
+                const nowP = {};
+                nowParts.forEach(({ type, value }) => { nowP[type] = value; });
+                const currentHourIST = parseInt(nowP.hour, 10);
+
+                let finalLogoutTimeStr = logoutTimeStr;
+                if (isToday) {
+                    if (checkOutDate) {
+                        const outParts = new Intl.DateTimeFormat('en-GB', {
+                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).formatToParts(checkOutDate);
+                        const outP = {};
+                        outParts.forEach(({ type, value }) => { outP[type] = value; });
+                        const outH = parseInt(outP.hour, 10);
+
+                        // If current time is before 7 PM (19:00) and last punch is before 19:00, show '-'
+                        if (currentHourIST < 19 && outH < 19) {
+                            finalLogoutTimeStr = null;
+                        }
+                    } else {
+                        finalLogoutTimeStr = null;
                     }
                 }
 
@@ -217,7 +250,7 @@ export async function getAttendanceLogs(req, res) {
                     workstation: emp.computer_name || '—',
                     date: targetDateStr,
                     login_time: loginTimeStr,
-                    logout_time: logoutTimeStr,
+                    logout_time: finalLogoutTimeStr,
                     total_working_hours: totalHoursNum,
                     overtime: overtimeMins,
                     status: calculatedStatus,
