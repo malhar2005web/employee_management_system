@@ -568,11 +568,15 @@ export async function getEmployeeActivityLogs(req, res) {
 
         let realGridLogs = [];
         try {
-            const raw = await getWebPagesApplicationsGrid({
+            const gridParams = {
                 periodStart: String(startUnix),
                 periodEnd: String(nowUnix),
-                pageSize: 5000
-            });
+                pageSize: 10000
+            };
+            if (compId) {
+                gridParams.computers = [parseInt(compId, 10)];
+            }
+            const raw = await getWebPagesApplicationsGrid(gridParams);
             realGridLogs = raw?.rows || [];
         } catch (e) {
             console.warn("Error fetching real grid logs for employee:", e.message);
@@ -1045,11 +1049,20 @@ export async function exportMonitoringTelemetry(req, res) {
         // Fetch raw Teramind grid data
         let gridRows = [];
         try {
-            const raw = await getWebPagesApplicationsGrid({
+            const gridParams = {
                 periodStart: String(startUnix),
                 periodEnd: String(now),
                 pageSize: 10000
-            });
+            };
+            if (employee_id && empList.length > 0 && empList[0].computer_id) {
+                gridParams.computers = [parseInt(empList[0].computer_id, 10)];
+            } else {
+                const allCompIds = empList.map(e => e.computer_id).filter(Boolean).map(id => parseInt(id, 10));
+                if (allCompIds.length > 0) {
+                    gridParams.computers = allCompIds;
+                }
+            }
+            const raw = await getWebPagesApplicationsGrid(gridParams);
             gridRows = raw?.rows || [];
         } catch (e) {
             console.warn("exportMonitoringTelemetry grid fetch failed:", e.message);
