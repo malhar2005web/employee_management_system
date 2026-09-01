@@ -1140,7 +1140,7 @@ export async function exportMonitoringTelemetry(req, res) {
                 "Employee Code",
                 "Employee Name",
                 "Workstation",
-                "Date",
+                "Activity Date (DD-MM-YYYY)",
                 "Start Time",
                 "End Time",
                 "Duration",
