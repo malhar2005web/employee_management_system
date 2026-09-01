@@ -264,7 +264,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch(`/api/v1/admin/attendance?date=${dateVal}`);
+            const token = localStorage.getItem('token') || '';
+            const response = await fetch(`/api/v1/admin/attendance?date=${dateVal}`, {
+                credentials: 'include',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             const data = await response.json();
             if (response.ok && data.success) {
                 employeesCache = data.data?.employees || [];

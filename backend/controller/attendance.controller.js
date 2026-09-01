@@ -27,15 +27,18 @@ export async function getAttendanceLogs(req, res) {
         dbAttRes.rows.forEach(r => dbAttMap.set(r.employee_id, r));
 
         // 3. Fetch approved leaves covering targetDate
-        const leaveRes = await pool.query(`
-            SELECT lr.employee_id, lr.leave_type_id, lr.duration_days, lt.name as leave_type_name
-            FROM leave_requests lr
-            LEFT JOIN leave_types lt ON lr.leave_type_id = lt.id
-            WHERE lr.status = 'Approved' 
-              AND $1::date >= lr.start_date AND $1::date <= lr.end_date
-        `, [targetDateStr]);
         const leaveMap = new Map();
-        leaveRes.rows.forEach(l => leaveMap.set(l.employee_id, l));
+        try {
+            const leaveRes = await pool.query(`
+                SELECT lr.employee_id, lr.leave_type, lr.reason
+                FROM leave_requests lr
+                WHERE lr.status = 'Approved' 
+                  AND $1::date >= lr.start_date AND $1::date <= lr.end_date
+            `, [targetDateStr]);
+            leaveRes.rows.forEach(l => leaveMap.set(l.employee_id, l));
+        } catch (lErr) {
+            console.warn("getAttendanceLogs leave query fallback:", lErr.message);
+        }
 
         // 4. Fetch Teramind activity telemetry for this target date (00:00:00 to 23:59:59 IST)
         const dayStart = new Date(`${targetDateStr}T00:00:00+05:30`);
@@ -43,13 +46,18 @@ export async function getAttendanceLogs(req, res) {
         const startUnix = Math.floor(dayStart.getTime() / 1000);
         const endUnix = Math.floor(dayEnd.getTime() / 1000);
 
+        const allCompIds = employees.map(e => e.computer_id).filter(Boolean).map(id => parseInt(id, 10));
         let gridRows = [];
         try {
-            const gridRes = await getWebPagesApplicationsGrid({
+            const gridParams = {
                 periodStart: String(startUnix),
                 periodEnd: String(endUnix),
                 pageSize: 10000
-            });
+            };
+            if (allCompIds.length > 0) {
+                gridParams.computers = allCompIds;
+            }
+            const gridRes = await getWebPagesApplicationsGrid(gridParams);
             gridRows = gridRes?.rows || [];
         } catch (e) {
             console.warn("getAttendanceLogs Teramind grid fetch warning:", e.message);
@@ -114,7 +122,8 @@ export async function getAttendanceLogs(req, res) {
                 };
             } else if (onLeave) {
                 // On Approved Leave
-                const isHalfDay = onLeave.leave_type_name?.toLowerCase().includes('half') || onLeave.duration_days == 0.5;
+                const leaveTypeName = onLeave.leave_type || 'Leave';
+                const isHalfDay = leaveTypeName.toLowerCase().includes('half');
                 finalRecord = {
                     id: null,
                     employee_id: empId,
@@ -127,7 +136,7 @@ export async function getAttendanceLogs(req, res) {
                     total_working_hours: '0.00',
                     overtime: null,
                     status: isHalfDay ? 'Half Day' : 'On Leave',
-                    leave_type: onLeave.leave_type_name,
+                    leave_type: leaveTypeName,
                     approval_status: 'Approved'
                 };
                 leaveCount++;
