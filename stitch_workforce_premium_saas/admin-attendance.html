@@ -235,6 +235,36 @@
 
         <!-- Daily Logs View -->
         <div id="view-logs">
+          <!-- 📅 Date Filter Toolbar -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding:12px 16px; background:rgba(255,255,255,0.45); border-radius:12px; border:1px solid rgba(255,255,255,0.6); flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <label for="filter-date" style="font-size:13px; font-weight:800; color:var(--teal-900); display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-calendar-days"></i> Select Date:
+              </label>
+              <input type="date" id="filter-date" style="padding:6px 12px; height:38px; font-size:13.5px; font-weight:700; border-radius:8px; border:1.5px solid #cbd5e1; background:white; color:#0f172a; outline:none;">
+              <div style="display:inline-flex; gap:6px;">
+                <button type="button" class="btn" id="btn-quick-prev" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 10px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;" title="Previous Day">
+                  <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <button type="button" class="btn" id="btn-quick-today" style="background:var(--teal-900); color:white; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;">
+                  Today
+                </button>
+                <button type="button" class="btn" id="btn-quick-yesterday" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;">
+                  Yesterday
+                </button>
+                <button type="button" class="btn" id="btn-quick-next" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 10px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;" title="Next Day">
+                  <i class="fa-solid fa-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" class="btn" id="btn-refresh-daily-logs" style="background:linear-gradient(135deg, #047857, #065f46); color:white; font-weight:700; font-size:12px; padding:8px 16px; border-radius:8px; border:none; display:flex; align-items:center; gap:6px; cursor:pointer; box-shadow:0 2px 6px rgba(4,120,87,0.25);">
+                <i class="fa-solid fa-arrows-rotate"></i> Sync Live Logs
+              </button>
+            </div>
+          </div>
+
           <table>
             <thead>
               <tr>

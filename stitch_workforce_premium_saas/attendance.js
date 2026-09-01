@@ -251,22 +251,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
     // 1. ATTENDANCE DAILY LOGS
     // =========================================================================
-    const loadLogs = async () => {
-        const dateVal = filterDate ? filterDate.value : today;
+    if (filterDate && !filterDate.value) {
+        filterDate.value = today;
+    }
+
+    const loadLogs = async (overrideDate = null) => {
+        const dateVal = overrideDate || (filterDate ? filterDate.value : today);
+        if (filterDate) filterDate.value = dateVal;
+
+        if (logsList) {
+            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:18px;margin-bottom:8px;display:block;color:var(--teal-900);"></i>Syncing live attendance logs for ${dateVal}...</td></tr>`;
+        }
+
         try {
             const response = await fetch(`/api/v1/admin/attendance?date=${dateVal}`);
             const data = await response.json();
             if (response.ok && data.success) {
-                employeesCache = data.data.employees || [];
+                employeesCache = data.data?.employees || [];
                 populateEmployeesDropdowns();
-                renderLogs(data.data.logs || []);
+                renderLogs(data.data?.logs || [], data.summary);
+            } else {
+                renderLogs([]);
             }
         } catch (error) {
             console.error("Error loading daily attendance logs:", error);
+            renderLogs([]);
         }
     };
 
-    const renderLogs = (logs) => {
+    const renderLogs = (logs, summary = null) => {
         if (!logsList) return;
         logsList.innerHTML = '';
 
@@ -275,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let absent = 0;
 
         if (logs.length === 0) {
-            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">No attendance records found for this date</td></tr>`;
+            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;color:#94a3b8;"></i>No attendance records found for this date</td></tr>`;
         } else {
             logs.forEach(log => {
                 if (log.status === 'Present') present++;
@@ -283,37 +296,129 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (log.status === 'Absent') absent++;
 
                 const tr = document.createElement('tr');
-                const loginStr = log.login_time ? new Date(log.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
-                const logoutStr = log.logout_time ? new Date(log.logout_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
                 
-                let statusClass = 'todo';
-                if (log.status === 'Present') statusClass = 'progress';
-                else if (log.status === 'Late') statusClass = 'pending';
-                else if (log.status === 'Absent') statusClass = 'delayed';
+                const formatTime = (tStr) => {
+                    if (!tStr || tStr === '—') return '—';
+                    if (/^\d{2}:\d{2}/.test(tStr)) return tStr;
+                    try {
+                        const d = new Date(tStr);
+                        if (!isNaN(d.getTime())) {
+                            return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                        }
+                    } catch (e) {}
+                    return tStr;
+                };
+
+                const loginStr = formatTime(log.login_time);
+                const logoutStr = formatTime(log.logout_time);
+                
+                let statusClass = 'delayed';
+                let statusBadgeStyle = 'background:#fee2e2; color:#b91c1c; font-weight:700;';
+                if (log.status === 'Present') {
+                    statusClass = 'progress';
+                    statusBadgeStyle = 'background:#dcfce7; color:#15803d; font-weight:700;';
+                } else if (log.status === 'Late') {
+                    statusClass = 'pending';
+                    statusBadgeStyle = 'background:#fef3c7; color:#b45309; font-weight:700;';
+                } else if (log.status === 'On Leave') {
+                    statusClass = 'todo';
+                    statusBadgeStyle = 'background:#e0f2fe; color:#0369a1; font-weight:700;';
+                } else if (log.status === 'Half Day') {
+                    statusClass = 'todo';
+                    statusBadgeStyle = 'background:#f3e8ff; color:#7e22ce; font-weight:700;';
+                }
+
+                // Format display date
+                const displayDate = log.date ? (String(log.date).split('T')[0]) : (filterDate ? filterDate.value : today);
 
                 tr.innerHTML = `
                     <td>
                         <div style="font-weight:700; color:var(--text-dark);">${log.full_name || 'Unknown'}</div>
-                        <div style="font-size:11px; color:var(--text-muted);">${log.employee_code || ''}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${log.employee_code || ''} ${log.workstation && log.workstation !== '—' ? '• ' + log.workstation : ''}</div>
                     </td>
-                    <td>${new Date(log.date).toLocaleDateString()}</td>
-                    <td><strong>${loginStr}</strong></td>
-                    <td><strong>${logoutStr}</strong></td>
-                    <td>${log.total_working_hours ? `${log.total_working_hours} hrs` : '—'}</td>
+                    <td><strong style="color:#334155;">${displayDate}</strong></td>
+                    <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>
+                    <td><strong style="color:${logoutStr !== '—' ? '#0f172a' : '#94a3b8'};">${logoutStr}</strong></td>
+                    <td>${log.total_working_hours ? `${log.total_working_hours} hrs` : '0.00 hrs'}</td>
                     <td>${log.overtime ? `${log.overtime} mins` : '—'}</td>
-                    <td><span class="status-pill ${statusClass}">${log.status || 'Absent'}</span></td>
+                    <td><span class="status-pill ${statusClass}" style="${statusBadgeStyle}">${log.status || 'Absent'}</span></td>
                     <td>
-                        <button type="button" class="btn-table-action" onclick='editCorrection(${JSON.stringify(log)})' title="Edit/Correct"><i class="fa-solid fa-pen"></i></button>
+                        <button type="button" class="btn-table-action" onclick='editCorrection(${JSON.stringify(log)})' title="Edit / Manual Correction"><i class="fa-solid fa-pen"></i></button>
                     </td>
                 `;
                 logsList.appendChild(tr);
             });
         }
 
-        if (countPresent) countPresent.textContent = present;
-        if (countLate) countLate.textContent = late;
-        if (countAbsent) countAbsent.textContent = absent;
+        if (summary) {
+            if (countPresent) countPresent.textContent = summary.present || 0;
+            if (countLate) countLate.textContent = summary.late || 0;
+            if (countAbsent) countAbsent.textContent = summary.absent || 0;
+        } else {
+            if (countPresent) countPresent.textContent = present;
+            if (countLate) countLate.textContent = late;
+            if (countAbsent) countAbsent.textContent = absent;
+        }
     };
+
+    // Date Navigation Event Listeners
+    if (filterDate) {
+        filterDate.addEventListener('change', () => {
+            loadLogs(filterDate.value);
+        });
+    }
+
+    const btnQuickToday = document.getElementById('btn-quick-today');
+    const btnQuickYesterday = document.getElementById('btn-quick-yesterday');
+    const btnQuickPrev = document.getElementById('btn-quick-prev');
+    const btnQuickNext = document.getElementById('btn-quick-next');
+    const btnRefreshDailyLogs = document.getElementById('btn-refresh-daily-logs');
+
+    if (btnQuickToday) {
+        btnQuickToday.addEventListener('click', () => {
+            if (filterDate) filterDate.value = today;
+            loadLogs(today);
+        });
+    }
+
+    if (btnQuickYesterday) {
+        btnQuickYesterday.addEventListener('click', () => {
+            const d = new Date();
+            d.setDate(d.getDate() - 1);
+            const yestStr = d.toISOString().split('T')[0];
+            if (filterDate) filterDate.value = yestStr;
+            loadLogs(yestStr);
+        });
+    }
+
+    if (btnQuickPrev) {
+        btnQuickPrev.addEventListener('click', () => {
+            const current = filterDate && filterDate.value ? new Date(filterDate.value) : new Date();
+            current.setDate(current.getDate() - 1);
+            const prevStr = current.toISOString().split('T')[0];
+            if (filterDate) filterDate.value = prevStr;
+            loadLogs(prevStr);
+        });
+    }
+
+    if (btnQuickNext) {
+        btnQuickNext.addEventListener('click', () => {
+            const current = filterDate && filterDate.value ? new Date(filterDate.value) : new Date();
+            current.setDate(current.getDate() + 1);
+            const nextStr = current.toISOString().split('T')[0];
+            if (filterDate) filterDate.value = nextStr;
+            loadLogs(nextStr);
+        });
+    }
+
+    if (btnRefreshDailyLogs) {
+        btnRefreshDailyLogs.addEventListener('click', async () => {
+            const icon = btnRefreshDailyLogs.querySelector('i');
+            if (icon) icon.classList.add('fa-spin');
+            await loadLogs(filterDate ? filterDate.value : today);
+            if (icon) icon.classList.remove('fa-spin');
+        });
+    }
 
     // Pending Corrections
     const loadPendingCorrections = async () => {
