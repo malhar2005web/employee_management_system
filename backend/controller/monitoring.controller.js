@@ -1109,12 +1109,23 @@ export async function exportMonitoringTelemetry(req, res) {
             const dur = row.duration || 0;
             const endTs = startTs ? (startTs + dur) : null;
 
+            const startFormatted = formatIST(startTs);
+            const endFormatted = formatIST(endTs);
+
+            const startParts = startFormatted.split(' ');
+            const endParts = endFormatted.split(' ');
+
+            const logDate = startParts[0] !== '—' ? startParts[0] : (endParts[0] !== '—' ? endParts[0] : '—');
+            const startTime = startParts[1] || '—';
+            const endTime = endParts[1] || '—';
+
             records.push({
                 employee_code: matchedEmp?.employee_code || '—',
                 employee_name: matchedEmp?.full_name || row.agent?.name || 'Unassigned Staff',
                 workstation: row.computer?.name || matchedEmp?.computer_name || '—',
-                start_time: formatIST(startTs),
-                end_time: formatIST(endTs),
+                date: logDate,
+                start_time: startTime,
+                end_time: endTime,
                 duration_formatted: formatDur(dur),
                 duration_seconds: dur,
                 application_process: row.process_host || row.friendly_name || '—',
@@ -1129,8 +1140,9 @@ export async function exportMonitoringTelemetry(req, res) {
                 "Employee Code",
                 "Employee Name",
                 "Workstation",
-                "Start Time (IST)",
-                "End Time (IST)",
+                "Date",
+                "Start Time",
+                "End Time",
                 "Duration",
                 "Duration (Seconds)",
                 "Application / Process",
@@ -1145,6 +1157,7 @@ export async function exportMonitoringTelemetry(req, res) {
                     `"${r.employee_code.replace(/"/g, '""')}"`,
                     `"${r.employee_name.replace(/"/g, '""')}"`,
                     `"${r.workstation.replace(/"/g, '""')}"`,
+                    `"${r.date.replace(/"/g, '""')}"`,
                     `"${r.start_time.replace(/"/g, '""')}"`,
                     `"${r.end_time.replace(/"/g, '""')}"`,
                     `"${r.duration_formatted.replace(/"/g, '""')}"`,
@@ -1157,7 +1170,7 @@ export async function exportMonitoringTelemetry(req, res) {
                 csvRows.push(values.join(","));
             }
 
-            const csvContent = csvRows.join("\r\n");
+            const csvContent = "\uFEFF" + csvRows.join("\r\n");
             const filename = `Telemetry_Activity_Logs_${rangeLabel}_${new Date().toISOString().split('T')[0]}.csv`;
 
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');

@@ -416,8 +416,9 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
         "Employee Code",
         "Employee Name",
         "Workstation",
-        "Start Time (IST)",
-        "End Time (IST)",
+        "Date",
+        "Start Time",
+        "End Time",
         "Duration",
         "Application / Process",
         "App / Webpage Title",
@@ -428,6 +429,15 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
     const csvRows = [headers.join(",")];
     let rowsAdded = 0;
 
+    function splitDT(dtStr) {
+        if (!dtStr || dtStr === '—') return { date: '—', time: '—' };
+        const parts = String(dtStr).trim().split(/\s+/);
+        if (parts.length >= 2) {
+            return { date: parts[0], time: parts.slice(1).join(' ') };
+        }
+        return { date: dtStr, time: '—' };
+    }
+
     // 1. Try from in-memory logs (filtered or all)
     let logs = (window.currentFilteredEmpLogs && window.currentFilteredEmpLogs.length > 0) 
         ? window.currentFilteredEmpLogs 
@@ -435,8 +445,16 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
 
     if (logs && logs.length > 0) {
         logs.forEach(row => {
-            const startTime = formatLogDateTime(row.start_time || row.time || '—', row.start_unix);
-            const endTime = formatLogDateTime(row.end_time || row.time || '—', row.end_unix);
+            const startRaw = formatLogDateTime(row.start_time || row.time || '—', row.start_unix);
+            const endRaw = formatLogDateTime(row.end_time || row.time || '—', row.end_unix);
+            
+            const startParsed = splitDT(startRaw);
+            const endParsed = splitDT(endRaw);
+
+            const logDate = startParsed.date !== '—' ? startParsed.date : (endParsed.date !== '—' ? endParsed.date : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
+            const startTime = startParsed.time;
+            const endTime = endParsed.time;
+
             const dur = formatCompactDuration(row.duration);
             const process = row.process || '—';
             const title = row.app_title || '—';
@@ -447,6 +465,7 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
                 clean(empCode),
                 clean(empName),
                 clean(workstation),
+                clean(logDate),
                 clean(startTime),
                 clean(endTime),
                 clean(dur),
@@ -465,8 +484,16 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
         tableRows.forEach(tr => {
             const cells = tr.querySelectorAll("td");
             if (cells.length >= 5 && !tr.innerText.includes("No activity logs") && !tr.innerText.includes("Loading")) {
-                const startTime = cells[0]?.innerText || '—';
-                const endTime = cells[1]?.innerText || '—';
+                const startRaw = cells[0]?.innerText || '—';
+                const endRaw = cells[1]?.innerText || '—';
+                
+                const startParsed = splitDT(startRaw);
+                const endParsed = splitDT(endRaw);
+
+                const logDate = startParsed.date !== '—' ? startParsed.date : (endParsed.date !== '—' ? endParsed.date : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
+                const startTime = startParsed.time;
+                const endTime = endParsed.time;
+
                 const dur = cells[2]?.innerText || '—';
                 const appTitle = cells[3]?.innerText || '—';
                 const cat = cells[4]?.innerText || 'Productive';
@@ -481,6 +508,7 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
                     clean(empCode),
                     clean(empName),
                     clean(workstation),
+                    clean(logDate),
                     clean(startTime),
                     clean(endTime),
                     clean(dur),
