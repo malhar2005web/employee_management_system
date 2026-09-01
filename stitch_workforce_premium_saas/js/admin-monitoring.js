@@ -438,6 +438,20 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
         return { date: dtStr, time: '—' };
     }
 
+    function formatExcelDate(dateStr) {
+        if (!dateStr || dateStr === '—') return '—';
+        const match = String(dateStr).trim().match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+        if (match) {
+            const day = match[1];
+            const monthNum = parseInt(match[2], 10);
+            const year = match[3];
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const monthName = months[monthNum - 1] || match[2];
+            return `${day}-${monthName}-${year}`;
+        }
+        return dateStr;
+    }
+
     // 1. Try from in-memory logs (filtered or all)
     let logs = (window.currentFilteredEmpLogs && window.currentFilteredEmpLogs.length > 0) 
         ? window.currentFilteredEmpLogs 
@@ -451,7 +465,8 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
             const startParsed = splitDT(startRaw);
             const endParsed = splitDT(endRaw);
 
-            const logDate = startParsed.date !== '—' ? startParsed.date : (endParsed.date !== '—' ? endParsed.date : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
+            const rawDate = startParsed.date !== '—' ? startParsed.date : (endParsed.date !== '—' ? endParsed.date : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
+            const logDate = formatExcelDate(rawDate);
             const startTime = startParsed.time;
             const endTime = endParsed.time;
 
@@ -490,7 +505,8 @@ window.exportCurrentEmployeeLogsCSV = async function exportCurrentEmployeeLogsCS
                 const startParsed = splitDT(startRaw);
                 const endParsed = splitDT(endRaw);
 
-                const logDate = startParsed.date !== '—' ? startParsed.date : (endParsed.date !== '—' ? endParsed.date : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
+                const rawDate = startParsed.date !== '—' ? startParsed.date : (endParsed.date !== '—' ? endParsed.date : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
+                const logDate = formatExcelDate(rawDate);
                 const startTime = startParsed.time;
                 const endTime = endParsed.time;
 

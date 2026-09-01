@@ -1087,6 +1087,20 @@ export async function exportMonitoringTelemetry(req, res) {
             return `${s}s`;
         }
 
+        function formatExcelDate(dateStr) {
+            if (!dateStr || dateStr === '—') return '—';
+            const match = String(dateStr).trim().match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+            if (match) {
+                const day = match[1];
+                const monthNum = parseInt(match[2], 10);
+                const year = match[3];
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                const monthName = months[monthNum - 1] || match[2];
+                return `${day}-${monthName}-${year}`;
+            }
+            return dateStr;
+        }
+
         // Process and map rows
         const records = [];
         for (const row of gridRows) {
@@ -1115,7 +1129,8 @@ export async function exportMonitoringTelemetry(req, res) {
             const startParts = startFormatted.split(' ');
             const endParts = endFormatted.split(' ');
 
-            const logDate = startParts[0] !== '—' ? startParts[0] : (endParts[0] !== '—' ? endParts[0] : '—');
+            const rawDate = startParts[0] !== '—' ? startParts[0] : (endParts[0] !== '—' ? endParts[0] : '—');
+            const logDate = formatExcelDate(rawDate);
             const startTime = startParts[1] || '—';
             const endTime = endParts[1] || '—';
 
