@@ -1050,9 +1050,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td style="color:#059669; font-weight:700;">${row.OTHOURS || '00:00'}</td>
                     <td><strong>${row.LOGIMHOURS || '00:00'}</strong></td>
                     <td>
-                        <button type="button" class="btn-table-action" onclick="openEmpAttendanceHistoryModal(${empId}, '${escapeQuote(empDisplayName)}', '${row.employee_code || ''}', '${row.USERNAME}')" title="View Full History & Export CSV" style="color:var(--teal-600);"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                        <button type="button" class="btn-table-action" onclick="event.stopPropagation(); openEmpAttendanceHistoryModal(${empId}, '${escapeQuote(empDisplayName)}', '${row.employee_code || ''}', '${row.USERNAME}')" title="View Full History & Export CSV" style="color:var(--teal-600);"><i class="fa-solid fa-clock-rotate-left"></i></button>
                     </td>
                 `;
+                tr.style.cursor = 'pointer';
+                tr.addEventListener('click', (e) => {
+                    if (e.target.closest('button')) return;
+                    openEmpAttendanceHistoryModal(empId, empDisplayName, row.employee_code, row.USERNAME);
+                });
                 pcsSummaryList.appendChild(tr);
             });
         } catch (error) {
