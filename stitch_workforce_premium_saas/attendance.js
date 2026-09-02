@@ -78,17 +78,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const countOutOfficial = document.getElementById('count-out-official');
     const countOutPersonal = document.getElementById('count-out-personal');
 
-    const filterDate = document.getElementById('filter-date');
+    const filterStartDate = document.getElementById('filter-start-date');
+    const filterEndDate = document.getElementById('filter-end-date');
+    const btnQuickToday = document.getElementById('btn-quick-today');
+    const btnQuickYesterday = document.getElementById('btn-quick-yesterday');
+    const btnQuick7days = document.getElementById('btn-quick-7days');
+    const btnQuick30days = document.getElementById('btn-quick-30days');
+    const btnExportDailyRangeCSV = document.getElementById('btn-export-daily-range-csv');
+    const btnRefreshDailyLogs = document.getElementById('btn-refresh-daily-logs');
+
     const filterOutDate = document.getElementById('filter-out-date');
     const filterOutPurpose = document.getElementById('filter-out-purpose');
     const filterOutStatus = document.getElementById('filter-out-status');
     const btnRefreshOut = document.getElementById('btn-refresh-out');
     const logoutBtn = document.getElementById('logout-btn');
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
     let employeesCache = [];
     let leavesCache = [];
     let outEntriesCache = [];
+    let currentDailyLogsCache = [];
 
     // Switch Top-Level Main Tabs (Attendance vs Leaves vs Out Entry)
     const switchMainTab = (tab) => {
@@ -152,10 +161,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btnRunCalc) btnRunCalc.style.display = 'inline-flex';
             if (viewTitle) viewTitle.textContent = 'Monthly Attendance Summary';
             loadPcsMonthlySummary();
-        } else {
+        } else if (tabName === 'pending') {
             if (tabPending) tabPending.classList.add('active');
             if (viewPending) viewPending.style.display = 'block';
-            if (viewTitle) viewTitle.textContent = 'Correction Requests';
+            if (viewTitle) viewTitle.textContent = 'Pending Attendance Corrections';
             loadPendingCorrections();
         }
     };
@@ -164,68 +173,55 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabPcsSummary) tabPcsSummary.addEventListener('click', () => switchAttendanceTab('pcs-summary'));
     if (tabPending) tabPending.addEventListener('click', () => switchAttendanceTab('pending'));
 
-    // --- MODAL CONTROLS ---
-    // Correction Modal
-    if (btnAddCorrection) {
-        btnAddCorrection.addEventListener('click', () => {
-            if (correctionForm) correctionForm.reset();
-            if (corrDate) corrDate.value = today;
-            if (correctionModal) correctionModal.classList.add('active');
-        });
-    }
-
+    // --- MODAL CONTROLLERS ---
+    const openCorrectionModal = () => {
+        if (corrDate) corrDate.value = today;
+        if (correctionModal) correctionModal.style.display = 'flex';
+    };
     const closeCorrectionModal = () => {
-        if (correctionModal) correctionModal.classList.remove('active');
+        if (correctionModal) correctionModal.style.display = 'none';
         if (correctionForm) correctionForm.reset();
     };
 
+    if (btnAddCorrection) btnAddCorrection.addEventListener('click', openCorrectionModal);
     if (correctionClose) correctionClose.addEventListener('click', closeCorrectionModal);
     if (correctionCancel) correctionCancel.addEventListener('click', closeCorrectionModal);
 
-    // Leave Modal
-    if (btnAddLeave) {
-        btnAddLeave.addEventListener('click', () => {
-            if (leaveForm) leaveForm.reset();
-            const startInput = document.getElementById('leave-start');
-            const endInput = document.getElementById('leave-end');
-            if (startInput) startInput.value = today;
-            if (endInput) endInput.value = today;
-            if (leaveModal) leaveModal.classList.add('active');
-        });
-    }
-
+    const openLeaveModal = () => {
+        const startEl = document.getElementById('leave-start');
+        const endEl = document.getElementById('leave-end');
+        if (startEl) startEl.value = today;
+        if (endEl) endEl.value = today;
+        if (leaveModal) leaveModal.style.display = 'flex';
+    };
     const closeLeaveModal = () => {
-        if (leaveModal) leaveModal.classList.remove('active');
+        if (leaveModal) leaveModal.style.display = 'none';
         if (leaveForm) leaveForm.reset();
     };
 
+    if (btnAddLeave) btnAddLeave.addEventListener('click', openLeaveModal);
     if (leaveClose) leaveClose.addEventListener('click', closeLeaveModal);
     if (leaveCancel) leaveCancel.addEventListener('click', closeLeaveModal);
 
-    // Out Entry Modal
-    if (btnAddOutEntry) {
-        btnAddOutEntry.addEventListener('click', () => {
-            if (outEntryForm) outEntryForm.reset();
-            if (outDate) outDate.value = today;
-            if (outTimeVal) {
-                const now = new Date();
-                outTimeVal.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            }
-            if (outEntryModal) outEntryModal.classList.add('active');
-        });
-    }
-
+    const openOutEntryModal = () => {
+        if (outDate) outDate.value = today;
+        if (outTimeVal) {
+            const now = new Date();
+            outTimeVal.value = now.toTimeString().slice(0, 5);
+        }
+        if (outEntryModal) outEntryModal.style.display = 'flex';
+    };
     const closeOutEntryModal = () => {
-        if (outEntryModal) outEntryModal.classList.remove('active');
+        if (outEntryModal) outEntryModal.style.display = 'none';
         if (outEntryForm) outEntryForm.reset();
     };
 
+    if (btnAddOutEntry) btnAddOutEntry.addEventListener('click', openOutEntryModal);
     if (outEntryClose) outEntryClose.addEventListener('click', closeOutEntryModal);
     if (outEntryCancel) outEntryCancel.addEventListener('click', closeOutEntryModal);
 
-    // Mark Return Modal
     const closeMarkReturnModal = () => {
-        if (markReturnModal) markReturnModal.classList.remove('active');
+        if (markReturnModal) markReturnModal.style.display = 'none';
         if (markReturnForm) markReturnForm.reset();
     };
 
@@ -253,23 +249,25 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // =========================================================================
-    // 1. ATTENDANCE DAILY LOGS
+    // 1. ATTENDANCE DAILY LOGS (WITH FROM-TO DATE RANGE ENGINE)
     // =========================================================================
-    if (filterDate && !filterDate.value) {
-        filterDate.value = today;
-    }
+    if (filterStartDate && !filterStartDate.value) filterStartDate.value = today;
+    if (filterEndDate && !filterEndDate.value) filterEndDate.value = today;
 
-    const loadLogs = async (overrideDate = null) => {
-        const dateVal = overrideDate || (filterDate ? filterDate.value : today);
-        if (filterDate) filterDate.value = dateVal;
+    const loadLogs = async (overrideStart = null, overrideEnd = null) => {
+        const startVal = overrideStart || (filterStartDate && filterStartDate.value ? filterStartDate.value : today);
+        const endVal = overrideEnd || (filterEndDate && filterEndDate.value ? filterEndDate.value : startVal);
+
+        if (filterStartDate) filterStartDate.value = startVal;
+        if (filterEndDate) filterEndDate.value = endVal;
 
         if (logsList) {
-            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:18px;margin-bottom:8px;display:block;color:var(--teal-900);"></i>Syncing live attendance logs for ${dateVal}...</td></tr>`;
+            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:18px;margin-bottom:8px;display:block;color:var(--teal-900);"></i>Syncing live attendance logs (${startVal}${startVal !== endVal ? ' to ' + endVal : ''})...</td></tr>`;
         }
 
         try {
             const token = localStorage.getItem('token') || '';
-            const response = await fetch(`/api/v1/admin/attendance?date=${dateVal}`, {
+            const response = await fetch(`/api/v1/admin/attendance?startDate=${startVal}&endDate=${endVal}`, {
                 credentials: 'include',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -279,7 +277,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok && data.success) {
                 employeesCache = data.data?.employees || [];
                 populateEmployeesDropdowns();
-                renderLogs(data.data?.logs || [], data.summary);
+                currentDailyLogsCache = data.data?.logs || [];
+                renderLogs(currentDailyLogsCache, data.summary);
             } else {
                 renderLogs([]);
             }
@@ -298,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let absent = 0;
 
         if (logs.length === 0) {
-            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;color:#94a3b8;"></i>No attendance records found for this date</td></tr>`;
+            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;color:#94a3b8;"></i>No attendance records found for this period</td></tr>`;
         } else {
             logs.forEach(log => {
                 if (log.status === 'Present') present++;
@@ -306,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (log.status === 'Absent') absent++;
 
                 const tr = document.createElement('tr');
+                tr.style.cursor = 'pointer';
                 
                 const formatTime = (tStr) => {
                     if (!tStr || tStr === '—') return '—';
@@ -338,7 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusBadgeStyle = 'background:#f3e8ff; color:#7e22ce; font-weight:700;';
                 }
 
-                // Provenance Source Badge
                 let sourceBadge = '';
                 if (log.punch_source === 'PORTAL') {
                     sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-hand-pointer"></i> Web Punch</span></div>`;
@@ -356,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-size:11px; color:var(--text-muted);">${log.employee_code || ''} ${log.workstation && log.workstation !== '—' ? '• ' + log.workstation : ''}</div>
                         ${sourceBadge}
                     </td>
-                    <td><strong style="color:#334155;">${displayDate}</strong></td>
+                    <td><strong style="color:#334155;">${log.date || today}</strong></td>
                     <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>
                     <td><strong style="color:${logoutStr !== '—' ? '#0f172a' : '#94a3b8'};">${logoutStr}</strong></td>
                     <td>${log.total_working_hours ? `${log.total_working_hours} hrs` : '0.00 hrs'}</td>
@@ -364,11 +363,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><span class="status-pill ${statusClass}" style="${statusBadgeStyle}">${log.status || 'Absent'}</span></td>
                     <td>
                         <div style="display:flex; align-items:center; gap:6px;">
-                            <button type="button" class="btn-table-action" onclick="openEmpAttendanceHistoryModal(${log.employee_id}, '${escapeQuote(log.full_name)}', '${log.employee_code || ''}', '${log.workstation || ''}')" title="View Full History & Export CSV" style="color:var(--teal-600);"><i class="fa-solid fa-clock-rotate-left"></i></button>
-                            <button type="button" class="btn-table-action" onclick='editCorrection(${JSON.stringify(log)})' title="Edit / Manual Correction"><i class="fa-solid fa-pen"></i></button>
+                            <button type="button" class="btn-table-action" onclick="event.stopPropagation(); openEmpAttendanceHistoryModal(${log.employee_id}, '${escapeQuote(log.full_name)}', '${log.employee_code || ''}', '${log.workstation || ''}')" title="View Full History & Export CSV" style="color:var(--teal-600);"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                            <button type="button" class="btn-table-action" onclick='event.stopPropagation(); editCorrection(${JSON.stringify(log)})' title="Edit / Manual Correction"><i class="fa-solid fa-pen"></i></button>
                         </div>
                     </td>
                 `;
+
+                tr.addEventListener('click', (e) => {
+                    if (e.target.closest('button')) return;
+                    openEmpAttendanceHistoryModal(log.employee_id, log.full_name, log.employee_code, log.workstation);
+                });
+
                 logsList.appendChild(tr);
             });
         }
@@ -384,23 +389,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Date Navigation Event Listeners
-    if (filterDate) {
-        filterDate.addEventListener('change', () => {
-            loadLogs(filterDate.value);
+    if (filterStartDate) {
+        filterStartDate.addEventListener('change', () => {
+            loadLogs(filterStartDate.value, filterEndDate ? filterEndDate.value : filterStartDate.value);
         });
     }
 
-    const btnQuickToday = document.getElementById('btn-quick-today');
-    const btnQuickYesterday = document.getElementById('btn-quick-yesterday');
-    const btnQuickPrev = document.getElementById('btn-quick-prev');
-    const btnQuickNext = document.getElementById('btn-quick-next');
-    const btnRefreshDailyLogs = document.getElementById('btn-refresh-daily-logs');
+    if (filterEndDate) {
+        filterEndDate.addEventListener('change', () => {
+            loadLogs(filterStartDate ? filterStartDate.value : filterEndDate.value, filterEndDate.value);
+        });
+    }
 
     if (btnQuickToday) {
         btnQuickToday.addEventListener('click', () => {
-            if (filterDate) filterDate.value = today;
-            loadLogs(today);
+            if (filterStartDate) filterStartDate.value = today;
+            if (filterEndDate) filterEndDate.value = today;
+            loadLogs(today, today);
         });
     }
 
@@ -408,29 +413,30 @@ document.addEventListener('DOMContentLoaded', () => {
         btnQuickYesterday.addEventListener('click', () => {
             const d = new Date();
             d.setDate(d.getDate() - 1);
-            const yestStr = d.toISOString().split('T')[0];
-            if (filterDate) filterDate.value = yestStr;
-            loadLogs(yestStr);
+            const yestStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+            if (filterStartDate) filterStartDate.value = yestStr;
+            if (filterEndDate) filterEndDate.value = yestStr;
+            loadLogs(yestStr, yestStr);
         });
     }
 
-    if (btnQuickPrev) {
-        btnQuickPrev.addEventListener('click', () => {
-            const current = filterDate && filterDate.value ? new Date(filterDate.value) : new Date();
-            current.setDate(current.getDate() - 1);
-            const prevStr = current.toISOString().split('T')[0];
-            if (filterDate) filterDate.value = prevStr;
-            loadLogs(prevStr);
+    if (btnQuick7days) {
+        btnQuick7days.addEventListener('click', () => {
+            const d = new Date();
+            d.setDate(d.getDate() - 7);
+            const sStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+            if (filterStartDate) filterStartDate.value = sStr;
+            if (filterEndDate) filterEndDate.value = today;
+            loadLogs(sStr, today);
         });
     }
 
-    if (btnQuickNext) {
-        btnQuickNext.addEventListener('click', () => {
-            const current = filterDate && filterDate.value ? new Date(filterDate.value) : new Date();
-            current.setDate(current.getDate() + 1);
-            const nextStr = current.toISOString().split('T')[0];
-            if (filterDate) filterDate.value = nextStr;
-            loadLogs(nextStr);
+    if (btnQuick30days) {
+        btnQuick30days.addEventListener('click', () => {
+            const sStr = `${today.slice(0, 7)}-01`;
+            if (filterStartDate) filterStartDate.value = sStr;
+            if (filterEndDate) filterEndDate.value = today;
+            loadLogs(sStr, today);
         });
     }
 
@@ -438,12 +444,55 @@ document.addEventListener('DOMContentLoaded', () => {
         btnRefreshDailyLogs.addEventListener('click', async () => {
             const icon = btnRefreshDailyLogs.querySelector('i');
             if (icon) icon.classList.add('fa-spin');
-            await loadLogs(filterDate ? filterDate.value : today);
+            await loadLogs(filterStartDate ? filterStartDate.value : today, filterEndDate ? filterEndDate.value : today);
             if (icon) icon.classList.remove('fa-spin');
         });
     }
 
-    // Pending Corrections
+    if (btnExportDailyRangeCSV) {
+        btnExportDailyRangeCSV.addEventListener('click', () => {
+            if (!currentDailyLogsCache || currentDailyLogsCache.length === 0) {
+                alert("No attendance records to export for this period.");
+                return;
+            }
+            const sDate = filterStartDate ? filterStartDate.value : today;
+            const eDate = filterEndDate ? filterEndDate.value : sDate;
+
+            const headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Total Hours", "Overtime (min)", "Status", "Source"];
+            const rows = currentDailyLogsCache.map(r => [
+                r.employee_code || '',
+                r.full_name || '',
+                r.workstation || '—',
+                r.date,
+                r.login_time ? (String(r.login_time).includes('T') ? String(r.login_time).split('T')[1].slice(0, 5) : r.login_time) : '—',
+                r.logout_time ? (String(r.logout_time).includes('T') ? String(r.logout_time).split('T')[1].slice(0, 5) : r.logout_time) : '—',
+                r.total_working_hours ? `${r.total_working_hours} hrs` : '0.00 hrs',
+                r.overtime ? `${r.overtime} mins` : '—',
+                r.status || 'Absent',
+                r.punch_source || 'TERAMIND'
+            ]);
+
+            const csvContent = "\uFEFF" + [
+                headers.map(h => `"${h}"`).join(','),
+                ...rows.map(row => row.map(val => {
+                    const s = String(val ?? '').replace(/"/g, '""');
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{2}:\d{2}(:\d{2})?$/.test(s)) {
+                        return `="""${s}"""`;
+                    }
+                    return `"${s}"`;
+                }).join(','))
+            ].join('\r\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', `Attendance_Range_${sDate}_to_${eDate}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    }
+
     const loadPendingCorrections = async () => {
         try {
             const response = await fetch('/api/v1/admin/attendance/pending');
@@ -1148,13 +1197,24 @@ document.addEventListener('DOMContentLoaded', () => {
         renderModalOutData();
     };
 
+    const histCustomDates = document.getElementById('hist-custom-dates');
+    const histStartDate = document.getElementById('hist-start-date');
+    const histEndDate = document.getElementById('hist-end-date');
+
     async function loadModalHistoryData() {
         if (!histTableBody) return;
         histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Fetching attendance telemetry...</td></tr>';
 
         try {
             const range = histRangeSelect ? histRangeSelect.value : '30days';
-            const resp = await fetch(`/api/v1/admin/attendance/employee/${currentEmpId}/history?range=${range}`);
+            let url = `/api/v1/admin/attendance/employee/${currentEmpId}/history?range=${range}`;
+            if (range === 'custom') {
+                const s = histStartDate && histStartDate.value ? histStartDate.value : today;
+                const e = histEndDate && histEndDate.value ? histEndDate.value : s;
+                url = `/api/v1/admin/attendance/employee/${currentEmpId}/history?startDate=${s}&endDate=${e}`;
+            }
+
+            const resp = await fetch(url);
             const data = await resp.json();
 
             if (!resp.ok || !data.success) {
@@ -1317,6 +1377,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (histRangeSelect) {
         histRangeSelect.addEventListener('change', () => {
+            if (histRangeSelect.value === 'custom') {
+                if (histCustomDates) histCustomDates.style.display = 'inline-flex';
+            } else {
+                if (histCustomDates) histCustomDates.style.display = 'none';
+            }
+            if (currentModalType === 'attendance') loadModalHistoryData();
+        });
+    }
+
+    if (histStartDate) {
+        histStartDate.addEventListener('change', () => {
+            if (currentModalType === 'attendance') loadModalHistoryData();
+        });
+    }
+
+    if (histEndDate) {
+        histEndDate.addEventListener('change', () => {
             if (currentModalType === 'attendance') loadModalHistoryData();
         });
     }

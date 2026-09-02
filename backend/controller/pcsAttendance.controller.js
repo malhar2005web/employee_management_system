@@ -39,7 +39,7 @@ export async function getMonthlySummary(req, res) {
         let query = `
             SELECT 
                 s.*,
-                COALESCE(e.full_name, s."FULL_NAME", s."USERNAME") as full_name,
+                COALESCE(e.full_name, s."USERNAME") as full_name,
                 e.employee_code,
                 COALESCE(e.id, s."EMPLOYEE_ID") as employee_id,
                 e.phone
