@@ -93,25 +93,56 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRefreshOut = document.getElementById('btn-refresh-out');
     const logoutBtn = document.getElementById('logout-btn');
 
+    // DOM Elements - Holidays
+    const tabBtnHolidays = document.getElementById('tab-btn-holidays');
+    const tabContentHolidays = document.getElementById('tab-content-holidays');
+    const btnAddHoliday = document.getElementById('btn-add-holiday');
+    const holidaysList = document.getElementById('holidays-list');
+    const countHolidaysTotal = document.getElementById('count-holidays-total');
+    const countHolidayNext = document.getElementById('count-holiday-next');
+    const countHolidaysMandatory = document.getElementById('count-holidays-mandatory');
+    const countHolidaysOptional = document.getElementById('count-holidays-optional');
+    const filterHolidayYear = document.getElementById('filter-holiday-year');
+    const filterHolidayType = document.getElementById('filter-holiday-type');
+    const filterHolidaySearch = document.getElementById('filter-holiday-search');
+    const btnExportHolidaysCSV = document.getElementById('btn-export-holidays-csv');
+    const btnRefreshHolidays = document.getElementById('btn-refresh-holidays');
+
+    const holidayModal = document.getElementById('holiday-modal');
+    const holidayForm = document.getElementById('holiday-form');
+    const holidayModalTitle = document.getElementById('holiday-modal-title');
+    const holidayModalClose = document.getElementById('holiday-modal-close');
+    const holidayCancelBtn = document.getElementById('holiday-cancel-btn');
+    const holidayIdInput = document.getElementById('holiday-id');
+    const holidayNameInput = document.getElementById('holiday-name');
+    const holidayDateInput = document.getElementById('holiday-date');
+    const holidayTypeInput = document.getElementById('holiday-type');
+    const holidayIsOptionalInput = document.getElementById('holiday-is-optional');
+    const holidayDescInput = document.getElementById('holiday-desc');
+
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
     let employeesCache = [];
     let leavesCache = [];
     let outEntriesCache = [];
+    let holidaysCache = [];
     let currentDailyLogsCache = [];
 
-    // Switch Top-Level Main Tabs (Attendance vs Leaves vs Out Entry)
+    // Switch Top-Level Main Tabs (Attendance vs Leaves vs Out Entry vs Holidays)
     const switchMainTab = (tab) => {
         if (tabBtnAttendance) tabBtnAttendance.classList.remove('active');
         if (tabBtnLeave) tabBtnLeave.classList.remove('active');
         if (tabBtnOutEntry) tabBtnOutEntry.classList.remove('active');
+        if (tabBtnHolidays) tabBtnHolidays.classList.remove('active');
 
         if (tabContentAttendance) tabContentAttendance.style.display = 'none';
         if (tabContentLeave) tabContentLeave.style.display = 'none';
         if (tabContentOutEntry) tabContentOutEntry.style.display = 'none';
+        if (tabContentHolidays) tabContentHolidays.style.display = 'none';
 
         if (btnAddCorrection) btnAddCorrection.style.display = 'none';
         if (btnAddLeave) btnAddLeave.style.display = 'none';
         if (btnAddOutEntry) btnAddOutEntry.style.display = 'none';
+        if (btnAddHoliday) btnAddHoliday.style.display = 'none';
 
         const btnExport = document.querySelector('.btn-pill-export');
         if (tab === 'attendance') {
@@ -132,12 +163,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btnAddOutEntry) btnAddOutEntry.style.display = 'inline-flex';
             if (btnExport) btnExport.setAttribute('onclick', "window.exportModuleDataFile('out_entries', 'xlsx')");
             loadOutEntries();
+        } else if (tab === 'holidays') {
+            if (tabBtnHolidays) tabBtnHolidays.classList.add('active');
+            if (tabContentHolidays) tabContentHolidays.style.display = 'block';
+            if (btnAddHoliday) btnAddHoliday.style.display = 'inline-flex';
+            if (btnExport) btnExport.setAttribute('onclick', "window.exportModuleDataFile('holidays', 'xlsx')");
+            loadHolidays();
         }
     };
 
     if (tabBtnAttendance) tabBtnAttendance.addEventListener('click', () => switchMainTab('attendance'));
     if (tabBtnLeave) tabBtnLeave.addEventListener('click', () => switchMainTab('leave'));
     if (tabBtnOutEntry) tabBtnOutEntry.addEventListener('click', () => switchMainTab('out-entry'));
+    if (tabBtnHolidays) tabBtnHolidays.addEventListener('click', () => switchMainTab('holidays'));
 
     // Switch Inner Attendance Sub-Tabs (Daily Logs vs Monthly Summary vs Corrections)
     const switchAttendanceTab = (tabName) => {
@@ -1005,7 +1043,237 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnRefreshOut) btnRefreshOut.addEventListener('click', loadOutEntries);
 
     // =========================================================================
-    // 4. MONTHLY PCS ATTENDANCE SUMMARY (STORED PROCEDURE ENGINE)
+    // 4. HOLIDAY CALENDAR MANAGEMENT
+    // =========================================================================
+    const loadHolidays = async () => {
+        try {
+            const yearVal = filterHolidayYear ? filterHolidayYear.value : '2026';
+            const typeVal = filterHolidayType ? filterHolidayType.value : 'All';
+            const searchVal = filterHolidaySearch ? filterHolidaySearch.value.trim() : '';
+
+            let query = '/api/v1/holidays?';
+            if (yearVal) query += `year=${yearVal}&`;
+            if (typeVal && typeVal !== 'All') query += `type=${encodeURIComponent(typeVal)}&`;
+            if (searchVal) query += `search=${encodeURIComponent(searchVal)}&`;
+
+            if (holidaysList) {
+                holidaysList.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading holidays...</td></tr>';
+            }
+
+            const response = await fetch(query);
+            const data = await response.json();
+            if (response.ok && data.success) {
+                holidaysCache = data.data || [];
+                renderHolidays(data.stats || {});
+            } else {
+                if (holidaysList) holidaysList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--red);">${data.message || 'Error loading holidays'}</td></tr>`;
+            }
+        } catch (error) {
+            console.error("Error loading holidays:", error);
+            if (holidaysList) holidaysList.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--red);">Error connecting to holidays service.</td></tr>';
+        }
+    };
+
+    const renderHolidays = (stats) => {
+        if (!holidaysList) return;
+        holidaysList.innerHTML = '';
+
+        if (countHolidaysTotal) countHolidaysTotal.textContent = stats.total_holidays || 0;
+        if (countHolidaysMandatory) countHolidaysMandatory.textContent = stats.mandatory_count || 0;
+        if (countHolidaysOptional) countHolidaysOptional.textContent = stats.optional_count || 0;
+        if (countHolidayNext) {
+            if (stats.next_holiday) {
+                countHolidayNext.innerHTML = `<span style="color:#b45309;">${stats.next_holiday.name}</span> <span style="font-size:12px; font-weight:600; color:var(--text-muted); display:block;">${stats.next_holiday.date} (${stats.next_holiday.day_of_week})</span>`;
+            } else {
+                countHolidayNext.textContent = 'None Remaining';
+            }
+        }
+
+        if (holidaysCache.length === 0) {
+            holidaysList.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text-muted);">No holidays found matching selected filters.</td></tr>';
+            return;
+        }
+
+        holidaysCache.forEach(h => {
+            const tr = document.createElement('tr');
+
+            // Type Badge
+            let typeBadge = '';
+            if (h.type === 'National') {
+                typeBadge = `<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-flag"></i> National</span>`;
+            } else if (h.type === 'Gazetted') {
+                typeBadge = `<span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-landmark"></i> Gazetted</span>`;
+            } else if (h.type === 'Festival') {
+                typeBadge = `<span class="badge" style="background:#fef3c7; color:#b45309; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-om"></i> Festival</span>`;
+            } else if (h.type === 'Restricted') {
+                typeBadge = `<span class="badge" style="background:#f3e8ff; color:#7e22ce; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-hand-holding-heart"></i> Restricted</span>`;
+            } else {
+                typeBadge = `<span class="badge" style="background:#f1f5f9; color:#475569; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-building"></i> ${h.type || 'Holiday'}</span>`;
+            }
+
+            // Status Badge
+            let statusBadge = '';
+            if (h.status === 'Today') {
+                statusBadge = `<span class="status-pill progress" style="background:#dcfce7; color:#15803d; font-weight:800;"><i class="fa-solid fa-bell"></i> TODAY</span>`;
+            } else if (h.status === 'Upcoming') {
+                statusBadge = `<span class="status-pill pending" style="background:#ecfdf5; color:#047857; font-weight:700;"><i class="fa-solid fa-clock"></i> Upcoming</span>`;
+            } else {
+                statusBadge = `<span class="status-pill" style="background:#f1f5f9; color:#64748b;"><i class="fa-solid fa-check"></i> Past</span>`;
+            }
+
+            // Nature
+            let natureBadge = h.is_optional 
+                ? `<span style="color:#7e22ce; font-weight:700; font-size:12px;"><i class="fa-solid fa-circle-question"></i> Optional</span>`
+                : `<span style="color:#059669; font-weight:700; font-size:12px;"><i class="fa-solid fa-circle-check"></i> Mandatory</span>`;
+
+            tr.innerHTML = `
+                <td>
+                    <div style="font-weight:700; color:var(--text-dark); font-size:13.5px;">${h.name}</div>
+                    <div style="font-size:11px; color:var(--text-muted);">Year ${h.year}</div>
+                </td>
+                <td><strong style="color:#334155;">${h.date}</strong></td>
+                <td><span style="font-weight:600; color:#475569;">${h.day_of_week}</span></td>
+                <td>${typeBadge}</td>
+                <td>${statusBadge}</td>
+                <td>${natureBadge}</td>
+                <td><span style="font-size:12px; color:var(--text-muted);">${h.description || '—'}</span></td>
+                <td style="text-align:right;">
+                    <div style="display:inline-flex; align-items:center; gap:6px;">
+                        <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="editHolidayClick(${h.id})" title="Edit Holiday"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button type="button" class="btn-table-action" style="color:var(--red);" onclick="deleteHolidayClick(${h.id})" title="Delete Holiday"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </td>
+            `;
+            holidaysList.appendChild(tr);
+        });
+    };
+
+    // Open/Close Add/Edit Holiday Modal
+    const openAddHolidayModal = () => {
+        if (holidayForm) holidayForm.reset();
+        if (holidayIdInput) holidayIdInput.value = '';
+        if (holidayModalTitle) holidayModalTitle.innerHTML = '<i class="fa-solid fa-calendar-plus" style="color:var(--teal-600); margin-right:6px;"></i> Add Official Holiday';
+        if (holidayDateInput) holidayDateInput.value = today;
+        if (holidayModal) holidayModal.classList.add('active');
+    };
+
+    const closeHolidayModalFunc = () => {
+        if (holidayModal) holidayModal.classList.remove('active');
+    };
+
+    if (btnAddHoliday) btnAddHoliday.addEventListener('click', openAddHolidayModal);
+    if (holidayModalClose) holidayModalClose.addEventListener('click', closeHolidayModalFunc);
+    if (holidayCancelBtn) holidayCancelBtn.addEventListener('click', closeHolidayModalFunc);
+
+    if (holidayForm) {
+        holidayForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = holidayIdInput ? holidayIdInput.value : '';
+            const payload = {
+                name: holidayNameInput.value.trim(),
+                date: holidayDateInput.value,
+                type: holidayTypeInput.value,
+                isOptional: holidayIsOptionalInput.checked,
+                description: holidayDescInput.value.trim()
+            };
+
+            const url = id ? `/api/v1/holidays/${id}` : '/api/v1/holidays';
+            const method = id ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    closeHolidayModalFunc();
+                    loadHolidays();
+                } else {
+                    alert(data.message || 'Failed to save holiday');
+                }
+            } catch (err) {
+                console.error("Error saving holiday:", err);
+                alert("Error saving holiday: " + err.message);
+            }
+        });
+    }
+
+    window.editHolidayClick = (id) => {
+        const holiday = holidaysCache.find(h => h.id === id);
+        if (!holiday) return;
+        if (holidayIdInput) holidayIdInput.value = holiday.id;
+        if (holidayNameInput) holidayNameInput.value = holiday.name;
+        if (holidayDateInput) holidayDateInput.value = holiday.date;
+        if (holidayTypeInput) holidayTypeInput.value = holiday.type;
+        if (holidayIsOptionalInput) holidayIsOptionalInput.checked = Boolean(holiday.is_optional);
+        if (holidayDescInput) holidayDescInput.value = holiday.description || '';
+        if (holidayModalTitle) holidayModalTitle.innerHTML = '<i class="fa-solid fa-pen-to-square" style="color:var(--teal-600); margin-right:6px;"></i> Edit Holiday';
+        if (holidayModal) holidayModal.classList.add('active');
+    };
+
+    window.deleteHolidayClick = async (id) => {
+        if (!confirm("Are you sure you want to delete this holiday record?")) return;
+        try {
+            const response = await fetch(`/api/v1/holidays/${id}`, { method: 'DELETE' });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                loadHolidays();
+            } else {
+                alert(data.message || 'Failed to delete holiday');
+            }
+        } catch (err) {
+            console.error("Error deleting holiday:", err);
+        }
+    };
+
+    if (filterHolidayYear) filterHolidayYear.addEventListener('change', loadHolidays);
+    if (filterHolidayType) filterHolidayType.addEventListener('change', loadHolidays);
+    if (filterHolidaySearch) {
+        let hSearchTimer;
+        filterHolidaySearch.addEventListener('input', () => {
+            clearTimeout(hSearchTimer);
+            hSearchTimer = setTimeout(loadHolidays, 300);
+        });
+    }
+    if (btnRefreshHolidays) btnRefreshHolidays.addEventListener('click', loadHolidays);
+
+    if (btnExportHolidaysCSV) {
+        btnExportHolidaysCSV.addEventListener('click', () => {
+            if (!holidaysCache || holidaysCache.length === 0) {
+                alert("No holidays to export.");
+                return;
+            }
+            const headers = ["Holiday Name", "Date", "Day of Week", "Category", "Status", "Is Optional", "Description", "Year"];
+            const rows = holidaysCache.map(h => [
+                h.name,
+                h.date,
+                h.day_of_week,
+                h.type,
+                h.status,
+                h.is_optional ? 'Yes' : 'No',
+                h.description || '',
+                h.year
+            ]);
+
+            const csvContent = "\uFEFF" + [
+                headers.map(h => `"${h}"`).join(','),
+                ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
+            ].join('\r\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', `Official_Holidays_${filterHolidayYear ? filterHolidayYear.value : '2026'}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    }
+
+    // =========================================================================
+    // 5. MONTHLY PCS ATTENDANCE SUMMARY (STORED PROCEDURE ENGINE)
     // =========================================================================
     const loadPcsMonthlySummary = async () => {
         if (!pcsSummaryList) return;
