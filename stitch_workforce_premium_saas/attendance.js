@@ -1130,9 +1130,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const closeEmpHistoryModal = () => {
-        if (empHistoryModal) empHistoryModal.style.display = 'none';
+        if (empHistoryModal) {
+            empHistoryModal.classList.remove('active');
+            empHistoryModal.style.display = 'none';
+        }
         currentHistoryData = [];
     };
+    window.closeEmpHistoryModal = closeEmpHistoryModal;
+    window.closeEmployeeLogsModal = closeEmpHistoryModal;
 
     if (empHistoryClose) empHistoryClose.addEventListener('click', closeEmpHistoryModal);
     if (empHistoryModal) {
@@ -1183,7 +1188,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (histSearchInput) histSearchInput.value = '';
         if (histKpiBar) histKpiBar.style.display = 'grid';
 
-        if (empHistoryModal) empHistoryModal.style.display = 'flex';
+        if (empHistoryModal) {
+            empHistoryModal.style.display = 'flex';
+            empHistoryModal.classList.add('active');
+        }
         await loadModalHistoryData();
     };
 
@@ -1202,7 +1210,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (histSearchInput) histSearchInput.value = '';
         if (histKpiBar) histKpiBar.style.display = 'none';
 
-        if (empHistoryModal) empHistoryModal.style.display = 'flex';
+        if (empHistoryModal) {
+            empHistoryModal.style.display = 'flex';
+            empHistoryModal.classList.add('active');
+        }
         renderModalLeaveData();
     };
 
@@ -1221,7 +1232,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (histSearchInput) histSearchInput.value = '';
         if (histKpiBar) histKpiBar.style.display = 'none';
 
-        if (empHistoryModal) empHistoryModal.style.display = 'flex';
+        if (empHistoryModal) {
+            empHistoryModal.style.display = 'flex';
+            empHistoryModal.classList.add('active');
+        }
         renderModalOutData();
     };
 
