@@ -334,13 +334,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusBadgeStyle = 'background:#f3e8ff; color:#7e22ce; font-weight:700;';
                 }
 
-                // Format display date
-                const displayDate = log.date ? (String(log.date).split('T')[0]) : (filterDate ? filterDate.value : today);
+                // Provenance Source Badge
+                let sourceBadge = '';
+                if (log.punch_source === 'PORTAL') {
+                    sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-hand-pointer"></i> Web Punch</span></div>`;
+                } else if (log.punch_source === 'MANUAL_HR') {
+                    sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#7e22ce; background:#f3e8ff; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-pen-fancy"></i> HR Approved</span></div>`;
+                } else if (log.punch_source === 'TERAMIND') {
+                    sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#0369a1; background:#e0f2fe; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-desktop"></i> Workstation Auto</span></div>`;
+                } else if (log.punch_source === 'LEAVE_MANAGEMENT') {
+                    sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#b45309; background:#fef3c7; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-umbrella-beach"></i> Approved Leave</span></div>`;
+                }
 
                 tr.innerHTML = `
                     <td>
                         <div style="font-weight:700; color:var(--text-dark);">${log.full_name || 'Unknown'}</div>
                         <div style="font-size:11px; color:var(--text-muted);">${log.employee_code || ''} ${log.workstation && log.workstation !== '—' ? '• ' + log.workstation : ''}</div>
+                        ${sourceBadge}
                     </td>
                     <td><strong style="color:#334155;">${displayDate}</strong></td>
                     <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>

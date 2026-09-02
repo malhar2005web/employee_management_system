@@ -40,48 +40,80 @@ export async function getAttendanceLogs(req, res) {
             console.warn("getAttendanceLogs leave query fallback:", lErr.message);
         }
 
-        // 4. Fetch Teramind activity telemetry for this target date (00:00:00 to 23:59:59 IST)
+        // 4. Fetch Workstation Activity Telemetry (Historical Jan-Jul 2026 from pcs_attendance_sheet vs Aug-Sep Live Teramind)
         const dayStart = new Date(`${targetDateStr}T00:00:00+05:30`);
         const dayEnd = new Date(`${targetDateStr}T23:59:59+05:30`);
         const startUnix = Math.floor(dayStart.getTime() / 1000);
         const endUnix = Math.floor(dayEnd.getTime() / 1000);
 
-        const allCompIds = employees.map(e => e.computer_id).filter(Boolean).map(id => parseInt(id, 10));
-        let gridRows = [];
-        try {
-            const gridParams = {
-                periodStart: String(startUnix),
-                periodEnd: String(endUnix),
-                pageSize: 10000
-            };
-            if (allCompIds.length > 0) {
-                gridParams.computers = allCompIds;
+        const compActivityMap = new Map();
+
+        if (targetDateStr < '2026-08-01') {
+            // Fetch from Historical SQL Server dataset (pcs_attendance_sheet)
+            try {
+                const sheetRes = await pool.query(`
+                    SELECT computer, rep_datetime::text as rep_dt_txt, duration
+                    FROM pcs_attendance_sheet
+                    WHERE rep_datetime >= $1::timestamp AND rep_datetime < ($1::timestamp + INTERVAL '1 day')
+                    ORDER BY rep_datetime ASC;
+                `, [targetDateStr]);
+
+                sheetRes.rows.forEach(r => {
+                    const cName = (r.computer || '').toLowerCase();
+                    const txt = (r.rep_dt_txt || '').split('.')[0];
+                    const ts = txt ? Math.floor(new Date(txt.replace(' ', 'T') + '+05:30').getTime() / 1000) : 0;
+                    let durSecs = 0;
+                    if (r.duration) {
+                        const parts = String(r.duration).split(':');
+                        if (parts.length >= 3) {
+                            durSecs = (parseInt(parts[0], 10) * 3600) + (parseInt(parts[1], 10) * 60) + parseInt(parts[2], 10);
+                        }
+                    }
+                    if (cName && ts > 0) {
+                        if (!compActivityMap.has(cName)) compActivityMap.set(cName, []);
+                        compActivityMap.get(cName).push({ ts, dur: durSecs });
+                    }
+                });
+            } catch (sErr) {
+                console.warn("getAttendanceLogs historical sheet fetch warning:", sErr.message);
             }
-            const gridRes = await getWebPagesApplicationsGrid(gridParams);
-            gridRows = gridRes?.rows || [];
-        } catch (e) {
-            console.warn("getAttendanceLogs Teramind grid fetch warning:", e.message);
+        } else {
+            // Fetch from Teramind Live API (Aug-Sep 2026+)
+            const allCompIds = employees.map(e => e.computer_id).filter(Boolean).map(id => parseInt(id, 10));
+            let gridRows = [];
+            try {
+                const gridParams = {
+                    periodStart: String(startUnix),
+                    periodEnd: String(endUnix),
+                    pageSize: 10000
+                };
+                if (allCompIds.length > 0) {
+                    gridParams.computers = allCompIds;
+                }
+                const gridRes = await getWebPagesApplicationsGrid(gridParams);
+                gridRows = gridRes?.rows || [];
+            } catch (e) {
+                console.warn("getAttendanceLogs Teramind grid fetch warning:", e.message);
+            }
+
+            gridRows.forEach(r => {
+                const cId = r.computer?.computer_id ? String(r.computer.computer_id) : null;
+                const cName = (r.computer?.name || '').toLowerCase();
+                const ts = r.time || (r.timestamp?.timestamp ? r.timestamp.timestamp : null);
+                const dur = r.duration || 0;
+
+                if (cId) {
+                    if (!compActivityMap.has(cId)) compActivityMap.set(cId, []);
+                    compActivityMap.get(cId).push({ ts, dur });
+                }
+                if (cName) {
+                    if (!compActivityMap.has(cName)) compActivityMap.set(cName, []);
+                    compActivityMap.get(cName).push({ ts, dur });
+                }
+            });
         }
 
-        // Map Teramind activity by computer_id / computer_name
-        const compActivityMap = new Map();
-        gridRows.forEach(r => {
-            const cId = r.computer?.computer_id ? String(r.computer.computer_id) : null;
-            const cName = (r.computer?.name || '').toLowerCase();
-            const ts = r.time || (r.timestamp?.timestamp ? r.timestamp.timestamp : null);
-            const dur = r.duration || 0;
-
-            if (cId) {
-                if (!compActivityMap.has(cId)) compActivityMap.set(cId, []);
-                compActivityMap.get(cId).push({ ts, dur });
-            }
-            if (cName) {
-                if (!compActivityMap.has(cName)) compActivityMap.set(cName, []);
-                compActivityMap.get(cName).push({ ts, dur });
-            }
-        });
-
-        // 5. Build consolidated daily logs for all employees
+        // 5. Build consolidated daily logs for all employees using Smart Tiered Hierarchy
         let logs = [];
         let presentCount = 0;
         let lateCount = 0;
@@ -93,7 +125,6 @@ export async function getAttendanceLogs(req, res) {
             const cId = emp.computer_id ? String(emp.computer_id) : null;
             const cName = (emp.computer_name || '').toLowerCase();
 
-            // Check manual database correction first
             const dbRecord = dbAttMap.get(empId);
             const onLeave = leaveMap.get(empId);
 
@@ -103,8 +134,8 @@ export async function getAttendanceLogs(req, res) {
 
             let finalRecord = null;
 
-            if (dbRecord && dbRecord.approval_status === 'Approved') {
-                // Manual correction priority
+            // Tier 1: Admin / HR Manual Approved Override
+            if (dbRecord && (dbRecord.approval_status === 'Approved' || dbRecord.manual_check_in)) {
                 finalRecord = {
                     id: dbRecord.id,
                     employee_id: empId,
@@ -112,16 +143,37 @@ export async function getAttendanceLogs(req, res) {
                     employee_code: emp.employee_code,
                     workstation: emp.computer_name || '—',
                     date: targetDateStr,
-                    login_time: dbRecord.login_time,
-                    logout_time: dbRecord.logout_time,
+                    login_time: dbRecord.login_time || dbRecord.manual_check_in,
+                    logout_time: dbRecord.logout_time || dbRecord.manual_check_out,
                     total_working_hours: dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours).toFixed(2) : '0.00',
                     overtime: dbRecord.overtime || null,
                     status: dbRecord.status || 'Present',
                     approval_status: 'Approved',
+                    punch_source: 'MANUAL_HR',
                     is_manual: true
                 };
-            } else if (onLeave) {
-                // On Approved Leave
+            }
+            // Tier 2: Employee Portal Web Punch
+            else if (dbRecord && (dbRecord.portal_check_in || dbRecord.punch_source === 'PORTAL')) {
+                finalRecord = {
+                    id: dbRecord.id,
+                    employee_id: empId,
+                    full_name: emp.full_name,
+                    employee_code: emp.employee_code,
+                    workstation: emp.computer_name || '—',
+                    date: targetDateStr,
+                    login_time: dbRecord.portal_check_in || dbRecord.login_time,
+                    logout_time: dbRecord.portal_check_out || dbRecord.logout_time,
+                    total_working_hours: dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours).toFixed(2) : '0.00',
+                    overtime: dbRecord.overtime || null,
+                    status: dbRecord.status || 'Present',
+                    approval_status: 'Auto-Synced',
+                    punch_source: 'PORTAL',
+                    is_manual: false
+                };
+            }
+            // Tier 4: Approved Leave Check
+            else if (onLeave) {
                 const leaveTypeName = onLeave.leave_type || 'Leave';
                 const isHalfDay = leaveTypeName.toLowerCase().includes('half');
                 finalRecord = {
@@ -137,10 +189,13 @@ export async function getAttendanceLogs(req, res) {
                     overtime: null,
                     status: isHalfDay ? 'Half Day' : 'On Leave',
                     leave_type: leaveTypeName,
-                    approval_status: 'Approved'
+                    approval_status: 'Approved',
+                    punch_source: 'LEAVE_MANAGEMENT'
                 };
                 leaveCount++;
-            } else if (empRows.length > 0) {
+            }
+            // Tier 3: Workstation Telemetry Automatic Fallback (Teramind / SQL Server)
+            else if (empRows.length > 0) {
                 // Computed from live Teramind telemetry
                 let minTs = Infinity;
                 let maxTs = 0;
@@ -254,7 +309,8 @@ export async function getAttendanceLogs(req, res) {
                     total_working_hours: totalHoursNum,
                     overtime: overtimeMins,
                     status: calculatedStatus,
-                    approval_status: 'Auto-Synced'
+                    approval_status: 'Auto-Synced',
+                    punch_source: 'TERAMIND'
                 };
             } else {
                 // Absent
@@ -271,7 +327,8 @@ export async function getAttendanceLogs(req, res) {
                     total_working_hours: '0.00',
                     overtime: null,
                     status: 'Absent',
-                    approval_status: 'Auto-Synced'
+                    approval_status: 'Auto-Synced',
+                    punch_source: 'AUTO'
                 };
             }
 
