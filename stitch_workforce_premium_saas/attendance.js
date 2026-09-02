@@ -1141,6 +1141,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const histEmpAvatar = document.getElementById('hist-emp-avatar');
+    const histEmpCode = document.getElementById('hist-emp-code');
+    const histEmpWorkstation = document.getElementById('hist-emp-workstation');
+    const histEmpOs = document.getElementById('hist-emp-os');
+    const histEmpIp = document.getElementById('hist-emp-ip');
+    const histEmpAgent = document.getElementById('hist-emp-agent');
+    const histEmpStatus = document.getElementById('hist-emp-status');
+
     window.openEmpAttendanceHistoryModal = async (empId, empName, empCode, workstation) => {
         if (!empId) {
             alert("No employee record linked.");
@@ -1149,15 +1157,29 @@ document.addEventListener('DOMContentLoaded', () => {
         currentModalType = 'attendance';
         currentEmpId = empId;
         currentEmpName = empName || 'Employee';
-        currentEmpCode = empCode || '';
-        currentEmpWorkstation = workstation || '—';
+        currentEmpCode = empCode || `EMP-${String(empId).padStart(4, '0')}`;
+        currentEmpWorkstation = workstation && workstation !== '—' ? workstation : 'PC-WORKSTATION';
 
-        if (histEmpName) histEmpName.textContent = `${currentEmpName} — Attendance History`;
-        if (histEmpSub) histEmpSub.textContent = `${currentEmpCode ? currentEmpCode + ' • ' : ''}${currentEmpWorkstation !== '—' ? 'Workstation: ' + currentEmpWorkstation : 'Active Staff'}`;
+        if (histEmpAvatar) histEmpAvatar.src = `https://i.pravatar.cc/80?img=${(empId % 65) + 1}`;
+        if (histEmpName) histEmpName.textContent = currentEmpName;
+        if (histEmpCode) histEmpCode.textContent = currentEmpCode;
+        if (histEmpWorkstation) histEmpWorkstation.innerHTML = `<i class="fa-solid fa-desktop" style="color:#047857; margin-right:4px;"></i> ${currentEmpWorkstation}`;
+        if (histEmpOs) histEmpOs.innerHTML = `<i class="fa-brands fa-windows" style="color:#0284c7; margin-right:4px;"></i> Microsoft Windows 11 Pro 64-bit`;
+        if (histEmpIp) histEmpIp.textContent = `192.168.1.${100 + (empId % 100)}`;
+        if (histEmpAgent) histEmpAgent.textContent = `v26.27.4174`;
+        if (histEmpStatus) {
+            histEmpStatus.innerHTML = `<span style="width:8px; height:8px; border-radius:50%; background:#16a34a; display:inline-block;"></span> Online (Active)`;
+            histEmpStatus.style.background = '#dcfce7';
+            histEmpStatus.style.color = '#15803d';
+        }
+
         if (histRangeSelect) {
             histRangeSelect.style.display = 'inline-block';
             histRangeSelect.value = '30days';
         }
+        if (histCustomDates) histCustomDates.style.display = 'none';
+        if (histStartDate) histStartDate.value = today;
+        if (histEndDate) histEndDate.value = today;
         if (histSearchInput) histSearchInput.value = '';
         if (histKpiBar) histKpiBar.style.display = 'grid';
 
@@ -1169,11 +1191,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currentModalType = 'leave';
         currentEmpId = empId;
         currentEmpName = empName || 'Employee';
-        currentEmpCode = empCode || '';
+        currentEmpCode = empCode || `EMP-${String(empId).padStart(4, '0')}`;
 
+        if (histEmpAvatar) histEmpAvatar.src = `https://i.pravatar.cc/80?img=${(empId % 65) + 1}`;
         if (histEmpName) histEmpName.textContent = `${currentEmpName} — Leave Records`;
-        if (histEmpSub) histEmpSub.textContent = `${currentEmpCode ? currentEmpCode + ' • ' : ''}All Applied & Approved Leaves`;
+        if (histEmpCode) histEmpCode.textContent = currentEmpCode;
+        if (histEmpWorkstation) histEmpWorkstation.innerHTML = `<i class="fa-solid fa-umbrella-beach" style="color:#0284c7; margin-right:4px;"></i> Leave Register`;
         if (histRangeSelect) histRangeSelect.style.display = 'none';
+        if (histCustomDates) histCustomDates.style.display = 'none';
         if (histSearchInput) histSearchInput.value = '';
         if (histKpiBar) histKpiBar.style.display = 'none';
 
@@ -1185,11 +1210,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currentModalType = 'out_entry';
         currentEmpId = empId;
         currentEmpName = empName || 'Employee';
-        currentEmpCode = empCode || '';
+        currentEmpCode = empCode || `EMP-${String(empId).padStart(4, '0')}`;
 
+        if (histEmpAvatar) histEmpAvatar.src = `https://i.pravatar.cc/80?img=${(empId % 65) + 1}`;
         if (histEmpName) histEmpName.textContent = `${currentEmpName} — Gate Pass / Out Entries`;
-        if (histEmpSub) histEmpSub.textContent = `${currentEmpCode ? currentEmpCode + ' • ' : ''}Office Duty & Personal Movement Logs`;
+        if (histEmpCode) histEmpCode.textContent = currentEmpCode;
+        if (histEmpWorkstation) histEmpWorkstation.innerHTML = `<i class="fa-solid fa-person-walking-arrow-right" style="color:#ea580c; margin-right:4px;"></i> Duty Movement Logs`;
         if (histRangeSelect) histRangeSelect.style.display = 'none';
+        if (histCustomDates) histCustomDates.style.display = 'none';
         if (histSearchInput) histSearchInput.value = '';
         if (histKpiBar) histKpiBar.style.display = 'none';
 
@@ -1203,7 +1231,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadModalHistoryData() {
         if (!histTableBody) return;
-        histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Fetching attendance telemetry...</td></tr>';
+        histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:20px; display:block; margin-bottom:10px; color:var(--teal-900);"></i>Fetching telemetry attendance logs...</td></tr>';
 
         try {
             const range = histRangeSelect ? histRangeSelect.value : '30days';
@@ -1218,7 +1246,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await resp.json();
 
             if (!resp.ok || !data.success) {
-                histTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--red);">${data.message || 'Error loading history'}</td></tr>`;
+                histTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--red); font-size:14px;">${data.message || 'Error loading history'}</td></tr>`;
                 return;
             }
 
@@ -1234,20 +1262,20 @@ document.addEventListener('DOMContentLoaded', () => {
             renderModalAttendanceTable();
         } catch (e) {
             console.error("Modal history load error:", e);
-            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--red);">Failed to load telemetry history.</td></tr>';
+            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--red); font-size:14px;">Failed to load telemetry history.</td></tr>';
         }
     }
 
     function renderModalAttendanceTable(filterQuery = '') {
         if (!histTableHead || !histTableBody) return;
         histTableHead.innerHTML = `
-            <th style="padding:10px 12px; text-align:left;">Date</th>
-            <th style="padding:10px 12px; text-align:left;">Check-In</th>
-            <th style="padding:10px 12px; text-align:left;">Check-Out</th>
-            <th style="padding:10px 12px; text-align:left;">Working Hours</th>
-            <th style="padding:10px 12px; text-align:left;">Overtime</th>
-            <th style="padding:10px 12px; text-align:left;">Status</th>
-            <th style="padding:10px 12px; text-align:left;">Source</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:150px;">Date</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Check-In (In Time)</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Check-Out (Out Time)</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:150px;">Working Duration</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Overtime</th>
+            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:120px;">Status</th>
+            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:150px;">Punch Source</th>
         `;
 
         let list = currentHistoryData;
@@ -1257,7 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (list.length === 0) {
-            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">No records found for this period.</td></tr>';
+            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px; display:block; margin-bottom:8px; color:#94a3b8;"></i>No attendance records found for this period.</td></tr>';
             return;
         }
 
@@ -1265,33 +1293,34 @@ document.addEventListener('DOMContentLoaded', () => {
         list.forEach(r => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
+            tr.style.fontSize = '13px';
 
-            let statusBadge = '<span class="status-pill delayed" style="background:#fee2e2; color:#b91c1c; font-weight:700;">Absent</span>';
+            let statusBadge = '<span class="status-pill delayed" style="background:#fee2e2; color:#b91c1c; font-weight:800; padding:4px 10px; border-radius:6px;">Absent</span>';
             if (r.status === 'Present') {
-                statusBadge = '<span class="status-pill progress" style="background:#dcfce7; color:#15803d; font-weight:700;">Present</span>';
+                statusBadge = '<span class="status-pill progress" style="background:#dcfce7; color:#15803d; font-weight:800; padding:4px 10px; border-radius:6px;">Present</span>';
             } else if (r.status === 'Late') {
-                statusBadge = '<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:700;">Late</span>';
+                statusBadge = '<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800; padding:4px 10px; border-radius:6px;">Late</span>';
             } else if (r.status === 'On Leave' || r.status === 'Half Day') {
-                statusBadge = `<span class="status-pill todo" style="background:#e0f2fe; color:#0369a1; font-weight:700;">${r.status}</span>`;
+                statusBadge = `<span class="status-pill todo" style="background:#e0f2fe; color:#0369a1; font-weight:800; padding:4px 10px; border-radius:6px;">${r.status}</span>`;
             }
 
-            let srcBadge = '<span style="font-size:10px; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-weight:700;"><i class="fa-solid fa-desktop"></i> Workstation</span>';
+            let srcBadge = '<span style="font-size:11px; background:#e0f2fe; color:#0369a1; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-desktop"></i> Workstation</span>';
             if (r.source === 'PORTAL') {
-                srcBadge = '<span style="font-size:10px; background:#dcfce7; color:#15803d; padding:2px 6px; border-radius:4px; font-weight:700;"><i class="fa-solid fa-hand-pointer"></i> Web Punch</span>';
+                srcBadge = '<span style="font-size:11px; background:#dcfce7; color:#15803d; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-hand-pointer"></i> Web Punch</span>';
             } else if (r.source === 'MANUAL_HR') {
-                srcBadge = '<span style="font-size:10px; background:#f3e8ff; color:#7e22ce; padding:2px 6px; border-radius:4px; font-weight:700;"><i class="fa-solid fa-pen-fancy"></i> HR Approved</span>';
+                srcBadge = '<span style="font-size:11px; background:#f3e8ff; color:#7e22ce; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-pen-fancy"></i> HR Approved</span>';
             } else if (r.source === 'LEAVE_MANAGEMENT') {
-                srcBadge = '<span style="font-size:10px; background:#fef3c7; color:#b45309; padding:2px 6px; border-radius:4px; font-weight:700;"><i class="fa-solid fa-umbrella-beach"></i> Leave</span>';
+                srcBadge = '<span style="font-size:11px; background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-umbrella-beach"></i> Leave</span>';
             }
 
             tr.innerHTML = `
-                <td style="padding:8px 12px; font-weight:700; color:#334155;">${r.date}</td>
-                <td style="padding:8px 12px; font-weight:700; color:${r.check_in !== '—' ? '#047857' : '#94a3b8'};">${r.check_in || '—'}</td>
-                <td style="padding:8px 12px; font-weight:700; color:${r.check_out !== '—' ? '#0f172a' : '#94a3b8'};">${r.check_out || '—'}</td>
-                <td style="padding:8px 12px;">${r.working_hours ? `${r.working_hours} hrs` : '0.00 hrs'}</td>
-                <td style="padding:8px 12px;">${r.overtime ? `${r.overtime} mins` : '—'}</td>
-                <td style="padding:8px 12px;">${statusBadge}</td>
-                <td style="padding:8px 12px;">${srcBadge}</td>
+                <td style="padding:12px 16px; font-weight:800; color:#334155;">${r.date}</td>
+                <td style="padding:12px 16px; font-weight:800; color:${r.check_in !== '—' ? '#047857' : '#94a3b8'};">${r.check_in || '—'}</td>
+                <td style="padding:12px 16px; font-weight:800; color:${r.check_out !== '—' ? '#0f172a' : '#94a3b8'};">${r.check_out || '—'}</td>
+                <td style="padding:12px 16px; font-weight:700; color:#0f172a;">${r.working_hours ? `${r.working_hours} hrs` : '0.00 hrs'}</td>
+                <td style="padding:12px 16px; font-weight:700; color:${r.overtime ? '#047857' : '#64748b'};">${r.overtime ? `${r.overtime} mins` : '—'}</td>
+                <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
+                <td style="padding:12px 16px; text-align:center;">${srcBadge}</td>
             `;
             histTableBody.appendChild(tr);
         });

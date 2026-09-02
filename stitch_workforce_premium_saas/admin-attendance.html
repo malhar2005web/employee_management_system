@@ -680,50 +680,67 @@
   </div>
 </div>
 
-<!-- ================= EMPLOYEE HISTORY & TELEMETRY EXPORT MODAL ================= -->
-<div class="modal-overlay" id="emp-history-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.6); backdrop-filter:blur(6px); z-index:9999; display:none; align-items:center; justify-content:center; padding:20px;">
-  <div class="modal-box" style="background:rgba(255,255,255,0.96); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.8); box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); border-radius:18px; max-width:920px; width:100%; max-height:90vh; display:flex; flex-direction:column; padding:24px; animation:modalSlideUp 0.3s cubic-bezier(0.16,1,0.3,1);">
-    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:16px;">
-      <div>
-        <h3 id="modal-emp-title" style="margin:0; font-size:18px; color:var(--teal-900); font-weight:800; display:flex; align-items:center; gap:8px;">
-          <i class="fa-solid fa-user-clock" style="color:var(--teal-600);"></i> <span id="hist-emp-name">Employee Attendance History</span>
-        </h3>
-        <div id="hist-emp-sub" style="font-size:12px; color:var(--text-muted); font-weight:600; margin-top:2px;">EMP-0000 • Department</div>
+<!-- ================= EMPLOYEE HISTORY & TELEMETRY MODAL (WORKSTATION MONITORING STYLE) ================= -->
+<div class="modal-overlay" id="emp-history-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:99999; align-items:center; justify-content:center; padding:20px;">
+  <div class="modal-box" style="max-width:1380px; width:96vw; height:88vh; max-height:880px; display:flex; flex-direction:column; padding:24px; background:rgba(255,255,255,0.98); border-radius:20px; box-shadow:0 25px 70px rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.9); box-sizing:border-box;">
+    
+    <!-- Modal Top Header (Identical to Workstation Monitoring) -->
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; border-bottom:1px solid rgba(0,0,0,0.1); padding-bottom:16px; flex-shrink:0;">
+      <div style="display:flex; align-items:center; gap:16px;">
+        <img src="https://i.pravatar.cc/80?img=12" id="hist-emp-avatar" style="width:56px; height:56px; border-radius:50%; border:3px solid var(--teal-900); box-shadow: 0 2px 8px rgba(0,0,0,0.15);" alt="Employee avatar">
+        <div>
+          <h3 style="font-size:22px; font-weight:800; color:#0f172a; margin:0;" id="hist-emp-name">Employee Full Name</h3>
+          <div style="font-size:13.5px; margin-top:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span id="hist-emp-code" style="font-weight:800; background:#ea580c; color:white; padding:3px 12px; border-radius:12px; font-size:12px; letter-spacing:0.5px; box-shadow:0 1px 3px rgba(0,0,0,0.2);">EMP-0001</span>
+            <span style="color:#64748b;">•</span>
+            <span id="hist-emp-workstation" style="font-weight:700; color:#0f172a;"><i class="fa-solid fa-desktop" style="color:#047857; margin-right:4px;"></i> malharpc</span>
+            <span style="color:#64748b;">•</span>
+            <span id="hist-emp-os" style="font-weight:700; color:#0f172a;"><i class="fa-brands fa-windows" style="color:#0284c7; margin-right:4px;"></i> Microsoft Windows 11 Pro 64-bit</span>
+          </div>
+        </div>
       </div>
-      <button type="button" class="btn-table-action" id="emp-history-close" style="font-size:18px; color:#64748b; background:#f1f5f9; border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none;">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
+
+      <div style="display:flex; align-items:center; gap:16px;">
+        <div style="text-align:right; font-size:12.5px; color:#0f172a; font-weight:700; line-height:1.4;">
+          <div>IP: <span id="hist-emp-ip" style="color:#047857; font-weight:800;">192.168.1.101</span></div>
+          <div>Agent: <span id="hist-emp-agent" style="color:#ea580c; font-weight:800;">v26.27.4174</span></div>
+        </div>
+        <span class="badge-status online" id="hist-emp-status" style="font-weight:800; font-size:12.5px; padding:6px 14px; background:#dcfce7; color:#15803d; border-radius:20px; display:inline-flex; align-items:center; gap:6px;">
+          <span style="width:8px; height:8px; border-radius:50%; background:#16a34a; display:inline-block;"></span> Online (Active)
+        </span>
+        <span id="emp-history-close" style="font-size:28px; cursor:pointer; color:#0f172a; font-weight:800; margin-left:8px; line-height:1; transition: transform 0.15s ease;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#0f172a'" title="Close Modal">&times;</span>
+      </div>
     </div>
 
-    <!-- Filter & Export Controls Toolbar -->
-    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; padding:10px 14px; background:rgba(241,245,249,0.7); border-radius:10px; border:1px solid #e2e8f0;">
-      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-        <label style="font-size:12px; font-weight:700; color:#334155;"><i class="fa-solid fa-filter"></i> Range:</label>
-        <select id="hist-range-select" style="padding:6px 10px; font-size:12.5px; font-weight:700; border-radius:6px; border:1px solid #cbd5e1; background:white; color:#0f172a; outline:none; cursor:pointer;">
-          <option value="today">Today</option>
-          <option value="yesterday">Yesterday</option>
-          <option value="7days">Last 7 Days</option>
-          <option value="30days" selected>Last 30 Days</option>
-          <option value="all2026">Full 2026 History</option>
-          <option value="custom">Custom Range</option>
+    <!-- Filter & Search Bar (Identical to Workstation Monitoring) -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap; flex-shrink:0;">
+      <div style="position:relative; flex:1; min-width:280px;">
+        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px;"></i>
+        <input type="text" id="hist-search-input" class="form-control" style="padding-left:38px; height:42px; font-size:13.5px; width:100%; border-radius:8px; border:1px solid #cbd5e1; box-sizing:border-box;" placeholder="Search date (e.g. 2026-09-02), status, source, or working hours...">
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <label style="font-size:13px; font-weight:700; color:#0f172a;"><i class="fa-solid fa-clock"></i> Filter Time:</label>
+        <select class="select-pill" id="hist-range-select" style="font-size:13px; padding:8px 16px; background:white; height:42px; border-radius:8px; border:1px solid #cbd5e1; font-weight:700; cursor:pointer;">
+          <option value="today">📅 Today (Full Day Logs)</option>
+          <option value="yesterday">🗓️ Yesterday</option>
+          <option value="7days">📊 Last 7 Days</option>
+          <option value="30days" selected>📈 Last 30 Days (Full History)</option>
+          <option value="all2026">🏛️ Full 2026 History (Jan - Dec 2026)</option>
+          <option value="custom">⚙️ Custom Date Range</option>
         </select>
         <div id="hist-custom-dates" style="display:none; align-items:center; gap:6px;">
-          <input type="date" id="hist-start-date" style="padding:4px 8px; font-size:12px; font-weight:700; border-radius:6px; border:1px solid #cbd5e1; background:white;">
+          <input type="date" id="hist-start-date" style="padding:6px 10px; font-size:12.5px; font-weight:700; border-radius:8px; border:1px solid #cbd5e1; background:white; height:40px;">
           <span style="font-size:12px; font-weight:700; color:#64748b;">to</span>
-          <input type="date" id="hist-end-date" style="padding:4px 8px; font-size:12px; font-weight:700; border-radius:6px; border:1px solid #cbd5e1; background:white;">
+          <input type="date" id="hist-end-date" style="padding:6px 10px; font-size:12.5px; font-weight:700; border-radius:8px; border:1px solid #cbd5e1; background:white; height:40px;">
         </div>
-        <input type="text" id="hist-search-input" placeholder="Search date / status..." style="padding:6px 12px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:white; color:#0f172a; outline:none; min-width:160px;">
-      </div>
-
-      <div style="display:flex; align-items:center; gap:8px;">
-        <button type="button" class="btn" id="btn-export-emp-history" style="background:linear-gradient(135deg, #047857, #065f46); color:white; font-weight:700; font-size:12.5px; padding:7px 16px; border-radius:6px; border:none; display:flex; align-items:center; gap:6px; cursor:pointer; box-shadow:0 2px 6px rgba(4,120,87,0.25);">
-          <i class="fa-solid fa-file-excel"></i> 📥 Export Excel / CSV
+        <button type="button" class="btn-pill" id="btn-export-emp-history" style="background:linear-gradient(135deg, #047857, #065f46); color:white; font-weight:700; border:none; height:42px; padding:0 18px; display:inline-flex; align-items:center; gap:8px; cursor:pointer; border-radius:8px; box-shadow:0 2px 8px rgba(4,120,87,0.35);" title="Download logs for this employee as Excel/CSV">
+          <i class="fa-solid fa-file-excel"></i> Export Excel / CSV
         </button>
       </div>
     </div>
 
     <!-- Summary KPI Bar inside modal -->
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:10px; margin-bottom:14px;" id="hist-kpi-bar">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:14px; flex-shrink:0;" id="hist-kpi-bar">
       <div style="background:white; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; text-align:center;">
         <div style="font-size:11px; color:#64748b; font-weight:700;">Total Records</div>
         <div style="font-size:16px; font-weight:800; color:#0f172a;" id="hist-kpi-total">0</div>
@@ -746,24 +763,30 @@
       </div>
     </div>
 
-    <!-- History Table -->
-    <div style="flex:1; max-height:340px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; background:white;">
-      <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
-        <thead style="position:sticky; top:0; background:#f8fafc; z-index:2; border-bottom:2px solid #cbd5e1;">
-          <tr id="hist-table-head">
-            <th style="padding:10px 12px; text-align:left;">Date</th>
-            <th style="padding:10px 12px; text-align:left;">Check-In</th>
-            <th style="padding:10px 12px; text-align:left;">Check-Out</th>
-            <th style="padding:10px 12px; text-align:left;">Working Hours</th>
-            <th style="padding:10px 12px; text-align:left;">Overtime</th>
-            <th style="padding:10px 12px; text-align:left;">Status</th>
-            <th style="padding:10px 12px; text-align:left;">Source</th>
+    <!-- Logs Table Container (Expands to Fill Screen Height) -->
+    <div style="flex:1; overflow-y:auto; overflow-x:auto; border-radius:12px; border:1px solid rgba(0,0,0,0.08); background:white; box-shadow:0 4px 16px rgba(0,0,0,0.03);">
+      <table style="width:100%; border-collapse:collapse; min-width:1000px;" id="table-emp-hist">
+        <thead style="position:sticky; top:0; background:#f1f5f9; z-index:2;">
+          <tr id="hist-table-head" style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.08); font-size:12.5px; color:#475569; font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">
+            <th style="padding:12px 16px; white-space:nowrap; width:150px;">Date</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Check-In (In Time)</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Check-Out (Out Time)</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:150px;">Working Duration</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Overtime</th>
+            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:120px;">Status</th>
+            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:150px;">Punch Source</th>
           </tr>
         </thead>
         <tbody id="hist-table-body">
-          <!-- Dynamic Rows -->
+          <!-- Loaded dynamically via JS -->
         </tbody>
       </table>
+    </div>
+
+    <!-- Modal Footer / Status Bar (Identical to Workstation Monitoring) -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:12px; color:var(--text-muted); flex-shrink:0;">
+      <div><i class="fa-solid fa-shield-halved" style="color:var(--teal-600); margin-right:4px;"></i> Privacy Protected • Official Attendance & Biometric Workstation Telemetry</div>
+      <div style="font-weight:700; color:#475569;">Teramind Enterprise Telemetry Connected • 2026 Attendance Rule Engine</div>
     </div>
   </div>
 </div>

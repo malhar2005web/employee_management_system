@@ -601,7 +601,7 @@ document.addEventListener('click', (e) => {
   document.addEventListener('mouseover', (e) => {
     const tr = e.target.closest('tbody tr');
     if (!tr || tr === activeSpotlightRow) return;
-    if (tr.closest('.modal-box') || tr.closest('#spotlight-card-popup')) return;
+    if (tr.closest('.modal-box') || tr.closest('#spotlight-card-popup') || tr.closest('#view-logs') || tr.closest('#logs-list') || tr.closest('#table-emp-hist') || window.location.pathname.includes('attendance')) return;
 
     clearTimeout(hoverTimer);
 
