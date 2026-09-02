@@ -580,7 +580,9 @@ export async function getEmployeeAttendanceHistory(req, res) {
             `, [emp.computer_name, startDateStr, endDateStr]);
 
             sheetRes.rows.forEach(r => {
-                const dStr = String(r.punch_date).split('T')[0];
+                const dStr = r.punch_date instanceof Date
+                    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(r.punch_date)
+                    : String(r.punch_date).slice(0, 10);
                 const inTxt = (r.min_txt || '').split(' ')[1]?.slice(0, 5) || '—';
                 const outTxt = (r.max_txt || '').split(' ')[1]?.slice(0, 5) || '—';
                 const hrs = (r.total_secs / 3600).toFixed(2);
@@ -686,20 +688,38 @@ export async function getEmployeeAttendanceHistory(req, res) {
         `, [id, startDateStr, endDateStr]);
 
         dbAttRes.rows.forEach(r => {
-            const dStr = String(r.date).split('T')[0];
-            const inStr = r.login_time ? new Date(r.login_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
-            const outStr = r.logout_time ? new Date(r.logout_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
-            const hrs = r.total_working_hours ? parseFloat(r.total_working_hours).toFixed(2) : '0.00';
-            
-            historyMap.set(dStr, {
-                date: dStr,
-                check_in: inStr,
-                check_out: outStr,
-                working_hours: hrs,
-                overtime: r.overtime || null,
-                status: r.status || 'Present',
-                source: r.punch_source || (r.approval_status === 'Approved' ? 'MANUAL_HR' : 'PORTAL')
-            });
+            const dStr = r.date instanceof Date 
+                ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(r.date)
+                : String(r.date).slice(0, 10);
+            if (!dStr) return;
+
+            // Only overwrite if actual login time exists or manual HR approved
+            if (r.login_time || r.approval_status === 'Approved' || r.punch_source === 'MANUAL_HR') {
+                const inStr = r.login_time ? new Date(r.login_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+                const outStr = r.logout_time ? new Date(r.logout_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+                const hrs = r.total_working_hours ? parseFloat(r.total_working_hours).toFixed(2) : '0.00';
+                
+                historyMap.set(dStr, {
+                    date: dStr,
+                    check_in: inStr,
+                    check_out: outStr,
+                    working_hours: hrs,
+                    overtime: r.overtime || null,
+                    status: r.status || 'Present',
+                    source: r.punch_source || (r.approval_status === 'Approved' ? 'MANUAL_HR' : 'PORTAL')
+                });
+            } else if (!historyMap.has(dStr)) {
+                // Fallback placeholder only if no Teramind record exists
+                historyMap.set(dStr, {
+                    date: dStr,
+                    check_in: '—',
+                    check_out: '—',
+                    working_hours: '0.00',
+                    overtime: null,
+                    status: r.status || 'Absent',
+                    source: 'PORTAL'
+                });
+            }
         });
 
         // 4. Merge Leaves
@@ -713,7 +733,7 @@ export async function getEmployeeAttendanceHistory(req, res) {
             const s = new Date(l.start_date);
             const e = new Date(l.end_date);
             for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-                const dStr = d.toISOString().split('T')[0];
+                const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
                 if (dStr >= startDateStr && dStr <= endDateStr) {
                     const isHalf = (l.leave_type || '').toLowerCase().includes('half');
                     historyMap.set(dStr, {
