@@ -1097,18 +1097,18 @@ document.addEventListener('DOMContentLoaded', () => {
         holidaysCache.forEach(h => {
             const tr = document.createElement('tr');
 
-            // Type Badge
+            // Type Badge (Clean text badges without icons)
             let typeBadge = '';
             if (h.type === 'National') {
-                typeBadge = `<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-flag"></i> National</span>`;
+                typeBadge = `<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:700; padding:4px 10px; border-radius:6px;">National</span>`;
             } else if (h.type === 'Gazetted') {
-                typeBadge = `<span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-landmark"></i> Gazetted</span>`;
+                typeBadge = `<span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700; padding:4px 10px; border-radius:6px;">Gazetted</span>`;
             } else if (h.type === 'Festival') {
-                typeBadge = `<span class="badge" style="background:#fef3c7; color:#b45309; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-om"></i> Festival</span>`;
+                typeBadge = `<span class="badge" style="background:#fef3c7; color:#b45309; font-weight:700; padding:4px 10px; border-radius:6px;">Festival</span>`;
             } else if (h.type === 'Restricted') {
-                typeBadge = `<span class="badge" style="background:#f3e8ff; color:#7e22ce; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-hand-holding-heart"></i> Restricted</span>`;
+                typeBadge = `<span class="badge" style="background:#f3e8ff; color:#7e22ce; font-weight:700; padding:4px 10px; border-radius:6px;">Restricted</span>`;
             } else {
-                typeBadge = `<span class="badge" style="background:#f1f5f9; color:#475569; font-weight:700; padding:4px 10px; border-radius:6px;"><i class="fa-solid fa-building"></i> ${h.type || 'Holiday'}</span>`;
+                typeBadge = `<span class="badge" style="background:#f1f5f9; color:#475569; font-weight:700; padding:4px 10px; border-radius:6px;">${h.type || 'Holiday'}</span>`;
             }
 
             // Status Badge
