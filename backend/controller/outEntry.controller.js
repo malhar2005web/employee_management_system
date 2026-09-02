@@ -57,13 +57,15 @@ export async function getOutEntries(req, res) {
                 oe.approved_by,
                 oe.remarks,
                 oe.created_at,
-                e.full_name as employee_name,
+                COALESCE(e.full_name, 'Unknown') as employee_name,
                 e.employee_code,
-                e.department,
-                e.designation,
+                COALESCE(d.name, 'General') as department,
+                COALESCE(des.title, 'Staff') as designation,
                 app.full_name as approver_name
             FROM out_entries oe
             LEFT JOIN employees e ON oe.employee_id = e.id
+            LEFT JOIN departments d ON e.department_id = d.id
+            LEFT JOIN designations des ON e.designation_id = des.id
             LEFT JOIN employees app ON oe.approved_by = app.id
             ${whereSql}
             ORDER BY oe.date DESC, oe.out_time DESC, oe.id DESC;
@@ -83,10 +85,11 @@ export async function getOutEntries(req, res) {
 
         // Get active employee list for selection dropdown
         const empListRes = await pool.query(`
-            SELECT id, full_name, employee_code, department 
-            FROM employees 
-            WHERE status = 'Active' OR status IS NULL OR status = 'active'
-            ORDER BY full_name ASC;
+            SELECT e.id, e.full_name, e.employee_code, COALESCE(d.name, 'General') as department 
+            FROM employees e
+            LEFT JOIN departments d ON e.department_id = d.id
+            WHERE e.status = 'Active' OR e.status IS NULL OR e.status = 'active'
+            ORDER BY e.full_name ASC;
         `);
 
         res.status(200).json({
