@@ -4,7 +4,8 @@ import {
     getPendingCorrections, 
     createManualCorrection, 
     approveCorrection, 
-    rejectCorrection 
+    rejectCorrection,
+    getEmployeeAttendanceHistory
 } from '../controller/attendance.controller.js';
 import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
 
@@ -15,6 +16,7 @@ router.use(protectRoute, isAdmin);
 
 router.get("/", getAttendanceLogs);
 router.get("/pending", getPendingCorrections);
+router.get("/employee/:id/history", getEmployeeAttendanceHistory);
 router.post("/correction", createManualCorrection);
 router.post("/approve/:id", approveCorrection);
 router.post("/reject/:id", rejectCorrection);

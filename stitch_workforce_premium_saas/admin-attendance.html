@@ -300,7 +300,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Employee / Computer</th>
+                  <th>Employee Name</th>
                   <th>Month</th>
                   <th>Total Days</th>
                   <th>Present</th>
@@ -311,6 +311,7 @@
                   <th>Office Hours</th>
                   <th>Overtime</th>
                   <th>Total Login</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="pcs-summary-list">
@@ -671,6 +672,88 @@
         <button type="submit" class="btn-primary">Confirm Return</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ================= EMPLOYEE HISTORY & TELEMETRY EXPORT MODAL ================= -->
+<div class="modal-overlay" id="emp-history-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.6); backdrop-filter:blur(6px); z-index:9999; display:none; align-items:center; justify-content:center; padding:20px;">
+  <div class="modal-box" style="background:rgba(255,255,255,0.96); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.8); box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); border-radius:18px; max-width:920px; width:100%; max-height:90vh; display:flex; flex-direction:column; padding:24px; animation:modalSlideUp 0.3s cubic-bezier(0.16,1,0.3,1);">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:16px;">
+      <div>
+        <h3 id="modal-emp-title" style="margin:0; font-size:18px; color:var(--teal-900); font-weight:800; display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-user-clock" style="color:var(--teal-600);"></i> <span id="hist-emp-name">Employee Attendance History</span>
+        </h3>
+        <div id="hist-emp-sub" style="font-size:12px; color:var(--text-muted); font-weight:600; margin-top:2px;">EMP-0000 • Department</div>
+      </div>
+      <button type="button" class="btn-table-action" id="emp-history-close" style="font-size:18px; color:#64748b; background:#f1f5f9; border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none;">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Filter & Export Controls Toolbar -->
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; padding:10px 14px; background:rgba(241,245,249,0.7); border-radius:10px; border:1px solid #e2e8f0;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <label style="font-size:12px; font-weight:700; color:#334155;"><i class="fa-solid fa-filter"></i> Range:</label>
+        <select id="hist-range-select" style="padding:6px 10px; font-size:12.5px; font-weight:700; border-radius:6px; border:1px solid #cbd5e1; background:white; color:#0f172a; outline:none; cursor:pointer;">
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="7days">Last 7 Days</option>
+          <option value="30days" selected>Last 30 Days</option>
+          <option value="all2026">Full 2026 History</option>
+        </select>
+        <input type="text" id="hist-search-input" placeholder="Search date / status..." style="padding:6px 12px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:white; color:#0f172a; outline:none; min-width:180px;">
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button type="button" class="btn" id="btn-export-emp-history" style="background:linear-gradient(135deg, #047857, #065f46); color:white; font-weight:700; font-size:12.5px; padding:7px 16px; border-radius:6px; border:none; display:flex; align-items:center; gap:6px; cursor:pointer; box-shadow:0 2px 6px rgba(4,120,87,0.25);">
+          <i class="fa-solid fa-file-excel"></i> 📥 Export Excel / CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary KPI Bar inside modal -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:10px; margin-bottom:14px;" id="hist-kpi-bar">
+      <div style="background:white; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; text-align:center;">
+        <div style="font-size:11px; color:#64748b; font-weight:700;">Total Records</div>
+        <div style="font-size:16px; font-weight:800; color:#0f172a;" id="hist-kpi-total">0</div>
+      </div>
+      <div style="background:#f0fdf4; padding:8px 12px; border-radius:8px; border:1px solid #bbf7d0; text-align:center;">
+        <div style="font-size:11px; color:#166534; font-weight:700;">Present Days</div>
+        <div style="font-size:16px; font-weight:800; color:#15803d;" id="hist-kpi-present">0</div>
+      </div>
+      <div style="background:#fefce8; padding:8px 12px; border-radius:8px; border:1px solid #fef08a; text-align:center;">
+        <div style="font-size:11px; color:#854d0e; font-weight:700;">Late Days</div>
+        <div style="font-size:16px; font-weight:800; color:#b45309;" id="hist-kpi-late">0</div>
+      </div>
+      <div style="background:#fef2f2; padding:8px 12px; border-radius:8px; border:1px solid #fecaca; text-align:center;">
+        <div style="font-size:11px; color:#991b1b; font-weight:700;">Absent Days</div>
+        <div style="font-size:16px; font-weight:800; color:#b91c1c;" id="hist-kpi-absent">0</div>
+      </div>
+      <div style="background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; text-align:center;">
+        <div style="font-size:11px; color:#475569; font-weight:700;">Total Hours</div>
+        <div style="font-size:16px; font-weight:800; color:#334155;" id="hist-kpi-hours">0.00 hrs</div>
+      </div>
+    </div>
+
+    <!-- History Table -->
+    <div style="flex:1; max-height:340px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; background:white;">
+      <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+        <thead style="position:sticky; top:0; background:#f8fafc; z-index:2; border-bottom:2px solid #cbd5e1;">
+          <tr id="hist-table-head">
+            <th style="padding:10px 12px; text-align:left;">Date</th>
+            <th style="padding:10px 12px; text-align:left;">Check-In</th>
+            <th style="padding:10px 12px; text-align:left;">Check-Out</th>
+            <th style="padding:10px 12px; text-align:left;">Working Hours</th>
+            <th style="padding:10px 12px; text-align:left;">Overtime</th>
+            <th style="padding:10px 12px; text-align:left;">Status</th>
+            <th style="padding:10px 12px; text-align:left;">Source</th>
+          </tr>
+        </thead>
+        <tbody id="hist-table-body">
+          <!-- Dynamic Rows -->
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 

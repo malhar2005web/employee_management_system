@@ -104,20 +104,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btnAddLeave) btnAddLeave.style.display = 'none';
         if (btnAddOutEntry) btnAddOutEntry.style.display = 'none';
 
+        const btnExport = document.querySelector('.btn-pill-export');
         if (tab === 'attendance') {
             if (tabBtnAttendance) tabBtnAttendance.classList.add('active');
             if (tabContentAttendance) tabContentAttendance.style.display = 'block';
             if (btnAddCorrection) btnAddCorrection.style.display = 'inline-flex';
+            if (btnExport) btnExport.setAttribute('onclick', "window.exportModuleDataFile('attendance', 'xlsx')");
             loadLogs();
         } else if (tab === 'leave') {
             if (tabBtnLeave) tabBtnLeave.classList.add('active');
             if (tabContentLeave) tabContentLeave.style.display = 'block';
             if (btnAddLeave) btnAddLeave.style.display = 'inline-flex';
+            if (btnExport) btnExport.setAttribute('onclick', "window.exportModuleDataFile('leaves', 'xlsx')");
             loadLeaves();
         } else if (tab === 'out-entry') {
             if (tabBtnOutEntry) tabBtnOutEntry.classList.add('active');
             if (tabContentOutEntry) tabContentOutEntry.style.display = 'block';
             if (btnAddOutEntry) btnAddOutEntry.style.display = 'inline-flex';
+            if (btnExport) btnExport.setAttribute('onclick', "window.exportModuleDataFile('out_entries', 'xlsx')");
             loadOutEntries();
         }
     };
@@ -359,7 +363,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${log.overtime ? `${log.overtime} mins` : '—'}</td>
                     <td><span class="status-pill ${statusClass}" style="${statusBadgeStyle}">${log.status || 'Absent'}</span></td>
                     <td>
-                        <button type="button" class="btn-table-action" onclick='editCorrection(${JSON.stringify(log)})' title="Edit / Manual Correction"><i class="fa-solid fa-pen"></i></button>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <button type="button" class="btn-table-action" onclick="openEmpAttendanceHistoryModal(${log.employee_id}, '${escapeQuote(log.full_name)}', '${log.employee_code || ''}', '${log.workstation || ''}')" title="View Full History & Export CSV" style="color:var(--teal-600);"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                            <button type="button" class="btn-table-action" onclick='editCorrection(${JSON.stringify(log)})' title="Edit / Manual Correction"><i class="fa-solid fa-pen"></i></button>
+                        </div>
                     </td>
                 `;
                 logsList.appendChild(tr);
@@ -610,15 +617,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (req.status === 'Approved' && req.leave_type === 'Sick Leave') sick++;
 
                 const tr = document.createElement('tr');
-                let actionButtons = '';
+                let actionButtons = `
+                    <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="openEmpLeaveHistoryModal(${req.employee_id}, '${escapeQuote(req.full_name)}', '${req.employee_code || ''}')" title="View Leave History & Export"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                `;
 
                 if (req.status === 'Pending') {
-                    actionButtons = `
+                    actionButtons += `
                         <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="approveLeaveClick(${req.id})" title="Approve"><i class="fa-solid fa-check"></i></button>
                         <button type="button" class="btn-table-action" style="color:var(--red);" onclick="rejectLeaveClick(${req.id})" title="Reject"><i class="fa-solid fa-xmark"></i></button>
                     `;
                 } else {
-                    actionButtons = `
+                    actionButtons += `
                         <button type="button" class="btn-table-action" style="color:var(--red);" onclick="deleteLeaveClick(${req.id})" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
                     `;
                 }
@@ -791,7 +800,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     purposeBadge = `<span class="badge" style="background:rgba(168,85,247,0.15); color:#9333ea; font-weight:700; padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-user"></i> ${entry.purpose}</span>`;
                 }
 
-                let actionBtns = '';
+                let actionBtns = `
+                    <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="openEmpOutHistoryModal(${entry.employee_id}, '${escapeQuote(entry.employee_name)}', '${entry.employee_code || ''}')" title="View Out Entry History & Export"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                `;
                 if (entry.status === 'Out') {
                     actionBtns += `
                         <button type="button" class="btn-primary" style="padding:4px 10px; font-size:11px; border-radius:4px;" onclick="openMarkReturnModal(${entry.id}, '${entry.out_time}')" title="Mark In-Time"><i class="fa-solid fa-clock-rotate-left"></i> Return</button>
@@ -949,7 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
     const loadPcsMonthlySummary = async () => {
         if (!pcsSummaryList) return;
-        pcsSummaryList.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading monthly summary...</td></tr>';
+        pcsSummaryList.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading monthly summary...</td></tr>';
 
         try {
             const selectedMonth = (filterPcsMonth && filterPcsMonth.value) ? filterPcsMonth.value.replace('-', '') : new Date().toISOString().slice(0, 7).replace('-', '');
@@ -957,22 +968,29 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             
             if (!response.ok || !data.success) {
-                pcsSummaryList.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--red);">${data.message || 'Failed to load summary'}</td></tr>`;
+                pcsSummaryList.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:24px; color:var(--red);">${data.message || 'Failed to load summary'}</td></tr>`;
                 return;
             }
 
             const rows = data.data || [];
             if (rows.length === 0) {
-                pcsSummaryList.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--text-muted);">No PCS calculated records for this month. Click "Calculate Attendance" to run rule engine.</td></tr>';
+                pcsSummaryList.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:24px; color:var(--text-muted);">No PCS calculated records for this month. Click "Calculate Attendance" to run rule engine.</td></tr>';
                 return;
             }
 
             pcsSummaryList.innerHTML = '';
             rows.forEach(row => {
                 const tr = document.createElement('tr');
+                const empDisplayName = row.full_name || row.USERNAME;
+                const empSub = row.employee_code ? `${row.employee_code} • ${row.USERNAME}` : row.USERNAME;
+                const empId = row.employee_id || row.EMPLOYEE_ID;
+
                 tr.innerHTML = `
-                    <td><strong>${row.USERNAME}</strong></td>
-                    <td>${row.YYYYMM}</td>
+                    <td>
+                        <div style="font-weight:700; color:var(--text-dark);">${empDisplayName}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${empSub}</div>
+                    </td>
+                    <td><strong style="color:#334155;">${row.YYYYMM}</strong></td>
                     <td>${row.TOTALDAYS}</td>
                     <td><span class="badge" style="background:rgba(16,185,129,0.15); color:#059669; font-weight:700; padding:3px 8px; border-radius:6px;">${row.PRESENT || 0}</span></td>
                     <td><span class="badge" style="background:rgba(239,68,68,0.15); color:#dc2626; font-weight:700; padding:3px 8px; border-radius:6px;">${row.ABSENT || 0}</span></td>
@@ -982,12 +1000,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong>${row.WORKIMGHR || '00:00'}</strong></td>
                     <td style="color:#059669; font-weight:700;">${row.OTHOURS || '00:00'}</td>
                     <td><strong>${row.LOGIMHOURS || '00:00'}</strong></td>
+                    <td>
+                        <button type="button" class="btn-table-action" onclick="openEmpAttendanceHistoryModal(${empId}, '${escapeQuote(empDisplayName)}', '${row.employee_code || ''}', '${row.USERNAME}')" title="View Full History & Export CSV" style="color:var(--teal-600);"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                    </td>
                 `;
                 pcsSummaryList.appendChild(tr);
             });
         } catch (error) {
             console.error("Error loading PCS monthly summary:", error);
-            pcsSummaryList.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:var(--red);">Failed to load monthly summary.</td></tr>';
+            pcsSummaryList.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:24px; color:var(--red);">Failed to load monthly summary.</td></tr>';
         }
     };
 
@@ -1026,6 +1047,364 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnRunCalc.disabled = false;
                 btnRunCalc.innerHTML = '<i class="fa-solid fa-bolt"></i> Calculate Attendance';
             }
+        });
+    }
+
+    // =========================================================================
+    // 5. EMPLOYEE HISTORY & CSV / EXCEL EXPORT MODAL CONTROLLER
+    // =========================================================================
+    let currentModalType = 'attendance'; // 'attendance' | 'leave' | 'out_entry'
+    let currentEmpId = null;
+    let currentEmpName = '';
+    let currentEmpCode = '';
+    let currentEmpWorkstation = '';
+    let currentHistoryData = [];
+
+    const empHistoryModal = document.getElementById('emp-history-modal');
+    const empHistoryClose = document.getElementById('emp-history-close');
+    const histEmpName = document.getElementById('hist-emp-name');
+    const histEmpSub = document.getElementById('hist-emp-sub');
+    const histRangeSelect = document.getElementById('hist-range-select');
+    const histSearchInput = document.getElementById('hist-search-input');
+    const btnExportEmpHistory = document.getElementById('btn-export-emp-history');
+    const histTableHead = document.getElementById('hist-table-head');
+    const histTableBody = document.getElementById('hist-table-body');
+    const histKpiBar = document.getElementById('hist-kpi-bar');
+    const histKpiTotal = document.getElementById('hist-kpi-total');
+    const histKpiPresent = document.getElementById('hist-kpi-present');
+    const histKpiLate = document.getElementById('hist-kpi-late');
+    const histKpiAbsent = document.getElementById('hist-kpi-absent');
+    const histKpiHours = document.getElementById('hist-kpi-hours');
+
+    function escapeQuote(str) {
+        return String(str || '').replace(/'/g, "\\'");
+    }
+
+    const closeEmpHistoryModal = () => {
+        if (empHistoryModal) empHistoryModal.style.display = 'none';
+        currentHistoryData = [];
+    };
+
+    if (empHistoryClose) empHistoryClose.addEventListener('click', closeEmpHistoryModal);
+    if (empHistoryModal) {
+        empHistoryModal.addEventListener('click', (e) => {
+            if (e.target === empHistoryModal) closeEmpHistoryModal();
+        });
+    }
+
+    window.openEmpAttendanceHistoryModal = async (empId, empName, empCode, workstation) => {
+        if (!empId) {
+            alert("No employee record linked.");
+            return;
+        }
+        currentModalType = 'attendance';
+        currentEmpId = empId;
+        currentEmpName = empName || 'Employee';
+        currentEmpCode = empCode || '';
+        currentEmpWorkstation = workstation || '—';
+
+        if (histEmpName) histEmpName.textContent = `${currentEmpName} — Attendance History`;
+        if (histEmpSub) histEmpSub.textContent = `${currentEmpCode ? currentEmpCode + ' • ' : ''}${currentEmpWorkstation !== '—' ? 'Workstation: ' + currentEmpWorkstation : 'Active Staff'}`;
+        if (histRangeSelect) {
+            histRangeSelect.style.display = 'inline-block';
+            histRangeSelect.value = '30days';
+        }
+        if (histSearchInput) histSearchInput.value = '';
+        if (histKpiBar) histKpiBar.style.display = 'grid';
+
+        if (empHistoryModal) empHistoryModal.style.display = 'flex';
+        await loadModalHistoryData();
+    };
+
+    window.openEmpLeaveHistoryModal = (empId, empName, empCode) => {
+        currentModalType = 'leave';
+        currentEmpId = empId;
+        currentEmpName = empName || 'Employee';
+        currentEmpCode = empCode || '';
+
+        if (histEmpName) histEmpName.textContent = `${currentEmpName} — Leave Records`;
+        if (histEmpSub) histEmpSub.textContent = `${currentEmpCode ? currentEmpCode + ' • ' : ''}All Applied & Approved Leaves`;
+        if (histRangeSelect) histRangeSelect.style.display = 'none';
+        if (histSearchInput) histSearchInput.value = '';
+        if (histKpiBar) histKpiBar.style.display = 'none';
+
+        if (empHistoryModal) empHistoryModal.style.display = 'flex';
+        renderModalLeaveData();
+    };
+
+    window.openEmpOutHistoryModal = (empId, empName, empCode) => {
+        currentModalType = 'out_entry';
+        currentEmpId = empId;
+        currentEmpName = empName || 'Employee';
+        currentEmpCode = empCode || '';
+
+        if (histEmpName) histEmpName.textContent = `${currentEmpName} — Gate Pass / Out Entries`;
+        if (histEmpSub) histEmpSub.textContent = `${currentEmpCode ? currentEmpCode + ' • ' : ''}Office Duty & Personal Movement Logs`;
+        if (histRangeSelect) histRangeSelect.style.display = 'none';
+        if (histSearchInput) histSearchInput.value = '';
+        if (histKpiBar) histKpiBar.style.display = 'none';
+
+        if (empHistoryModal) empHistoryModal.style.display = 'flex';
+        renderModalOutData();
+    };
+
+    async function loadModalHistoryData() {
+        if (!histTableBody) return;
+        histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Fetching attendance telemetry...</td></tr>';
+
+        try {
+            const range = histRangeSelect ? histRangeSelect.value : '30days';
+            const resp = await fetch(`/api/v1/admin/attendance/employee/${currentEmpId}/history?range=${range}`);
+            const data = await resp.json();
+
+            if (!resp.ok || !data.success) {
+                histTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--red);">${data.message || 'Error loading history'}</td></tr>`;
+                return;
+            }
+
+            currentHistoryData = data.data || [];
+            const summary = data.summary || {};
+
+            if (histKpiTotal) histKpiTotal.textContent = summary.totalDays || currentHistoryData.length;
+            if (histKpiPresent) histKpiPresent.textContent = summary.present || 0;
+            if (histKpiLate) histKpiLate.textContent = summary.late || 0;
+            if (histKpiAbsent) histKpiAbsent.textContent = summary.absent || 0;
+            if (histKpiHours) histKpiHours.textContent = summary.totalHours ? `${summary.totalHours} hrs` : '0.00 hrs';
+
+            renderModalAttendanceTable();
+        } catch (e) {
+            console.error("Modal history load error:", e);
+            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--red);">Failed to load telemetry history.</td></tr>';
+        }
+    }
+
+    function renderModalAttendanceTable(filterQuery = '') {
+        if (!histTableHead || !histTableBody) return;
+        histTableHead.innerHTML = `
+            <th style="padding:10px 12px; text-align:left;">Date</th>
+            <th style="padding:10px 12px; text-align:left;">Check-In</th>
+            <th style="padding:10px 12px; text-align:left;">Check-Out</th>
+            <th style="padding:10px 12px; text-align:left;">Working Hours</th>
+            <th style="padding:10px 12px; text-align:left;">Overtime</th>
+            <th style="padding:10px 12px; text-align:left;">Status</th>
+            <th style="padding:10px 12px; text-align:left;">Source</th>
+        `;
+
+        let list = currentHistoryData;
+        if (filterQuery) {
+            const q = filterQuery.toLowerCase();
+            list = list.filter(r => (r.date && r.date.toLowerCase().includes(q)) || (r.status && r.status.toLowerCase().includes(q)) || (r.source && r.source.toLowerCase().includes(q)));
+        }
+
+        if (list.length === 0) {
+            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">No records found for this period.</td></tr>';
+            return;
+        }
+
+        histTableBody.innerHTML = '';
+        list.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #f1f5f9';
+
+            let statusBadge = '<span class="status-pill delayed" style="background:#fee2e2; color:#b91c1c; font-weight:700;">Absent</span>';
+            if (r.status === 'Present') {
+                statusBadge = '<span class="status-pill progress" style="background:#dcfce7; color:#15803d; font-weight:700;">Present</span>';
+            } else if (r.status === 'Late') {
+                statusBadge = '<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:700;">Late</span>';
+            } else if (r.status === 'On Leave' || r.status === 'Half Day') {
+                statusBadge = `<span class="status-pill todo" style="background:#e0f2fe; color:#0369a1; font-weight:700;">${r.status}</span>`;
+            }
+
+            let srcBadge = '<span style="font-size:10px; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-weight:700;"><i class="fa-solid fa-desktop"></i> Workstation</span>';
+            if (r.source === 'PORTAL') {
+                srcBadge = '<span style="font-size:10px; background:#dcfce7; color:#15803d; padding:2px 6px; border-radius:4px; font-weight:700;"><i class="fa-solid fa-hand-pointer"></i> Web Punch</span>';
+            } else if (r.source === 'MANUAL_HR') {
+                srcBadge = '<span style="font-size:10px; background:#f3e8ff; color:#7e22ce; padding:2px 6px; border-radius:4px; font-weight:700;"><i class="fa-solid fa-pen-fancy"></i> HR Approved</span>';
+            } else if (r.source === 'LEAVE_MANAGEMENT') {
+                srcBadge = '<span style="font-size:10px; background:#fef3c7; color:#b45309; padding:2px 6px; border-radius:4px; font-weight:700;"><i class="fa-solid fa-umbrella-beach"></i> Leave</span>';
+            }
+
+            tr.innerHTML = `
+                <td style="padding:8px 12px; font-weight:700; color:#334155;">${r.date}</td>
+                <td style="padding:8px 12px; font-weight:700; color:${r.check_in !== '—' ? '#047857' : '#94a3b8'};">${r.check_in || '—'}</td>
+                <td style="padding:8px 12px; font-weight:700; color:${r.check_out !== '—' ? '#0f172a' : '#94a3b8'};">${r.check_out || '—'}</td>
+                <td style="padding:8px 12px;">${r.working_hours ? `${r.working_hours} hrs` : '0.00 hrs'}</td>
+                <td style="padding:8px 12px;">${r.overtime ? `${r.overtime} mins` : '—'}</td>
+                <td style="padding:8px 12px;">${statusBadge}</td>
+                <td style="padding:8px 12px;">${srcBadge}</td>
+            `;
+            histTableBody.appendChild(tr);
+        });
+    }
+
+    function renderModalLeaveData() {
+        if (!histTableHead || !histTableBody) return;
+        histTableHead.innerHTML = `
+            <th style="padding:10px 12px; text-align:left;">Leave Type</th>
+            <th style="padding:10px 12px; text-align:left;">Duration</th>
+            <th style="padding:10px 12px; text-align:left;">Reason</th>
+            <th style="padding:10px 12px; text-align:left;">Status</th>
+        `;
+
+        currentHistoryData = leavesCache.filter(l => l.employee_id == currentEmpId);
+
+        if (currentHistoryData.length === 0) {
+            histTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">No leave records found for this employee.</td></tr>';
+            return;
+        }
+
+        histTableBody.innerHTML = '';
+        currentHistoryData.forEach(l => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #f1f5f9';
+            const sDate = new Date(l.start_date).toLocaleDateString();
+            const eDate = new Date(l.end_date).toLocaleDateString();
+            const statusClass = l.status === 'Approved' ? 'progress' : (l.status === 'Rejected' ? 'todo' : 'pending');
+
+            tr.innerHTML = `
+                <td style="padding:8px 12px; font-weight:700; color:var(--teal-900);">${l.leave_type}</td>
+                <td style="padding:8px 12px;">${sDate} &rarr; ${eDate}</td>
+                <td style="padding:8px 12px; color:var(--text-muted);">${l.reason || '—'}</td>
+                <td style="padding:8px 12px;"><span class="status-pill ${statusClass}">${l.status}</span></td>
+            `;
+            histTableBody.appendChild(tr);
+        });
+    }
+
+    function renderModalOutData() {
+        if (!histTableHead || !histTableBody) return;
+        histTableHead.innerHTML = `
+            <th style="padding:10px 12px; text-align:left;">Date</th>
+            <th style="padding:10px 12px; text-align:left;">Out Time</th>
+            <th style="padding:10px 12px; text-align:left;">In Time</th>
+            <th style="padding:10px 12px; text-align:left;">Duration</th>
+            <th style="padding:10px 12px; text-align:left;">Purpose</th>
+            <th style="padding:10px 12px; text-align:left;">Destination / Reason</th>
+            <th style="padding:10px 12px; text-align:left;">Status</th>
+        `;
+
+        currentHistoryData = outEntriesCache.filter(o => o.employee_id == currentEmpId);
+
+        if (currentHistoryData.length === 0) {
+            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">No out entry records found for this employee.</td></tr>';
+            return;
+        }
+
+        histTableBody.innerHTML = '';
+        currentHistoryData.forEach(o => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #f1f5f9';
+            const dStr = new Date(o.date).toLocaleDateString();
+            let durStr = '—';
+            if (o.duration_minutes > 0) {
+                const hrs = Math.floor(o.duration_minutes / 60);
+                const mins = o.duration_minutes % 60;
+                durStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} mins`;
+            }
+
+            tr.innerHTML = `
+                <td style="padding:8px 12px; font-weight:700;">${dStr}</td>
+                <td style="padding:8px 12px; font-weight:700; color:#d97706;">${o.out_time || '—'}</td>
+                <td style="padding:8px 12px; font-weight:700; color:#059669;">${o.in_time || '—'}</td>
+                <td style="padding:8px 12px;">${durStr}</td>
+                <td style="padding:8px 12px;"><span style="font-weight:700; color:#2563eb;">${o.purpose}</span></td>
+                <td style="padding:8px 12px;">${o.destination || o.reason || '—'}</td>
+                <td style="padding:8px 12px;"><span class="badge" style="background:#f1f5f9; color:#334155; font-weight:700; padding:2px 6px; border-radius:4px;">${o.status}</span></td>
+            `;
+            histTableBody.appendChild(tr);
+        });
+    }
+
+    if (histRangeSelect) {
+        histRangeSelect.addEventListener('change', () => {
+            if (currentModalType === 'attendance') loadModalHistoryData();
+        });
+    }
+
+    if (histSearchInput) {
+        histSearchInput.addEventListener('input', () => {
+            if (currentModalType === 'attendance') renderModalAttendanceTable(histSearchInput.value);
+        });
+    }
+
+    // Modal Export Button
+    if (btnExportEmpHistory) {
+        btnExportEmpHistory.addEventListener('click', () => {
+            if (!currentHistoryData || currentHistoryData.length === 0) {
+                alert("No data available to export.");
+                return;
+            }
+
+            let headers = [];
+            let rows = [];
+            let filename = '';
+
+            if (currentModalType === 'attendance') {
+                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Total Working Hours", "Overtime (min)", "Status", "Punch Source"];
+                rows = currentHistoryData.map(r => [
+                    r.employee_code || currentEmpCode,
+                    r.full_name || currentEmpName,
+                    r.workstation || currentEmpWorkstation || '—',
+                    r.date,
+                    r.check_in || '—',
+                    r.check_out || '—',
+                    r.working_hours ? `${r.working_hours} hrs` : '0.00 hrs',
+                    r.overtime ? `${r.overtime} mins` : '—',
+                    r.status || 'Present',
+                    r.source || 'TERAMIND'
+                ]);
+                const safeName = (currentEmpName || 'Employee').replace(/[^a-zA-Z0-9]/g, '_');
+                filename = `Attendance_History_${safeName}_${histRangeSelect ? histRangeSelect.value : '30days'}.csv`;
+            } else if (currentModalType === 'leave') {
+                headers = ["Employee Code", "Employee Name", "Leave Type", "Start Date", "End Date", "Reason", "Status"];
+                rows = currentHistoryData.map(r => [
+                    r.employee_code || currentEmpCode,
+                    r.full_name || currentEmpName,
+                    r.leave_type || 'Leave',
+                    r.start_date ? String(r.start_date).split('T')[0] : '—',
+                    r.end_date ? String(r.end_date).split('T')[0] : '—',
+                    r.reason || '—',
+                    r.status || 'Approved'
+                ]);
+                const safeName = (currentEmpName || 'Employee').replace(/[^a-zA-Z0-9]/g, '_');
+                filename = `Leave_History_${safeName}.csv`;
+            } else if (currentModalType === 'out_entry') {
+                headers = ["Employee Code", "Employee Name", "Date", "Out Time", "In Time", "Duration", "Purpose", "Destination / Reason", "Status", "Approver"];
+                rows = currentHistoryData.map(r => [
+                    r.employee_code || currentEmpCode,
+                    r.employee_name || currentEmpName,
+                    r.date ? String(r.date).split('T')[0] : '—',
+                    r.out_time || '—',
+                    r.in_time || '—',
+                    r.duration_minutes ? `${r.duration_minutes} mins` : '—',
+                    r.purpose || 'Official Duty',
+                    r.destination || r.reason || '—',
+                    r.status || 'Out',
+                    r.approver_name || '—'
+                ]);
+                const safeName = (currentEmpName || 'Employee').replace(/[^a-zA-Z0-9]/g, '_');
+                filename = `OutEntry_History_${safeName}.csv`;
+            }
+
+            // UTF-8 BOM and literal formatting so Excel NEVER shows ####
+            const csvContent = "\uFEFF" + [
+                headers.map(h => `"${h}"`).join(','),
+                ...rows.map(row => row.map(val => {
+                    const s = String(val ?? '').replace(/"/g, '""');
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{2}:\d{2}(:\d{2})?$/.test(s)) {
+                        return `="""${s}"""`;
+                    }
+                    return `"${s}"`;
+                }).join(','))
+            ].join('\r\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         });
     }
 

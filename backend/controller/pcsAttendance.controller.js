@@ -39,11 +39,12 @@ export async function getMonthlySummary(req, res) {
         let query = `
             SELECT 
                 s.*,
-                e.full_name,
+                COALESCE(e.full_name, s."FULL_NAME", s."USERNAME") as full_name,
                 e.employee_code,
+                COALESCE(e.id, s."EMPLOYEE_ID") as employee_id,
                 e.phone
             FROM "ATTENDANCE_SUM" s
-            LEFT JOIN employee_teramind_mapping m ON s."USERNAME" = m.computer_name
+            LEFT JOIN employee_teramind_mapping m ON LOWER(s."USERNAME") = LOWER(m.computer_name)
             LEFT JOIN employees e ON (s."EMPLOYEE_ID" = e.id OR m.employee_id = e.id)
             WHERE s."YYYYMM" = $1
         `;
@@ -54,7 +55,7 @@ export async function getMonthlySummary(req, res) {
             params.push(targetUser);
         }
 
-        query += ` ORDER BY s."USERNAME" ASC;`;
+        query += ` ORDER BY COALESCE(e.full_name, s."USERNAME") ASC;`;
 
         const result = await pool.query(query, params);
 
