@@ -1,38 +1,68 @@
 import { pool } from '../config/db.js';
 import { sendWhatsAppTemplate, sendWhatsAppText, sanitizePhoneNumber } from '../services/whatsapp.service.js';
 
-async function notifyTicketWhatsApp(ticketCode, title, priority, assignedToId) {
+export async function notifyTicketWhatsApp({
+    ticketCode,
+    title,
+    priority = 'High',
+    assignedToId = null,
+    assignedTeam = [],
+    customerName = 'Valued Client',
+    projectName = 'General Project',
+    actionType = 'created',
+    turnaroundTime = ''
+}) {
     try {
-        if (assignedToId) {
+        const targetEmployeeIds = new Set();
+        if (assignedToId) targetEmployeeIds.add(parseInt(assignedToId, 10));
+
+        if (Array.isArray(assignedTeam)) {
+            for (const item of assignedTeam) {
+                if (typeof item === 'object' && item.id) targetEmployeeIds.add(parseInt(item.id, 10));
+                else if (typeof item === 'number') targetEmployeeIds.add(item);
+                else if (typeof item === 'string' && /^\d+$/.test(item)) targetEmployeeIds.add(parseInt(item, 10));
+            }
+        }
+
+        const phoneList = [];
+
+        if (targetEmployeeIds.size > 0) {
             const empRes = await pool.query(
-                "SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = $1;",
-                [assignedToId]
+                "SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = ANY($1::int[]);",
+                [Array.from(targetEmployeeIds)]
             );
-            if (empRes.rows.length > 0) {
-                const emp = empRes.rows[0];
+            for (const emp of empRes.rows) {
                 const targetPhone = emp.whatsapp_no || emp.phone;
                 if (targetPhone) {
-                    try {
-                        await sendWhatsAppTemplate(
-                            targetPhone,
-                            'task_assignment_alert',
-                            'en',
-                            [
-                                emp.full_name || 'Engineer',
-                                `Ticket ${ticketCode}: ${title}`,
-                                priority || 'High',
-                                'SLA Target',
-                                'Support Desk'
-                            ]
-                        );
-                        console.log(`✅ WhatsApp support ticket alert sent to ${emp.full_name} (${targetPhone})`);
-                    } catch (e) {
-                        await sendWhatsAppText(
-                            targetPhone,
-                            `🎫 *Support Ticket Assigned*\nTicket: ${ticketCode}\nTitle: ${title}\nPriority: ${priority}\nPlease review on Support Desk.`
-                        );
+                    phoneList.push({ name: emp.full_name, phone: sanitizePhoneNumber(targetPhone) });
+                } else {
+                    // Smart fallback for named team members
+                    if (emp.full_name?.toLowerCase().includes('malhar')) {
+                        phoneList.push({ name: emp.full_name, phone: '918767137790' });
+                    } else if (emp.full_name?.toLowerCase().includes('nitin')) {
+                        phoneList.push({ name: emp.full_name, phone: '919876543210' });
                     }
                 }
+            }
+        }
+
+        // Always fallback to lead engineer if list is empty
+        if (phoneList.length === 0) {
+            phoneList.push({ name: 'Support Engineer', phone: '918767137790' });
+        }
+
+        for (const target of phoneList) {
+            try {
+                if (actionType === 'resolved') {
+                    const resolveMsg = `✅ *SUPPORT TICKET RESOLVED*\n\n🎫 *Ticket:* ${ticketCode}\n🏢 *Customer:* ${customerName}\n📦 *Project:* ${projectName}\n⏱️ *Resolution Turnaround:* ${turnaroundTime || 'Completed'}\n\nTicket marked resolved and client notified.`;
+                    await sendWhatsAppText(target.phone, resolveMsg);
+                } else {
+                    const alertMsg = `🚨 *NEW SUPPORT TICKET ASSIGNED*\n\n🎫 *Ticket:* ${ticketCode}\n🏢 *Customer:* ${customerName}\n📦 *Project:* ${projectName}\n⚠️ *Priority:* ${priority}\n📝 *Issue:* ${title}\n\n⏱️ *SLA Resolution Timer Started!*\nPlease review and attend promptly:\nhttps://planex.pentasoftconsultancy.com/admin-support.html`;
+                    await sendWhatsAppText(target.phone, alertMsg);
+                }
+                console.log(`✅ WhatsApp support ticket notification (${actionType}) sent to ${target.name} (${target.phone})`);
+            } catch (sendErr) {
+                console.error(`❌ Failed to send WhatsApp ticket alert to ${target.phone}:`, sendErr.message);
             }
         }
     } catch (err) {
@@ -116,7 +146,7 @@ export const getTickets = async (req, res) => {
             SELECT 
                 t.*,
                 c.name AS customer_name,
-                p.name AS project_name,
+                COALESCE(t.project_name, p.name, 'General') AS project_name,
                 w.name AS workflow_title,
                 wt.title AS task_name,
                 e.full_name AS assigned_to_name
@@ -173,7 +203,7 @@ export const getTicketById = async (req, res) => {
             SELECT 
                 t.*,
                 c.name AS customer_name,
-                p.name AS project_name,
+                COALESCE(t.project_name, p.name, 'General') AS project_name,
                 w.name AS workflow_title,
                 wt.title AS task_name,
                 e.full_name AS assigned_to_name,
@@ -228,6 +258,7 @@ export const createTicket = async (req, res) => {
         const {
             customer_id,
             project_id,
+            project_name,
             workflow_id,
             task_id,
             reported_by,
@@ -236,6 +267,9 @@ export const createTicket = async (req, res) => {
             category,
             priority,
             assigned_to,
+            assigned_team,
+            customer_phone,
+            source,
             attachments
         } = req.body;
 
@@ -243,25 +277,34 @@ export const createTicket = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Customer and Title are required fields' });
         }
 
+        let customerName = 'Valued Customer';
+        const custRes = await pool.query(`SELECT name, branches, assigned_employees FROM customers WHERE id = $1`, [customer_id]);
+        if (custRes.rows.length > 0) {
+            customerName = custRes.rows[0].name;
+        }
+
         const ticket_code = await generateTicketCode();
         const { responseDeadline, resolutionDeadline } = calculateSlaDeadlines(priority);
 
+        const initialStatus = (assigned_to || (assigned_team && assigned_team.length > 0)) ? 'Assigned' : 'Open';
+        const attachmentsJson = JSON.stringify(attachments || []);
+        const assignedTeamJson = JSON.stringify(assigned_team || []);
+
         const insertQuery = `
             INSERT INTO support_tickets (
-                ticket_code, customer_id, project_id, workflow_id, task_id,
+                ticket_code, customer_id, project_id, project_name, workflow_id, task_id,
                 reported_by, title, description, category, priority,
-                status, assigned_to, response_deadline, resolution_deadline, attachments
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                status, assigned_to, assigned_team, customer_phone, source,
+                response_deadline, resolution_deadline, attachments
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
             RETURNING *
         `;
-
-        const initialStatus = assigned_to ? 'Assigned' : 'Open';
-        const attachmentsJson = JSON.stringify(attachments || []);
 
         const result = await pool.query(insertQuery, [
             ticket_code,
             customer_id,
             project_id || null,
+            project_name || null,
             workflow_id || null,
             task_id || null,
             reported_by || 'Customer Admin',
@@ -271,6 +314,9 @@ export const createTicket = async (req, res) => {
             priority || 'Medium',
             initialStatus,
             assigned_to || null,
+            assignedTeamJson,
+            customer_phone || null,
+            source || 'WEB',
             responseDeadline,
             resolutionDeadline,
             attachmentsJson
@@ -278,10 +324,17 @@ export const createTicket = async (req, res) => {
 
         const newTicket = result.rows[0];
 
-        // Asynchronously notify assigned engineer on WhatsApp
-        if (assigned_to) {
-            notifyTicketWhatsApp(ticket_code, title, priority || 'Medium', parseInt(assigned_to, 10));
-        }
+        // Asynchronously notify assigned engineers on WhatsApp
+        notifyTicketWhatsApp({
+            ticketCode: ticket_code,
+            title,
+            priority: priority || 'Medium',
+            assignedToId: assigned_to ? parseInt(assigned_to, 10) : null,
+            assignedTeam: assigned_team || [],
+            customerName,
+            projectName: project_name || 'General Project',
+            actionType: 'created'
+        });
 
         // Log initial timeline event
         await pool.query(`
@@ -293,7 +346,7 @@ export const createTicket = async (req, res) => {
             'Ticket Created',
             null,
             initialStatus,
-            `Support Ticket ${ticket_code} logged for customer.`
+            `Support Ticket ${ticket_code} logged for ${customerName}.`
         ]);
 
         return res.status(201).json({
@@ -311,9 +364,15 @@ export const createTicket = async (req, res) => {
 export const updateTicket = async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, description, category, priority, status, assigned_to, customer_id, project_id } = req.body;
+        const { title, description, category, priority, status, assigned_to, assigned_team, customer_id, project_id, project_name } = req.body;
 
-        const ticketRes = await pool.query(`SELECT * FROM support_tickets WHERE id = $1`, [id]);
+        const ticketRes = await pool.query(`
+            SELECT t.*, c.name AS customer_name 
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            WHERE t.id = $1
+        `, [id]);
+
         if (ticketRes.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Ticket not found' });
         }
@@ -348,23 +407,44 @@ export const updateTicket = async (req, res) => {
         const newPri = priority || ticket.priority;
         const newStat = status || ticket.status;
         const newAssigned = assigned_to !== undefined ? (assigned_to ? parseInt(assigned_to, 10) : null) : ticket.assigned_to;
+        const newAssignedTeam = assigned_team !== undefined ? JSON.stringify(assigned_team) : JSON.stringify(ticket.assigned_team || []);
         const newCust = customer_id !== undefined ? (customer_id ? parseInt(customer_id, 10) : null) : ticket.customer_id;
         const newProj = project_id !== undefined ? (project_id ? parseInt(project_id, 10) : null) : ticket.project_id;
+        const newProjName = project_name !== undefined ? project_name : ticket.project_name;
 
         const updateRes = await pool.query(`
             UPDATE support_tickets 
             SET title = $1, description = $2, category = $3, priority = $4, status = $5,
-                assigned_to = $6, customer_id = $7, project_id = $8,
-                response_deadline = $9, resolution_deadline = $10,
-                responded_at = $11, resolved_at = $12, updated_at = NOW()
-            WHERE id = $13
+                assigned_to = $6, assigned_team = $7, customer_id = $8, project_id = $9, project_name = $10,
+                response_deadline = $11, resolution_deadline = $12,
+                responded_at = $13, resolved_at = $14, updated_at = NOW()
+            WHERE id = $15
             RETURNING *
         `, [
             newTitle, newDesc, newCat, newPri, newStat,
-            newAssigned, newCust, newProj,
+            newAssigned, newAssignedTeam, newCust, newProj, newProjName,
             responseDeadline, resolutionDeadline,
             respondedAt, resolvedAt, id
         ]);
+
+        // If newly resolved, alert engineers
+        if (newStat === 'Resolved' && oldStatus !== 'Resolved') {
+            const durationMs = new Date().getTime() - new Date(ticket.created_at).getTime();
+            const hours = Math.floor(durationMs / 3600000);
+            const mins = Math.floor((durationMs % 3600000) / 60000);
+            const turnaroundStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+
+            notifyTicketWhatsApp({
+                ticketCode: ticket.ticket_code,
+                title: newTitle,
+                customerName: ticket.customer_name || 'Customer',
+                projectName: newProjName || 'Project',
+                assignedToId: newAssigned,
+                assignedTeam: Array.isArray(assigned_team) ? assigned_team : ticket.assigned_team,
+                actionType: 'resolved',
+                turnaroundTime: turnaroundStr
+            });
+        }
 
         // Log history
         await pool.query(`
@@ -396,7 +476,12 @@ export const updateTicketStatus = async (req, res) => {
         const { id } = req.params;
         const { status } = req.body;
 
-        const ticketRes = await pool.query(`SELECT * FROM support_tickets WHERE id = $1`, [id]);
+        const ticketRes = await pool.query(`
+            SELECT t.*, c.name AS customer_name 
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            WHERE t.id = $1
+        `, [id]);
         if (ticketRes.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Ticket not found' });
         }
@@ -420,6 +505,24 @@ export const updateTicketStatus = async (req, res) => {
             WHERE id = $4
             RETURNING *
         `, [status, respondedAt, resolvedAt, id]);
+
+        if (status === 'Resolved' && oldStatus !== 'Resolved') {
+            const durationMs = new Date().getTime() - new Date(ticket.created_at).getTime();
+            const hours = Math.floor(durationMs / 3600000);
+            const mins = Math.floor((durationMs % 3600000) / 60000);
+            const turnaroundStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+
+            notifyTicketWhatsApp({
+                ticketCode: ticket.ticket_code,
+                title: ticket.title,
+                customerName: ticket.customer_name || 'Customer',
+                projectName: ticket.project_name || 'Project',
+                assignedToId: ticket.assigned_to,
+                assignedTeam: ticket.assigned_team,
+                actionType: 'resolved',
+                turnaroundTime: turnaroundStr
+            });
+        }
 
         // Log history
         await pool.query(`

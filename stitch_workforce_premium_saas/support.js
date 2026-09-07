@@ -62,42 +62,102 @@ document.addEventListener('DOMContentLoaded', () => {
         return '<span class="badge" style="background:rgba(100,116,139,0.15); color:#475569; border:1px solid rgba(100,116,139,0.3); font-weight:700;"><i class="fa-solid fa-lock"></i> Closed</span>';
     };
 
-    // Helper: Compute SLA Timer display
+    // Helper: Compute SLA & Elapsed Live Timer display
     const getSlaTimerHtml = (ticket) => {
         if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
+            if (ticket.resolved_at && ticket.created_at) {
+                const diff = Math.max(0, new Date(ticket.resolved_at).getTime() - new Date(ticket.created_at).getTime());
+                const rH = Math.floor(diff / 3600000);
+                const rM = Math.floor((diff % 3600000) / 60000);
+                const durText = rH > 0 ? `${rH}h ${rM}m` : `${rM}m`;
+                return `<span style="color:#16a34a; font-weight:700; font-size:12px;"><i class="fa-solid fa-check-double"></i> Resolved in ${durText}</span>`;
+            }
             return '<span style="color:#16a34a; font-weight:700; font-size:12px;"><i class="fa-solid fa-check-double"></i> Met SLA</span>';
         }
-        if (!ticket.resolution_deadline) return '<span style="color:var(--text-muted); font-size:12px;">Standard</span>';
 
-        const deadline = new Date(ticket.resolution_deadline).getTime();
-        const now = Date.now();
-        const diffMs = deadline - now;
+        const createdMs = ticket.created_at ? new Date(ticket.created_at).getTime() : Date.now();
+        const elapsedSec = Math.max(0, Math.floor((Date.now() - createdMs) / 1000));
+        const elH = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
+        const elM = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0');
+        const elS = String(elapsedSec % 60).padStart(2, '0');
+        const elapsedFormatted = `${elH}:${elM}:${elS}`;
 
-        if (diffMs <= 0) {
-            return '<span style="color:#dc2626; font-weight:800; font-size:12px;"><i class="fa-solid fa-skull"></i> SLA Breached</span>';
+        let deadlineInfo = '';
+        if (ticket.resolution_deadline) {
+            const diffMs = new Date(ticket.resolution_deadline).getTime() - Date.now();
+            if (diffMs <= 0) {
+                deadlineInfo = '<span style="color:#dc2626; font-weight:800; font-size:11px; margin-left:4px;"><i class="fa-solid fa-skull"></i> Breached</span>';
+            } else {
+                const leftH = Math.floor(diffMs / 3600000);
+                const leftM = Math.floor((diffMs % 3600000) / 60000);
+                deadlineInfo = `<span style="color:var(--text-muted); font-size:11px; margin-left:4px;">(${leftH}h ${leftM}m left)</span>`;
+            }
         }
 
-        const hrs = Math.floor(diffMs / 3600000);
-        const mins = Math.floor((diffMs % 3600000) / 60000);
-
-        if (hrs < 2) {
-            return `<span style="color:#dc2626; font-weight:800; font-size:12px;"><i class="fa-solid fa-clock"></i> ${hrs}h ${mins}m left</span>`;
-        }
-        return `<span style="color:var(--teal-900); font-weight:600; font-size:12px;"><i class="fa-regular fa-clock"></i> ${hrs}h ${mins}m left</span>`;
+        return `<div class="live-ticket-timer" data-created="${ticket.created_at || ''}" data-deadline="${ticket.resolution_deadline || ''}" data-status="${ticket.status}" style="font-size:12px; font-weight:700; color:#0d9488; display:flex; align-items:center; flex-wrap:wrap;">
+            <i class="fa-regular fa-clock" style="margin-right:4px;"></i>
+            <span class="live-timer-text">${elapsedFormatted}</span>
+            ${deadlineInfo}
+        </div>`;
     };
 
     // Helper to dynamically render project options based on chosen Customer Account
-    const renderProjectOptions = (selectEl, customerId, selectedProjectId = '') => {
+    const renderProjectOptions = (selectEl, customerId, selectedProjectId = '', selectedProjectName = '') => {
         if (!selectEl) return;
         selectEl.innerHTML = '<option value="">None / General Maintenance</option>';
 
         let availableProjects = [];
         if (customerId) {
             const cust = customersCache.find(c => String(c.id) === String(customerId));
-            if (cust && Array.isArray(cust.customer_projects) && cust.customer_projects.length > 0) {
-                availableProjects = cust.customer_projects;
-            } else {
-                availableProjects = projectsCache.filter(p => String(p.customer_id) === String(customerId));
+            if (cust) {
+                // 1. From branches projects (e.g. Dahisar -> PentaRMC, Miraroad -> Pentarmc)
+                if (Array.isArray(cust.branches)) {
+                    cust.branches.forEach((b, bIdx) => {
+                        const bName = b.branch || `Branch ${bIdx + 1}`;
+                        if (Array.isArray(b.projects)) {
+                            b.projects.forEach(p => {
+                                const pName = typeof p === 'string' ? p : (p.name || p.project_name || 'Module');
+                                if (pName && !availableProjects.some(x => x.name.toLowerCase() === pName.toLowerCase() && x.branch_name === bName)) {
+                                    availableProjects.push({
+                                        id: p.id || `branch_${bIdx}_${pName}`,
+                                        name: pName,
+                                        branch_name: bName,
+                                        assignedEmployees: b.assignedEmployees || []
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+                // 2. From cust.projects array
+                if (Array.isArray(cust.projects)) {
+                    cust.projects.forEach(p => {
+                        const pName = typeof p === 'string' ? p : (p.name || p.project_name);
+                        if (pName && !availableProjects.some(x => x.name.toLowerCase() === pName.toLowerCase())) {
+                            availableProjects.push({
+                                id: p.id || `cust_${pName}`,
+                                name: pName,
+                                branch_name: ''
+                            });
+                        }
+                    });
+                }
+                // 3. From customer_projects if any
+                if (Array.isArray(cust.customer_projects)) {
+                    cust.customer_projects.forEach(p => {
+                        const pName = p.name || p.project_name;
+                        if (pName && !availableProjects.some(x => x.name.toLowerCase() === pName.toLowerCase())) {
+                            availableProjects.push(p);
+                        }
+                    });
+                }
+                // 4. From global projectsCache matching customer_id
+                const dbProjs = projectsCache.filter(p => String(p.customer_id) === String(customerId));
+                dbProjs.forEach(p => {
+                    if (!availableProjects.some(x => String(x.id) === String(p.id))) {
+                        availableProjects.push(p);
+                    }
+                });
             }
         } else {
             availableProjects = projectsCache;
@@ -106,15 +166,47 @@ document.addEventListener('DOMContentLoaded', () => {
         if (availableProjects.length > 0) {
             availableProjects.forEach(p => {
                 const pName = p.name || p.project_name || 'Project';
-                const branchInfo = p.branch_name ? ` (${p.branch_name})` : '';
+                const branchInfo = p.branch_name ? ` (${p.branch_name} Branch)` : '';
                 const opt = document.createElement('option');
-                opt.value = p.id;
+                opt.value = p.id || pName;
+                opt.setAttribute('data-project-name', pName);
+                opt.setAttribute('data-branch-name', p.branch_name || '');
                 opt.textContent = `${pName}${branchInfo}`;
                 if (selectedProjectId && String(p.id) === String(selectedProjectId)) {
+                    opt.selected = true;
+                } else if (selectedProjectName && pName.toLowerCase() === selectedProjectName.toLowerCase()) {
                     opt.selected = true;
                 }
                 selectEl.appendChild(opt);
             });
+        }
+    };
+
+    // Auto-select assignee staff based on Customer / Project assignment
+    const autoSelectAssignee = (customerId, assigneeSelectId) => {
+        if (!customerId) return;
+        const selectEl = document.getElementById(assigneeSelectId);
+        if (!selectEl) return;
+        const cust = customersCache.find(c => String(c.id) === String(customerId));
+        if (!cust) return;
+
+        let assignedEmps = [];
+        if (Array.isArray(cust.assigned_employees) && cust.assigned_employees.length > 0) {
+            assignedEmps = cust.assigned_employees;
+        } else if (Array.isArray(cust.branches)) {
+            for (const b of cust.branches) {
+                if (Array.isArray(b.assignedEmployees) && b.assignedEmployees.length > 0) {
+                    assignedEmps = b.assignedEmployees;
+                    break;
+                }
+            }
+        }
+
+        if (assignedEmps.length > 0) {
+            const firstId = assignedEmps[0].id || assignedEmps[0];
+            if (firstId) {
+                selectEl.value = firstId;
+            }
         }
     };
 
@@ -189,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const chosenCustId = e.target.value;
                     renderProjectOptions(ticketProjSelect, chosenCustId);
                     autoFillContact(chosenCustId, 'ticket-reported-by');
+                    autoSelectAssignee(chosenCustId, 'ticket-assignee');
                 };
             }
 
@@ -197,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 editCustSelect.onchange = (e) => {
                     const chosenCustId = e.target.value;
                     renderProjectOptions(editProjSelect, chosenCustId);
+                    autoSelectAssignee(chosenCustId, 'edit-ticket-assignee');
                 };
             }
 
@@ -374,9 +468,15 @@ document.addEventListener('DOMContentLoaded', () => {
         createTicketForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            const projSelect = document.getElementById('ticket-project');
+            const selectedOption = projSelect ? projSelect.options[projSelect.selectedIndex] : null;
+            const projectName = selectedOption ? (selectedOption.getAttribute('data-project-name') || selectedOption.textContent) : null;
+            const isNumericId = projSelect && /^\d+$/.test(projSelect.value);
+
             const payload = {
                 customer_id: parseInt(document.getElementById('ticket-customer').value, 10),
-                project_id: document.getElementById('ticket-project').value ? parseInt(document.getElementById('ticket-project').value, 10) : null,
+                project_id: isNumericId ? parseInt(projSelect.value, 10) : null,
+                project_name: projectName && projectName !== 'None / General Maintenance' ? projectName : null,
                 category: document.getElementById('ticket-category').value,
                 priority: document.getElementById('ticket-priority').value,
                 assigned_to: document.getElementById('ticket-assignee').value ? parseInt(document.getElementById('ticket-assignee').value, 10) : null,
@@ -735,6 +835,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const ticketId = document.getElementById('edit-ticket-id').value;
             if (!ticketId) return;
 
+            const editProjSelect = document.getElementById('edit-ticket-project');
+            const selectedEditOption = editProjSelect ? editProjSelect.options[editProjSelect.selectedIndex] : null;
+            const editProjectName = selectedEditOption ? (selectedEditOption.getAttribute('data-project-name') || selectedEditOption.textContent) : null;
+            const isNumericEditId = editProjSelect && /^\d+$/.test(editProjSelect.value);
+
             const payload = {
                 title: document.getElementById('edit-ticket-title').value.trim(),
                 description: document.getElementById('edit-ticket-description').value.trim(),
@@ -742,7 +847,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 priority: document.getElementById('edit-ticket-priority').value,
                 status: document.getElementById('edit-ticket-status').value,
                 customer_id: document.getElementById('edit-ticket-customer').value || null,
-                project_id: document.getElementById('edit-ticket-project').value || null,
+                project_id: isNumericEditId ? parseInt(editProjSelect.value, 10) : null,
+                project_name: editProjectName && editProjectName !== 'None / General Maintenance' ? editProjectName : null,
                 assigned_to: document.getElementById('edit-ticket-assignee').value || null
             };
 
@@ -768,6 +874,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Live Ticking Timer Function
+    const startLiveTicketTimers = () => {
+        setInterval(() => {
+            document.querySelectorAll('.live-ticket-timer').forEach(el => {
+                const status = el.getAttribute('data-status');
+                if (status === 'Resolved' || status === 'Closed') return;
+
+                const createdStr = el.getAttribute('data-created');
+                if (!createdStr) return;
+
+                const createdMs = new Date(createdStr).getTime();
+                const elapsedSec = Math.max(0, Math.floor((Date.now() - createdMs) / 1000));
+                const elH = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
+                const elM = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0');
+                const elS = String(elapsedSec % 60).padStart(2, '0');
+
+                const textEl = el.querySelector('.live-timer-text');
+                if (textEl) {
+                    textEl.textContent = `${elH}:${elM}:${elS}`;
+                }
+            });
+        }, 1000);
+    };
+
     // Logout button handler
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
@@ -785,5 +915,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial Execution
     loadDropdownData().then(() => {
         loadTickets();
+        startLiveTicketTimers();
     });
 });

@@ -18,6 +18,7 @@ import {
     getClientInvoiceDetails
 } from '../services/conversation.service.js';
 import { processMessageWithAI } from '../services/ai.service.js';
+import { notifyTicketWhatsApp } from './support.controller.js';
 
 /**
  * 1. Webhook Receiver: Immediately responds with 200 OK, processes in background
@@ -79,6 +80,15 @@ async function processIncomingWebhookAsync(body) {
         });
 
         // ==========================================================
+        // ROUTE 0: CLIENT TICKET RESOLUTION KEYWORDS ("RESOLVED" / "TICKET END")
+        // ==========================================================
+        if (isResolutionKeyword(textContent || selectedId)) {
+            console.log(`🎯 Resolution keyword detected from ${senderPhone}: "${textContent || selectedId}"`);
+            await handleTicketResolutionByClient(senderPhone, clientContext);
+            continue;
+        }
+
+        // ==========================================================
         // ROUTE 1: DETERMINISTIC BUTTON / LIST MENU CLICKS
         // ==========================================================
         if (msgType === 'interactive' || msgType === 'button' || selectedId) {
@@ -86,27 +96,45 @@ async function processIncomingWebhookAsync(body) {
         }
 
         // ==========================================================
-        // ROUTE 2: DOCUMENT / EXCEL FILE RECEIVED
+        // ROUTE 2: DOCUMENT / EXCEL / PDF FILE RECEIVED
         // ==========================================================
         else if (msgType === 'document') {
             const docName = textContent || 'Document.pdf';
-            const ack = `Requirements Document Received: ${docName}\n\nThank you ${clientContext.name}. Your document has been saved to your project directory. Our technical team has been notified.`;
-            await sendWhatsAppText(senderPhone, ack);
-            await saveMessage({ senderPhone: '919082270423', recipientPhone: senderPhone, direction: 'outbound', messageType: 'text', messageBody: ack });
+            const mediaAttachment = {
+                name: docName,
+                mediaId: mediaId,
+                type: 'document',
+                uploadedAt: new Date().toISOString()
+            };
+
+            // If customer or support keyword or document sent, auto-create/attach support ticket
+            await handleSupportTicketCreation(senderPhone, `Document Attachment: ${docName}`, clientContext, mediaAttachment);
         }
 
         // ==========================================================
         // ROUTE 3: IMAGE / SCREENSHOT RECEIVED
         // ==========================================================
         else if (msgType === 'image') {
-            const ack = `Reference Image Received.\n\nThank you ${clientContext.name}. We have linked this reference image to your project workspace.`;
-            await sendWhatsAppText(senderPhone, ack);
-            await saveMessage({ senderPhone: '919082270423', recipientPhone: senderPhone, direction: 'outbound', messageType: 'text', messageBody: ack });
+            const caption = textContent && textContent !== '[Image]' ? textContent : 'Screenshot of error';
+            const mediaAttachment = {
+                name: 'Screenshot.png',
+                caption: caption,
+                mediaId: mediaId,
+                type: 'image',
+                uploadedAt: new Date().toISOString()
+            };
+
+            // Auto-create support ticket with screenshot attached
+            await handleSupportTicketCreation(senderPhone, `Issue Screenshot: ${caption}`, clientContext, mediaAttachment);
         }
 
         // ==========================================================
-        // ROUTE 4: TEXT OR GENERAL INQUIRY -> AI / BACKEND GUARDRAILS
+        // ROUTE 4: DIRECT ISSUE REPORTING OR GENERAL TEXT
         // ==========================================================
+        else if (isSupportIssueIntent(textContent)) {
+            console.log(`🚨 Support issue intent detected from ${senderPhone}: "${textContent}"`);
+            await handleSupportTicketCreation(senderPhone, textContent, clientContext);
+        }
         else {
             await handleTextMessageWithAI(senderPhone, textContent || displayBody, clientContext);
         }
@@ -520,24 +548,276 @@ Please send the payment screenshot or UTR number here once completed.`
     }
 
     // =========================================================================
-    // 6. TECHNICAL SUPPORT INQUIRY
+    // 6. TECHNICAL SUPPORT INQUIRY / BUTTON CLICK
     // =========================================================================
     else if (key === 'srv_support' || key.includes('support') || key.includes('ticket')) {
-        await sendWhatsAppText(
-            senderPhone,
-            `Planex Technical Support Desk
-Hello ${clientContext.name}, our technical team is available 24/7.
-
-To Report an Issue: Please describe the issue or attach an error screenshot here. A ticket will be generated automatically.
-- Lead Architect: Shrirang Joshi (+91 98210 27060)
-- Operations Lead: Nitin Sir (+91 98765 43210)
-- Support Email: support@pentasoftconsultancy.com`
-        );
+        const supportPrompt = `🎫 *Planex Technical Support Desk*\n\nHello *${clientContext.name}*,\nOur technical engineering team is ready to assist you 24/7.\n\n📝 *To Report an Issue:* Please reply with the issue details (e.g. *"Login button not working in PentaRMC"*).\n\n📷 *Screenshots / PDF files:* You can also attach and send an error screenshot or PDF document right here.\n\nOur system will instantly log the ticket, assign your dedicated engineers, and start the resolution timer.`;
+        await sendWhatsAppText(senderPhone, supportPrompt);
+        await saveMessage({
+            senderPhone: '919082270423',
+            recipientPhone: senderPhone,
+            direction: 'outbound',
+            messageType: 'text',
+            messageBody: supportPrompt
+        });
     }
 
     // Fallback: If no interactive key matched, treat as text
     else {
         await handleTextMessageWithAI(senderPhone, selectedId, clientContext);
+    }
+}
+
+/**
+ * Check if text contains a client resolution trigger
+ */
+export function isResolutionKeyword(text) {
+    if (!text) return false;
+    const lower = String(text).toLowerCase().trim();
+    return lower === 'resolved' || 
+           lower.includes('ticket end') || 
+           lower.includes('support ticket end') || 
+           lower.includes('close ticket') || 
+           lower.includes('issue solved') || 
+           lower.includes('problem solved') || 
+           lower.includes('ticket close') || 
+           lower.includes('ticket resolved') || 
+           lower.includes('sab theek hai') || 
+           lower.includes('issue resolved') || 
+           lower.includes('kam ho gaya') ||
+           lower === 'ticket resolved' ||
+           lower === 'ticket end';
+}
+
+/**
+ * Check if text has explicit issue/bug reporting intent
+ */
+export function isSupportIssueIntent(text) {
+    if (!text) return false;
+    const lower = String(text).toLowerCase().trim();
+    if (isGreeting(text) || isResolutionKeyword(text)) return false;
+    return lower.includes('not working') || 
+           lower.includes('button not working') || 
+           lower.includes('nahi chal raha') || 
+           lower.includes('error') || 
+           lower.includes('bug') || 
+           lower.includes('issue') || 
+           lower.includes('problem') || 
+           lower.includes('crash') || 
+           lower.includes('fail') || 
+           lower.includes('down') ||
+           (lower.includes('ticket') && !lower.includes('view services'));
+}
+
+/**
+ * Create Support Ticket from WhatsApp, Auto-Assign Customer Engineers, and Alert All Engineers
+ */
+export async function handleSupportTicketCreation(senderPhone, issueText, clientContext, mediaAttachment = null) {
+    try {
+        let customerId = clientContext.id;
+        let customerName = clientContext.name || 'Valued Customer';
+        let assignedEmployees = [];
+        let projectName = 'General Project';
+
+        // Query customer details, branches, and assigned employees
+        if (customerId) {
+            const cRes = await pool.query(`SELECT id, name, branches, assigned_employees FROM customers WHERE id = $1`, [customerId]);
+            if (cRes.rows.length > 0) {
+                const c = cRes.rows[0];
+                customerName = c.name || customerName;
+
+                // Extract branches and projects
+                if (Array.isArray(c.branches)) {
+                    for (const b of c.branches) {
+                        if (Array.isArray(b.projects) && b.projects.length > 0) {
+                            for (const p of b.projects) {
+                                if (p.name) {
+                                    projectName = `${p.name}${b.branch ? ` (${b.branch})` : ''}`;
+                                }
+                            }
+                        }
+                        if (Array.isArray(b.assignedEmployees)) {
+                            for (const emp of b.assignedEmployees) {
+                                if (emp.id && !assignedEmployees.some(e => e.id === emp.id)) {
+                                    assignedEmployees.push(emp);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (Array.isArray(c.assigned_employees)) {
+                    for (const emp of c.assigned_employees) {
+                        if (emp.id && !assignedEmployees.some(e => e.id === emp.id)) {
+                            assignedEmployees.push(emp);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback default engineers (e.g. Nitin Sir ID 10, Malhar Kulkarni ID 9)
+        if (assignedEmployees.length === 0) {
+            assignedEmployees = [
+                { id: 9, full_name: 'Malhar Kulkarni' },
+                { id: 10, full_name: 'Nitin Rajguru' }
+            ];
+        }
+
+        // Generate Ticket Code
+        const tCountRes = await pool.query(`SELECT id FROM support_tickets ORDER BY id DESC LIMIT 1`);
+        const nextId = (tCountRes.rows[0]?.id || 0) + 101;
+        const ticketCode = `SUP-${String(nextId).padStart(6, '0')}`;
+
+        // SLA: High priority (2hr response, 24hr resolution)
+        const now = new Date();
+        const responseDeadline = new Date(now.getTime() + 120 * 60000);
+        const resolutionDeadline = new Date(now.getTime() + 1440 * 60000);
+
+        const titleSnippet = (issueText || 'Technical Issue reported on WhatsApp')
+            .replace(/\n/g, ' ')
+            .substring(0, 75);
+
+        const attachments = mediaAttachment ? [mediaAttachment] : [];
+
+        const insertRes = await pool.query(`
+            INSERT INTO support_tickets (
+                ticket_code, customer_id, project_name, reported_by, customer_phone, source,
+                title, description, category, priority, status,
+                assigned_to, assigned_team, attachments,
+                response_deadline, resolution_deadline, created_at
+            ) VALUES ($1, $2, $3, $4, $5, 'WHATSAPP', $6, $7, 'Technical Bug', 'High', 'Assigned', $8, $9, $10, $11, $12, NOW())
+            RETURNING *
+        `, [
+            ticketCode,
+            customerId || null,
+            projectName,
+            customerName,
+            sanitizePhoneNumber(senderPhone),
+            titleSnippet,
+            issueText || 'Issue reported from WhatsApp with attachment.',
+            assignedEmployees[0]?.id || 9,
+            JSON.stringify(assignedEmployees),
+            JSON.stringify(attachments),
+            responseDeadline,
+            resolutionDeadline
+        ]);
+
+        const newTicket = insertRes.rows[0];
+
+        // Log history
+        await pool.query(`
+            INSERT INTO support_ticket_history (ticket_id, performed_by, action, new_status, details)
+            VALUES ($1, 'Customer (WhatsApp)', 'Ticket Created', 'Assigned', $2)
+        `, [newTicket.id, `Ticket auto-created from WhatsApp message: ${titleSnippet}`]);
+
+        // Send alert to ALL assigned engineers (e.g. Nitin Sir, Malhar Kulkarni)
+        notifyTicketWhatsApp({
+            ticketCode,
+            title: titleSnippet,
+            priority: 'High',
+            assignedToId: assignedEmployees[0]?.id || 9,
+            assignedTeam: assignedEmployees,
+            customerName,
+            projectName,
+            actionType: 'created'
+        });
+
+        // Send confirmation to Client
+        const engineerNames = assignedEmployees.map(e => e.full_name || e.name).join(', ') || 'Malhar Kulkarni, Nitin Rajguru';
+        const clientAck = `✅ *Support Ticket ${ticketCode} Raised!*\n\nHello *${customerName}*,\nYour support ticket has been registered and assigned to your dedicated engineering team:\n👨‍💻 *Assigned Engineers:* ${engineerNames}\n📦 *Project:* ${projectName}\n📝 *Issue:* ${titleSnippet}\n\n⏱️ *Live Resolution Timer has started.* Our engineers have received an instant WhatsApp alert and are investigating.\n\n💡 *Note:* When your issue is resolved, simply reply with *"RESOLVED"* or *"SUPPORT TICKET END"* here on WhatsApp to close this ticket.`;
+
+        await sendWhatsAppText(senderPhone, clientAck);
+        await saveMessage({
+            senderPhone: '919082270423',
+            recipientPhone: senderPhone,
+            direction: 'outbound',
+            messageType: 'text',
+            messageBody: clientAck
+        });
+
+        return newTicket;
+    } catch (err) {
+        console.error("❌ Error in handleSupportTicketCreation:", err.message);
+    }
+}
+
+/**
+ * Handle Client Ticket Resolution ("RESOLVED" / "TICKET END")
+ */
+export async function handleTicketResolutionByClient(senderPhone, clientContext) {
+    try {
+        const cleanedPhone = sanitizePhoneNumber(senderPhone);
+        const last10 = cleanedPhone.slice(-10);
+
+        // Find active open ticket
+        const ticketRes = await pool.query(`
+            SELECT t.*, c.name AS customer_name 
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            WHERE (t.customer_phone ILIKE $1 OR t.customer_id = $2 OR t.reported_by ILIKE $3)
+              AND t.status NOT IN ('Resolved', 'Closed')
+            ORDER BY t.created_at DESC
+            LIMIT 1;
+        `, [`%${last10}%`, clientContext.id || 0, `%${clientContext.name}%`]);
+
+        if (ticketRes.rows.length === 0) {
+            const noTicketMsg = `Hello ${clientContext.name}, no active open support ticket was found under your number.\n\nIf you are facing any new issue, please describe it here or attach a screenshot to raise a ticket!`;
+            await sendWhatsAppText(senderPhone, noTicketMsg);
+            await saveMessage({
+                senderPhone: '919082270423',
+                recipientPhone: senderPhone,
+                direction: 'outbound',
+                messageType: 'text',
+                messageBody: noTicketMsg
+            });
+            return;
+        }
+
+        const ticket = ticketRes.rows[0];
+        const durationMs = Date.now() - new Date(ticket.created_at).getTime();
+        const hours = Math.floor(durationMs / 3600000);
+        const mins = Math.floor((durationMs % 3600000) / 60000);
+        const durationStr = hours > 0 ? `${hours} hr ${mins} min` : `${mins} min`;
+
+        // Update DB
+        await pool.query(`
+            UPDATE support_tickets 
+            SET status = 'Resolved', resolved_at = NOW(), updated_at = NOW()
+            WHERE id = $1;
+        `, [ticket.id]);
+
+        // Log history
+        await pool.query(`
+            INSERT INTO support_ticket_history (ticket_id, performed_by, action, previous_status, new_status, details)
+            VALUES ($1, 'Customer (WhatsApp)', 'Ticket Resolved', $2, 'Resolved', 'Ticket closed by client keyword on WhatsApp.')
+        `, [ticket.id, ticket.status]);
+
+        // Notify client
+        const clientMsg = `🎉 *Support Ticket ${ticket.ticket_code} Resolved!*\n\nThank you *${clientContext.name}*!\n⏱️ *Total Resolution Time:* ${durationStr}\n📦 *Project:* ${ticket.project_name || 'General Project'}\n\nYour support ticket has been closed. We appreciate your feedback and partnership!`;
+        await sendWhatsAppText(senderPhone, clientMsg);
+        await saveMessage({
+            senderPhone: '919082270423',
+            recipientPhone: senderPhone,
+            direction: 'outbound',
+            messageType: 'text',
+            messageBody: clientMsg
+        });
+
+        // Notify assigned engineers
+        notifyTicketWhatsApp({
+            ticketCode: ticket.ticket_code,
+            title: ticket.title,
+            customerName: ticket.customer_name || clientContext.name,
+            projectName: ticket.project_name || 'General Project',
+            assignedToId: ticket.assigned_to,
+            assignedTeam: ticket.assigned_team,
+            actionType: 'resolved',
+            turnaroundTime: durationStr
+        });
+
+    } catch (err) {
+        console.error("❌ Error in handleTicketResolutionByClient:", err.message);
     }
 }
 
@@ -550,7 +830,8 @@ function isGreeting(text) {
         lower.includes('bill') || lower.includes('ticket') || lower.includes('support') || 
         lower.includes('excel') || lower.includes('document') || lower.includes('blueprint') ||
         lower.includes('opt_') || lower.includes('srv_') || lower.includes('req_') ||
-        lower.includes('package') || lower.includes('saas') || lower.includes('flutter') || lower.includes('react')) {
+        lower.includes('package') || lower.includes('saas') || lower.includes('flutter') || lower.includes('react') ||
+        isResolutionKeyword(text) || isSupportIssueIntent(text)) {
         return false;
     }
     const clean = lower.replace(/[^a-z0-9\s]/g, '');
@@ -654,18 +935,7 @@ async function handleTextMessageWithAI(senderPhone, textContent, clientContext) 
         else if (name === 'create_support_ticket') {
             const title = args.title || textContent.substring(0, 50);
             const desc = args.description || textContent;
-            const priority = args.priority || 'High';
-
-            const ticketRes = await pool.query(`
-                INSERT INTO support_tickets (subject, description, priority, status, customer_id, created_at)
-                VALUES ($1, $2, $3, 'Open', $4, NOW())
-                RETURNING id;
-            `, [`WhatsApp Issue: ${title}`, `Reported from WhatsApp (${senderPhone}, ${clientContext.name}):\n${desc}`, priority, clientContext.id]);
-
-            const ticketId = ticketRes.rows[0]?.id || Math.floor(1000 + Math.random() * 9000);
-            const ack = `Support Ticket #${ticketId} Registered\nHello ${clientContext.name}, we have created Ticket #${ticketId} for your query: "${title}". Our technical engineering team led by Shrirang Joshi (+91 98210 27060) is investigating it.`;
-            await sendWhatsAppText(senderPhone, ack);
-            await saveMessage({ senderPhone: '919082270423', recipientPhone: senderPhone, direction: 'outbound', messageType: 'text', messageBody: ack });
+            await handleSupportTicketCreation(senderPhone, `${title}\n${desc}`, clientContext);
         }
 
         // Tool: UI Design Catalogue
