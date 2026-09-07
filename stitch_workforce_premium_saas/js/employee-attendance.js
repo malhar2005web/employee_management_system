@@ -35,7 +35,8 @@
             if (!data.success) return;
 
             const rec = data.data;
-            if (!rec) {
+            if (!rec || !rec.login_time) {
+                setClockInState(false, null);
                 const todayStatus = document.getElementById('today-status');
                 if (todayStatus) todayStatus.textContent = 'Not Checked In';
                 return;

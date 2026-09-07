@@ -392,7 +392,7 @@
         btn.style.pointerEvents = active ? 'auto' : 'none';
       }
 
-      if (!rec) {
+      if (!rec || !rec.login_time) {
         isClockedIn = false;
         setBtnState(inBtn, true);
         setBtnState(outBtn, false);
@@ -413,7 +413,7 @@
         // Dynamic timer ticking
         const tick = () => {
           const elapsedMs = new Date() - new Date(rec.login_time);
-          const totalSeconds = Math.floor(elapsedMs / 1000);
+          const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
           const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
           const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
           const s = String(totalSeconds % 60).padStart(2, '0');
@@ -622,18 +622,18 @@
 
       // KPIs
       document.getElementById('kpi-tasks').textContent = d.tasksCompleted || 0;
-      document.getElementById('kpi-att').textContent = d.attStatus || 'Absent';
+      document.getElementById('kpi-att').textContent = d.checkInTime ? (d.attStatus || 'Present') : 'Not Checked In';
       document.getElementById('kpi-leave').textContent = d.leaveBalance ? parseFloat(d.leaveBalance).toFixed(1) : '—';
       document.getElementById('kpi-pending').textContent = String(d.pendingRequests || 0).padStart(2, '0');
 
       if (d.checkInTime) {
         const t = formatLocalTime(d.checkInTime);
         document.getElementById('kpi-att-sub').textContent = 'Checked in at ' + t;
-        document.getElementById('kpi-att-pill').textContent = 'Checked In';
+        document.getElementById('kpi-att-pill').textContent = d.attStatus || 'Checked In';
         document.getElementById('kpi-att-pill').className = 'status-pill progress';
       } else {
         document.getElementById('kpi-att-sub').textContent = 'Not clocked in yet';
-        document.getElementById('kpi-att-pill').textContent = 'Absent';
+        document.getElementById('kpi-att-pill').textContent = 'Pending';
         document.getElementById('kpi-att-pill').className = 'status-pill pending';
       }
 

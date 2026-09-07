@@ -38,11 +38,24 @@ export async function getDashboardSummary(req, res) {
 
         // 3. Attendance Status
         const attRes = await pool.query(
-            "SELECT status, login_time FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE;",
+            `SELECT status, 
+                    COALESCE(login_time, portal_check_in) as login_time, 
+                    COALESCE(logout_time, portal_check_out) as logout_time 
+             FROM attendance 
+             WHERE employee_id = $1 AND date = CURRENT_DATE;`,
             [employeeId]
         );
-        const attStatus = attRes.rows.length > 0 ? attRes.rows[0].status : 'Absent';
-        const checkInTime = attRes.rows.length > 0 ? attRes.rows[0].login_time : null;
+        let attStatus = 'Absent';
+        let checkInTime = null;
+        if (attRes.rows.length > 0) {
+            const r = attRes.rows[0];
+            checkInTime = r.login_time;
+            if (checkInTime) {
+                attStatus = r.status || 'Present';
+            } else {
+                attStatus = 'Not clocked in';
+            }
+        }
 
         // 4. Leave Balance (sum of all remaining balances)
         const leaveBalRes = await pool.query(
@@ -100,7 +113,13 @@ export async function getAttendanceStatus(req, res) {
     try {
         const employeeId = await getEmployeeId(req.user.id);
         const attRes = await pool.query(
-            "SELECT id, login_time, logout_time, status FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE;",
+            `SELECT id, 
+                    COALESCE(login_time, portal_check_in) as login_time, 
+                    COALESCE(logout_time, portal_check_out) as logout_time, 
+                    status, 
+                    COALESCE(total_working_hours, 0) as total_hours 
+             FROM attendance 
+             WHERE employee_id = $1 AND date = CURRENT_DATE;`,
             [employeeId]
         );
         res.status(200).json({
@@ -130,14 +149,39 @@ export async function clockIn(req, res) {
         const status = isLate ? 'Late' : 'Present';
 
         const checkRes = await pool.query(
-            "SELECT id, logout_time FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE;",
+            "SELECT id, login_time, logout_time, portal_check_in, portal_check_out FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE;",
             [employeeId]
         );
 
         if (checkRes.rows.length > 0) {
             const existing = checkRes.rows[0];
-            if (existing.logout_time) {
-                // Resuming clock in
+            const hasLoggedIn = !!(existing.login_time || existing.portal_check_in);
+            const hasLoggedOut = !!(existing.logout_time || existing.portal_check_out);
+
+            if (!hasLoggedIn) {
+                // Pre-existing unpunched record (e.g. placeholder row) -> Clock In for the first time today!
+                const result = await pool.query(`
+                    UPDATE attendance
+                    SET login_time = CURRENT_TIMESTAMP, 
+                        portal_check_in = CURRENT_TIMESTAMP,
+                        login_lat = $2, 
+                        login_lng = $3, 
+                        punch_source = 'PORTAL',
+                        status = $4,
+                        is_late_login = $5,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $1
+                    RETURNING *;
+                `, [existing.id, lat || null, lng || null, status, isLate]);
+
+                await pool.query(`
+                    INSERT INTO attendance_logs (employee_id, work_date, clock_in, correction_status)
+                    VALUES ($1, CURRENT_DATE, CURRENT_TIMESTAMP, 'Approved');
+                `, [employeeId]);
+
+                return res.status(200).json({ success: true, message: "Clocked in successfully", data: result.rows[0] });
+            } else if (hasLoggedOut) {
+                // Resuming clock in after clocking out
                 const result = await pool.query(`
                     UPDATE attendance
                     SET login_time = CURRENT_TIMESTAMP, 
@@ -146,7 +190,8 @@ export async function clockIn(req, res) {
                         portal_check_out = NULL,
                         punch_source = 'PORTAL',
                         status = $2,
-                        is_late_login = $3
+                        is_late_login = $3,
+                        updated_at = CURRENT_TIMESTAMP
                     WHERE id = $1
                     RETURNING *;
                 `, [existing.id, status, isLate]);
@@ -186,7 +231,7 @@ export async function clockOut(req, res) {
         const { lat, lng } = req.body;
 
         const checkRes = await pool.query(
-            "SELECT * FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE AND logout_time IS NULL;",
+            "SELECT * FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE AND (login_time IS NOT NULL OR portal_check_in IS NOT NULL) AND logout_time IS NULL;",
             [employeeId]
         );
 
@@ -209,7 +254,7 @@ export async function clockOut(req, res) {
 
         const loginTime = new Date(checkRes.rows[0].login_time || checkRes.rows[0].portal_check_in);
         const logoutTime = new Date();
-        const diffMs = logoutTime - loginTime;
+        const diffMs = Math.max(0, logoutTime - loginTime);
         const totalWorkingHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
 
         const result = await pool.query(`
@@ -219,10 +264,11 @@ export async function clockOut(req, res) {
                 logout_lat = $2, 
                 logout_lng = $3, 
                 total_working_hours = COALESCE(total_working_hours, 0) + $4,
-                punch_source = COALESCE(punch_source, 'PORTAL')
-            WHERE employee_id = $1 AND date = CURRENT_DATE AND logout_time IS NULL
+                punch_source = COALESCE(punch_source, 'PORTAL'),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
             RETURNING *;
-        `, [employeeId, lat || null, lng || null, totalWorkingHours]);
+        `, [checkRes.rows[0].id, lat || null, lng || null, totalWorkingHours]);
 
         await pool.query(`
             UPDATE attendance_logs 
