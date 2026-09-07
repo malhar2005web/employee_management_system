@@ -24,7 +24,7 @@ export async function getDashboardSummary(req, res) {
 
         // 1. Work Hours Today
         const hoursRes = await pool.query(
-            "SELECT COALESCE(total_working_hours, 0) as hours FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE;",
+            "SELECT COALESCE(total_working_hours, 0) as hours FROM attendance WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date;",
             [employeeId]
         );
         const hoursToday = hoursRes.rows.length > 0 ? parseFloat(hoursRes.rows[0].hours) : 0;
@@ -40,18 +40,27 @@ export async function getDashboardSummary(req, res) {
         const attRes = await pool.query(
             `SELECT status, 
                     COALESCE(login_time, portal_check_in) as login_time, 
-                    COALESCE(logout_time, portal_check_out) as logout_time 
+                    COALESCE(logout_time, portal_check_out) as logout_time,
+                    COALESCE(is_on_break, false) as is_on_break,
+                    break_start,
+                    COALESCE(total_break_seconds, 0) as total_break_seconds
              FROM attendance 
-             WHERE employee_id = $1 AND date = CURRENT_DATE;`,
+             WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date;`,
             [employeeId]
         );
         let attStatus = 'Absent';
         let checkInTime = null;
+        let isOnBreak = false;
+        let breakStart = null;
+        let totalBreakSeconds = 0;
         if (attRes.rows.length > 0) {
             const r = attRes.rows[0];
             checkInTime = r.login_time;
+            isOnBreak = r.is_on_break === true;
+            breakStart = r.break_start;
+            totalBreakSeconds = r.total_break_seconds || 0;
             if (checkInTime) {
-                attStatus = r.status || 'Present';
+                attStatus = isOnBreak ? 'On Break' : (r.status || 'Present');
             } else {
                 attStatus = 'Not clocked in';
             }
@@ -92,11 +101,15 @@ export async function getDashboardSummary(req, res) {
 
         res.status(200).json({
             success: true,
+            server_time: new Date().toISOString(),
             data: {
                 hoursToday,
                 tasksCompleted,
                 attStatus,
                 checkInTime,
+                isOnBreak,
+                breakStart,
+                totalBreakSeconds,
                 leaveBalance,
                 pendingRequests,
                 announcements: noticesRes.rows,
@@ -117,13 +130,17 @@ export async function getAttendanceStatus(req, res) {
                     COALESCE(login_time, portal_check_in) as login_time, 
                     COALESCE(logout_time, portal_check_out) as logout_time, 
                     status, 
-                    COALESCE(total_working_hours, 0) as total_hours 
+                    COALESCE(total_working_hours, 0) as total_hours,
+                    COALESCE(is_on_break, false) as is_on_break,
+                    break_start,
+                    COALESCE(total_break_seconds, 0) as total_break_seconds
              FROM attendance 
-             WHERE employee_id = $1 AND date = CURRENT_DATE;`,
+             WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date;`,
             [employeeId]
         );
         res.status(200).json({
             success: true,
+            server_time: new Date().toISOString(),
             data: attRes.rows.length > 0 ? attRes.rows[0] : null
         });
     } catch (error) {
@@ -149,7 +166,7 @@ export async function clockIn(req, res) {
         const status = isLate ? 'Late' : 'Present';
 
         const checkRes = await pool.query(
-            "SELECT id, login_time, logout_time, portal_check_in, portal_check_out FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE;",
+            "SELECT id, login_time, logout_time, portal_check_in, portal_check_out FROM attendance WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date;",
             [employeeId]
         );
 
@@ -161,7 +178,7 @@ export async function clockIn(req, res) {
             if (!hasLoggedIn) {
                 // Pre-existing unpunched record (e.g. placeholder row) -> Clock In for the first time today!
                 const result = await pool.query(`
-                    UPDATE attendance
+                    UPDATE attendance 
                     SET login_time = CURRENT_TIMESTAMP, 
                         portal_check_in = CURRENT_TIMESTAMP,
                         login_lat = $2, 
@@ -176,51 +193,132 @@ export async function clockIn(req, res) {
 
                 await pool.query(`
                     INSERT INTO attendance_logs (employee_id, work_date, clock_in, correction_status)
-                    VALUES ($1, CURRENT_DATE, CURRENT_TIMESTAMP, 'Approved');
+                    VALUES ($1, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date, CURRENT_TIMESTAMP, 'Approved');
                 `, [employeeId]);
 
                 return res.status(200).json({ success: true, message: "Clocked in successfully", data: result.rows[0] });
-            } else if (hasLoggedOut) {
-                // Resuming clock in after clocking out
+            }
+
+            if (hasLoggedIn && !hasLoggedOut) {
+                return res.status(400).json({ success: false, message: "You are already clocked in for today" });
+            }
+
+            if (hasLoggedIn && hasLoggedOut) {
+                // Already clocked out earlier today -> Allow resuming session!
                 const result = await pool.query(`
-                    UPDATE attendance
-                    SET login_time = CURRENT_TIMESTAMP, 
-                        portal_check_in = COALESCE(portal_check_in, CURRENT_TIMESTAMP),
-                        logout_time = NULL,
+                    UPDATE attendance 
+                    SET logout_time = NULL, 
                         portal_check_out = NULL,
-                        punch_source = 'PORTAL',
-                        status = $2,
-                        is_late_login = $3,
+                        logout_lat = NULL, 
+                        logout_lng = NULL,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = $1
                     RETURNING *;
-                `, [existing.id, status, isLate]);
+                `, [existing.id]);
 
-                await pool.query(`
-                    INSERT INTO attendance_logs (employee_id, work_date, clock_in, correction_status)
-                    VALUES ($1, CURRENT_DATE, CURRENT_TIMESTAMP, 'Approved');
-                `, [employeeId]);
-
-                return res.status(200).json({ success: true, message: "Clocked in successfully", data: result.rows[0] });
-            } else {
-                return res.status(400).json({ success: false, message: "Already clocked in today" });
+                return res.status(200).json({ success: true, message: "Welcome back! Session resumed.", data: result.rows[0] });
             }
         }
 
         const result = await pool.query(`
             INSERT INTO attendance (employee_id, date, login_time, portal_check_in, login_lat, login_lng, status, is_late_login, punch_source)
-            VALUES ($1, CURRENT_DATE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $2, $3, $4, $5, 'PORTAL')
+            VALUES ($1, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $2, $3, $4, $5, 'PORTAL')
             RETURNING *;
         `, [employeeId, lat || null, lng || null, status, isLate]);
 
         await pool.query(`
             INSERT INTO attendance_logs (employee_id, work_date, clock_in, correction_status)
-            VALUES ($1, CURRENT_DATE, CURRENT_TIMESTAMP, 'Approved');
+            VALUES ($1, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date, CURRENT_TIMESTAMP, 'Approved');
         `, [employeeId]);
 
         res.status(201).json({ success: true, message: "Clocked in successfully", data: result.rows[0] });
     } catch (error) {
         console.log("Error in clockIn:", error.message);
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+}
+
+export async function startBreak(req, res) {
+    try {
+        const employeeId = await getEmployeeId(req.user.id);
+        const checkRes = await pool.query(
+            `SELECT id, login_time, logout_time, portal_check_in, portal_check_out, is_on_break, total_break_seconds 
+             FROM attendance 
+             WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date;`,
+            [employeeId]
+        );
+
+        if (checkRes.rows.length === 0 || (!checkRes.rows[0].login_time && !checkRes.rows[0].portal_check_in) || checkRes.rows[0].logout_time) {
+            return res.status(400).json({ success: false, message: "You must be actively clocked in to take a break" });
+        }
+
+        if (checkRes.rows[0].is_on_break) {
+            return res.status(400).json({ success: false, message: "You are already on a break" });
+        }
+
+        // 1-hour max break policy (3600 seconds)
+        const totalUsed = checkRes.rows[0].total_break_seconds || 0;
+        if (totalUsed >= 3600) {
+            return res.status(400).json({ success: false, message: "Daily 1-hour break limit (60 mins) already consumed" });
+        }
+
+        const result = await pool.query(`
+            UPDATE attendance 
+            SET is_on_break = true,
+                break_start = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING *;
+        `, [checkRes.rows[0].id]);
+
+        res.status(200).json({ success: true, message: "Break started. Enjoy your break!", data: result.rows[0] });
+    } catch (error) {
+        console.log("Error in startBreak:", error.message);
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+}
+
+export async function endBreak(req, res) {
+    try {
+        const employeeId = await getEmployeeId(req.user.id);
+        const checkRes = await pool.query(
+            `SELECT id, break_start, is_on_break, total_break_seconds, break_history 
+             FROM attendance 
+             WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date;`,
+            [employeeId]
+        );
+
+        if (checkRes.rows.length === 0 || !checkRes.rows[0].is_on_break) {
+            return res.status(400).json({ success: false, message: "No active break session found" });
+        }
+
+        const breakStart = new Date(checkRes.rows[0].break_start);
+        const now = new Date();
+        const durationSec = Math.max(0, Math.floor((now - breakStart) / 1000));
+        const newTotalSec = (checkRes.rows[0].total_break_seconds || 0) + durationSec;
+
+        const history = Array.isArray(checkRes.rows[0].break_history) ? checkRes.rows[0].break_history : [];
+        history.push({
+            start: breakStart.toISOString(),
+            end: now.toISOString(),
+            duration_seconds: durationSec
+        });
+
+        const result = await pool.query(`
+            UPDATE attendance 
+            SET is_on_break = false,
+                break_start = NULL,
+                total_break_seconds = $2,
+                break_history = $3::jsonb,
+                break_time = $4,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING *;
+        `, [checkRes.rows[0].id, newTotalSec, JSON.stringify(history), Math.round((newTotalSec / 60) * 100) / 100]);
+
+        res.status(200).json({ success: true, message: "Break ended. Welcome back to work!", data: result.rows[0] });
+    } catch (error) {
+        console.log("Error in endBreak:", error.message);
         res.status(500).json({ success: false, message: error.message || "Internal server error" });
     }
 }
@@ -231,7 +329,7 @@ export async function clockOut(req, res) {
         const { lat, lng } = req.body;
 
         const checkRes = await pool.query(
-            "SELECT * FROM attendance WHERE employee_id = $1 AND date = CURRENT_DATE AND (login_time IS NOT NULL OR portal_check_in IS NOT NULL) AND logout_time IS NULL;",
+            "SELECT * FROM attendance WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date AND (login_time IS NOT NULL OR portal_check_in IS NOT NULL) AND logout_time IS NULL;",
             [employeeId]
         );
 
@@ -241,7 +339,7 @@ export async function clockOut(req, res) {
 
         // Enforce self report check before clock out
         const reportCheck = await pool.query(
-            "SELECT id FROM self_reports WHERE employee_id = $1 AND date = CURRENT_DATE;",
+            "SELECT id FROM self_reports WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date;",
             [employeeId]
         );
         if (reportCheck.rows.length === 0) {
@@ -254,26 +352,37 @@ export async function clockOut(req, res) {
 
         const loginTime = new Date(checkRes.rows[0].login_time || checkRes.rows[0].portal_check_in);
         const logoutTime = new Date();
-        const diffMs = Math.max(0, logoutTime - loginTime);
+
+        // Finalize break if clocking out during break
+        let totalBreakSec = checkRes.rows[0].total_break_seconds || 0;
+        if (checkRes.rows[0].is_on_break && checkRes.rows[0].break_start) {
+            const extraBreak = Math.max(0, Math.floor((logoutTime - new Date(checkRes.rows[0].break_start)) / 1000));
+            totalBreakSec += extraBreak;
+        }
+
+        const diffMs = Math.max(0, logoutTime - loginTime - (totalBreakSec * 1000));
         const totalWorkingHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
 
         const result = await pool.query(`
             UPDATE attendance 
             SET logout_time = CURRENT_TIMESTAMP, 
                 portal_check_out = CURRENT_TIMESTAMP,
+                is_on_break = false,
+                break_start = NULL,
+                total_break_seconds = $4,
                 logout_lat = $2, 
                 logout_lng = $3, 
-                total_working_hours = COALESCE(total_working_hours, 0) + $4,
+                total_working_hours = $5,
                 punch_source = COALESCE(punch_source, 'PORTAL'),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
             RETURNING *;
-        `, [checkRes.rows[0].id, lat || null, lng || null, totalWorkingHours]);
+        `, [checkRes.rows[0].id, lat || null, lng || null, totalBreakSec, totalWorkingHours]);
 
         await pool.query(`
             UPDATE attendance_logs 
             SET clock_out = CURRENT_TIMESTAMP 
-            WHERE employee_id = $1 AND work_date = CURRENT_DATE AND clock_out IS NULL;
+            WHERE employee_id = $1 AND work_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date AND clock_out IS NULL;
         `, [employeeId]);
 
         res.status(200).json({ success: true, message: "Clocked out successfully", data: result.rows[0] });

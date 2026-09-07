@@ -38,6 +38,8 @@ import {
     getAttendanceStatus,
     clockIn,
     clockOut,
+    startBreak,
+    endBreak,
     requestCorrection,
     getAttendanceLogs,
     getReports,
@@ -64,10 +66,12 @@ router.use(protectRoute, isEmployee);
 // Dashboard
 router.get("/dashboard/summary", getDashboardSummary);
 
-// Attendance & Clock in/out
+// Attendance & Clock in/out & Breaks
 router.get("/attendance/status", getAttendanceStatus);
 router.post("/attendance/clock-in", clockIn);
 router.post("/attendance/clock-out", clockOut);
+router.post("/attendance/break/start", startBreak);
+router.post("/attendance/break/end", endBreak);
 router.post("/attendance/correction", requestCorrection);
 router.get("/attendance/logs", getAttendanceLogs);
 

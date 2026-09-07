@@ -9,11 +9,23 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="style.css">
 <style>
-  #btn-clock-in:disabled, #btn-clock-out:disabled {
+  #btn-clock-in:disabled, #btn-clock-out:disabled, #btn-break:disabled {
     opacity: 0.45 !important;
     filter: grayscale(40%) !important;
     cursor: not-allowed !important;
     pointer-events: none !important;
+  }
+  .btn-break-active {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.45) !important;
+    border-color: rgba(16, 185, 129, 0.5) !important;
+    color: #fff !important;
+    animation: pulseBreak 1.8s infinite ease-in-out;
+  }
+  @keyframes pulseBreak {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
   }
 </style>
 </head>
@@ -92,12 +104,15 @@
           <div class="stat-icon teal"><i class="fa-regular fa-clock"></i></div>
         </div>
         <div style="margin-top: 4px; margin-bottom: 8px;">
-          <div class="stat-value" style="font-size:22px; font-weight: 800; margin-bottom: 2px;" id="kpi-hours">0.00 hrs</div>
+          <div class="stat-value" style="font-size:22px; font-weight: 800; margin-bottom: 2px;" id="kpi-hours">00:00:00</div>
           <div class="stat-sub flat" style="font-size:12px; color:var(--text-muted);" id="clock-in-time">Not clocked in yet</div>
         </div>
-        <div style="display:flex; gap:8px; width:100%; margin-top:auto;">
-          <button class="btn-primary" id="btn-clock-in" style="flex:1; padding: 12px 6px; font-size:12.5px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:6px;"><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
-          <button class="btn-primary" id="btn-clock-out" style="flex:1; padding: 12px 6px; font-size:12.5px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:6px; background: linear-gradient(135deg, rgba(224,83,83,0.85), rgba(180,50,50,0.9)); border-color: rgba(224,83,83,0.3);"><i class="fa-solid fa-right-from-bracket"></i> Clock Out</button>
+        <div style="display:flex; flex-direction:column; gap:6px; width:100%; margin-top:auto;">
+          <div style="display:flex; gap:6px; width:100%;">
+            <button class="btn-primary" id="btn-clock-in" style="flex:1; padding: 10px 4px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:5px;"><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
+            <button class="btn-primary" id="btn-clock-out" style="flex:1; padding: 10px 4px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:5px; background: linear-gradient(135deg, rgba(224,83,83,0.85), rgba(180,50,50,0.9)); border-color: rgba(224,83,83,0.3);"><i class="fa-solid fa-right-from-bracket"></i> Clock Out</button>
+          </div>
+          <button class="btn-primary" id="btn-break" style="width:100%; padding: 8px 6px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:6px; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: rgba(245,158,11,0.3); color:#fff;"><i class="fa-solid fa-mug-hot" id="icon-break"></i> <span id="label-break">Take Break (1h max)</span></button>
         </div>
       </div>
 
@@ -342,18 +357,53 @@
   const hour = now.getHours();
   document.getElementById('today-date-label').textContent = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Load today's clock-in status
+  // Load today's clock-in & break status
   let clockInterval = null;
   let isClockedIn = false;
+  let isOnBreak = false;
   let clockOutAlerted = false;
+  let breakLimitAlerted = false;
+  let serverTimeOffsetMs = 0;
+
+  function parseServerDate(dateInput) {
+    if (!dateInput) return null;
+    if (dateInput instanceof Date) return dateInput;
+    if (typeof dateInput === 'string') {
+      let s = dateInput.trim();
+      if (!s.endsWith('Z') && !s.match(/[+-]\d{2}:\d{2}$/)) {
+        s = s.replace(' ', 'T') + 'Z';
+      }
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d;
+      const fallback = new Date(dateInput);
+      return isNaN(fallback.getTime()) ? null : fallback;
+    }
+    return new Date(dateInput);
+  }
 
   function formatLocalTime(isoString) {
     if (!isoString) return '';
-    return new Date(isoString).toLocaleTimeString('en-IN', {
+    const d = parseServerDate(isoString) || new Date(isoString);
+    return d.toLocaleTimeString('en-IN', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true
     }).toLowerCase();
+  }
+
+  function formatDurationHMS(totalSeconds) {
+    const sec = Math.max(0, Math.floor(totalSeconds));
+    const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+    const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+    const s = String(sec % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
+  function formatDurationMS(totalSeconds) {
+    const sec = Math.max(0, Math.floor(totalSeconds));
+    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s = String(sec % 60).padStart(2, '0');
+    return `${m}:${s}`;
   }
 
   function checkClockOutReminder(isCurrentlyClockedIn) {
@@ -375,10 +425,18 @@
       const data = await res.json();
       if (!data.success) return;
 
+      if (data.server_time) {
+        serverTimeOffsetMs = new Date(data.server_time).getTime() - Date.now();
+      }
+
       const rec = data.data;
       const inBtn = document.getElementById('btn-clock-in');
       const outBtn = document.getElementById('btn-clock-out');
+      const breakBtn = document.getElementById('btn-break');
+      const breakIcon = document.getElementById('icon-break');
+      const breakLabel = document.getElementById('label-break');
       const timeLabel = document.getElementById('clock-in-time');
+      const hoursDisplay = document.getElementById('kpi-hours');
 
       if (clockInterval) {
         clearInterval(clockInterval);
@@ -387,60 +445,129 @@
 
       // Helper to set button visual state
       function setBtnState(btn, active) {
+        if (!btn) return;
         btn.disabled = !active;
-        btn.style.opacity = active ? '1' : '0.4';
+        btn.style.opacity = active ? '1' : '0.45';
         btn.style.pointerEvents = active ? 'auto' : 'none';
       }
 
-      if (!rec || !rec.login_time) {
+      if (!rec || (!rec.login_time && !rec.portal_check_in)) {
         isClockedIn = false;
+        isOnBreak = false;
         setBtnState(inBtn, true);
         setBtnState(outBtn, false);
-        timeLabel.textContent = 'Not clocked in yet';
-        document.getElementById('kpi-hours').textContent = '0.00 hrs';
+        setBtnState(breakBtn, false);
+        if (breakBtn) breakBtn.className = 'btn-primary';
+        if (breakIcon) breakIcon.className = 'fa-solid fa-mug-hot';
+        if (breakLabel) breakLabel.textContent = 'Take Break (1h max)';
+        if (timeLabel) {
+          timeLabel.style.color = 'var(--text-muted)';
+          timeLabel.textContent = 'Not clocked in yet';
+        }
+        if (hoursDisplay) hoursDisplay.textContent = '00:00:00';
         return;
       }
 
-      if (rec.login_time && !rec.logout_time) {
-        // Currently clocked in → lock Clock In, enable Clock Out
+      const loginTime = rec.login_time || rec.portal_check_in;
+      const logoutTime = rec.logout_time || rec.portal_check_out;
+
+      if (loginTime && !logoutTime) {
+        // Actively clocked in
         isClockedIn = true;
+        isOnBreak = !!rec.is_on_break;
         setBtnState(inBtn, false);
         setBtnState(outBtn, true);
-        
-        const loginLocal = formatLocalTime(rec.login_time);
-        timeLabel.textContent = `Clocked in at ${loginLocal}`;
+        setBtnState(breakBtn, true);
 
-        // Dynamic timer ticking
+        const loginLocal = formatLocalTime(loginTime);
+        const baseBreakSec = parseInt(rec.total_break_seconds || 0, 10);
+        const loginDate = parseServerDate(loginTime);
+
+        if (isOnBreak) {
+          if (breakBtn) breakBtn.className = 'btn-primary btn-break-active';
+          if (breakIcon) breakIcon.className = 'fa-solid fa-play';
+          if (breakLabel) breakLabel.textContent = 'Resume Work';
+        } else {
+          if (breakBtn) breakBtn.className = 'btn-primary';
+          if (breakIcon) breakIcon.className = 'fa-solid fa-mug-hot';
+          const remainingMins = Math.max(0, Math.floor((3600 - baseBreakSec) / 60));
+          if (breakLabel) {
+            breakLabel.textContent = remainingMins > 0 ? `Take Break (${remainingMins}m left)` : 'Break (Limit Reached)';
+          }
+          if (baseBreakSec >= 3600) {
+            setBtnState(breakBtn, false);
+          }
+        }
+
         const tick = () => {
-          const elapsedMs = new Date() - new Date(rec.login_time);
-          const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-          const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-          const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-          const s = String(totalSeconds % 60).padStart(2, '0');
-          document.getElementById('kpi-hours').textContent = `${h}:${m}:${s}`;
-          
+          const nowMs = Date.now() + serverTimeOffsetMs;
+          const loginMs = loginDate ? loginDate.getTime() : nowMs;
+          const totalElapsedSec = Math.max(0, Math.floor((nowMs - loginMs) / 1000));
+
+          let activeBreakSec = baseBreakSec;
+          if (isOnBreak && rec.break_start) {
+            const bStart = parseServerDate(rec.break_start);
+            const curBreakElapsed = bStart ? Math.max(0, Math.floor((nowMs - bStart.getTime()) / 1000)) : 0;
+            activeBreakSec += curBreakElapsed;
+
+            // Live break timer display
+            const bDuration = formatDurationMS(activeBreakSec);
+            if (activeBreakSec >= 3600) {
+              timeLabel.style.color = '#ef4444';
+              timeLabel.innerHTML = `⚠️ <b style="color:#ef4444;">Break Exceeded (${bDuration} / 60:00 max)</b>`;
+              if (!breakLimitAlerted) {
+                showToast("⚠️ Daily 1-hour break limit exceeded! Please resume work.", "warning");
+                breakLimitAlerted = true;
+              }
+            } else {
+              timeLabel.style.color = '#d97706';
+              timeLabel.innerHTML = `☕ <b>On Break: ${bDuration} / 60:00 max</b>`;
+            }
+          } else {
+            timeLabel.style.color = 'var(--text-muted)';
+            const usedBreakMin = Math.floor(baseBreakSec / 60);
+            const breakInfo = usedBreakMin > 0 ? ` • Break: ${usedBreakMin}m/60m` : '';
+            timeLabel.textContent = `Clocked in at ${loginLocal}${breakInfo}`;
+          }
+
+          // Net work duration (pauses during break, counts up only during work)
+          const netWorkSec = Math.max(0, totalElapsedSec - activeBreakSec);
+          if (hoursDisplay) hoursDisplay.textContent = formatDurationHMS(netWorkSec);
+
           checkClockOutReminder(isClockedIn);
         };
+
         tick();
         clockInterval = setInterval(tick, 1000);
-      } else if (rec.login_time && rec.logout_time) {
-        // Clocked out → enable Clock In (for resume), lock Clock Out
+      } else if (loginTime && logoutTime) {
+        // Clocked out
         isClockedIn = false;
+        isOnBreak = false;
         setBtnState(inBtn, true);
         setBtnState(outBtn, false);
-        
-        const logoutLocal = formatLocalTime(rec.logout_time);
-        timeLabel.textContent = `Clocked out at ${logoutLocal}`;
+        setBtnState(breakBtn, false);
+        if (breakBtn) breakBtn.className = 'btn-primary';
+        if (breakIcon) breakIcon.className = 'fa-solid fa-mug-hot';
+        if (breakLabel) breakLabel.textContent = 'Take Break (1h max)';
+
+        const logoutLocal = formatLocalTime(logoutTime);
+        const baseBreakSec = parseInt(rec.total_break_seconds || 0, 10);
+        const usedBreakMin = Math.floor(baseBreakSec / 60);
+        const breakInfo = usedBreakMin > 0 ? ` • Break: ${usedBreakMin}m` : '';
+        if (timeLabel) {
+          timeLabel.style.color = 'var(--text-muted)';
+          timeLabel.textContent = `Clocked out at ${logoutLocal}${breakInfo}`;
+        }
 
         const finalHrs = rec.total_hours ? parseFloat(rec.total_hours).toFixed(2) : '0.00';
-        document.getElementById('kpi-hours').textContent = `${finalHrs} hrs`;
+        if (hoursDisplay) hoursDisplay.textContent = `${finalHrs} hrs`;
       }
     } catch (e) {
       console.error("Error in loadTodayStatus:", e);
     }
   }
 
-  // Clock-in / clock-out click handlers
+  // Clock-in / break / clock-out click handlers
   document.getElementById('btn-clock-in').addEventListener('click', async () => {
     try {
       const res = await fetch('/api/v1/employee/attendance/clock-in', {
@@ -458,6 +585,36 @@
       }
     } catch (e) {
       showToast('Network error', 'error');
+    }
+  });
+
+  document.getElementById('btn-break').addEventListener('click', async () => {
+    if (!isClockedIn) {
+      showToast('Please clock in first before taking a break!', 'warning');
+      return;
+    }
+
+    try {
+      const endpoint = isOnBreak
+        ? '/api/v1/employee/attendance/break/end'
+        : '/api/v1/employee/attendance/break/start';
+
+      const res = await fetch(endpoint, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, 'success');
+        breakLimitAlerted = false;
+        await loadTodayStatus();
+        await loadDashboardSummary();
+      } else {
+        showToast(data.message || 'Break action failed', 'error');
+      }
+    } catch (e) {
+      showToast('Network error while updating break status', 'error');
     }
   });
 
@@ -629,8 +786,13 @@
       if (d.checkInTime) {
         const t = formatLocalTime(d.checkInTime);
         document.getElementById('kpi-att-sub').textContent = 'Checked in at ' + t;
-        document.getElementById('kpi-att-pill').textContent = d.attStatus || 'Checked In';
-        document.getElementById('kpi-att-pill').className = 'status-pill progress';
+        if (d.isOnBreak) {
+          document.getElementById('kpi-att-pill').textContent = 'On Break';
+          document.getElementById('kpi-att-pill').className = 'status-pill pending';
+        } else {
+          document.getElementById('kpi-att-pill').textContent = d.attStatus || 'Checked In';
+          document.getElementById('kpi-att-pill').className = 'status-pill progress';
+        }
       } else {
         document.getElementById('kpi-att-sub').textContent = 'Not clocked in yet';
         document.getElementById('kpi-att-pill').textContent = 'Pending';
