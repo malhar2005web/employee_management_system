@@ -367,14 +367,61 @@ export async function getAttendanceLogs(req, res) {
 export async function getReports(req, res) {
     try {
         const employeeId = await getEmployeeId(req.user.id);
-        const selfReports = await pool.query(
-            "SELECT * FROM self_reports WHERE employee_id = $1 ORDER BY date DESC;",
-            [employeeId]
-        );
-        const dsrReports = await pool.query(
-            "SELECT * FROM dsr_reports WHERE employee_id = $1 ORDER BY id DESC;",
-            [employeeId]
-        );
+        const { month, year, startDate, endDate } = req.query;
+
+        let selfConditions = ["employee_id = $1"];
+        let selfParams = [employeeId];
+        let dsrConditions = ["employee_id = $1"];
+        let dsrParams = [employeeId];
+        let sIdx = 2;
+        let dIdx = 2;
+
+        if (startDate && endDate) {
+            selfConditions.push(`date >= $${sIdx++} AND date <= $${sIdx++}`);
+            selfParams.push(startDate, endDate);
+            dsrConditions.push(`created_at::date >= $${dIdx++} AND created_at::date <= $${dIdx++}`);
+            dsrParams.push(startDate, endDate);
+        } else if (month && month !== 'all') {
+            const cleanMonth = month.replace(/-/g, '').slice(0, 6);
+            const y = parseInt(cleanMonth.slice(0, 4), 10);
+            const m = parseInt(cleanMonth.slice(4, 6), 10);
+            const startM = `${y}-${String(m).padStart(2, '0')}-01`;
+            const daysInM = new Date(y, m, 0).getDate();
+            const endM = `${y}-${String(m).padStart(2, '0')}-${String(daysInM).padStart(2, '0')}`;
+            selfConditions.push(`date >= $${sIdx++} AND date <= $${sIdx++}`);
+            selfParams.push(startM, endM);
+            dsrConditions.push(`created_at::date >= $${dIdx++} AND created_at::date <= $${dIdx++}`);
+            dsrParams.push(startM, endM);
+        } else if (year) {
+            const startY = `${year}-01-01`;
+            const endY = `${year}-12-31`;
+            selfConditions.push(`date >= $${sIdx++} AND date <= $${sIdx++}`);
+            selfParams.push(startY, endY);
+            dsrConditions.push(`created_at::date >= $${dIdx++} AND created_at::date <= $${dIdx++}`);
+            dsrParams.push(startY, endY);
+        }
+
+        const selfReports = await pool.query(`
+            SELECT id, employee_id, TO_CHAR(date, 'YYYY-MM-DD') as date, 
+                   todays_work, tomorrows_plan, current_issues, 
+                   work_capacity, percentage_complete, 
+                   TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') as created_at
+            FROM self_reports 
+            WHERE ${selfConditions.join(' AND ')} 
+            ORDER BY date DESC, id DESC;
+        `, selfParams);
+
+        const dsrReports = await pool.query(`
+            SELECT id, employee_id, customer_name, office_address, 
+                   site_name, contact_person, contact_no, last_remark, 
+                   visited_for, followup, latitude, longitude, client_name,
+                   TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') as created_at,
+                   TO_CHAR(created_at, 'YYYY-MM-DD') as date
+            FROM dsr_reports 
+            WHERE ${dsrConditions.join(' AND ')} 
+            ORDER BY created_at DESC, id DESC;
+        `, dsrParams);
+
         res.status(200).json({
             success: true,
             data: {
@@ -395,7 +442,7 @@ export async function submitSelfReport(req, res) {
 
         const result = await pool.query(`
             INSERT INTO self_reports (employee_id, date, todays_work, tomorrows_plan, current_issues, work_capacity, percentage_complete)
-            VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6)
+            VALUES ($1, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date, $2, $3, $4, $5, $6)
             RETURNING *;
         `, [employeeId, todaysWork || "", tomorrowsPlan || "", currentIssues || "", parseInt(workCapacity, 10) || 100, parseInt(percentageComplete, 10) || 0]);
 
