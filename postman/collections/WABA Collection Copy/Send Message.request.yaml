@@ -1,0 +1,54 @@
+$kind: http-request
+url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/messages
+method: POST
+headers:
+  Authorization: Bearer {{Auth}}
+body:
+  type: json
+  content: "{\r
+
+    \  \"messaging_product\": \"whatsapp\",\r
+
+    \  \"recipient_type\": \"individual\",\r
+
+    \  \"to\": \"919898989898\",\r
+
+    \  \"type\": \"template\",\r
+
+    \  \"template\": \r
+
+    \  {\r
+
+    \    \"name\": \"proposal_2\",\r
+
+    \    \"language\": { \"code\": \"en\" },\r
+
+    \    \"components\": [\r
+
+    \      {\r
+
+    \        \"type\": \"header\",\r
+
+    \        \"parameters\": [\r
+
+    \          {\r
+
+    \            \"type\": \"document\",\r
+
+    \            \"document\": { \"id\": \"471704118570416\" }\r
+
+    \          }\r
+
+    \        ]\r
+
+    \      }\r
+
+    \      \r
+
+    \    ]\r
+
+    \  }\r
+
+    \  }"
+examples: ./.resources/Send Message.resources/examples
+order: 2000

@@ -1,4 +1,51 @@
 import { pool } from '../config/db.js';
+import { sendWhatsAppTemplate, sendTaskAssignmentWhatsApp } from '../services/whatsapp.service.js';
+
+async function notifyAssignedEmployees(employeeIds, taskTitle, priority, dueDate, assignedBy) {
+    if (!Array.isArray(employeeIds) || employeeIds.length === 0) return;
+    try {
+        const empRes = await pool.query(
+            "SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = ANY($1::int[])",
+            [employeeIds.map(id => parseInt(id, 10))]
+        );
+        for (const emp of empRes.rows) {
+            const targetPhone = emp.whatsapp_no || emp.phone;
+            if (targetPhone) {
+                try {
+                    await sendWhatsAppTemplate(
+                        targetPhone,
+                        'task_assignment_alert',
+                        'en',
+                        [
+                            emp.full_name || 'Employee',
+                            taskTitle || 'New Task Assignment',
+                            priority || 'Medium',
+                            dueDate ? String(dueDate).substring(0, 10) : 'As per milestone',
+                            assignedBy || 'Admin Team'
+                        ]
+                    );
+                    console.log(`✅ WhatsApp task assignment alert sent to ${emp.full_name} (${targetPhone})`);
+                } catch (err) {
+                    console.log(`WhatsApp task notification fallback for ${emp.full_name}:`, err.message);
+                    try {
+                        await sendTaskAssignmentWhatsApp({
+                            toPhone: targetPhone,
+                            clientName: 'Enterprise Client',
+                            location: 'EMS Portal',
+                            employeeName: emp.full_name,
+                            contactNo: targetPhone,
+                            taskDetails: `${taskTitle} (Priority: ${priority || 'Medium'})`
+                        });
+                    } catch (e2) {
+                        // ignore fallback error
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error sending WhatsApp task alerts:", e.message);
+    }
+}
 
 async function getWorkflowMetadata() {
     const employeesRes = await pool.query(`
@@ -211,6 +258,16 @@ export async function createWorkflow(req, res) {
         }
 
         await client.query("COMMIT");
+
+        // Asynchronously notify assigned team members on WhatsApp
+        if (Array.isArray(tasks)) {
+            for (const t of tasks) {
+                if (Array.isArray(t.assignedEmployeeIds) && t.assignedEmployeeIds.length > 0) {
+                    notifyAssignedEmployees(t.assignedEmployeeIds, t.name || name, t.priority || priority, t.deadline || targetCompletion, req.user?.full_name || 'Workflow Manager');
+                }
+            }
+        }
+
         res.status(201).json({ success: true, message: "Workflow created successfully", data: workflow });
     } catch (error) {
         await client.query("ROLLBACK");
@@ -396,6 +453,13 @@ export async function createTask(req, res) {
                 [parseInt(accountManagerId, 10), parseInt(projectId, 10)]
             );
         }
+
+        // Asynchronously send WhatsApp alert to assigned employees
+        const assignedIds = Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [assignedTo] : []);
+        if (assignedIds.length > 0) {
+            notifyAssignedEmployees(assignedIds, title, priority, dueDate, req.user?.full_name || 'Admin Team');
+        }
+
         res.status(201).json({ success: true, message: "Task created successfully", data: result.rows[0] });
     } catch (error) {
         console.log("Error in createTask:", error.message);

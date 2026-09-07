@@ -1,0 +1,9 @@
+$kind: http-request
+url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/Media/{{MediaId}}
+method: DELETE
+headers:
+  Authorization: Bearer {{Auth}}
+body:
+  type: json
+  content: ""
+order: 6000

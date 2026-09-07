@@ -39,6 +39,7 @@ import supportRoutes from "./routes/support.route.js";
 import pcsAttendanceRoutes from "./routes/pcsAttendance.route.js";
 import outEntryRoutes from "./routes/outEntry.route.js";
 import holidayRoutes from "./routes/holiday.route.js";
+import whatsappRoutes from "./routes/whatsapp.route.js";
 import { syncTeramindDataToCache } from "./services/teramind.service.js";
 
 // ESM fix
@@ -148,6 +149,8 @@ app.use("/api/v1/attendance/out-entries", outEntryRoutes);
 app.use("/api/v1/admin/out-entries", outEntryRoutes);
 app.use("/api/v1/holidays", holidayRoutes);
 app.use("/api/v1/admin/holidays", holidayRoutes);
+app.use("/api/v1/whatsapp", whatsappRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 
 // Fallback to login page
 app.get("/", (req, res) => {

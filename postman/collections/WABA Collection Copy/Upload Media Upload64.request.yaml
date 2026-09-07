@@ -1,0 +1,23 @@
+$kind: http-request
+description: This request uploads an image as .jpeg. The parameters are specified as **form-data** in the request **body**.
+url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/Media/UploadB64
+method: POST
+headers:
+  Authorization: Bearer {{Auth}}
+  Content-Type: application/json
+body:
+  type: text
+  content: "{\r
+
+    \  \"fileName\": \"refernce.pdf\",\r
+
+    \  \"mimeType\": \"application/pdf\",\r
+
+    \  \"b64OfMedia\": \"JVBERi0xLjQKJeLjz9MKMiAwIG9iago8PC9MZW5ndGggMTU3L0ZpbHRlci9GbGF0ZURlY29kZT4+c3RyZWFtCnicVY1BDoIwFET3PcUscYG2RQhrE3Vt0gsU+lEU2thfTLy9VTe6m0zmvbmLnRFVg1Y2ME5IlKp9h81BQWmYQRRm7G+U4Je5o4hjqaWuZFsppepG1/UWF8voiDz6SDaRwxAinmGJGJkXgvUOjpIdJ87bRy4mDh9iZa75Uv49F0w+IYWvIdJ55EQxW2nOBljnIjGv8cPujTiJF4z2O1AKZW5kc3RyZWFtCmVuZG9iago0IDAgb2JqCjw8L1R5cGUvUGFnZS9NZWRpYUJveFswIDAgNTk1IDg0Ml0vUGFyZW50IDMgMCBSL0NvbnRlbnRzIDIgMCBSL1Jlc291cmNlczw8L0ZvbnQ8PC9GMSAxIDAgUj4+L1Byb2NTZXQgWy9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUldPj4+PgplbmRvYmoKMSAwIG9iago8PC9UeXBlL0ZvbnQvU3VidHlwZS9UeXBlMS9CYXNlRm9udC9IZWx2ZXRpY2EvRW5jb2RpbmcvV2luQW5zaUVuY29kaW5nPj4KZW5kb2JqCjMgMCBvYmoKPDwvVHlwZS9QYWdlcy9JVFhUKDQuMS42KS9LaWRzWzQgMCBSXS9Db3VudCAxPj4KZW5kb2JqCjUgMCBvYmoKPDwvUGFnZXMgMyAwIFIvVHlwZS9DYXRhbG9nPj4KZW5kb2JqCjYgMCBvYmoKPDwvQ3JlYXRpb25EYXRlKEQ6MjAyMzA4MzExNjU3MzUrMDUnMzAnKS9Qcm9kdWNlcihpVGV4dFNoYXJwIDQuMS42IGJ5IDFUM1hUKS9Nb2REYXRlKEQ6MjAyMzA4MzExNjU3MzUrMDUnMzAnKT4+CmVuZG9iagp4cmVmCjAgNwowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAzOTYgMDAwMDAgbiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwNDg0IDAwMDAwIG4gCjAwMDAwMDAyMzkgMDAwMDAgbiAKMDAwMDAwMDU0NyAwMDAwMCBuIAowMDAwMDAwNTkyIDAwMDAwIG4gCnRyYWlsZXIKPDwvU2l6ZSA3L0luZm8gNiAwIFIvSUQgWzxlZDMxMDMwOWVhNjc5OWI1YTUxMTViMjZhMTRiNTNlOT48N2Y3N2YyY2M2NWEwNTNmNGI0ZTBmNDY0ODcwYzg4YzQ+XS9Sb290IDUgMCBSPj4Kc3RhcnR4cmVmCjcxOQolJUVPRgo=\"\r
+
+    }"
+settings:
+  disabledSystemHeaders:
+    - content-type
+examples: ./.resources/Upload Media Upload64.resources/examples
+order: 3000

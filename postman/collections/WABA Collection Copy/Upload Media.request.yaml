@@ -1,0 +1,18 @@
+$kind: http-request
+description: This request uploads an image as .jpeg. The parameters are specified as **form-data** in the request **body**.
+url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/media
+method: POST
+headers:
+  Authorization: Bearer {{Auth}}
+body:
+  type: formdata
+  content:
+    - type: text
+      key: messaging_product
+      value: whatsapp
+    - type: file
+      key: file
+      src:
+        - postman-cloud:///1eebaaea-d2f2-4d10-bc4b-7a4a0d46413e
+examples: ./.resources/Upload Media.resources/examples
+order: 4000

@@ -1,0 +1,24 @@
+$kind: http-example
+request:
+  url: https://messagingapi.charteredinfo.com/{{Version}}/{{Phone-Number-ID}}/media
+  method: POST
+  body:
+    type: formdata
+    content:
+      - type: text
+        key: messaging_product
+        value: whatsapp
+      - type: file
+        key: file
+        src:
+          - /Users/Sample.jpg
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: json
+    content: |-
+      {
+          "id": "<MEDIA_ID>"
+      }
+order: 1000

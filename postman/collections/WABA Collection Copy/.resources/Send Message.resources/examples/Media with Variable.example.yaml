@@ -1,0 +1,107 @@
+$kind: http-example
+request:
+  url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/messages
+  method: POST
+  headers:
+    Authorization: Bearer {{Auth}}
+  body:
+    type: json
+    content: "{\r
+
+      \  \"messaging_product\": \"whatsapp\",\r
+
+      \  \"recipient_type\": \"individual\",\r
+
+      \  \"to\": \"919898989898\",\r
+
+      \  \"type\": \"template\",\r
+
+      \  \"template\": \r
+
+      \  {\r
+
+      \    \"name\": \"sale_summer\",\r
+
+      \    \"language\": { \"code\": \"en\" },\r
+
+      \    \"components\": [\r
+
+      \      {\r
+
+      \        \"type\": \"header\",\r
+
+      \        \"parameters\": [\r
+
+      \          {\r
+
+      \            \"type\": \"image\",\r
+
+      \            \"image\": { \"id\": \"1083578506068483\" }\r
+
+      \          }\r
+
+      \        ]\r
+
+      \      },\r
+
+      \      {\r
+
+      \                \"type\": \"body\",\r
+
+      \                \"parameters\": [\r
+
+      \                    {\r
+
+      \                        \"type\": \"text\",\r
+
+      \                        \"text\": \"50Off\"\r
+
+      \                    },\r
+
+      \                        {\r
+
+      \                        \"type\": \"text\",\r
+
+      \                        \"text\": \"TDS\"\r
+
+      \                    }\r
+
+      \                ]\r
+
+      \            }\r
+
+      \    ]\r
+
+      \  }\r
+
+      \  }"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Transfer-Encoding: chunked
+    Content-Type: application/json; charset=utf-8
+    X-Xss-Protection: 1;mode=block
+    X-Frame-Options: DENY
+    Referrer-Policy: no-referrer
+    X-Content-Type-Options: nosniff
+    Content-Security-Policy: "default-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.syncfusion.com ws: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src * data:"
+    Date: Tue, 30 Apr 2024 07:01:53 GMT
+  body:
+    type: json
+    content: |-
+      {
+          "messaging_product": "whatsapp",
+          "contacts": [
+              {
+                  "input": "919898989898",
+                  "wa_id": "919898989898"
+              }
+          ],
+          "messages": [
+              {
+                  "id": "wamid.HBgMOTE5MDI4ODA1OTE4FQIAERgSODg3N0I2ODhCOUE3MEFFMTczAA=="
+              }
+          ]
+      }
+order: 4000

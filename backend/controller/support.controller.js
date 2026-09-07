@@ -1,4 +1,44 @@
 import { pool } from '../config/db.js';
+import { sendWhatsAppTemplate, sendWhatsAppText, sanitizePhoneNumber } from '../services/whatsapp.service.js';
+
+async function notifyTicketWhatsApp(ticketCode, title, priority, assignedToId) {
+    try {
+        if (assignedToId) {
+            const empRes = await pool.query(
+                "SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = $1;",
+                [assignedToId]
+            );
+            if (empRes.rows.length > 0) {
+                const emp = empRes.rows[0];
+                const targetPhone = emp.whatsapp_no || emp.phone;
+                if (targetPhone) {
+                    try {
+                        await sendWhatsAppTemplate(
+                            targetPhone,
+                            'task_assignment_alert',
+                            'en',
+                            [
+                                emp.full_name || 'Engineer',
+                                `Ticket ${ticketCode}: ${title}`,
+                                priority || 'High',
+                                'SLA Target',
+                                'Support Desk'
+                            ]
+                        );
+                        console.log(`✅ WhatsApp support ticket alert sent to ${emp.full_name} (${targetPhone})`);
+                    } catch (e) {
+                        await sendWhatsAppText(
+                            targetPhone,
+                            `🎫 *Support Ticket Assigned*\nTicket: ${ticketCode}\nTitle: ${title}\nPriority: ${priority}\nPlease review on Support Desk.`
+                        );
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error("WhatsApp Ticket alert error:", err.message);
+    }
+}
 
 // Helper to calculate SLA deadlines based on Priority
 function calculateSlaDeadlines(priority) {
@@ -237,6 +277,11 @@ export const createTicket = async (req, res) => {
         ]);
 
         const newTicket = result.rows[0];
+
+        // Asynchronously notify assigned engineer on WhatsApp
+        if (assigned_to) {
+            notifyTicketWhatsApp(ticket_code, title, priority || 'Medium', parseInt(assigned_to, 10));
+        }
 
         // Log initial timeline event
         await pool.query(`

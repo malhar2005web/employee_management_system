@@ -19,7 +19,8 @@ import {
     proxyVideoStream,
     getAvailableWorkstations,
     assignWorkstation,
-    exportMonitoringTelemetry
+    exportMonitoringTelemetry,
+    triggerInactivityAlert
 } from '../controller/monitoring.controller.js';
 import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
 
@@ -53,5 +54,6 @@ router.get("/config", getTeramindConfig);
 router.post("/config", updateTeramindConfig);
 router.post("/test-connection", testTeramindConnection);
 router.post("/sync", triggerManualSync);
+router.post("/trigger-inactivity-alert", triggerInactivityAlert);
 
 export default router;

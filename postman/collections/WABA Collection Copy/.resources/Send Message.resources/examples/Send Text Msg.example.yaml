@@ -1,0 +1,57 @@
+$kind: http-example
+request:
+  url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/messages
+  method: POST
+  headers:
+    Authorization: Bearer {{Auth}}
+  body:
+    type: json
+    content: "{\r
+
+      \    \"messaging_product\": \"whatsapp\",\r
+
+      \    \"recipient_type\": \"individual\",\r
+
+      \    \"to\": \"919898989898\",\r
+
+      \    \"type\": \"text\",\r
+
+      \    \"text\": {\r
+
+      \        \"preview_url\": false,\r
+
+      \        \"body\": \"text-message-content\"\r
+
+      \    }\r
+
+      }"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Transfer-Encoding: chunked
+    Content-Type: application/json; charset=utf-8
+    X-Xss-Protection: 1;mode=block
+    X-Frame-Options: DENY
+    Referrer-Policy: no-referrer
+    X-Content-Type-Options: nosniff
+    Content-Security-Policy: "default-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.syncfusion.com ws: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src * data:"
+    Date: Thu, 08 Feb 2024 13:02:42 GMT
+  body:
+    type: json
+    content: |-
+      {
+          "messaging_product": "whatsapp",
+          "contacts": [
+              {
+                  "input": "919898989898",
+                  "wa_id": "919898989898"
+              }
+          ],
+          "messages": [
+              {
+                  "id": "wamid.HBgMOTE3ODQzMDU4NjMzFQIAERgSQkYzQUUxNjU3Mzc1Q0NCOUYxAA=="
+              }
+          ]
+      }
+order: 1000

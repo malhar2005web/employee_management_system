@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My KRA &amp; Self-Appraisal — PCS Employee Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  :root {
+    --primary-color: #0f766e;
+    --primary-light: #ccfbf1;
+    --primary-dark: #115e59;
+  }
+
+  .stat-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card-kra {
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+  }
+  .stat-card-kra .stat-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .stat-card-kra .stat-val {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--teal-900);
+  }
+  .stat-card-kra .stat-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 6px;
+  }
+
+  .kra-assessment-card {
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+    transition: all 0.2s ease;
+  }
+  .kra-assessment-card:hover {
+    box-shadow: 0 8px 28px rgba(0,0,0,0.06);
+  }
+
+  .measure-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .measure-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--teal-900);
+    margin: 0 0 4px 0;
+  }
+  .measure-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+  }
+
+  .evaluation-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 16px;
+  }
+  @media(max-width: 768px) {
+    .evaluation-grid { grid-template-columns: 1fr; }
+  }
+
+  .input-group-kra {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .input-group-kra label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #334155;
+  }
+  .input-group-kra input, .input-group-kra select, .input-group-kra textarea {
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    background: rgba(255, 255, 255, 0.8);
+    font-family: inherit;
+    font-size: 13.5px;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .input-group-kra input:focus, .input-group-kra select:focus, .input-group-kra textarea:focus {
+    border-color: var(--primary-color);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+  }
+
+  .suggested-score-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    margin-top: 6px;
+  }
+
+  .proof-uploader-box {
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    background: rgba(248, 250, 252, 0.6);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .proof-uploader-box:hover {
+    border-color: var(--primary-color);
+    background: #f0fdfa;
+  }
+
+  .proof-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .proof-item-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #1e293b;
+  }
+  .proof-item-chip .remove-proof {
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .sticky-action-bar {
+    position: sticky;
+    bottom: 20px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    z-index: 100;
+    color: #fff;
+    margin-top: 30px;
+  }
+
+  .scale-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(99, 102, 241, 0.12);
+    color: #4f46e5;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+  }
+
+  .rating-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-weight: 800;
+    font-size: 13px;
+  }
+  .rating-6 { background: #dcfce7; color: #15803d; }
+  .rating-5 { background: #ecfccb; color: #4d7c0f; }
+  .rating-4 { background: #e0f2fe; color: #0369a1; }
+  .rating-3 { background: #fef3c7; color: #b45309; }
+  .rating-2 { background: #ffedd5; color: #c2410c; }
+  .rating-1 { background: #fee2e2; color: #b91c1c; }
+  .rating-0 { background: #f3f4f6; color: #4b5563; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .modal-box-kra {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%;
+    max-width: 500px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-cube"></i></div>
+      <div class="brand-text">
+        <h1>PCS Employee</h1>
+        <span>Employee Portal</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dashboard.html'"><i class="fa-solid fa-grip"></i> Dashboard</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-profile.html'"><i class="fa-regular fa-user"></i> My Profile</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-inbox.html'"><i class="fa-regular fa-envelope"></i> Inbox</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-tasks.html'"><i class="fa-regular fa-square-check"></i> My Tasks</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-leave.html'"><i class="fa-solid fa-person-walking-luggage"></i> Leave</li>
+      <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/employee-kra.html'"><i class="fa-solid fa-award"></i> My KRA &amp; Appraisal</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-timesheets.html'"><i class="fa-regular fa-file-lines"></i> Timesheets</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-goals.html'"><i class="fa-regular fa-circle-dot"></i> Goals</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dsr.html'"><i class="fa-regular fa-clipboard"></i> Daily Report</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-organization.html'"><i class="fa-solid fa-people-group"></i> Organization</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-trainings.html'"><i class="fa-solid fa-graduation-cap"></i> Training</li>
+    </ul>
+
+    <div class="sidebar-profile" id="sidebar-profile">
+      <img src="https://i.pravatar.cc/80?img=68" alt="Employee">
+      <div>
+        <div class="name" id="profile-name">Loading...</div>
+        <div class="role" id="profile-role">Employee</div>
+        <div class="status">Online</div>
+      </div>
+      <i class="fa-solid fa-chevron-right chev"></i>
+    </div>
+    <div class="sidebar-logout" id="logout-btn" style="cursor:pointer;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search metrics, goals, evidence...</div>
+      <div class="user-profile" style="display:flex; align-items:center; gap:12px;">
+        <i class="fa-regular fa-bell" style="font-size:18px; color:var(--text-muted); cursor:pointer;"></i>
+        <div style="text-align:right;">
+          <div style="font-size:13.5px; font-weight:800; color:var(--teal-900);" id="user-display-name">My Workspace</div>
+          <div style="font-size:11.5px; color:var(--text-muted);" id="user-designation">Performance Assessment</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page Header -->
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
+      <div>
+        <h1 style="font-size:24px; font-weight:900; color:var(--teal-900); margin:0 0 4px 0;">
+          <i class="fa-solid fa-file-signature" style="color:var(--primary-color);"></i> My Annual KRA &amp; Self-Assessment
+        </h1>
+        <p style="margin:0; font-size:13px; color:var(--text-muted);">
+          Cycle: <strong id="cycle-label" style="color:var(--teal-900);">FY 2026-27</strong> | Status: <span class="stat-badge" id="workflow-status-badge" style="background:#fef3c7; color:#92400e;">DRAFT</span>
+        </p>
+      </div>
+
+      <div id="locked-status-banner" style="display:none; background:#ecfdf5; border:1px solid #6ee7b7; padding:10px 18px; border-radius:12px; color:#065f46; font-size:13px; font-weight:700;">
+        <i class="fa-solid fa-lock"></i> Assessment Submitted &amp; Locked for Manager Review
+      </div>
+    </div>
+
+    <!-- 4 Live Stats -->
+    <div class="stat-grid-4">
+      <div class="stat-card-kra">
+        <div class="stat-label">Assigned Measures</div>
+        <div class="stat-val" id="stat-count">0</div>
+        <span class="stat-badge" style="background:#e0e7ff; color:#3730a3;" id="stat-cat">0 Categories</span>
+      </div>
+
+      <div class="stat-card-kra">
+        <div class="stat-label">Total Weightage</div>
+        <div class="stat-val" id="stat-weightage">0%</div>
+        <span class="stat-badge" style="background:#dcfce7; color:#15803d;">100% Target Base</span>
+      </div>
+
+      <div class="stat-card-kra">
+        <div class="stat-label">Self-Assessment Progress</div>
+        <div class="stat-val" id="stat-progress">0 / 0</div>
+        <span class="stat-badge" id="stat-progress-badge" style="background:#fef3c7; color:#92400e;">Pending Evaluation</span>
+      </div>
+
+      <div class="stat-card-kra">
+        <div class="stat-label">Calculated Score Average</div>
+        <div class="stat-val" id="stat-calc-score">0.00 / 6</div>
+        <span class="stat-badge" style="background:#f0fdf4; color:#166534;" id="stat-rating-badge">System Live Calculator</span>
+      </div>
+    </div>
+
+    <!-- Assessment Cards Container -->
+    <div id="kra-cards-container">
+      <div style="text-align:center; padding:60px; background:rgba(255,255,255,0.4); border-radius:16px;">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size:32px; color:var(--primary-color);"></i>
+        <p style="margin-top:12px; font-weight:700; color:var(--text-muted);">Loading your assigned performance measures...</p>
+      </div>
+    </div>
+
+    <!-- Sticky Bottom Submit Bar -->
+    <div class="sticky-action-bar" id="bottom-submit-bar">
+      <div>
+        <div style="font-size:14px; font-weight:800; display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-shield-halved" style="color:#10b981;"></i> Level 1: Ready for Submission
+        </div>
+        <div style="font-size:12px; color:#94a3b8; margin-top:2px;">
+          Submitting will lock your self-assessment and route documents to your Reporting Manager.
+        </div>
+      </div>
+
+      <button id="btn-submit-self" style="padding:12px 28px; border-radius:10px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; font-weight:800; font-size:14px; cursor:pointer; box-shadow:0 4px 15px rgba(16,185,129,0.4); display:flex; align-items:center; gap:10px;">
+        <i class="fa-solid fa-paper-plane"></i> Submit to L1 Manager
+      </button>
+    </div>
+
+  </main>
+</div>
+
+<!-- ==================== MODAL: VIEW 0-6 THRESHOLD DETAILS ==================== -->
+<div class="modal-overlay" id="modal-view-threshold">
+  <div class="modal-box-kra">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h3 style="margin:0; font-size:16px; font-weight:800; color:var(--teal-900);" id="view-threshold-title">
+        Threshold Scale Details
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" style="font-size:18px; cursor:pointer;" onclick="document.getElementById('modal-view-threshold').classList.remove('active')"></i>
+    </div>
+    <div id="view-threshold-content"></div>
+  </div>
+</div>
+
+<script src="employee-kra.js"></script>
+</body>
+</html>

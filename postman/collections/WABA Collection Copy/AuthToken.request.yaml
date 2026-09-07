@@ -1,0 +1,13 @@
+$kind: http-request
+url: https://messagingapi.charteredinfo.com/AuthTokenV1/AuthToken
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"userId\": \"email\",\r
+
+    \  \"password\": \"password\"\r
+
+    }"
+order: 1000

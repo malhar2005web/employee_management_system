@@ -1,0 +1,145 @@
+$kind: http-example
+request:
+  url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/messages
+  method: POST
+  headers:
+    Authorization: Bearer {{Auth}}
+  body:
+    type: json
+    content: "{\r
+
+      \  \"messaging_product\": \"whatsapp\",\r
+
+      \  \"recipient_type\": \"individual\",\r
+
+      \  \"to\": \"919898989898\",\r
+
+      \  \"type\": \"interactive\",\r
+
+      \  \"interactive\": {\r
+
+      \    \"type\": \"list\",\r
+
+      \    \"header\": {\r
+
+      \      \"type\": \"text\",\r
+
+      \      \"text\": \"text\"\r
+
+      \    },\r
+
+      \    \"body\": {\r
+
+      \      \"text\": \"hello\"\r
+
+      \    },\r
+
+      \    \"footer\": {\r
+
+      \      \"text\": \"FOOTER_TEXT\"\r
+
+      \    },\r
+
+      \    \"action\": {\r
+
+      \      \"button\": \"BUTTON_TEXT\",\r
+
+      \      \"sections\": [\r
+
+      \        {\r
+
+      \          \"title\": \"SECTION_1_TITLE\",\r
+
+      \          \"rows\": [\r
+
+      \            {\r
+
+      \              \"id\": \"SECTION_1_ROW_1_ID\",\r
+
+      \              \"title\": \"SECTION_1_ROW_1_TITLE\",\r
+
+      \              \"description\": \"SECTION_1_ROW_1_DESCRIPTION\"\r
+
+      \            },\r
+
+      \            {\r
+
+      \              \"id\": \"SECTION_1_ROW_2_ID\",\r
+
+      \              \"title\": \"SECTION_1_ROW_2_TITLE\",\r
+
+      \              \"description\": \"SECTION_1_ROW_2_DESCRIPTION\"\r
+
+      \            }\r
+
+      \          ]\r
+
+      \        },\r
+
+      \        {\r
+
+      \          \"title\": \"SECTION_2_TITLE\",\r
+
+      \          \"rows\": [\r
+
+      \            {\r
+
+      \              \"id\": \"SECTION_2_ROW_1_ID\",\r
+
+      \              \"title\": \"SECTION_2_ROW_1_TITLE\",\r
+
+      \              \"description\": \"SECTION_2_ROW_1_DESCRIPTION\"\r
+
+      \            },\r
+
+      \            {\r
+
+      \              \"id\": \"SECTION_2_ROW_2_ID\",\r
+
+      \              \"title\": \"SECTION_2_ROW_2_TITLE\",\r
+
+      \              \"description\": \"SECTION_2_ROW_2_DESCRIPTION\"\r
+
+      \            }\r
+
+      \          ]\r
+
+      \        }\r
+
+      \      ]\r
+
+      \    }\r
+
+      \  }\r
+
+      }"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Transfer-Encoding: chunked
+    Content-Type: application/json; charset=utf-8
+    X-Xss-Protection: 1;mode=block
+    X-Frame-Options: DENY
+    Referrer-Policy: no-referrer
+    X-Content-Type-Options: nosniff
+    Content-Security-Policy: "default-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.syncfusion.com ws: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src * data:"
+    Date: Fri, 03 May 2024 05:58:59 GMT
+  body:
+    type: json
+    content: |-
+      {
+          "messaging_product": "whatsapp",
+          "contacts": [
+              {
+                  "input": "919898989898",
+                  "wa_id": "919898989898"
+              }
+          ],
+          "messages": [
+              {
+                  "id": "wamid.HBgMOTE5MDI4ODA1OTE4FQIAERgSQTc4NzI4QTU1NUVDN0I4QjE3AA=="
+              }
+          ]
+      }
+order: 5000

@@ -8,6 +8,54 @@ import {
     getTeramindExportVideoStatus,
     getTeramindCredentials
 } from '../services/teramind.service.js';
+import { sendWhatsAppTemplate, sanitizePhoneNumber } from '../services/whatsapp.service.js';
+
+/**
+ * Trigger WhatsApp Inactivity Alert to an Idle Employee
+ */
+export async function triggerInactivityAlert(req, res) {
+    try {
+        const { employeeId, idleMinutes } = req.body;
+        if (!employeeId) {
+            return res.status(400).json({ success: false, message: "Employee ID is required" });
+        }
+
+        const empRes = await pool.query(
+            "SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = $1;",
+            [parseInt(employeeId, 10)]
+        );
+
+        if (empRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Employee not found" });
+        }
+
+        const emp = empRes.rows[0];
+        const targetPhone = emp.whatsapp_no || emp.phone;
+        if (!targetPhone) {
+            return res.status(400).json({ success: false, message: "No WhatsApp/phone number registered for this employee" });
+        }
+
+        const minutes = idleMinutes ? String(idleMinutes) : "30";
+        const wabaRes = await sendWhatsAppTemplate(
+            targetPhone,
+            'workstation_inactivity_alert',
+            'en',
+            [
+                emp.full_name || 'Employee',
+                minutes
+            ]
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `Inactivity alert sent to ${emp.full_name} successfully`,
+            data: wabaRes
+        });
+    } catch (error) {
+        console.error("Error in triggerInactivityAlert:", error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
 
 // ── EXISTING LOGS CONTROLLERS ──────────────────────────────────────────────────
 export async function getMonitoringLogs(req, res) {

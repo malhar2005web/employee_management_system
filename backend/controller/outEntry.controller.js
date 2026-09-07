@@ -1,4 +1,33 @@
 import { pool } from '../config/db.js';
+import { sendWhatsAppTemplate, sanitizePhoneNumber } from '../services/whatsapp.service.js';
+
+async function notifyOutEntryWhatsApp(employeeId, purpose, outTime, reason, destination) {
+    try {
+        const empRes = await pool.query(
+            "SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = $1;",
+            [employeeId]
+        );
+        if (empRes.rows.length === 0) return;
+        const emp = empRes.rows[0];
+        const targetPhone = emp.whatsapp_no || emp.phone;
+        if (targetPhone) {
+            await sendWhatsAppTemplate(
+                targetPhone,
+                'out_entry_alert',
+                'en',
+                [
+                    emp.full_name || 'Employee',
+                    purpose || 'Official Duty',
+                    outTime || 'Current Time',
+                    reason || destination || 'Office Movement'
+                ]
+            );
+            console.log(`✅ WhatsApp Out Entry alert sent to ${emp.full_name} (${targetPhone})`);
+        }
+    } catch (err) {
+        console.error("WhatsApp Out Entry alert error:", err.message);
+    }
+}
 
 /**
  * Get out entries / gate passes with filtering and live metrics
@@ -167,6 +196,9 @@ export async function createOutEntry(req, res) {
         ];
 
         const { rows } = await pool.query(query, values);
+
+        // Asynchronously notify employee via WhatsApp
+        notifyOutEntryWhatsApp(targetEmployeeId, purpose, outTime, reason, destination);
 
         res.status(201).json({
             success: true,

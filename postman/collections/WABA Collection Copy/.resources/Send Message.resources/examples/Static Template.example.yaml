@@ -1,0 +1,61 @@
+$kind: http-example
+request:
+  url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/messages
+  method: POST
+  headers:
+    Authorization: Bearer {{Auth}}
+  body:
+    type: json
+    content: "{\r
+
+      \    \"messaging_product\": \"whatsapp\",\r
+
+      \    \"recipient_type\": \"individual\",\r
+
+      \    \"to\": \"919898989898\",\r
+
+      \    \"type\": \"template\",\r
+
+      \    \"template\": {\r
+
+      \        \"name\": \"renewal_message1\",\r
+
+      \        \"language\": {\r
+
+      \            \"code\": \"en\"\r
+
+      \        }\r
+
+      }\r
+
+      }"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Transfer-Encoding: chunked
+    Content-Type: application/json; charset=utf-8
+    X-Xss-Protection: 1;mode=block
+    X-Frame-Options: DENY
+    Referrer-Policy: no-referrer
+    X-Content-Type-Options: nosniff
+    Content-Security-Policy: "default-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.syncfusion.com ws: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src * data:"
+    Date: Tue, 30 Apr 2024 06:44:07 GMT
+  body:
+    type: json
+    content: |-
+      {
+          "messaging_product": "whatsapp",
+          "contacts": [
+              {
+                  "input": "919898989898",
+                  "wa_id": "919898989898"
+              }
+          ],
+          "messages": [
+              {
+                  "id": "wamid.HBgMOTE5MDI4ODA1OTE4FQIAERgSQkI1RTJFMTY2RENDNzE1RDdBAA=="
+              }
+          ]
+      }
+order: 3000

@@ -1,0 +1,6 @@
+$kind: http-request
+url: https://messagingapi.charteredinfo.com/v19.0/{{Phone-Number-ID}}/Media/{{MediaId}}
+method: GET
+headers:
+  Authorization: Bearer {{Auth}}
+order: 5000
