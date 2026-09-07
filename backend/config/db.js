@@ -19,6 +19,12 @@ export const pool = new Pool({
     }
 });
 
+pool.on('connect', (client) => {
+    client.query("SET timezone = 'UTC'").catch(err => {
+        console.error("Error setting session timezone to UTC:", err.message);
+    });
+});
+
 export const connectDB = async () => {
     try {
         const client = await pool.connect();
