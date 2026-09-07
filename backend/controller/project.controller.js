@@ -2,10 +2,9 @@ import { pool } from '../config/db.js';
 
 export async function getProjects(req, res) {
     try {
-        const { customer_id } = req.query;
-        let query = `
-            SELECT p.id, p.name, p.description, p.milestones, p.timeline, p.status, p.created_at,
-                   p.customer_id, p.branch_name, c.name AS customer_name,
+        const result = await pool.query(`
+            SELECT p.id, p.name, p.description, p.customer_id, p.branch_name, p.milestones, p.timeline, p.status, p.created_at,
+                   c.name AS customer_name,
                    COALESCE(
                        JSON_AGG(
                            JSON_BUILD_OBJECT(
@@ -20,15 +19,9 @@ export async function getProjects(req, res) {
             LEFT JOIN customers c ON p.customer_id = c.id
             LEFT JOIN project_members pm ON p.id = pm.project_id
             LEFT JOIN employees e ON pm.employee_id = e.id
-        `;
-        const values = [];
-        if (customer_id) {
-            query += ` WHERE p.customer_id = $1`;
-            values.push(customer_id);
-        }
-        query += ` GROUP BY p.id, c.name ORDER BY p.id DESC;`;
-
-        const result = await pool.query(query, values);
+            GROUP BY p.id, c.name
+            ORDER BY p.id DESC;
+        `);
 
         // Also fetch active employees list for assigning members dropdown
         const employeesResult = await pool.query(
