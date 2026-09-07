@@ -18,7 +18,7 @@ import {
     getClientInvoiceDetails
 } from '../services/conversation.service.js';
 import { processMessageWithAI } from '../services/ai.service.js';
-import { notifyTicketWhatsApp } from './support.controller.js';
+import { notifyTicketWhatsApp, formatTurnaroundTime } from './support.controller.js';
 
 /**
  * 1. Webhook Receiver: Immediately responds with 200 OK, processes in background
@@ -551,7 +551,7 @@ Please send the payment screenshot or UTR number here once completed.`
     // 6. TECHNICAL SUPPORT INQUIRY / BUTTON CLICK
     // =========================================================================
     else if (key === 'srv_support' || key.includes('support') || key.includes('ticket')) {
-        const supportPrompt = `🎫 *Planex Technical Support Desk*\n\nHello *${clientContext.name}*,\nOur technical engineering team is ready to assist you 24/7.\n\n📝 *To Report an Issue:* Please reply with the issue details (e.g. *"Login button not working in PentaRMC"*).\n\n📷 *Screenshots / PDF files:* You can also attach and send an error screenshot or PDF document right here.\n\nOur system will instantly log the ticket, assign your dedicated engineers, and start the resolution timer.`;
+        const supportPrompt = `Planex Technical Support Desk\n\nHello ${clientContext.name},\nOur engineering team is ready to assist you.\n\nTo Report an Issue:\nPlease reply with details of the issue (e.g. "Login button not working in PentaRMC").\n\nYou can also attach and send an error screenshot or PDF document here.\n\nA ticket will be created automatically and assigned to your engineers.`;
         await sendWhatsAppText(senderPhone, supportPrompt);
         await saveMessage({
             senderPhone: '919082270423',
@@ -720,12 +720,14 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
             assignedTeam: assignedEmployees,
             customerName,
             projectName,
-            actionType: 'created'
+            actionType: 'created',
+            attachments: attachments
         });
 
-        // Send confirmation to Client
+        // Send clean confirmation to Client
         const engineerNames = assignedEmployees.map(e => e.full_name || e.name).join(', ') || 'Malhar Kulkarni, Nitin Rajguru';
-        const clientAck = `✅ *Support Ticket ${ticketCode} Raised!*\n\nHello *${customerName}*,\nYour support ticket has been registered and assigned to your dedicated engineering team:\n👨‍💻 *Assigned Engineers:* ${engineerNames}\n📦 *Project:* ${projectName}\n📝 *Issue:* ${titleSnippet}\n\n⏱️ *Live Resolution Timer has started.* Our engineers have received an instant WhatsApp alert and are investigating.\n\n💡 *Note:* When your issue is resolved, simply reply with *"RESOLVED"* or *"SUPPORT TICKET END"* here on WhatsApp to close this ticket.`;
+        const attachmentSnippet = attachments.length > 0 ? `\nAttachment: ${attachments.map(a => a.name || 'File').join(', ')}` : '';
+        const clientAck = `Support Ticket ${ticketCode} Registered\n\nHello ${customerName},\nYour support ticket has been logged and assigned to: ${engineerNames}\nProject: ${projectName}\nIssue: ${titleSnippet}${attachmentSnippet}\n\nResolution timer has started. Our team is actively reviewing.\nReply with "RESOLVED" or "TICKET END" once the issue is solved.`;
 
         await sendWhatsAppText(senderPhone, clientAck);
         await saveMessage({
@@ -762,7 +764,7 @@ export async function handleTicketResolutionByClient(senderPhone, clientContext)
         `, [`%${last10}%`, clientContext.id || 0, `%${clientContext.name}%`]);
 
         if (ticketRes.rows.length === 0) {
-            const noTicketMsg = `Hello ${clientContext.name}, no active open support ticket was found under your number.\n\nIf you are facing any new issue, please describe it here or attach a screenshot to raise a ticket!`;
+            const noTicketMsg = `Hello ${clientContext.name}, no active open support ticket was found under your number.\n\nIf you are facing any new issue, please describe it here or attach a screenshot to raise a ticket.`;
             await sendWhatsAppText(senderPhone, noTicketMsg);
             await saveMessage({
                 senderPhone: '919082270423',
@@ -775,10 +777,7 @@ export async function handleTicketResolutionByClient(senderPhone, clientContext)
         }
 
         const ticket = ticketRes.rows[0];
-        const durationMs = Date.now() - new Date(ticket.created_at).getTime();
-        const hours = Math.floor(durationMs / 3600000);
-        const mins = Math.floor((durationMs % 3600000) / 60000);
-        const durationStr = hours > 0 ? `${hours} hr ${mins} min` : `${mins} min`;
+        const durationStr = formatTurnaroundTime(ticket.created_at, new Date());
 
         // Update DB
         await pool.query(`
@@ -794,7 +793,7 @@ export async function handleTicketResolutionByClient(senderPhone, clientContext)
         `, [ticket.id, ticket.status]);
 
         // Notify client
-        const clientMsg = `🎉 *Support Ticket ${ticket.ticket_code} Resolved!*\n\nThank you *${clientContext.name}*!\n⏱️ *Total Resolution Time:* ${durationStr}\n📦 *Project:* ${ticket.project_name || 'General Project'}\n\nYour support ticket has been closed. We appreciate your feedback and partnership!`;
+        const clientMsg = `Support Ticket ${ticket.ticket_code} Resolved\n\nThank you ${clientContext.name}.\nTotal Resolution Time: ${durationStr}\nProject: ${ticket.project_name || 'General Project'}\n\nYour support ticket has been closed.`;
         await sendWhatsAppText(senderPhone, clientMsg);
         await saveMessage({
             senderPhone: '919082270423',

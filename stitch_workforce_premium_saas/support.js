@@ -363,6 +363,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const projName = t.project_name ? `<span style="font-size:11px; color:var(--text-muted); display:block;"><i class="fa-solid fa-diagram-project"></i> ${t.project_name}</span>` : '';
                 const assigneeName = t.assigned_to_name ? `<span style="font-weight:600; font-size:12.5px;"><i class="fa-solid fa-user-gear" style="color:var(--teal-600);"></i> ${t.assigned_to_name}</span>` : '<span style="color:var(--text-muted); font-size:12px;">Unassigned</span>';
 
+                const attList = Array.isArray(t.attachments) ? t.attachments : (t.attachments ? [t.attachments] : []);
+                const attBadge = attList.length > 0 ? `<span class="badge" style="background:rgba(14,165,233,0.12); color:#0284c7; font-size:10.5px; border:1px solid rgba(14,165,233,0.25); margin-left:4px;"><i class="fa-solid fa-paperclip"></i> ${attList.length} attachment${attList.length > 1 ? 's' : ''}</span>` : '';
+
                 html += `
                     <tr>
                         <td>
@@ -376,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>
                             <div style="font-weight:700; color:var(--teal-950); font-size:13px; margin-bottom:3px;">${t.title}</div>
                             <span class="badge" style="background:rgba(6,182,212,0.12); color:#0891b2; font-size:10.5px; border:1px solid rgba(6,182,212,0.25);">${t.category || 'Bug'}</span>
+                            ${attBadge}
                         </td>
                         <td>
                             <div style="margin-bottom:4px;">${getPriorityBadge(t.priority)}</div>
@@ -536,9 +540,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 attArea.style.display = 'block';
                 attList.innerHTML = '';
                 t.attachments.forEach(att => {
-                    const url = typeof att === 'string' ? att : att.url;
-                    const name = typeof att === 'string' ? 'Attachment' : (att.name || 'Attachment');
-                    attList.innerHTML += `<a href="${url}" target="_blank" class="badge" style="background:rgba(255,255,255,0.4); border:1px solid rgba(0,0,0,0.1); color:var(--teal-700); font-weight:600;"><i class="fa-solid fa-paperclip"></i> ${name}</a>`;
+                    const url = typeof att === 'string' ? att : (att.url || (att.mediaId ? `/api/v1/whatsapp/media/${att.mediaId}` : '#'));
+                    const name = typeof att === 'string' ? 'Attachment' : (att.name || att.filename || 'Attachment');
+                    const isImage = (typeof att === 'object' && att.type === 'image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(name) || /\.(png|jpe?g|gif|webp|svg)$/i.test(url);
+
+                    if (isImage && url && url !== '#') {
+                        attList.innerHTML += `
+                            <div style="display:inline-block; margin:6px; background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.12); border-radius:8px; padding:6px; text-align:center; vertical-align:top;">
+                                <a href="${url}" target="_blank" title="Click to view full image">
+                                    <img src="${url}" alt="${name}" style="max-width:200px; max-height:140px; border-radius:6px; display:block; object-fit:cover; margin-bottom:6px; box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+                                </a>
+                                <a href="${url}" target="_blank" style="font-size:12px; font-weight:700; color:var(--teal-700); text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ${name}
+                                </a>
+                            </div>
+                        `;
+                    } else {
+                        attList.innerHTML += `
+                            <a href="${url}" target="_blank" class="badge" style="background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.15); color:var(--teal-800); font-weight:700; padding:8px 14px; margin:4px; font-size:12.5px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                                <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:14px;"></i> ${name}
+                                <i class="fa-solid fa-download" style="margin-left:4px; font-size:11px; color:var(--text-muted);"></i>
+                            </a>
+                        `;
+                    }
                 });
             } else {
                 attArea.style.display = 'none';

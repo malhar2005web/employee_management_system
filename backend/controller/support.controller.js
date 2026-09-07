@@ -1,6 +1,22 @@
 import { pool } from '../config/db.js';
 import { sendWhatsAppTemplate, sendWhatsAppText, sanitizePhoneNumber } from '../services/whatsapp.service.js';
 
+export function formatTurnaroundTime(createdAt, resolvedAt = new Date()) {
+    try {
+        const start = new Date(createdAt).getTime();
+        const end = new Date(resolvedAt).getTime();
+        const diffMs = Math.abs(end - start);
+        const totalMinutes = Math.max(1, Math.round(diffMs / 60000));
+        const hours = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        if (hours > 0 && mins > 0) return `${hours} hr ${mins} min`;
+        if (hours > 0) return `${hours} hr`;
+        return `${mins} min`;
+    } catch (e) {
+        return 'Completed';
+    }
+}
+
 export async function notifyTicketWhatsApp({
     ticketCode,
     title,
@@ -10,7 +26,8 @@ export async function notifyTicketWhatsApp({
     customerName = 'Valued Client',
     projectName = 'General Project',
     actionType = 'created',
-    turnaroundTime = ''
+    turnaroundTime = '',
+    attachments = []
 }) {
     try {
         const targetEmployeeIds = new Set();
@@ -51,13 +68,19 @@ export async function notifyTicketWhatsApp({
             phoneList.push({ name: 'Support Engineer', phone: '918767137790' });
         }
 
+        let attachmentText = '';
+        if (Array.isArray(attachments) && attachments.length > 0) {
+            const names = attachments.map(a => typeof a === 'string' ? a : (a.name || a.filename || 'Attachment')).join(', ');
+            attachmentText = `\nAttachment: ${names}`;
+        }
+
         for (const target of phoneList) {
             try {
                 if (actionType === 'resolved') {
-                    const resolveMsg = `✅ *SUPPORT TICKET RESOLVED*\n\n🎫 *Ticket:* ${ticketCode}\n🏢 *Customer:* ${customerName}\n📦 *Project:* ${projectName}\n⏱️ *Resolution Turnaround:* ${turnaroundTime || 'Completed'}\n\nTicket marked resolved and client notified.`;
+                    const resolveMsg = `Support Ticket Resolved\n\nTicket: ${ticketCode}\nCustomer: ${customerName}\nProject: ${projectName}\nTurnaround: ${turnaroundTime || 'Completed'}\n\nTicket marked resolved and client notified.`;
                     await sendWhatsAppText(target.phone, resolveMsg);
                 } else {
-                    const alertMsg = `🚨 *NEW SUPPORT TICKET ASSIGNED*\n\n🎫 *Ticket:* ${ticketCode}\n🏢 *Customer:* ${customerName}\n📦 *Project:* ${projectName}\n⚠️ *Priority:* ${priority}\n📝 *Issue:* ${title}\n\n⏱️ *SLA Resolution Timer Started!*\nPlease review and attend promptly:\nhttps://planex.pentasoftconsultancy.com/admin-support.html`;
+                    const alertMsg = `Support Ticket Assigned\n\nTicket: ${ticketCode}\nCustomer: ${customerName}\nProject: ${projectName}\nPriority: ${priority}\nIssue: ${title}${attachmentText}\n\nResolution Timer Started.\nPortal: https://planex.pentasoftconsultancy.com/admin-support.html`;
                     await sendWhatsAppText(target.phone, alertMsg);
                 }
                 console.log(`✅ WhatsApp support ticket notification (${actionType}) sent to ${target.name} (${target.phone})`);
@@ -333,7 +356,8 @@ export const createTicket = async (req, res) => {
             assignedTeam: assigned_team || [],
             customerName,
             projectName: project_name || 'General Project',
-            actionType: 'created'
+            actionType: 'created',
+            attachments: attachments || []
         });
 
         // Log initial timeline event
@@ -429,10 +453,7 @@ export const updateTicket = async (req, res) => {
 
         // If newly resolved, alert engineers
         if (newStat === 'Resolved' && oldStatus !== 'Resolved') {
-            const durationMs = new Date().getTime() - new Date(ticket.created_at).getTime();
-            const hours = Math.floor(durationMs / 3600000);
-            const mins = Math.floor((durationMs % 3600000) / 60000);
-            const turnaroundStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+            const turnaroundStr = formatTurnaroundTime(ticket.created_at, new Date());
 
             notifyTicketWhatsApp({
                 ticketCode: ticket.ticket_code,
@@ -507,10 +528,7 @@ export const updateTicketStatus = async (req, res) => {
         `, [status, respondedAt, resolvedAt, id]);
 
         if (status === 'Resolved' && oldStatus !== 'Resolved') {
-            const durationMs = new Date().getTime() - new Date(ticket.created_at).getTime();
-            const hours = Math.floor(durationMs / 3600000);
-            const mins = Math.floor((durationMs % 3600000) / 60000);
-            const turnaroundStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+            const turnaroundStr = formatTurnaroundTime(ticket.created_at, new Date());
 
             notifyTicketWhatsApp({
                 ticketCode: ticket.ticket_code,
