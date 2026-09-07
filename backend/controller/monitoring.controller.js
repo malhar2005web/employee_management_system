@@ -224,12 +224,11 @@ export async function getMonitoringDashboard(req, res) {
                 ac.break_seconds,
                 ac.active_app,
                 ac.active_website,
-                ac.input_score,
                 ac.timestamp as last_activity_time
             FROM employees e
             LEFT JOIN employee_teramind_mapping m ON e.id = m.employee_id
             LEFT JOIN teramind_computer_cache c ON m.computer_id = c.computer_id
-            LEFT JOIN teramind_activity_cache ac ON e.id = ac.employee_id AND ac.work_date = CURRENT_DATE
+            LEFT JOIN teramind_activity_cache ac ON e.id = ac.employee_id AND ac.work_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
             ORDER BY e.id ASC;
         `);
 
@@ -248,27 +247,77 @@ export async function getMonitoringDashboard(req, res) {
                 console.warn("Live grid fetch warning in getMonitoringDashboard:", e.message);
             }
 
+            // Start of today in IST
+            const istDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+            const midnightISTUnix = Math.floor(new Date(`${istDateStr}T00:00:00+05:30`).getTime() / 1000);
+
+            // Pre-aggregate activity by computer
+            const statsByComp = {};
+            for (const r of gridRows) {
+                const cId = r.computer?.computer_id;
+                const cName = (r.computer?.name || '').toLowerCase();
+                const keys = [];
+                if (cId) keys.push(String(cId));
+                if (cName) keys.push(cName);
+
+                const dur = parseInt(r.duration || 0, 10);
+                const idle = parseInt(r.idle_time || 0, 10);
+                const rTime = r.timestamp?.timestamp || r.time || (r.period_start ? Math.floor(new Date(r.period_start).getTime() / 1000) : 0);
+                const isToday = rTime >= midnightISTUnix;
+                const isProd = r.activity_cat !== 'Unproductive';
+
+                for (const k of keys) {
+                    if (!statsByComp[k]) {
+                        statsByComp[k] = {
+                            activeSecToday: 0,
+                            prodSecToday: 0,
+                            idleSecToday: 0,
+                            activeSecTotal: 0,
+                            prodSecTotal: 0,
+                            lastApp: '',
+                            lastWeb: ''
+                        };
+                    }
+                    statsByComp[k].activeSecTotal += dur;
+                    if (isProd) statsByComp[k].prodSecTotal += dur;
+
+                    if (isToday) {
+                        statsByComp[k].activeSecToday += dur;
+                        if (isProd) statsByComp[k].prodSecToday += dur;
+                        statsByComp[k].idleSecToday += idle;
+                    }
+
+                    if (!statsByComp[k].lastApp && (r.process_host || r.friendly_name) && !r.url) {
+                        statsByComp[k].lastApp = r.process_host || r.friendly_name;
+                    }
+                    if (!statsByComp[k].lastWeb && (r.url || r.title)) {
+                        statsByComp[k].lastWeb = r.url || r.title;
+                    }
+                }
+            }
+
             const formatted = result.rows.map(row => {
                 const compId = row.computer_id;
                 const compName = (row.computer_name || '').toLowerCase();
 
-                // Find real activity row for this computer ONLY if a workstation is mapped
-                const realRow = compId ? gridRows.find(r => 
-                    r.computer?.computer_id == compId ||
-                    (compName && r.computer?.name && r.computer.name.toLowerCase() === compName)
-                ) : null;
+                const st = (compId && statsByComp[String(compId)]) || (compName && statsByComp[compName]) || null;
 
-                const activeApp = realRow ? (realRow.process_host || realRow.friendly_name || '') : '';
-                const activeWeb = realRow ? (realRow.url || realRow.title || '') : '';
+                const activeApp = st?.lastApp || row.active_app || '';
+                const activeWeb = st?.lastWeb || row.active_website || '';
                 const isOnline = row.is_online === true;
+
+                // Real work time accumulation: duration of active work
+                const prodSec = st ? (st.prodSecToday > 0 ? st.prodSecToday : st.prodSecTotal) : (row.productive_seconds || 0);
+                const activeSec = st ? (st.activeSecToday > 0 ? st.activeSecToday : st.activeSecTotal) : (row.active_seconds || 0);
+                const idleSec = st ? st.idleSecToday : (row.idle_seconds || 0);
 
                 return {
                     ...row,
-                    active_app: (compId && isOnline) ? (activeApp || row.active_app || '—') : '—',
-                    active_website: (compId && isOnline) ? (activeWeb || row.active_website || '—') : '—',
-                    productive_seconds: compId ? (row.productive_seconds || (realRow ? (realRow.duration || 0) : 0)) : 0,
-                    active_seconds: compId ? (row.active_seconds || (realRow ? (realRow.duration || 0) : 0)) : 0,
-                    input_score: compId ? (row.input_score || 0) : 0
+                    active_app: (compId && isOnline) ? (activeApp || '—') : (activeApp || '—'),
+                    active_website: (compId && isOnline) ? (activeWeb || '—') : (activeWeb || '—'),
+                    productive_seconds: compId ? prodSec : 0,
+                    active_seconds: compId ? activeSec : 0,
+                    idle_seconds: compId ? idleSec : 0
                 };
             });
 

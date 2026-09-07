@@ -200,9 +200,24 @@ async function loadWorkstationsData() {
             const safeName = (row.full_name || '').replace(/'/g, "\\'");
             const activeApp = row.active_app && row.active_app.trim() && row.active_app !== '—' ? row.active_app : '—';
             const activeWebsite = row.active_website && row.active_website.trim() && row.active_website !== '—' ? row.active_website : '—';
-            const inputScore = (row.input_score != null && row.input_score > 0) ? `${row.input_score}%` : '—';
             const compName = row.computer_name || '—';
             const osLabel = row.os || '—';
+            const isPaused = isOnline && isIdle;
+
+            let workTimeDisplay = '';
+            if (activeSec > 0 || prodSec > 0) {
+                const pauseTag = isPaused ? '<span style="font-size:10px; background:#fef3c7; color:#b45309; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:6px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-pause" style="font-size:8px;"></i> PAUSED</span>' : (isOnline ? '<span style="font-size:10px; background:#dcfce7; color:#15803d; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:6px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-play" style="font-size:8px;"></i> LIVE</span>' : '');
+
+                workTimeDisplay = `
+                    <div style="display:flex; align-items:center;">
+                        <strong style="color:var(--teal-900); font-size:14px;">${prodHours}h</strong><span style="font-weight:700; margin-left:4px; color:#334155;">Productive</span>
+                        ${pauseTag}
+                    </div>
+                    <span style="font-size:11.5px; color:var(--text-muted); font-weight:600;">${activeHours}h Total Active</span>
+                `;
+            } else {
+                workTimeDisplay = `<span style="color:var(--text-muted); font-size:12px;">No activity recorded</span>`;
+            }
 
             return `
                 <tr class="workstation-row" 
@@ -243,10 +258,7 @@ async function loadWorkstationsData() {
                         <i class="fa-solid fa-globe" style="color:var(--text-muted);"></i> ${activeWebsite}
                     </td>
                     <td style="padding:12px;">
-                        ${prodSec > 0 ? `<div><strong>${prodHours}h</strong> Productive</div><span style="font-size:11.5px; color:var(--text-muted);">${activeHours}h Total Active</span>` : `<span style="color:var(--text-muted); font-size:12px;">No data today</span>`}
-                    </td>
-                    <td style="padding:12px;">
-                        ${inputScore !== '—' ? `<span style="font-weight:700; color:var(--teal-900);">${inputScore} Activity</span><div style="font-size:10.5px; color:var(--text-muted);">Mouse/Key score</div>` : `<span style="color:var(--text-muted); font-size:12px;">—</span>`}
+                        ${workTimeDisplay}
                     </td>
                     <td style="padding:12px; text-align:right;">
                         <button type="button" class="btn-pill primary" style="font-size:12px; padding:6px 14px;" onclick="event.stopPropagation(); window.openEmployeeLogsModal(${row.employee_id}, '${safeName}')">
