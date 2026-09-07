@@ -146,15 +146,30 @@
     }
 
     // --- Load Attendance History ---
-    async function loadHistory() {
+    async function loadHistory(queryOverride) {
         try {
-            const res = await fetch('/api/v1/employee/attendance/logs', { credentials: 'include' });
-            const data = await res.json();
             const tbody = document.getElementById('attendance-tbody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading attendance records...</td></tr>';
+            }
+
+            let queryString = queryOverride;
+            if (!queryString) {
+                const filterVal = filterMonthEl ? filterMonthEl.value : '';
+                if (filterVal) {
+                    queryString = `month=${filterVal}`;
+                } else {
+                    const now = new Date();
+                    queryString = `month=${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                }
+            }
+
+            const res = await fetch(`/api/v1/employee/attendance/logs?${queryString}`, { credentials: 'include' });
+            const data = await res.json();
             if (!tbody) return;
 
-            if (!data.success || !data.data.length) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">No attendance records found.</td></tr>';
+            if (!data.success || !data.data || !data.data.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;"><i class="fa-regular fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;"></i>No attendance records found for this period.</td></tr>';
                 const mPres = document.getElementById('month-present');
                 const mLate = document.getElementById('month-late');
                 if (mPres) mPres.textContent = '0';
@@ -162,35 +177,58 @@
                 return;
             }
 
-            const filterVal = document.getElementById('filter-month').value;
-            const [fy, fm] = filterVal ? filterVal.split('-').map(Number) : [today.getFullYear(), today.getMonth() + 1];
+            const logs = data.data;
 
-            const filtered = data.data.filter(r => {
-                const d = new Date(r.date);
-                return d.getFullYear() === fy && (d.getMonth() + 1) === fm;
-            });
+            // Summary stats for present & late
+            const presentCount = logs.filter(r => r.calculated_status === 'Present' || r.calculated_status === 'Late' || r.status === 'Present').length;
+            const lateCount = logs.filter(r => r.calculated_status === 'Late' || r.is_late_login).length;
 
             const mPres = document.getElementById('month-present');
             const mLate = document.getElementById('month-late');
-            if (mPres) mPres.textContent = filtered.filter(r => r.status === 'Present').length;
-            if (mLate) mLate.textContent = filtered.filter(r => r.is_late_login).length;
+            if (mPres) mPres.textContent = presentCount;
+            if (mLate) mLate.textContent = lateCount;
 
-            const displayData = filtered.length ? filtered : data.data.slice(0, 20);
-            tbody.innerHTML = displayData.map(r => {
-                const d = new Date(r.date);
-                const day = d.toLocaleDateString('en-IN', { weekday: 'short' });
-                const dateStr = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            const todayIso = new Date().toLocaleDateString('en-CA'); // 'YYYY-MM-DD'
+
+            tbody.innerHTML = logs.map(r => {
+                const dateObj = new Date(r.date);
+                const day = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
+                const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                const rawDate = typeof r.date === 'string' ? r.date.slice(0, 10) : dateObj.toISOString().slice(0, 10);
+                const isToday = rawDate === todayIso;
+
                 const loginStr = r.login_time ? new Date(r.login_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
                 const logoutStr = r.logout_time ? new Date(r.logout_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
-                const hours = r.total_working_hours ? parseFloat(r.total_working_hours).toFixed(2) + ' hrs' : '—';
-                const statusClass = r.status === 'Present' ? 'done' : r.status === 'Late' ? 'pending' : 'rejected';
-                return `<tr>
-                    <td>${dateStr}</td>
+                const hours = (r.total_working_hours && parseFloat(r.total_working_hours) > 0)
+                    ? parseFloat(r.total_working_hours).toFixed(2) + ' hrs'
+                    : '0.00 hrs';
+
+                const status = r.calculated_status || r.status || 'Absent';
+                let statusBadge = '';
+                if (status === 'Present') {
+                    statusBadge = '<span class="status-pill done" style="background:#dcfce7; color:#15803d; font-weight:800;"><i class="fa-solid fa-circle-check" style="font-size:10px;margin-right:4px;"></i>Present</span>';
+                } else if (status === 'Late') {
+                    statusBadge = '<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800;"><i class="fa-solid fa-business-time" style="font-size:10px;margin-right:4px;"></i>Late</span>';
+                } else if (status === 'Holiday') {
+                    statusBadge = '<span class="status-pill" style="background:#ede9fe; color:#7c3aed; font-weight:800;"><i class="fa-solid fa-umbrella-beach" style="font-size:10px;margin-right:4px;"></i>Holiday</span>';
+                } else if (status === 'WeekOff') {
+                    statusBadge = '<span class="status-pill" style="background:#f1f5f9; color:#64748b; font-weight:700;"><i class="fa-solid fa-bed" style="font-size:10px;margin-right:4px;"></i>WeekOff</span>';
+                } else if (status === 'Upcoming') {
+                    statusBadge = '<span class="status-pill" style="background:rgba(226,232,240,0.6); color:#94a3b8; font-weight:600;"><i class="fa-regular fa-clock" style="font-size:10px;margin-right:4px;"></i>Upcoming</span>';
+                } else {
+                    statusBadge = '<span class="status-pill delayed" style="background:#fee2e2; color:#b91c1c; font-weight:700;"><i class="fa-solid fa-circle-xmark" style="font-size:10px;margin-right:4px;"></i>Absent</span>';
+                }
+
+                const rowHighlight = isToday ? 'style="background:rgba(16,185,129,0.07); border-left:3px solid var(--teal-600);"' : '';
+                const todayTag = isToday ? '<span style="font-size:9.5px; background:var(--teal-900); color:#fff; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:800; letter-spacing:0.5px;">TODAY</span>' : '';
+
+                return `<tr ${rowHighlight}>
+                    <td style="font-weight:700;">${dateStr}${todayTag}</td>
                     <td>${day}</td>
-                    <td>${loginStr}</td>
-                    <td>${logoutStr}</td>
+                    <td style="color:${r.login_time ? 'var(--teal-900)' : 'var(--text-muted)'}; font-weight:${r.login_time ? '700' : 'normal'};">${loginStr}</td>
+                    <td style="color:${r.logout_time ? 'var(--teal-900)' : 'var(--text-muted)'}; font-weight:${r.logout_time ? '700' : 'normal'};">${logoutStr}</td>
                     <td>${hours}</td>
-                    <td><span class="status-pill ${statusClass}">${r.status || 'Absent'}</span></td>
+                    <td>${statusBadge}</td>
                 </tr>`;
             }).join('');
         } catch (e) {
@@ -198,7 +236,61 @@
         }
     }
 
-    if (filterMonthEl) filterMonthEl.addEventListener('change', loadHistory);
+    // Quick filter toolbar actions
+    const btnThisMonth = document.getElementById('btn-quick-this-month');
+    const btnLastMonth = document.getElementById('btn-quick-last-month');
+    const btnAll2026 = document.getElementById('btn-quick-all-2026');
+
+    function setButtonActive(activeBtn) {
+        [btnThisMonth, btnLastMonth, btnAll2026].forEach(b => {
+            if (!b) return;
+            if (b === activeBtn) {
+                b.style.background = 'var(--teal-900)';
+                b.style.color = '#ffffff';
+                b.style.border = 'none';
+            } else {
+                b.style.background = '#f1f5f9';
+                b.style.color = '#334155';
+                b.style.border = '1px solid #e2e8f0';
+            }
+        });
+    }
+
+    if (filterMonthEl) {
+        filterMonthEl.addEventListener('change', () => {
+            setButtonActive(null);
+            loadHistory();
+        });
+    }
+
+    if (btnThisMonth) {
+        btnThisMonth.addEventListener('click', () => {
+            const now = new Date();
+            const curM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            if (filterMonthEl) filterMonthEl.value = curM;
+            setButtonActive(btnThisMonth);
+            loadHistory(`month=${curM}`);
+        });
+    }
+
+    if (btnLastMonth) {
+        btnLastMonth.addEventListener('click', () => {
+            const now = new Date();
+            now.setMonth(now.getMonth() - 1);
+            const prevM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            if (filterMonthEl) filterMonthEl.value = prevM;
+            setButtonActive(btnLastMonth);
+            loadHistory(`month=${prevM}`);
+        });
+    }
+
+    if (btnAll2026) {
+        btnAll2026.addEventListener('click', () => {
+            if (filterMonthEl) filterMonthEl.value = '';
+            setButtonActive(btnAll2026);
+            loadHistory('year=2026');
+        });
+    }
 
     // --- Attendance Correction Modal ---
     const btnCorrection = document.getElementById('btn-correction');

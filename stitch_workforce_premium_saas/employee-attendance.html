@@ -140,10 +140,22 @@
 
       <!-- Attendance Log Table -->
       <div class="card table-card">
-        <div class="card-head">
-          <h3>Attendance History</h3>
-          <div style="display:flex;gap:12px;align-items:center;">
-            <input type="month" id="filter-month" class="glass" style="padding:6px;border-radius:var(--radius-sm);color:var(--text-dark);border:1px solid rgba(255,255,255,0.45);font-family:inherit;font-size:12.5px;">
+        <div class="card-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h3 style="margin:0; font-size:16px; font-weight:800; color:var(--teal-900); display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-calendar-days" style="color:var(--teal-600);"></i> Attendance History Logs
+            </h3>
+            <p style="margin:2px 0 0 0; font-size:12px; color:var(--text-muted);">View and track your daily punches, shifts, and monthly attendance.</p>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.7); padding:4px 10px; border-radius:var(--radius-sm); border:1px solid rgba(0,0,0,0.1);">
+              <i class="fa-regular fa-calendar" style="color:var(--teal-600); font-size:13px;"></i>
+              <label for="filter-month" style="font-size:12px; font-weight:700; color:var(--teal-900); margin:0;">Month:</label>
+              <input type="month" id="filter-month" style="border:none; background:transparent; color:var(--text-dark); font-weight:700; font-family:inherit; font-size:13px; outline:none; cursor:pointer;">
+            </div>
+            <button type="button" class="btn" id="btn-quick-this-month" style="background:var(--teal-900); color:white; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;">This Month</button>
+            <button type="button" class="btn" id="btn-quick-last-month" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;">Last Month</button>
+            <button type="button" class="btn" id="btn-quick-all-2026" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;">Year 2026</button>
           </div>
         </div>
         <div style="overflow-x: auto; width: 100%;">

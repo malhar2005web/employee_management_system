@@ -14,15 +14,10 @@ export const pool = new Pool({
     database: ENV_VARS.PGDATABASE,
     password: ENV_VARS.PGPASSWORD,
     port: ENV_VARS.PGPORT,
+    options: '-c timezone=UTC',
     ssl: {
         rejectUnauthorized: false
     }
-});
-
-pool.on('connect', (client) => {
-    client.query("SET timezone = 'UTC'").catch(err => {
-        console.error("Error setting session timezone to UTC:", err.message);
-    });
 });
 
 export const connectDB = async () => {

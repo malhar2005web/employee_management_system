@@ -308,10 +308,54 @@ export async function requestCorrection(req, res) {
 export async function getAttendanceLogs(req, res) {
     try {
         const employeeId = await getEmployeeId(req.user.id);
-        const result = await pool.query(
-            "SELECT * FROM attendance WHERE employee_id = $1 ORDER BY date DESC;",
-            [employeeId]
-        );
+        const { month, year, startDate, endDate } = req.query;
+
+        let conditions = ["employee_id = $1"];
+        let params = [employeeId];
+        let pIdx = 2;
+
+        if (startDate && endDate) {
+            conditions.push(`date >= $${pIdx++} AND date <= $${pIdx++}`);
+            params.push(startDate, endDate);
+        } else if (month && month !== 'all') {
+            // E.g. month = '2026-09' or '202609'
+            const cleanMonth = month.replace(/-/g, '').slice(0, 6);
+            const y = parseInt(cleanMonth.slice(0, 4), 10);
+            const m = parseInt(cleanMonth.slice(4, 6), 10);
+            const startM = `${y}-${String(m).padStart(2, '0')}-01`;
+            const daysInM = new Date(y, m, 0).getDate();
+            const endM = `${y}-${String(m).padStart(2, '0')}-${String(daysInM).padStart(2, '0')}`;
+            conditions.push(`date >= $${pIdx++} AND date <= $${pIdx++}`);
+            params.push(startM, endM);
+        } else if (year) {
+            const startY = `${year}-01-01`;
+            const endY = `${year}-12-31`;
+            conditions.push(`date >= $${pIdx++} AND date <= $${pIdx++}`);
+            params.push(startY, endY);
+        }
+
+        const query = `
+            SELECT id, employee_id, date, 
+                   COALESCE(login_time, portal_check_in) as login_time, 
+                   COALESCE(logout_time, portal_check_out) as logout_time, 
+                   total_working_hours, 
+                   status, 
+                   is_late_login, 
+                   punch_source,
+                   CASE 
+                       WHEN (login_time IS NOT NULL OR portal_check_in IS NOT NULL) AND is_late_login = true THEN 'Late'
+                       WHEN (login_time IS NOT NULL OR portal_check_in IS NOT NULL) THEN 'Present'
+                       WHEN status = 'Holiday' THEN 'Holiday'
+                       WHEN status = 'WeekOff' OR EXTRACT(DOW FROM date) = 0 THEN 'WeekOff'
+                       WHEN date > CURRENT_DATE THEN 'Upcoming'
+                       ELSE 'Absent'
+                   END as calculated_status
+            FROM attendance 
+            WHERE ${conditions.join(' AND ')}
+            ORDER BY date ASC;
+        `;
+
+        const result = await pool.query(query, params);
         res.status(200).json({ success: true, data: result.rows });
     } catch (error) {
         console.log("Error in getAttendanceLogs:", error.message);
