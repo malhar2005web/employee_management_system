@@ -188,13 +188,15 @@
             if (mPres) mPres.textContent = presentCount;
             if (mLate) mLate.textContent = lateCount;
 
-            const todayIso = new Date().toLocaleDateString('en-CA'); // 'YYYY-MM-DD'
+            const todayIso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 
             tbody.innerHTML = logs.map(r => {
-                const dateObj = new Date(r.date);
+                const rawDate = typeof r.date === 'string' ? r.date.slice(0, 10) : '';
+                const parts = rawDate.split('-').map(Number);
+                const dateObj = parts.length === 3 ? new Date(parts[0], parts[1] - 1, parts[2]) : new Date(r.date);
+
                 const day = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
                 const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-                const rawDate = typeof r.date === 'string' ? r.date.slice(0, 10) : dateObj.toISOString().slice(0, 10);
                 const isToday = rawDate === todayIso;
 
                 const loginStr = r.login_time ? new Date(r.login_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';

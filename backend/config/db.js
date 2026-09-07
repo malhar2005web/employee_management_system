@@ -8,13 +8,18 @@ pg.types.setTypeParser(1114, function(stringValue) {
     return new Date(stringValue + 'Z');
 });
 
+// Parse DATE without timezone (OID 1082) as raw 'YYYY-MM-DD' string
+pg.types.setTypeParser(1082, function(stringValue) {
+    return stringValue;
+});
+
 export const pool = new Pool({
     user: ENV_VARS.PGUSER,
     host: ENV_VARS.PGHOST,
     database: ENV_VARS.PGDATABASE,
     password: ENV_VARS.PGPASSWORD,
     port: ENV_VARS.PGPORT,
-    options: '-c timezone=UTC',
+    options: '-c timezone=Asia/Kolkata',
     ssl: {
         rejectUnauthorized: false
     }

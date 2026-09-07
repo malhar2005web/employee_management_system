@@ -335,7 +335,8 @@ export async function getAttendanceLogs(req, res) {
         }
 
         const query = `
-            SELECT id, employee_id, date, 
+            SELECT id, employee_id, 
+                   TO_CHAR(date, 'YYYY-MM-DD') as date, 
                    COALESCE(login_time, portal_check_in) as login_time, 
                    COALESCE(logout_time, portal_check_out) as logout_time, 
                    total_working_hours, 
@@ -347,7 +348,7 @@ export async function getAttendanceLogs(req, res) {
                        WHEN (login_time IS NOT NULL OR portal_check_in IS NOT NULL) THEN 'Present'
                        WHEN status = 'Holiday' THEN 'Holiday'
                        WHEN status = 'WeekOff' OR EXTRACT(DOW FROM date) = 0 THEN 'WeekOff'
-                       WHEN date > CURRENT_DATE THEN 'Upcoming'
+                       WHEN date > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date THEN 'Upcoming'
                        ELSE 'Absent'
                    END as calculated_status
             FROM attendance 
