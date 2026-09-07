@@ -86,6 +86,65 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<span style="color:var(--teal-900); font-weight:600; font-size:12px;"><i class="fa-regular fa-clock"></i> ${hrs}h ${mins}m left</span>`;
     };
 
+    // Helper: Dynamically populate projects dropdown based on selected customer
+    const updateProjectDropdown = (customerSelectId, projectSelectId, selectedProjectId = null) => {
+        const custSelect = document.getElementById(customerSelectId);
+        const projSelect = document.getElementById(projectSelectId);
+        if (!projSelect) return;
+
+        const selectedCustId = custSelect ? custSelect.value : '';
+        projSelect.innerHTML = '<option value="">None / General</option>';
+
+        let availableProjects = [];
+
+        if (selectedCustId) {
+            // First check projectsCache where customer_id matches
+            const matchedProjects = projectsCache.filter(p => String(p.customer_id) === String(selectedCustId));
+            if (matchedProjects.length > 0) {
+                availableProjects = matchedProjects;
+            } else {
+                // Fallback: check customer in customersCache for customer_projects or branch projects
+                const cust = customersCache.find(c => String(c.id) === String(selectedCustId));
+                if (cust) {
+                    if (cust.customer_projects && Array.isArray(cust.customer_projects) && cust.customer_projects.length > 0) {
+                        availableProjects = cust.customer_projects;
+                    } else if (cust.branches && Array.isArray(cust.branches)) {
+                        cust.branches.forEach(b => {
+                            if (b.projects && Array.isArray(b.projects)) {
+                                b.projects.forEach(p => {
+                                    if (p.name) {
+                                        availableProjects.push({
+                                            id: p.id || null,
+                                            name: p.name,
+                                            branch_name: b.branch
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }
+            }
+        } else {
+            // If no customer selected, show all projects from projectsCache
+            availableProjects = projectsCache;
+        }
+
+        // Add options to dropdown
+        availableProjects.forEach(p => {
+            const pName = p.name || p.project_name || 'Project';
+            const branchSuffix = p.branch_name ? ` (${p.branch_name})` : '';
+            const optVal = p.id ? String(p.id) : pName;
+            const opt = document.createElement('option');
+            opt.value = optVal;
+            opt.textContent = `${pName}${branchSuffix}`;
+            if (selectedProjectId && (String(p.id) === String(selectedProjectId) || String(optVal) === String(selectedProjectId))) {
+                opt.selected = true;
+            }
+            projSelect.appendChild(opt);
+        });
+    };
+
     // Populate Initial Dropdowns (Customers, Projects, Employees)
     const loadDropdownData = async () => {
         try {
@@ -100,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const empData = await empRes.json();
 
             customersCache = custData.success ? (custData.data || []) : [];
-            projectsCache = projData.success ? (projData.data || []) : [];
+            projectsCache = projData.success ? (projData.data?.projects || (Array.isArray(projData.data) ? projData.data : [])) : [];
             employeesCache = empData.success ? (empData.data || []) : [];
 
             // Populate Customer Filter & Modal Selects
@@ -118,18 +177,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (editCustSelect) editCustSelect.innerHTML += opt;
             });
 
-            // Populate Project Modal Selects
-            const ticketProjSelect = document.getElementById('ticket-project');
-            const editProjSelect = document.getElementById('edit-ticket-project');
-            if (ticketProjSelect) ticketProjSelect.innerHTML = '<option value="">None / General</option>';
-            if (editProjSelect) editProjSelect.innerHTML = '<option value="">None / General</option>';
-            
-            projectsCache.forEach(p => {
-                const pName = p.project_name || p.name || 'Project';
-                const opt = `<option value="${p.id}">${pName}</option>`;
-                if (ticketProjSelect) ticketProjSelect.innerHTML += opt;
-                if (editProjSelect) editProjSelect.innerHTML += opt;
-            });
+            // Dynamic project dropdown listeners
+            if (ticketCustSelect && !ticketCustSelect._hasProjectListener) {
+                ticketCustSelect.addEventListener('change', () => {
+                    updateProjectDropdown('ticket-customer', 'ticket-project');
+                });
+                ticketCustSelect._hasProjectListener = true;
+            }
+            if (editCustSelect && !editCustSelect._hasProjectListener) {
+                editCustSelect.addEventListener('change', () => {
+                    updateProjectDropdown('edit-ticket-customer', 'edit-ticket-project');
+                });
+                editCustSelect._hasProjectListener = true;
+            }
+
+            // Populate Project Modal Selects initially
+            updateProjectDropdown('ticket-customer', 'ticket-project');
+            updateProjectDropdown('edit-ticket-customer', 'edit-ticket-project');
 
             // Populate Staff Modal & Workspace Selects
             const ticketAssigneeSelect = document.getElementById('ticket-assignee');
@@ -259,6 +323,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (btnOpenCreateTicket) btnOpenCreateTicket.addEventListener('click', () => {
+        const ticketCustSelect = document.getElementById('ticket-customer');
+        if (ticketCustSelect && filterCustomer && filterCustomer.value !== 'all') {
+            ticketCustSelect.value = filterCustomer.value;
+        }
+        updateProjectDropdown('ticket-customer', 'ticket-project');
         if (typeof window.openModal === 'function') window.openModal(createTicketModal);
         else if (createTicketModal) createTicketModal.classList.add('active');
     });
@@ -642,8 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const custSelect = document.getElementById('edit-ticket-customer');
             if (custSelect) custSelect.value = t.customer_id || '';
 
-            const projSelect = document.getElementById('edit-ticket-project');
-            if (projSelect) projSelect.value = t.project_id || '';
+            updateProjectDropdown('edit-ticket-customer', 'edit-ticket-project', t.project_id);
 
             const assSelect = document.getElementById('edit-ticket-assignee');
             if (assSelect) assSelect.value = t.assigned_to || '';
