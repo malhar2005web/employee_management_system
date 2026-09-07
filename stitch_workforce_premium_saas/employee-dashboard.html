@@ -707,12 +707,21 @@
   document.getElementById('self-report-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
+    const submitBtn = document.getElementById('btn-submit-self-report');
+    const origText = submitBtn ? submitBtn.innerHTML : '<i class="fa-solid fa-paper-plane"></i> Submit Report &amp; Clock Out';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting & Clocking Out...';
+    }
+
     const taskTextareas = document.querySelectorAll('.sr-task-desc');
     let todaysWork = "";
     taskTextareas.forEach((tx, idx) => {
       const title = tx.getAttribute('data-task-title');
       const val = tx.value.trim();
-      todaysWork += `Task ${idx + 1}: ${title}\nProgress: ${val}\n\n`;
+      if (val) {
+        todaysWork += `Task ${idx + 1}: ${title}\nProgress: ${val}\n\n`;
+      }
     });
 
     const extraWorkVal = document.getElementById('sr-extra-work').value.trim();
@@ -720,19 +729,14 @@
       todaysWork += `Extra Work / Other Tasks:\n${extraWorkVal}\n\n`;
     }
 
-    if (todayTasks.length === 0 && !extraWorkVal) {
-      showToast("Please describe today's work or extra work", "error");
-      return;
-    }
-    if (todayTasks.length > 0 && !todaysWork.trim()) {
-      showToast("Please fill progress description for all tasks", "error");
-      return;
+    if (!todaysWork.trim()) {
+      todaysWork = "Daily operational tasks & routine responsibilities completed.";
     }
 
-    const tomorrowsPlan = document.getElementById('sr-tomorrow-plan').value.trim();
+    const tomorrowsPlan = document.getElementById('sr-tomorrow-plan').value.trim() || "Continuing scheduled project tasks.";
     const currentIssues = document.getElementById('sr-blockers').value.trim();
-    const workCapacity = document.getElementById('sr-capacity').value;
-    const percentageComplete = document.getElementById('sr-complete').value;
+    const workCapacity = document.getElementById('sr-capacity').value || 100;
+    const percentageComplete = document.getElementById('sr-complete').value || 100;
 
     try {
       const res = await fetch('/api/v1/employee/reports/self', {
@@ -750,13 +754,21 @@
       if (data.success) {
         showToast('Self-report submitted successfully!', 'success');
         document.getElementById('self-report-modal').style.display = 'none';
-        // Now proceed with clock out (which should pass now that report exists)
+        // Now proceed with clock out
         await proceedWithClockOut(false);
       } else {
         showToast(data.message || 'Failed to submit report', 'error');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origText;
+        }
       }
     } catch (e) {
       showToast('Network error', 'error');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origText;
+      }
     }
   });
 
