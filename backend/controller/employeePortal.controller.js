@@ -1,5 +1,6 @@
 import { pool } from '../config/db.js';
 import bcryptjs from 'bcryptjs';
+import { getWebPagesApplicationsGrid } from '../services/teramind.service.js';
 
 // Helper to get active employee ID from user session
 async function getEmployeeId(userId) {
@@ -419,54 +420,388 @@ export async function getAttendanceLogs(req, res) {
         const employeeId = await getEmployeeId(req.user.id);
         const { month, year, startDate, endDate } = req.query;
 
-        let conditions = ["employee_id = $1"];
-        let params = [employeeId];
-        let pIdx = 2;
+        const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 
+        let startDateStr, endDateStr;
         if (startDate && endDate) {
-            conditions.push(`date >= $${pIdx++} AND date <= $${pIdx++}`);
-            params.push(startDate, endDate);
+            startDateStr = startDate;
+            endDateStr = endDate;
         } else if (month && month !== 'all') {
-            // E.g. month = '2026-09' or '202609'
             const cleanMonth = month.replace(/-/g, '').slice(0, 6);
             const y = parseInt(cleanMonth.slice(0, 4), 10);
             const m = parseInt(cleanMonth.slice(4, 6), 10);
-            const startM = `${y}-${String(m).padStart(2, '0')}-01`;
+            startDateStr = `${y}-${String(m).padStart(2, '0')}-01`;
             const daysInM = new Date(y, m, 0).getDate();
-            const endM = `${y}-${String(m).padStart(2, '0')}-${String(daysInM).padStart(2, '0')}`;
-            conditions.push(`date >= $${pIdx++} AND date <= $${pIdx++}`);
-            params.push(startM, endM);
+            endDateStr = `${y}-${String(m).padStart(2, '0')}-${String(daysInM).padStart(2, '0')}`;
         } else if (year) {
-            const startY = `${year}-01-01`;
-            const endY = `${year}-12-31`;
-            conditions.push(`date >= $${pIdx++} AND date <= $${pIdx++}`);
-            params.push(startY, endY);
+            startDateStr = `${year}-01-01`;
+            endDateStr = `${year}-12-31`;
+        } else {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = now.getMonth() + 1;
+            startDateStr = `${y}-${String(m).padStart(2, '0')}-01`;
+            const daysInM = new Date(y, m, 0).getDate();
+            endDateStr = `${y}-${String(m).padStart(2, '0')}-${String(daysInM).padStart(2, '0')}`;
         }
 
-        const query = `
-            SELECT id, employee_id, 
-                   TO_CHAR(date, 'YYYY-MM-DD') as date, 
-                   COALESCE(login_time, portal_check_in) as login_time, 
-                   COALESCE(logout_time, portal_check_out) as logout_time, 
-                   total_working_hours, 
-                   status, 
-                   is_late_login, 
-                   punch_source,
-                   CASE 
-                       WHEN (login_time IS NOT NULL OR portal_check_in IS NOT NULL) AND is_late_login = true THEN 'Late'
-                       WHEN (login_time IS NOT NULL OR portal_check_in IS NOT NULL) THEN 'Present'
-                       WHEN status = 'Holiday' THEN 'Holiday'
-                       WHEN status = 'WeekOff' OR EXTRACT(DOW FROM date) = 0 THEN 'WeekOff'
-                       WHEN date > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date THEN 'Upcoming'
-                       ELSE 'Absent'
-                   END as calculated_status
-            FROM attendance 
-            WHERE ${conditions.join(' AND ')}
-            ORDER BY date ASC;
-        `;
+        // 1. Fetch employee & workstation mapping
+        const empRes = await pool.query(`
+            SELECT e.id, e.full_name, e.employee_code, e.department_id,
+                   m.computer_id, m.computer_name
+            FROM employees e
+            LEFT JOIN employee_teramind_mapping m ON e.id = m.employee_id
+            WHERE e.id = $1;
+        `, [employeeId]);
 
-        const result = await pool.query(query, params);
-        res.status(200).json({ success: true, data: result.rows });
+        if (empRes.rows.length === 0) {
+            return res.status(200).json({ success: true, data: [] });
+        }
+        const emp = empRes.rows[0];
+
+        // 2. Fetch manual corrections/records from attendance table
+        const dbAttRes = await pool.query(
+            "SELECT * FROM attendance WHERE employee_id = $1 AND date >= $2 AND date <= $3",
+            [employeeId, startDateStr, endDateStr]
+        );
+        const dbAttMap = new Map();
+        dbAttRes.rows.forEach(r => {
+            const dStr = r.date instanceof Date
+                ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(r.date)
+                : String(r.date).slice(0, 10);
+            dbAttMap.set(dStr, r);
+        });
+
+        // 3. Fetch approved leaves
+        const leaveMap = new Map();
+        try {
+            const leaveRes = await pool.query(`
+                SELECT lr.employee_id, lr.leave_type, lr.reason, lr.start_date, lr.end_date
+                FROM leave_requests lr
+                WHERE lr.employee_id = $1 AND lr.status = 'Approved'
+                  AND NOT (lr.end_date < $2::date OR lr.start_date > $3::date);
+            `, [employeeId, startDateStr, endDateStr]);
+
+            leaveRes.rows.forEach(l => {
+                const s = new Date(l.start_date);
+                const e = new Date(l.end_date);
+                for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+                    const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+                    if (dStr >= startDateStr && dStr <= endDateStr) {
+                        leaveMap.set(dStr, l);
+                    }
+                }
+            });
+        } catch (lErr) {
+            console.warn("Leave query warning:", lErr.message);
+        }
+
+        // 4. Fetch holidays
+        const holidayMap = new Map();
+        try {
+            const holidayRes = await pool.query(`
+                SELECT date, name FROM holidays WHERE date >= $1 AND date <= $2;
+            `, [startDateStr, endDateStr]);
+            holidayRes.rows.forEach(h => {
+                const dStr = h.date instanceof Date
+                    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(h.date)
+                    : String(h.date).slice(0, 10);
+                holidayMap.set(dStr, h.name);
+            });
+        } catch (hErr) {
+            console.warn("Holiday query warning:", hErr.message);
+        }
+
+        // 5. Fetch Workstation Activity Telemetry (Historical Jan-Jul vs Live Teramind Aug+)
+        const compActivityMap = new Map();
+
+        if (startDateStr < '2026-08-01' && emp.computer_name) {
+            try {
+                const cName = emp.computer_name.toLowerCase();
+                const sheetRes = await pool.query(`
+                    SELECT rep_datetime::date as punch_date, rep_datetime::text as rep_dt_txt, duration
+                    FROM pcs_attendance_sheet
+                    WHERE LOWER(computer) = $1
+                      AND rep_datetime >= $2::timestamp AND rep_datetime < ($3::timestamp + INTERVAL '1 day')
+                    ORDER BY rep_datetime ASC;
+                `, [cName, startDateStr, endDateStr]);
+
+                sheetRes.rows.forEach(r => {
+                    const dStr = String(r.punch_date).split('T')[0];
+                    const txt = (r.rep_dt_txt || '').split('.')[0];
+                    const ts = txt ? Math.floor(new Date(txt.replace(' ', 'T') + '+05:30').getTime() / 1000) : 0;
+                    let durSecs = 0;
+                    if (r.duration) {
+                        const parts = String(r.duration).split(':');
+                        if (parts.length >= 3) {
+                            durSecs = (parseInt(parts[0], 10) * 3600) + (parseInt(parts[1], 10) * 60) + parseInt(parts[2], 10);
+                        }
+                    }
+                    if (ts > 0) {
+                        if (!compActivityMap.has(dStr)) compActivityMap.set(dStr, []);
+                        compActivityMap.get(dStr).push({ ts, dur: durSecs });
+                    }
+                });
+            } catch (sErr) {
+                console.warn("Historical sheet warning:", sErr.message);
+            }
+        }
+
+        if (endDateStr >= '2026-08-01' && emp.computer_id) {
+            const tmStart = Math.max(Math.floor(new Date(`${startDateStr}T00:00:00+05:30`).getTime() / 1000), Math.floor(new Date('2026-08-01T00:00:00+05:30').getTime() / 1000));
+            const tmEnd = Math.floor(new Date(`${endDateStr}T23:59:59+05:30`).getTime() / 1000);
+
+            try {
+                const gridRes = await getWebPagesApplicationsGrid({
+                    computers: [parseInt(emp.computer_id, 10)],
+                    periodStart: String(tmStart),
+                    periodEnd: String(tmEnd),
+                    pageSize: 10000
+                });
+                const gridRows = gridRes?.rows || [];
+
+                gridRows.forEach(r => {
+                    const ts = r.time || (r.timestamp?.timestamp ? r.timestamp.timestamp : null);
+                    const dur = r.duration || 0;
+                    if (!ts) return;
+
+                    const dObj = new Date(ts * 1000);
+                    const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(dObj);
+                    if (!compActivityMap.has(dStr)) compActivityMap.set(dStr, []);
+                    compActivityMap.get(dStr).push({ ts, dur });
+                });
+            } catch (tErr) {
+                console.warn("Teramind grid fetch warning:", tErr.message);
+            }
+        }
+
+        // 6. Generate date list ascending: startDateStr -> endDateStr
+        const dateList = [];
+        const curD = new Date(`${startDateStr}T00:00:00`);
+        const endD = new Date(`${endDateStr}T00:00:00`);
+        while (curD <= endD) {
+            const parts = [
+                curD.getFullYear(),
+                String(curD.getMonth() + 1).padStart(2, '0'),
+                String(curD.getDate()).padStart(2, '0')
+            ];
+            dateList.push(parts.join('-'));
+            curD.setDate(curD.getDate() + 1);
+        }
+
+        const now = new Date();
+        const nowParts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+        }).formatToParts(now);
+        const nowP = {};
+        nowParts.forEach(({ type, value }) => { nowP[type] = value; });
+        const currentHourIST = parseInt(nowP.hour, 10);
+
+        const logs = [];
+
+        for (const targetDateStr of dateList) {
+            const isToday = (targetDateStr === todayIST);
+            const isFuture = (targetDateStr > todayIST);
+
+            const targetDateObj = new Date(`${targetDateStr}T12:00:00+05:30`);
+            const dayOfWeek = targetDateObj.getDay(); // 0 is Sunday
+            const isSunday = (dayOfWeek === 0);
+
+            const dbRecord = dbAttMap.get(targetDateStr);
+            const onLeave = leaveMap.get(targetDateStr);
+            const holidayName = holidayMap.get(targetDateStr);
+            const empRows = compActivityMap.get(targetDateStr) || [];
+
+            let finalRecord = null;
+
+            // Tier 1: Admin / HR Manual Approved Override
+            if (dbRecord && (dbRecord.approval_status === 'Approved' || dbRecord.manual_check_in || dbRecord.punch_source === 'MANUAL_HR')) {
+                const inTime = dbRecord.manual_check_in || dbRecord.login_time;
+                const outTime = dbRecord.manual_check_out || dbRecord.logout_time;
+                const status = dbRecord.status || 'Present';
+                finalRecord = {
+                    id: dbRecord.id,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: inTime,
+                    logout_time: outTime,
+                    total_working_hours: dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours).toFixed(2) : '0.00',
+                    status: status,
+                    calculated_status: status,
+                    is_late_login: !!dbRecord.is_late_login,
+                    punch_source: 'MANUAL_HR'
+                };
+            }
+            // Tier 2: Employee Portal Web Punch with actual login_time
+            else if (dbRecord && (dbRecord.portal_check_in || (dbRecord.login_time && dbRecord.punch_source === 'PORTAL'))) {
+                const inTime = dbRecord.portal_check_in || dbRecord.login_time;
+                const outTime = dbRecord.portal_check_out || dbRecord.logout_time;
+                const isLate = !!dbRecord.is_late_login;
+                const status = dbRecord.status || (isLate ? 'Late' : 'Present');
+                finalRecord = {
+                    id: dbRecord.id,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: inTime,
+                    logout_time: outTime,
+                    total_working_hours: dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours).toFixed(2) : '0.00',
+                    status: status,
+                    calculated_status: status,
+                    is_late_login: isLate,
+                    punch_source: 'PORTAL'
+                };
+            }
+            // Tier 3: Approved Leave
+            else if (onLeave) {
+                const leaveTypeName = onLeave.leave_type || 'Leave';
+                const isHalfDay = leaveTypeName.toLowerCase().includes('half');
+                const status = isHalfDay ? 'Half Day' : 'On Leave';
+                finalRecord = {
+                    id: null,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: null,
+                    logout_time: null,
+                    total_working_hours: '0.00',
+                    status: status,
+                    calculated_status: status,
+                    is_late_login: false,
+                    punch_source: 'LEAVE_MANAGEMENT'
+                };
+            }
+            // Tier 4: Workstation Telemetry Activity (Teramind / Sheet)
+            else if (empRows.length > 0) {
+                let minTs = Infinity;
+                let maxTs = 0;
+                let totalActiveSecs = 0;
+
+                empRows.forEach(r => {
+                    if (r.ts && r.ts > 0) {
+                        if (r.ts < minTs) minTs = r.ts;
+                        const end = r.ts + (r.dur || 0);
+                        if (end > maxTs) maxTs = end;
+                    }
+                    totalActiveSecs += (r.dur || 0);
+                });
+
+                const checkInDate = minTs !== Infinity ? new Date(minTs * 1000) : null;
+                const checkOutDate = maxTs > 0 ? new Date(maxTs * 1000) : null;
+
+                const formatISTIso = (d) => {
+                    if (!d) return null;
+                    const parts = new Intl.DateTimeFormat('en-GB', {
+                        timeZone: 'Asia/Kolkata',
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+                    }).formatToParts(d);
+                    const p = {};
+                    parts.forEach(({ type, value }) => { p[type] = value; });
+                    return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}+05:30`;
+                };
+
+                const loginTimeStr = formatISTIso(checkInDate);
+                let logoutTimeStr = formatISTIso(checkOutDate);
+
+                if (isToday && currentHourIST < 19) {
+                    logoutTimeStr = null;
+                }
+
+                const totalHoursNum = (totalActiveSecs / 3600).toFixed(2);
+
+                let isLate = false;
+                if (checkInDate) {
+                    const checkInParts = new Intl.DateTimeFormat('en-GB', {
+                        timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                    }).formatToParts(checkInDate);
+                    const p = {};
+                    checkInParts.forEach(({ type, value }) => { p[type] = value; });
+                    const hh = parseInt(p.hour, 10);
+                    const mm = parseInt(p.minute, 10);
+                    if (hh > 10 || (hh === 10 && mm > 15)) {
+                        isLate = true;
+                    }
+                }
+
+                const calculatedStatus = isLate ? 'Late' : 'Present';
+
+                finalRecord = {
+                    id: dbRecord?.id || null,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: loginTimeStr,
+                    logout_time: logoutTimeStr,
+                    total_working_hours: totalHoursNum,
+                    status: calculatedStatus,
+                    calculated_status: calculatedStatus,
+                    is_late_login: isLate,
+                    punch_source: 'TERAMIND'
+                };
+            }
+            // Tier 5: Holiday
+            else if (holidayName || (dbRecord && dbRecord.status === 'Holiday')) {
+                finalRecord = {
+                    id: dbRecord?.id || null,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: null,
+                    logout_time: null,
+                    total_working_hours: '0.00',
+                    status: 'Holiday',
+                    calculated_status: 'Holiday',
+                    is_late_login: false,
+                    punch_source: 'HOLIDAY'
+                };
+            }
+            // Tier 6: Sunday / WeekOff
+            else if (isSunday || (dbRecord && dbRecord.status === 'WeekOff')) {
+                finalRecord = {
+                    id: dbRecord?.id || null,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: null,
+                    logout_time: null,
+                    total_working_hours: '0.00',
+                    status: 'WeekOff',
+                    calculated_status: 'WeekOff',
+                    is_late_login: false,
+                    punch_source: 'WEEKOFF'
+                };
+            }
+            // Tier 7: Future date
+            else if (isFuture) {
+                finalRecord = {
+                    id: dbRecord?.id || null,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: null,
+                    logout_time: null,
+                    total_working_hours: '0.00',
+                    status: 'Upcoming',
+                    calculated_status: 'Upcoming',
+                    is_late_login: false,
+                    punch_source: 'UPCOMING'
+                };
+            }
+            // Tier 8: Absent
+            else {
+                finalRecord = {
+                    id: dbRecord?.id || null,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: null,
+                    logout_time: null,
+                    total_working_hours: '0.00',
+                    status: 'Absent',
+                    calculated_status: 'Absent',
+                    is_late_login: false,
+                    punch_source: 'AUTO'
+                };
+            }
+
+            logs.push(finalRecord);
+        }
+
+        res.status(200).json({ success: true, data: logs });
     } catch (error) {
         console.log("Error in getAttendanceLogs:", error.message);
         res.status(500).json({ success: false, message: error.message || "Internal server error" });
