@@ -111,15 +111,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const cust = customersCache.find(c => String(c.id) === String(customerId));
             if (cust) {
                 // 1. From branches projects (e.g. Dahisar -> PentaRMC, Miraroad -> Pentarmc)
-                if (Array.isArray(cust.branches)) {
-                    cust.branches.forEach((b, bIdx) => {
+                let branches = cust.branches;
+                if (typeof branches === 'string') {
+                    try { branches = JSON.parse(branches); } catch (e) { branches = []; }
+                }
+                if (Array.isArray(branches)) {
+                    branches.forEach((b, bIdx) => {
                         const bName = b.branch || `Branch ${bIdx + 1}`;
-                        if (Array.isArray(b.projects)) {
-                            b.projects.forEach(p => {
+                        let bProjs = b.projects;
+                        if (typeof bProjs === 'string') {
+                            try { bProjs = JSON.parse(bProjs); } catch (e) { bProjs = []; }
+                        }
+                        if (Array.isArray(bProjs)) {
+                            bProjs.forEach(p => {
                                 const pName = typeof p === 'string' ? p : (p.name || p.project_name || 'Module');
                                 if (pName && !availableProjects.some(x => x.name.toLowerCase() === pName.toLowerCase() && x.branch_name === bName)) {
+                                    // Match exact project from projectsCache (by customer_id and branch or name)
+                                    const matchingProj = projectsCache.find(mp => 
+                                        String(mp.customer_id) === String(customerId) && 
+                                        ((mp.branch_name && mp.branch_name.toLowerCase() === bName.toLowerCase()) || mp.name.toLowerCase() === pName.toLowerCase())
+                                    );
                                     availableProjects.push({
-                                        id: p.id || `branch_${bIdx}_${pName}`,
+                                        id: matchingProj ? matchingProj.id : (p.id || `branch_${bIdx}_${pName}`),
                                         name: pName,
                                         branch_name: bName,
                                         assignedEmployees: b.assignedEmployees || []
@@ -130,12 +143,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 // 2. From cust.projects array
-                if (Array.isArray(cust.projects)) {
-                    cust.projects.forEach(p => {
+                let custProjs = cust.projects;
+                if (typeof custProjs === 'string') {
+                    try { custProjs = JSON.parse(custProjs); } catch (e) { custProjs = []; }
+                }
+                if (Array.isArray(custProjs)) {
+                    custProjs.forEach(p => {
                         const pName = typeof p === 'string' ? p : (p.name || p.project_name);
                         if (pName && !availableProjects.some(x => x.name.toLowerCase() === pName.toLowerCase())) {
+                            const matchingProj = projectsCache.find(mp => String(mp.customer_id) === String(customerId) && mp.name.toLowerCase() === pName.toLowerCase());
                             availableProjects.push({
-                                id: p.id || `cust_${pName}`,
+                                id: matchingProj ? matchingProj.id : (p.id || `cust_${pName}`),
                                 name: pName,
                                 branch_name: ''
                             });
@@ -143,19 +161,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 // 3. From customer_projects if any
-                if (Array.isArray(cust.customer_projects)) {
-                    cust.customer_projects.forEach(p => {
+                let custDirectProjs = cust.customer_projects;
+                if (typeof custDirectProjs === 'string') {
+                    try { custDirectProjs = JSON.parse(custDirectProjs); } catch (e) { custDirectProjs = []; }
+                }
+                if (Array.isArray(custDirectProjs)) {
+                    custDirectProjs.forEach(p => {
                         const pName = p.name || p.project_name;
-                        if (pName && !availableProjects.some(x => x.name.toLowerCase() === pName.toLowerCase())) {
-                            availableProjects.push(p);
+                        if (pName && !availableProjects.some(x => (String(x.id) === String(p.id) || x.name.toLowerCase() === pName.toLowerCase()))) {
+                            availableProjects.push({
+                                id: p.id,
+                                name: pName,
+                                branch_name: p.branch_name || ''
+                            });
                         }
                     });
                 }
                 // 4. From global projectsCache matching customer_id
                 const dbProjs = projectsCache.filter(p => String(p.customer_id) === String(customerId));
                 dbProjs.forEach(p => {
-                    if (!availableProjects.some(x => String(x.id) === String(p.id))) {
-                        availableProjects.push(p);
+                    if (!availableProjects.some(x => String(x.id) === String(p.id) || (x.name.toLowerCase() === (p.name || '').toLowerCase() && x.branch_name === (p.branch_name || '')))) {
+                        availableProjects.push({
+                            id: p.id,
+                            name: p.name,
+                            branch_name: p.branch_name || ''
+                        });
                     }
                 });
             }
@@ -164,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (availableProjects.length > 0) {
-            availableProjects.forEach(p => {
+            availableProjects.forEach((p, idx) => {
                 const pName = p.name || p.project_name || 'Project';
                 const branchInfo = p.branch_name ? ` (${p.branch_name} Branch)` : '';
                 const opt = document.createElement('option');
@@ -179,11 +209,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 selectEl.appendChild(opt);
             });
+
+            // If no project explicitly preselected and creating new ticket, automatically select the first project!
+            if (!selectedProjectId && !selectedProjectName && availableProjects.length > 0 && customerId) {
+                selectEl.value = availableProjects[0].id || availableProjects[0].name;
+            }
         }
     };
 
     // Auto-select assignee staff based on Customer / Project assignment
-    const autoSelectAssignee = (customerId, assigneeSelectId) => {
+    const autoSelectAssignee = (customerId, assigneeSelectId, chosenProjectId = null) => {
         if (!customerId) return;
         const selectEl = document.getElementById(assigneeSelectId);
         if (!selectEl) return;
@@ -191,15 +226,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cust) return;
 
         let assignedEmps = [];
-        if (Array.isArray(cust.assigned_employees) && cust.assigned_employees.length > 0) {
-            assignedEmps = cust.assigned_employees;
-        } else if (Array.isArray(cust.branches)) {
-            for (const b of cust.branches) {
-                if (Array.isArray(b.assignedEmployees) && b.assignedEmployees.length > 0) {
+
+        // Check if project has specific assigned employees
+        let branches = cust.branches;
+        if (typeof branches === 'string') {
+            try { branches = JSON.parse(branches); } catch (e) { branches = []; }
+        }
+        if (Array.isArray(branches)) {
+            for (const b of branches) {
+                const bProjs = Array.isArray(b.projects) ? b.projects : [];
+                const matchesProj = chosenProjectId ? bProjs.some(p => String(p.id) === String(chosenProjectId) || (p.name && p.name.toLowerCase().includes(String(chosenProjectId).toLowerCase()))) : false;
+                if (matchesProj && Array.isArray(b.assignedEmployees) && b.assignedEmployees.length > 0) {
                     assignedEmps = b.assignedEmployees;
                     break;
+                } else if (!assignedEmps.length && Array.isArray(b.assignedEmployees) && b.assignedEmployees.length > 0) {
+                    assignedEmps = b.assignedEmployees;
                 }
             }
+        }
+
+        if (assignedEmps.length === 0 && Array.isArray(cust.assigned_employees) && cust.assigned_employees.length > 0) {
+            assignedEmps = cust.assigned_employees;
         }
 
         if (assignedEmps.length > 0) {
@@ -219,15 +266,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cust) return;
 
         let contactStr = '';
-        if (cust.contact_persons && Array.isArray(cust.contact_persons) && cust.contact_persons.length > 0) {
-            const cp = cust.contact_persons[0];
+        let contactPersons = cust.contact_persons;
+        if (typeof contactPersons === 'string') {
+            try { contactPersons = JSON.parse(contactPersons); } catch (e) { contactPersons = []; }
+        }
+        if (Array.isArray(contactPersons) && contactPersons.length > 0) {
+            const cp = contactPersons[0];
             contactStr = cp.name ? `${cp.name}${cp.email ? ' (' + cp.email + ')' : (cp.phone ? ' (' + cp.phone + ')' : '')}` : '';
-        } else if (cust.branches && Array.isArray(cust.branches)) {
-            for (const b of cust.branches) {
-                if (b.contacts && Array.isArray(b.contacts) && b.contacts.length > 0) {
-                    const cp = b.contacts[0];
-                    contactStr = cp.name ? `${cp.name}${cp.email ? ' (' + cp.email + ')' : (cp.phone ? ' (' + cp.phone + ')' : '')}` : '';
-                    break;
+        } else {
+            let branches = cust.branches;
+            if (typeof branches === 'string') {
+                try { branches = JSON.parse(branches); } catch (e) { branches = []; }
+            }
+            if (Array.isArray(branches)) {
+                for (const b of branches) {
+                    if (b.contacts && Array.isArray(b.contacts) && b.contacts.length > 0) {
+                        const cp = b.contacts[0];
+                        contactStr = cp.name ? `${cp.name}${cp.email ? ' (' + cp.email + ')' : (cp.phone ? ' (' + cp.phone + ')' : '')}` : '';
+                        break;
+                    }
                 }
             }
         }
@@ -275,23 +332,50 @@ document.addEventListener('DOMContentLoaded', () => {
             renderProjectOptions(ticketProjSelect, '');
             renderProjectOptions(editProjSelect, '');
 
-            // Attach dynamic change listener for Customer -> Projects in Create Modal
+            // Global Handler for Create Modal Customer change
+            window.handleCustomerSelectChange = (chosenCustId) => {
+                const projEl = document.getElementById('ticket-project');
+                renderProjectOptions(projEl, chosenCustId);
+                autoFillContact(chosenCustId, 'ticket-reported-by');
+                const selectedProjVal = projEl ? projEl.value : null;
+                autoSelectAssignee(chosenCustId, 'ticket-assignee', selectedProjVal);
+            };
+
+            // Global Handler for Edit Modal Customer change
+            window.handleEditCustomerSelectChange = (chosenCustId) => {
+                const projEl = document.getElementById('edit-ticket-project');
+                renderProjectOptions(projEl, chosenCustId);
+                const selectedProjVal = projEl ? projEl.value : null;
+                autoSelectAssignee(chosenCustId, 'edit-ticket-assignee', selectedProjVal);
+            };
+
+            // Global Handler for Project change -> auto-select engineer
+            window.handleProjectSelectChange = (projId, assigneeSelectId = 'ticket-assignee', custSelectId = 'ticket-customer') => {
+                const custEl = document.getElementById(custSelectId);
+                const custId = custEl ? custEl.value : null;
+                if (custId) {
+                    autoSelectAssignee(custId, assigneeSelectId, projId);
+                }
+            };
+
+            // Attach dynamic change & input listeners for Customer -> Projects in Create Modal
             if (ticketCustSelect) {
-                ticketCustSelect.onchange = (e) => {
-                    const chosenCustId = e.target.value;
-                    renderProjectOptions(ticketProjSelect, chosenCustId);
-                    autoFillContact(chosenCustId, 'ticket-reported-by');
-                    autoSelectAssignee(chosenCustId, 'ticket-assignee');
-                };
+                ticketCustSelect.addEventListener('change', (e) => window.handleCustomerSelectChange(e.target.value));
+                ticketCustSelect.addEventListener('input', (e) => window.handleCustomerSelectChange(e.target.value));
             }
 
-            // Attach dynamic change listener for Customer -> Projects in Edit Modal
+            // Attach dynamic change & input listeners for Customer -> Projects in Edit Modal
             if (editCustSelect) {
-                editCustSelect.onchange = (e) => {
-                    const chosenCustId = e.target.value;
-                    renderProjectOptions(editProjSelect, chosenCustId);
-                    autoSelectAssignee(chosenCustId, 'edit-ticket-assignee');
-                };
+                editCustSelect.addEventListener('change', (e) => window.handleEditCustomerSelectChange(e.target.value));
+                editCustSelect.addEventListener('input', (e) => window.handleEditCustomerSelectChange(e.target.value));
+            }
+
+            // Attach project select change listeners
+            if (ticketProjSelect) {
+                ticketProjSelect.addEventListener('change', (e) => window.handleProjectSelectChange(e.target.value, 'ticket-assignee', 'ticket-customer'));
+            }
+            if (editProjSelect) {
+                editProjSelect.addEventListener('change', (e) => window.handleProjectSelectChange(e.target.value, 'edit-ticket-assignee', 'edit-ticket-customer'));
             }
 
             // Populate Staff Modal & Workspace Selects
@@ -310,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error("Error loading dropdown data:", err);
         }
+
     };
 
     // Load & Render Tickets Table

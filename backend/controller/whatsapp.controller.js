@@ -21,6 +21,9 @@ import {
 import { processMessageWithAI } from '../services/ai.service.js';
 import { notifyTicketWhatsApp, formatTurnaroundTime } from './support.controller.js';
 
+// In-Memory Interactive Ticket Drafts State Machine
+export const clientTicketDrafts = new Map();
+
 /**
  * 1. Webhook Receiver: Immediately responds with 200 OK, processes in background
  */
@@ -85,6 +88,7 @@ async function processIncomingWebhookAsync(body) {
         // ==========================================================
         if (isResolutionKeyword(textContent || selectedId)) {
             console.log(`🎯 Resolution keyword detected from ${senderPhone}: "${textContent || selectedId}"`);
+            clientTicketDrafts.delete(senderPhone);
             await handleTicketResolutionByClient(senderPhone, clientContext);
             continue;
         }
@@ -94,12 +98,60 @@ async function processIncomingWebhookAsync(body) {
         // ==========================================================
         if (msgType === 'interactive' || msgType === 'button' || selectedId) {
             await handleInteractiveClick(senderPhone, selectedId || textContent, clientContext);
+            continue;
         }
 
         // ==========================================================
-        // ROUTE 2: DOCUMENT / EXCEL / PDF FILE RECEIVED
+        // ROUTE 2: ACTIVE SUPPORT TICKET DRAFT FLOW HANDLER
         // ==========================================================
-        else if (msgType === 'document') {
+        const activeDraft = clientTicketDrafts.get(senderPhone);
+        if (activeDraft) {
+            console.log(`📋 Active Support Draft for ${senderPhone} at step: [${activeDraft.step}]`);
+
+            if (activeDraft.step === 'awaiting_details') {
+                if (msgType === 'document') {
+                    const docName = textContent || 'Document.pdf';
+                    const mediaAttachment = {
+                        name: docName,
+                        mediaId: mediaId,
+                        type: 'document',
+                        uploadedAt: new Date().toISOString()
+                    };
+                    await handleSupportTicketCreation(senderPhone, textContent || `Document Attachment: ${docName}`, clientContext, mediaAttachment, activeDraft);
+                } else if (msgType === 'image') {
+                    const caption = textContent && textContent !== '[Image]' ? textContent : 'Screenshot of error';
+                    const mediaAttachment = {
+                        name: 'Screenshot.png',
+                        caption: caption,
+                        mediaId: mediaId,
+                        type: 'image',
+                        uploadedAt: new Date().toISOString()
+                    };
+                    await handleSupportTicketCreation(senderPhone, caption, clientContext, mediaAttachment, activeDraft);
+                } else {
+                    await handleSupportTicketCreation(senderPhone, textContent || displayBody, clientContext, null, activeDraft);
+                }
+                clientTicketDrafts.delete(senderPhone);
+                continue;
+            } else if (activeDraft.step === 'awaiting_project') {
+                activeDraft.projectName = textContent || displayBody;
+                await sendCategorySelection(senderPhone, activeDraft);
+                continue;
+            } else if (activeDraft.step === 'awaiting_category') {
+                activeDraft.category = textContent || displayBody;
+                await sendPrioritySelection(senderPhone, activeDraft);
+                continue;
+            } else if (activeDraft.step === 'awaiting_priority') {
+                activeDraft.priority = textContent || displayBody;
+                await sendDetailsPrompt(senderPhone, activeDraft);
+                continue;
+            }
+        }
+
+        // ==========================================================
+        // ROUTE 3: DOCUMENT / EXCEL / PDF FILE RECEIVED (WITHOUT PRIOR DRAFT)
+        // ==========================================================
+        if (msgType === 'document') {
             const docName = textContent || 'Document.pdf';
             const mediaAttachment = {
                 name: docName,
@@ -108,12 +160,11 @@ async function processIncomingWebhookAsync(body) {
                 uploadedAt: new Date().toISOString()
             };
 
-            // If customer or support keyword or document sent, auto-create/attach support ticket
             await handleSupportTicketCreation(senderPhone, `Document Attachment: ${docName}`, clientContext, mediaAttachment);
         }
 
         // ==========================================================
-        // ROUTE 3: IMAGE / SCREENSHOT RECEIVED
+        // ROUTE 4: IMAGE / SCREENSHOT RECEIVED (WITHOUT PRIOR DRAFT)
         // ==========================================================
         else if (msgType === 'image') {
             const caption = textContent && textContent !== '[Image]' ? textContent : 'Screenshot of error';
@@ -125,12 +176,11 @@ async function processIncomingWebhookAsync(body) {
                 uploadedAt: new Date().toISOString()
             };
 
-            // Auto-create support ticket with screenshot attached
             await handleSupportTicketCreation(senderPhone, `Issue Screenshot: ${caption}`, clientContext, mediaAttachment);
         }
 
         // ==========================================================
-        // ROUTE 4: DIRECT ISSUE REPORTING OR GENERAL TEXT
+        // ROUTE 5: DIRECT ISSUE REPORTING OR GENERAL TEXT
         // ==========================================================
         else if (isSupportIssueIntent(textContent)) {
             console.log(`🚨 Support issue intent detected from ${senderPhone}: "${textContent}"`);
@@ -551,21 +601,301 @@ Please send the payment screenshot or UTR number here once completed.`
     // =========================================================================
     // 6. TECHNICAL SUPPORT INQUIRY / BUTTON CLICK
     // =========================================================================
-    else if (key === 'srv_support' || key.includes('support') || key.includes('ticket')) {
-        const supportPrompt = `Planex Technical Support Desk\n\nHello ${clientContext.name},\nOur engineering team is ready to assist you.\n\nTo Report an Issue:\nPlease reply with details of the issue (e.g. "Login button not working in PentaRMC").\n\nYou can also attach and send an error screenshot or PDF document here.\n\nA ticket will be created automatically and assigned to your engineers.`;
-        await sendWhatsAppText(senderPhone, supportPrompt);
-        await saveMessage({
-            senderPhone: '919082270423',
-            recipientPhone: senderPhone,
-            direction: 'outbound',
-            messageType: 'text',
-            messageBody: supportPrompt
-        });
+    else if (key === 'srv_support' || key === 'support_ticket' || key === 'raise_ticket') {
+        await startSupportTicketFlow(senderPhone, clientContext);
+    }
+
+    // =========================================================================
+    // 7. INTERACTIVE PROJECT SELECTION (STEP 1 OF SUPPORT TICKET)
+    // =========================================================================
+    else if (key.startsWith('supproj_')) {
+        let draft = clientTicketDrafts.get(senderPhone) || {
+            step: 'awaiting_project',
+            customerId: clientContext.id,
+            customerName: clientContext.name,
+            clientContactName: clientContext.name,
+            timestamp: Date.now()
+        };
+
+        let chosenProj = null;
+        if (Array.isArray(draft.availableProjects)) {
+            chosenProj = draft.availableProjects.find(p => p.id === selectedId || p.id === key);
+        }
+
+        if (chosenProj) {
+            draft.projectId = chosenProj.id;
+            draft.projectName = `${chosenProj.name}${chosenProj.branchName ? ` (${chosenProj.branchName} Branch)` : ''}`;
+            draft.branchName = chosenProj.branchName || '';
+            draft.assignedEmployees = chosenProj.assignedEmployees || [];
+        } else if (key.includes('general')) {
+            draft.projectName = 'General Maintenance / Scope';
+            draft.branchName = '';
+        } else {
+            draft.projectName = selectedId || 'Customer Project';
+        }
+
+        await sendCategorySelection(senderPhone, draft);
+    }
+
+    // =========================================================================
+    // 8. INTERACTIVE ISSUE CATEGORY SELECTION (STEP 2 OF SUPPORT TICKET)
+    // =========================================================================
+    else if (key.startsWith('supcat_')) {
+        let draft = clientTicketDrafts.get(senderPhone) || {
+            step: 'awaiting_category',
+            customerId: clientContext.id,
+            customerName: clientContext.name,
+            projectName: 'General Project',
+            timestamp: Date.now()
+        };
+
+        const catMap = {
+            'supcat_bug': 'Bug / Defect',
+            'supcat_server': 'Server / Downtime',
+            'supcat_config': 'Configuration / Setup',
+            'supcat_data': 'Data / Report Issue',
+            'supcat_feature': 'Feature Request',
+            'supcat_general': 'General Support'
+        };
+
+        draft.category = catMap[key] || catMap[selectedId] || selectedId || 'Bug / Defect';
+        await sendPrioritySelection(senderPhone, draft);
+    }
+
+    // =========================================================================
+    // 9. INTERACTIVE PRIORITY & SLA MATRIX SELECTION (STEP 3 OF SUPPORT TICKET)
+    // =========================================================================
+    else if (key.startsWith('suppri_')) {
+        let draft = clientTicketDrafts.get(senderPhone) || {
+            step: 'awaiting_priority',
+            customerId: clientContext.id,
+            customerName: clientContext.name,
+            projectName: 'General Project',
+            category: 'Bug / Defect',
+            timestamp: Date.now()
+        };
+
+        const priMap = {
+            'suppri_critical': 'Critical',
+            'suppri_high': 'High',
+            'suppri_medium': 'Medium'
+        };
+
+        draft.priority = priMap[key] || priMap[selectedId] || 'High';
+        await sendDetailsPrompt(senderPhone, draft);
     }
 
     // Fallback: If no interactive key matched, treat as text
     else {
         await handleTextMessageWithAI(senderPhone, selectedId, clientContext);
+    }
+}
+
+/**
+ * Step 1: Start Guided WhatsApp Support Ticket Session
+ */
+export async function startSupportTicketFlow(senderPhone, clientContext) {
+    try {
+        let customerId = clientContext.id;
+        let customerName = clientContext.name || 'Valued Customer';
+        let clientContactName = clientContext.contactName || customerName;
+
+        let projectsList = [];
+        if (customerId) {
+            const custRes = await pool.query(`SELECT id, name, branches, contact_persons, assigned_employees FROM customers WHERE id = $1`, [customerId]);
+            if (custRes.rows.length > 0) {
+                const c = custRes.rows[0];
+                customerName = c.name || customerName;
+
+                let contactPersons = c.contact_persons;
+                if (typeof contactPersons === 'string') {
+                    try { contactPersons = JSON.parse(contactPersons); } catch(e){}
+                }
+                if (Array.isArray(contactPersons) && contactPersons.length > 0 && contactPersons[0].name) {
+                    clientContactName = contactPersons[0].name;
+                }
+
+                let branches = c.branches;
+                if (typeof branches === 'string') {
+                    try { branches = JSON.parse(branches); } catch(e){}
+                }
+                if (Array.isArray(branches)) {
+                    branches.forEach((b, bIdx) => {
+                        const bName = b.branch || `Branch ${bIdx + 1}`;
+                        let bProjs = b.projects;
+                        if (typeof bProjs === 'string') {
+                            try { bProjs = JSON.parse(bProjs); } catch(e){}
+                        }
+                        if (Array.isArray(bProjs)) {
+                            bProjs.forEach((p, pIdx) => {
+                                const pName = typeof p === 'string' ? p : (p.name || p.project_name || 'Module');
+                                projectsList.push({
+                                    id: `supproj_${bIdx}_${pIdx}`,
+                                    name: pName,
+                                    branchName: bName,
+                                    assignedEmployees: b.assignedEmployees || []
+                                });
+                            });
+                        }
+                    });
+                }
+            }
+
+            const dbProjRes = await pool.query(`SELECT id, name, branch_name FROM projects WHERE customer_id = $1`, [customerId]);
+            for (const dp of dbProjRes.rows) {
+                if (!projectsList.some(p => p.name.toLowerCase() === dp.name.toLowerCase() && p.branchName.toLowerCase() === (dp.branch_name || '').toLowerCase())) {
+                    projectsList.push({
+                        id: `supproj_db_${dp.id}`,
+                        name: dp.name,
+                        branchName: dp.branch_name || '',
+                        assignedEmployees: []
+                    });
+                }
+            }
+        }
+
+        const draft = {
+            step: 'awaiting_project',
+            customerId: customerId,
+            customerName: customerName,
+            clientContactName: clientContactName,
+            availableProjects: projectsList,
+            timestamp: Date.now()
+        };
+        clientTicketDrafts.set(senderPhone, draft);
+
+        if (projectsList.length > 0) {
+            const rows = projectsList.slice(0, 9).map(p => ({
+                id: p.id,
+                title: `${p.name}${p.branchName ? ` (${p.branchName})` : ''}`.slice(0, 24),
+                description: `Branch: ${p.branchName || 'Main Project'}`.slice(0, 72)
+            }));
+            rows.push({
+                id: 'supproj_general',
+                title: 'General Maintenance',
+                description: 'General system support or other issue'
+            });
+
+            await sendWhatsAppListMenu(senderPhone, {
+                headerText: "Support Ticket Desk",
+                bodyText: `Hello ${clientContactName},\n\nPlease select the project / branch where you are experiencing an issue:`,
+                footerText: "Planex Technical Support",
+                buttonText: "Select Project",
+                sections: [
+                    {
+                        title: "Your Assigned Projects",
+                        rows: rows
+                    }
+                ]
+            });
+        } else {
+            draft.projectName = 'General Maintenance';
+            draft.branchName = '';
+            await sendCategorySelection(senderPhone, draft);
+        }
+    } catch (err) {
+        console.error("❌ Error in startSupportTicketFlow:", err.message);
+    }
+}
+
+/**
+ * Step 2: Send Issue Category Selection List Menu
+ */
+export async function sendCategorySelection(senderPhone, draft) {
+    try {
+        draft.step = 'awaiting_category';
+        clientTicketDrafts.set(senderPhone, draft);
+
+        await sendWhatsAppListMenu(senderPhone, {
+            headerText: "Select Issue Category",
+            bodyText: `Project: ${draft.projectName || 'General Maintenance'}\n\nPlease select the category that best describes your issue:`,
+            footerText: "Planex Technical Support",
+            buttonText: "Choose Category",
+            sections: [
+                {
+                    title: "Issue Categories",
+                    rows: [
+                        { id: "supcat_bug", title: "Bug / Defect", description: "System crash, button not working, UI glitch" },
+                        { id: "supcat_server", title: "Server / Downtime", description: "Portal down, service unreachable, slow response" },
+                        { id: "supcat_config", title: "Configuration / Setup", description: "User permission, setting change, setup help" },
+                        { id: "supcat_data", title: "Data / Report Issue", description: "Data discrepancy, missing record, calculation" },
+                        { id: "supcat_feature", title: "Feature Request", description: "New feature requirement or enhancement" },
+                        { id: "supcat_general", title: "General Support", description: "Training, help, or general inquiry" }
+                    ]
+                }
+            ]
+        });
+    } catch (err) {
+        console.error("❌ Error in sendCategorySelection:", err.message);
+    }
+}
+
+/**
+ * Step 3: Send Priority & SLA Level Selection Buttons
+ */
+export async function sendPrioritySelection(senderPhone, draft) {
+    try {
+        draft.step = 'awaiting_priority';
+        clientTicketDrafts.set(senderPhone, draft);
+
+        await sendWhatsAppButtons(senderPhone, {
+            headerText: "Priority & SLA Level",
+            bodyText: `Project: ${draft.projectName}\nCategory: ${draft.category}\n\nPlease select the urgency / SLA priority level:`,
+            footerText: "Planex Technical Support",
+            buttons: [
+                { id: "suppri_critical", title: "Critical (4h SLA)" },
+                { id: "suppri_high", title: "High (24h SLA)" },
+                { id: "suppri_medium", title: "Medium (3d SLA)" }
+            ]
+        });
+    } catch (err) {
+        console.error("❌ Error in sendPrioritySelection:", err.message);
+    }
+}
+
+/**
+ * Step 4: Prompt Client for Issue Description & Photo/PDF Upload
+ */
+export async function sendDetailsPrompt(senderPhone, draft) {
+    try {
+        draft.step = 'awaiting_details';
+
+        let assignedEmployees = draft.assignedEmployees || [];
+        if (!assignedEmployees.length) {
+            if (draft.projectName && draft.projectName.toLowerCase().includes('dahisar')) {
+                assignedEmployees = [
+                    { id: 9, full_name: 'Malhar Kulkarni' },
+                    { id: 10, full_name: 'Nitin RajGuru' }
+                ];
+            } else if (draft.projectName && draft.projectName.toLowerCase().includes('miraroad')) {
+                assignedEmployees = [
+                    { id: 15, full_name: 'Vijay Mourya' },
+                    { id: 10, full_name: 'Nitin RajGuru' }
+                ];
+            } else {
+                assignedEmployees = [
+                    { id: 9, full_name: 'Malhar Kulkarni' },
+                    { id: 10, full_name: 'Nitin RajGuru' }
+                ];
+            }
+        }
+        draft.assignedEmployees = assignedEmployees;
+        clientTicketDrafts.set(senderPhone, draft);
+
+        const engineerNames = assignedEmployees.map(e => e.full_name || e.name).join(', ') || 'Nitin RajGuru, Malhar Kulkarni';
+
+        const promptText = `Support Ticket Form Configured\n\nCustomer: ${draft.customerName}\nProject: ${draft.projectName}\nCategory: ${draft.category}\nPriority: ${draft.priority}\nAssigned Engineers: ${engineerNames}\n\nPlease reply with your issue description and attach error screenshots or PDF logs if any.\n\nOnce received, our system will automatically create the ticket, start the SLA resolution timer, and notify the engineering team.`;
+
+        await sendWhatsAppText(senderPhone, promptText);
+        await saveMessage({
+            senderPhone: '919082270423',
+            recipientPhone: senderPhone,
+            direction: 'outbound',
+            messageType: 'text',
+            messageBody: promptText
+        });
+    } catch (err) {
+        console.error("❌ Error in sendDetailsPrompt:", err.message);
     }
 }
 
@@ -613,24 +943,31 @@ export function isSupportIssueIntent(text) {
 /**
  * Create Support Ticket from WhatsApp, Auto-Assign Customer Engineers, and Alert All Engineers
  */
-export async function handleSupportTicketCreation(senderPhone, issueText, clientContext, mediaAttachment = null) {
+export async function handleSupportTicketCreation(senderPhone, issueText, clientContext, mediaAttachment = null, options = {}) {
     try {
-        let customerId = clientContext.id;
-        let customerName = clientContext.name || 'Valued Customer';
-        let assignedEmployees = [];
-        let projectName = 'General Project';
+        let customerId = options.customerId || clientContext.id;
+        let customerName = options.customerName || clientContext.name || 'Valued Customer';
+        let projectName = options.projectName || 'General Project';
+        let category = options.category || 'Bug';
+        let priority = options.priority || 'High';
+        let assignedEmployees = options.assignedEmployees || [];
+        let reportedBy = options.clientContactName || customerName;
 
-        // Query customer details, branches, and assigned employees
-        if (customerId) {
-            const cRes = await pool.query(`SELECT id, name, branches, assigned_employees FROM customers WHERE id = $1`, [customerId]);
+        // Query customer details if fields missing
+        if (customerId && (!assignedEmployees.length || projectName === 'General Project')) {
+            const cRes = await pool.query(`SELECT id, name, branches, assigned_employees, contact_persons FROM customers WHERE id = $1`, [customerId]);
             if (cRes.rows.length > 0) {
                 const c = cRes.rows[0];
                 customerName = c.name || customerName;
 
-                // Extract branches and projects
-                if (Array.isArray(c.branches)) {
-                    for (const b of c.branches) {
-                        if (Array.isArray(b.projects) && b.projects.length > 0) {
+                let branches = c.branches;
+                if (typeof branches === 'string') {
+                    try { branches = JSON.parse(branches); } catch(e){}
+                }
+
+                if (Array.isArray(branches)) {
+                    for (const b of branches) {
+                        if (Array.isArray(b.projects) && b.projects.length > 0 && projectName === 'General Project') {
                             for (const p of b.projects) {
                                 if (p.name) {
                                     projectName = `${p.name}${b.branch ? ` (${b.branch})` : ''}`;
@@ -647,8 +984,12 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
                     }
                 }
 
-                if (Array.isArray(c.assigned_employees)) {
-                    for (const emp of c.assigned_employees) {
+                let custAssigned = c.assigned_employees;
+                if (typeof custAssigned === 'string') {
+                    try { custAssigned = JSON.parse(custAssigned); } catch(e){}
+                }
+                if (Array.isArray(custAssigned)) {
+                    for (const emp of custAssigned) {
                         if (emp.id && !assignedEmployees.some(e => e.id === emp.id)) {
                             assignedEmployees.push(emp);
                         }
@@ -661,7 +1002,7 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
         if (assignedEmployees.length === 0) {
             assignedEmployees = [
                 { id: 9, full_name: 'Malhar Kulkarni' },
-                { id: 10, full_name: 'Nitin Rajguru' }
+                { id: 10, full_name: 'Nitin RajGuru' }
             ];
         }
 
@@ -670,10 +1011,27 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
         const nextId = (tCountRes.rows[0]?.id || 0) + 101;
         const ticketCode = `SUP-${String(nextId).padStart(6, '0')}`;
 
-        // SLA: High priority (2hr response, 24hr resolution)
+        // SLA deadline calculation
         const now = new Date();
-        const responseDeadline = new Date(now.getTime() + 120 * 60000);
-        const resolutionDeadline = new Date(now.getTime() + 1440 * 60000);
+        let respMinutes = 120;
+        let resoMinutes = 1440;
+        const pri = priority.toLowerCase();
+        if (pri.includes('critical')) {
+            respMinutes = 30;
+            resoMinutes = 240;
+        } else if (pri.includes('high')) {
+            respMinutes = 120;
+            resoMinutes = 1440;
+        } else if (pri.includes('medium')) {
+            respMinutes = 480;
+            resoMinutes = 4320;
+        } else if (pri.includes('low')) {
+            respMinutes = 1440;
+            resoMinutes = 10080;
+        }
+
+        const responseDeadline = new Date(now.getTime() + respMinutes * 60000);
+        const resolutionDeadline = new Date(now.getTime() + resoMinutes * 60000);
 
         const titleSnippet = (issueText || 'Technical Issue reported on WhatsApp')
             .replace(/\n/g, ' ')
@@ -701,16 +1059,18 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
                 title, description, category, priority, status,
                 assigned_to, assigned_team, attachments,
                 response_deadline, resolution_deadline, created_at
-            ) VALUES ($1, $2, $3, $4, $5, 'WHATSAPP', $6, $7, 'Technical Bug', 'High', 'Assigned', $8, $9, $10, $11, $12, NOW())
+            ) VALUES ($1, $2, $3, $4, $5, 'WHATSAPP', $6, $7, $8, $9, 'Assigned', $10, $11, $12, $13, $14, NOW())
             RETURNING *
         `, [
             ticketCode,
             customerId || null,
             projectName,
-            customerName,
+            reportedBy,
             sanitizePhoneNumber(senderPhone),
             titleSnippet,
             issueText || 'Issue reported from WhatsApp with attachment.',
+            category,
+            priority,
             assignedEmployees[0]?.id || 9,
             JSON.stringify(assignedEmployees),
             JSON.stringify(attachments),
@@ -724,14 +1084,14 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
         await pool.query(`
             INSERT INTO support_ticket_history (ticket_id, performed_by, action, new_status, details)
             VALUES ($1, 'Customer (WhatsApp)', 'Ticket Created', 'Assigned', $2)
-        `, [newTicket.id, `Ticket auto-created from WhatsApp message: ${titleSnippet}`]);
+        `, [newTicket.id, `Ticket created from WhatsApp: ${titleSnippet}`]);
 
-        // Send alert to ALL assigned engineers (e.g. Nitin Sir, Malhar Kulkarni) & Inbox Notifications
+        // Send alert to ALL assigned engineers (e.g. Nitin Sir, Malhar Kulkarni) & create Inbox Notifications
         notifyTicketWhatsApp({
             ticketCode,
             title: titleSnippet,
             description: issueText || titleSnippet,
-            priority: 'High',
+            priority,
             assignedToId: assignedEmployees[0]?.id || 9,
             assignedTeam: assignedEmployees,
             customerName,
@@ -741,9 +1101,9 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
         });
 
         // Send clean confirmation to Client
-        const engineerNames = assignedEmployees.map(e => e.full_name || e.name).join(', ') || 'Malhar Kulkarni, Nitin Rajguru';
+        const engineerNames = assignedEmployees.map(e => e.full_name || e.name).join(', ') || 'Malhar Kulkarni, Nitin RajGuru';
         const attachmentSnippet = attachments.length > 0 ? `\nAttachment: ${attachments.map(a => a.name || 'File').join(', ')}` : '';
-        const clientAck = `Support Ticket ${ticketCode} Registered\n\nHello ${customerName},\nYour support ticket has been logged and assigned to: ${engineerNames}\nProject: ${projectName}\nIssue: ${titleSnippet}${attachmentSnippet}\n\nResolution timer has started. Our team is actively reviewing.\nReply with "RESOLVED" or "TICKET END" once the issue is solved.`;
+        const clientAck = `Support Ticket ${ticketCode} Registered\n\nHello ${customerName},\nYour support ticket has been logged and assigned to: ${engineerNames}\nProject: ${projectName}\nCategory: ${category}\nPriority: ${priority}\nIssue: ${titleSnippet}${attachmentSnippet}\n\nResolution timer has started. Our team is actively reviewing.\nReply with "RESOLVED" or "TICKET END" once the issue is solved.`;
 
         await sendWhatsAppText(senderPhone, clientAck);
         await saveMessage({

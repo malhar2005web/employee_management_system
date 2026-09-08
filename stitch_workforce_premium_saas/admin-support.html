@@ -598,13 +598,13 @@
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:16px;">
         <div class="form-group">
           <label for="ticket-customer">Customer Account *</label>
-          <select id="ticket-customer" class="form-select-clean" required>
+          <select id="ticket-customer" class="form-select-clean" onchange="window.handleCustomerSelectChange(this.value)" required>
             <option value="">Select Customer...</option>
           </select>
         </div>
         <div class="form-group">
           <label for="ticket-project">Related Project (Optional)</label>
-          <select id="ticket-project" class="form-select-clean">
+          <select id="ticket-project" class="form-select-clean" onchange="window.handleProjectSelectChange(this.value, 'ticket-assignee', 'ticket-customer')">
             <option value="">None / General Maintenance</option>
           </select>
         </div>
@@ -824,13 +824,13 @@
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:16px;">
         <div class="form-group">
           <label>Customer Account</label>
-          <select id="edit-ticket-customer" class="form-select-clean">
+          <select id="edit-ticket-customer" class="form-select-clean" onchange="window.handleEditCustomerSelectChange(this.value)">
             <option value="">Select Customer</option>
           </select>
         </div>
         <div class="form-group">
           <label>Related Project</label>
-          <select id="edit-ticket-project" class="form-select-clean">
+          <select id="edit-ticket-project" class="form-select-clean" onchange="window.handleProjectSelectChange(this.value, 'edit-ticket-assignee', 'edit-ticket-customer')">
             <option value="">Select Project</option>
           </select>
         </div>
