@@ -99,28 +99,28 @@
             const attachments = meta.attachments || [];
             let attachmentBadge = '';
             if (attachments.length > 0) {
-                attachmentBadge = `<span style="font-size:11px; font-weight:600; color:#0284c7; background:rgba(2,132,199,0.1); padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; margin-top:6px;"><i class="fa-solid fa-paperclip"></i> ${attachments.length} attachment${attachments.length > 1 ? 's' : ''}</span>`;
+                attachmentBadge = `<span style="font-size:12.5px; font-weight:700; color:#0369a1; background:rgba(2,132,199,0.12); padding:3px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:5px; margin-top:6px;"><i class="fa-solid fa-paperclip"></i> ${attachments.length} attachment${attachments.length > 1 ? 's' : ''}</span>`;
             }
 
             return `
-                <div class="card inbox-card-hover" onclick="openMessageDetail(${m.id})" style="padding: 16px; background: ${!m.is_read ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)'}; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-left: 4px solid ${!m.is_read ? '#fb923c' : 'rgba(35,184,153,0.3)'};">
-                    <div style="display: flex; align-items: flex-start; gap: 12px; flex:1;">
-                        <div style="margin-top: 3px; display:flex; align-items:center;">
+                <div class="card inbox-card-hover" onclick="openMessageDetail(${m.id})" style="padding: 18px 20px; background: ${!m.is_read ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.45)'}; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; border-left: 5px solid ${!m.is_read ? '#fb923c' : 'rgba(35,184,153,0.35)'};">
+                    <div style="display: flex; align-items: flex-start; gap: 14px; flex:1;">
+                        <div style="margin-top: 2px; display:flex; align-items:center;">
                             ${unreadDot}
-                            <div style="width:30px; height:30px; border-radius:8px; background:rgba(0,0,0,0.04); display:flex; align-items:center; justify-content:center;">
+                            <div style="width:36px; height:36px; border-radius:10px; background:rgba(0,0,0,0.05); display:flex; align-items:center; justify-content:center; font-size:16px;">
                                 ${typeIcon}
                             </div>
                         </div>
                         <div style="flex:1;">
-                            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                                <span style="font-weight: 700; color: var(--teal-900); font-size: 14px;">${m.title || 'Notification'}</span>
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span style="font-weight: 800; color: var(--teal-900); font-size: 15.5px;">${m.title || 'Notification'}</span>
                                 ${typeBadge}
                             </div>
-                            <div style="font-size: 13px; color: var(--text-body); margin-top: 4px; line-height: 1.45;">${cleanSnippet}</div>
+                            <div style="font-size: 14px; color: var(--text-body); margin-top: 5px; line-height: 1.5;">${cleanSnippet}</div>
                             ${attachmentBadge}
                         </div>
                     </div>
-                    <div style="font-size: 11.5px; font-weight:500; color: var(--text-muted); white-space: nowrap; margin-top:2px;">${date}</div>
+                    <div style="font-size: 13px; font-weight:600; color: var(--text-muted); white-space: nowrap; margin-top:3px;">${date}</div>
                 </div>
             `;
         }).join('');
@@ -285,8 +285,8 @@
                     imgCard.className = 'attachment-img-card';
                     imgCard.innerHTML = `
                         <img src="${fileUrl}" alt="${fileName}" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='https://placehold.co/400x300?text=Preview+Unavailable'">
-                        <div style="position:absolute; bottom:0; left:0; width:100%; background:linear-gradient(to top, rgba(0,0,0,0.7), transparent); padding:6px 8px; color:#fff; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            <i class="fa-solid fa-magnifying-glass-plus" style="margin-right:4px;"></i>${fileName}
+                        <div style="position:absolute; bottom:0; left:0; width:100%; background:linear-gradient(to top, rgba(0,0,0,0.75), transparent); padding:8px 10px; color:#fff; font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            <i class="fa-solid fa-magnifying-glass-plus" style="margin-right:5px;"></i>${fileName}
                         </div>
                     `;
                     imgCard.onclick = () => openLightbox(fileUrl, fileName);
@@ -299,18 +299,18 @@
                     let iconColor = isPdf ? '#e11d48' : 'var(--teal-600)';
 
                     fileCard.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <i class="${iconClass}" style="font-size:22px; color:${iconColor};"></i>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <i class="${iconClass}" style="font-size:28px; color:${iconColor}; flex-shrink:0;"></i>
                             <div>
-                                <div style="font-size:13px; font-weight:700; color:#1e293b;">${fileName}</div>
-                                <div style="font-size:11px; color:#64748b;">${isPdf ? 'PDF Document' : 'Attachment file'}</div>
+                                <div style="font-size:15.5px; font-weight:800; color:#0f172a;">${fileName}</div>
+                                <div style="font-size:13px; font-weight:500; color:#64748b; margin-top:2px;">${isPdf ? 'PDF Document' : 'Attachment file'}</div>
                             </div>
                         </div>
                         ${fileUrl ? `
-                            <a href="${fileUrl}" target="_blank" download="${fileName}" style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:700; color:var(--teal-700); background:rgba(35,184,153,0.12); text-decoration:none; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s;" onmouseover="this.style.background='var(--teal-600)'; this.style.color='#fff'" onmouseout="this.style.background='rgba(35,184,153,0.12)'; this.style.color='var(--teal-700)'">
+                            <a href="${fileUrl}" target="_blank" download="${fileName}" style="padding:8px 16px; border-radius:10px; font-size:13.5px; font-weight:700; color:var(--teal-700); background:rgba(35,184,153,0.15); text-decoration:none; display:inline-flex; align-items:center; gap:7px; transition:all 0.2s;" onmouseover="this.style.background='var(--teal-600)'; this.style.color='#fff'" onmouseout="this.style.background='rgba(35,184,153,0.15)'; this.style.color='var(--teal-700)'">
                                 <i class="fa-solid fa-download"></i> Download / View
                             </a>
-                        ` : '<span style="font-size:11px; color:#94a3b8;">Uploaded via WhatsApp</span>'}
+                        ` : '<span style="font-size:12.5px; color:#94a3b8; font-weight:600;">Uploaded via WhatsApp</span>'}
                     `;
                     modalFilesList.appendChild(fileCard);
                 }
