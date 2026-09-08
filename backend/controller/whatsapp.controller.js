@@ -503,8 +503,12 @@ function extractMessagesFromPayload(body) {
 
         // Auto-match text to known button IDs if interactive or matching keyword
         if (!selectedId && (msgType === 'interactive' || msgType === 'button' || text)) {
-            const lower = (text || '').toLowerCase();
-            if (lower.includes('srv_hybrid') || lower.includes('hybrid')) selectedId = 'srv_hybrid';
+            const lower = (text || '').toLowerCase().trim();
+            if (lower === 'btn_menu_sales' || lower.includes('sales & projects') || lower === 'sales' || lower === '1. sales & projects' || lower === '1') selectedId = 'btn_menu_sales';
+            else if (lower === 'btn_menu_accounts' || lower.includes('accounts & billing') || lower === 'accounts' || lower === 'billing' || lower === '2. accounts & billing' || lower === '2') selectedId = 'btn_menu_accounts';
+            else if (lower === 'btn_menu_support' || lower.includes('technical support') || lower === 'support' || lower === '3. technical support' || lower === '3') selectedId = 'btn_menu_support';
+            else if (lower.includes('btn_call_shrirang') || lower.includes('call shrirang') || lower === 'call') selectedId = 'btn_call_shrirang';
+            else if (lower.includes('srv_hybrid') || lower.includes('hybrid')) selectedId = 'srv_hybrid';
             else if (lower.includes('srv_app') || lower.includes('mobile') || (lower.includes('app') && !lower.includes('whatsapp'))) selectedId = 'srv_app';
             else if (lower.includes('srv_web') || (lower.includes('web') && !lower.includes('hybrid'))) selectedId = 'srv_web';
             else if (lower.includes('srv_progress') || lower.includes('progress') || lower.includes('status')) selectedId = 'srv_progress';
@@ -612,6 +616,19 @@ async function handleInteractiveClick(senderPhone, selectedId, clientContext) {
     // =========================================================================
     if (key === 'btn_call_shrirang' || key === 'call_lead' || key === 'call_sales' || key === 'call_shrirang' || key.includes('call_shrirang')) {
         await sendDirectCallCard(senderPhone, clientContext, 'User clicked Call Shrirang button on WhatsApp');
+        return;
+    }
+
+    // =========================================================================
+    // 0.1 MAIN 3 SERVICE CATEGORIES (STEP 1 ROUTING)
+    // =========================================================================
+    if (key === 'btn_menu_sales' || key === 'menu_sales' || key === 'sales & projects' || key === '1. sales & projects' || key === 'srv_sales') {
+        await sendSalesSubMenu(senderPhone, clientContext);
+        return;
+    }
+
+    if (key === 'btn_menu_support' || key === 'menu_support' || key === 'technical support' || key === '3. technical support') {
+        await startSupportTicketFlow(senderPhone, clientContext);
         return;
     }
 
@@ -1705,36 +1722,51 @@ function isGreeting(text) {
 }
 
 export async function sendServicesMenu(senderPhone, clientContext) {
-    return await sendWhatsAppListMenu(senderPhone, {
+    return await sendWhatsAppButtons(senderPhone, {
         headerText: "Planex Software",
-        bodyText: `Hello ${clientContext.name},\n\nThank you for connecting with Planex Software. We specialize in enterprise software development, mobile apps, and workforce automation solutions.\n\nPlease choose a service or inquiry option from our menu below:`,
+        bodyText: `Hello ${clientContext.name},\n\nThank you for connecting with Planex Software. We specialize in enterprise software, mobile apps, and workforce automation solutions.\n\nPlease choose what you need assistance with:`,
         footerText: "Pentasoft Consultancy",
-        buttonText: "View Services",
+        buttons: [
+            { id: "btn_menu_sales", title: "Sales & Projects" },
+            { id: "btn_menu_accounts", title: "Accounts & Billing" },
+            { id: "btn_menu_support", title: "Technical Support" }
+        ]
+    });
+}
+
+/**
+ * Sub-Menu: Sales & New Projects (Web, Mobile App, Hybrid)
+ */
+export async function sendSalesSubMenu(senderPhone, clientContext) {
+    const salesIntro = `Planex Sales & Engineering Desk\n\nHello ${clientContext.name}, we build high-performance Web Applications, Mobile Apps, and Enterprise Full-Stack Suites.\n\nPlease select your project requirement below:`;
+
+    await sendWhatsAppListMenu(senderPhone, {
+        headerText: "Sales & New Projects",
+        bodyText: salesIntro,
+        footerText: "Pentasoft Consultancy",
+        buttonText: "Choose Project Type",
         sections: [
             {
-                title: "1. Sales & New Projects",
+                title: "Software Development Packages",
                 rows: [
                     { id: "srv_web", title: "Web Development", description: "Custom Web Apps, Portals, SaaS" },
                     { id: "srv_app", title: "Mobile App Development", description: "Android & iOS Native/Hybrid Apps" },
                     { id: "srv_hybrid", title: "Hybrid (Web + App)", description: "Complete Full-Stack Package" }
                 ]
-            },
-            {
-                title: "2. Accounts & Billing",
-                rows: [
-                    { id: "srv_invoice", title: "Payment & Tax Invoice", description: "Commercial Proposal & Bank Details" },
-                    { id: "srv_accounts", title: "Accounts & Billing Desk", description: "Invoices, TDS, GST & Payment Help" }
-                ]
-            },
-            {
-                title: "3. Technical Support",
-                rows: [
-                    { id: "srv_support", title: "Raise Support Ticket", description: "Report Technical Bug or Issue" },
-                    { id: "srv_progress", title: "Project Progress", description: "Live Status, Scope & Staging Demos" }
-                ]
             }
         ]
     });
+
+    await sendWhatsAppButtons(senderPhone, {
+        headerText: "Direct Sales Consultation",
+        bodyText: `Prefer discussing project requirements & commercial quote directly on phone with Shrirang Joshi?`,
+        footerText: "Pentasoft Consultancy",
+        buttons: [
+            { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
+        ]
+    });
+
+    sendWhatsAppText(SALES_HEAD_PHONE, `New Sales Inquiry\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nStatus: Selected Sales & Projects option.`).catch(() => {});
 }
 
 /**
