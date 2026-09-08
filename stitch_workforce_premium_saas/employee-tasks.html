@@ -3,11 +3,112 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PCS Employee — My Tasks</title>
+<title>PCS Employee — My Tasks & Support Desk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="style.css">
+<style>
+  .nav-tabs-pill {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+  }
+  .nav-tabs-pill button {
+    padding: 8px 16px;
+    border-radius: 9px;
+    border: none;
+    background: transparent;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-tabs-pill button.active {
+    background: linear-gradient(135deg, var(--teal-600), var(--teal-900));
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+  }
+  .customer-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .customer-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  }
+  .proj-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(13, 148, 136, 0.1);
+    color: var(--teal-900);
+    border: 1px solid rgba(13, 148, 136, 0.25);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .form-select-clean, .form-input-clean, .form-textarea-clean {
+    width: 100%;
+    padding: 10px 14px;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--text-dark);
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .form-select-clean:focus, .form-input-clean:focus, .form-textarea-clean:focus {
+    outline: none;
+    border-color: var(--teal-600);
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+  }
+  .dropzone-box {
+    border: 2px dashed rgba(13, 148, 136, 0.35);
+    background: rgba(13, 148, 136, 0.03);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .dropzone-box:hover {
+    background: rgba(13, 148, 136, 0.08);
+  }
+  .badge-sla {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .badge-critical { background: rgba(239, 68, 68, 0.15); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .badge-high { background: rgba(249, 115, 22, 0.15); color: #ea580c; border: 1px solid rgba(249, 115, 22, 0.3); }
+  .badge-medium { background: rgba(234, 179, 8, 0.15); color: #ca8a04; border: 1px solid rgba(234, 179, 8, 0.3); }
+  .badge-low { background: rgba(100, 116, 139, 0.15); color: #475569; border: 1px solid rgba(100, 116, 139, 0.3); }
+  .timeline-stream { list-style: none; padding: 0; margin: 0; position: relative; }
+  .timeline-stream::before { content: ''; position: absolute; top: 10px; bottom: 10px; left: 15px; width: 2px; background: rgba(0,0,0,0.08); }
+  .timeline-item { position: relative; padding-left: 36px; margin-bottom: 16px; }
+  .timeline-dot { position: absolute; left: 10px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--teal-600); border: 2px solid #fff; }
+</style>
 </head>
 <body>
 
@@ -65,90 +166,411 @@
       </div>
     </div>
 
-    <!-- Page header -->
-    <div class="page-header">
+    <!-- Page header with View Switcher & Action Button -->
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:20px;">
       <div>
-        <h2>My Tasks</h2>
-        <p>Review your assigned tasks, update progress, and manage deadlines.</p>
+        <h2 id="page-heading-title" style="font-size:24px; font-weight:800; color:var(--teal-900); margin:0 0 4px 0;">My Tasks &amp; Customer Desk</h2>
+        <p id="page-heading-desc" style="color:var(--text-muted); font-size:13.5px; margin:0;">Track assigned tasks, monitor your assigned client projects, and manage support tickets.</p>
       </div>
-      <div class="tab-group" id="task-filter-tabs">
-        <button class="active" data-status="all">All</button>
-        <button data-status="In Progress">In Progress</button>
-        <button data-status="Completed">Completed</button>
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div class="nav-tabs-pill" id="view-switcher-tabs">
+          <button class="active" data-view="tasks"><i class="fa-regular fa-square-check"></i> My Tasks</button>
+          <button data-view="customers"><i class="fa-solid fa-building-user"></i> My Customers</button>
+          <button data-view="support"><i class="fa-solid fa-headset"></i> Support Desk</button>
+        </div>
+        <button id="btn-open-create-ticket" class="btn-primary" style="padding:10px 18px; font-size:13.5px; font-weight:700; border-radius:10px; display:inline-flex; align-items:center; gap:8px; cursor:pointer; background:linear-gradient(135deg,var(--teal-600),var(--teal-900)); color:#fff; border:none; box-shadow:0 4px 14px rgba(15,118,110,0.25);">
+          <i class="fa-solid fa-circle-plus"></i> Create Support Ticket
+        </button>
       </div>
     </div>
 
     <!-- Active Task Banner Container -->
     <div id="active-task-banner-container"></div>
 
-    <!-- Task Summary Cards -->
-    <div class="stat-grid" style="margin-bottom:24px;">
-      <div class="card stat-card">
-        <div class="stat-card-top">
-          <span class="label">Total Assigned</span>
-          <div class="stat-icon teal"><i class="fa-regular fa-square-check"></i></div>
+    <!-- ============================= VIEW 1: MY TASKS ============================= -->
+    <div id="view-tasks-section">
+      <!-- Task Summary Cards -->
+      <div class="stat-grid" style="margin-bottom:24px;">
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Total Assigned</span>
+            <div class="stat-icon teal"><i class="fa-regular fa-square-check"></i></div>
+          </div>
+          <div class="stat-value" id="count-total">0</div>
         </div>
-        <div class="stat-value" id="count-total">0</div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">In Progress</span>
+            <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-spinner"></i></div>
+          </div>
+          <div class="stat-value" id="count-inprogress">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Completed</span>
+            <div class="stat-icon" style="background:rgba(74,222,128,0.2);color:#4ade80;"><i class="fa-solid fa-circle-check"></i></div>
+          </div>
+          <div class="stat-value" id="count-completed">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Overdue</span>
+            <div class="stat-icon" style="background:rgba(248,113,113,0.2);color:#f87171;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          </div>
+          <div class="stat-value" id="count-overdue">0</div>
+        </div>
       </div>
-      <div class="card stat-card">
-        <div class="stat-card-top">
-          <span class="label">In Progress</span>
-          <div class="stat-icon" style="background:rgba(96,165,250,0.2);color:#60a5fa;"><i class="fa-solid fa-spinner"></i></div>
+
+      <!-- Tasks Table Card -->
+      <div class="card table-card">
+        <div class="card-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <h3 style="margin:0; font-size:16px; font-weight:800; color:var(--teal-900);">Assigned Tasks</h3>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div class="tab-group" id="task-filter-tabs">
+              <button class="active" data-status="all">All Status</button>
+              <button data-status="In Progress">In Progress</button>
+              <button data-status="Completed">Completed</button>
+            </div>
+            <div class="tab-group" id="task-priority-tabs">
+              <button class="active" data-priority="all">All Priority</button>
+              <button data-priority="High">High</button>
+              <button data-priority="Medium">Medium</button>
+              <button data-priority="Low">Low</button>
+            </div>
+          </div>
         </div>
-        <div class="stat-value" id="count-inprogress">0</div>
-      </div>
-      <div class="card stat-card">
-        <div class="stat-card-top">
-          <span class="label">Completed</span>
-          <div class="stat-icon" style="background:rgba(74,222,128,0.2);color:#4ade80;"><i class="fa-solid fa-circle-check"></i></div>
-        </div>
-        <div class="stat-value" id="count-completed">0</div>
-      </div>
-      <div class="card stat-card">
-        <div class="stat-card-top">
-          <span class="label">Overdue</span>
-          <div class="stat-icon" style="background:rgba(248,113,113,0.2);color:#f87171;"><i class="fa-solid fa-triangle-exclamation"></i></div>
-        </div>
-        <div class="stat-value" id="count-overdue">0</div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Task Name</th>
+              <th>Project</th>
+              <th>Priority</th>
+              <th>Due Date</th>
+              <th>Progress</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tasks-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--teal-700);padding:32px;font-size:13.5px;font-weight:600;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;margin-bottom:8px;color:var(--teal-600);display:block;"></i> Loading tasks...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <!-- Tasks Table -->
-    <div class="card table-card">
-      <div class="card-head">
-        <h3>Assigned Tasks</h3>
-        <div style="display:flex;gap:10px;align-items:center;">
-          <div class="tab-group" id="task-priority-tabs">
-            <button class="active" data-priority="all">All Priority</button>
-            <button data-priority="High">High</button>
-            <button data-priority="Medium">Medium</button>
-            <button data-priority="Low">Low</button>
+    <!-- ============================= VIEW 2: MY CUSTOMERS & PROJECTS ============================= -->
+    <div id="view-customers-section" style="display:none;">
+      <!-- Customer Summary Stats -->
+      <div class="stat-grid" style="margin-bottom:24px;">
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Assigned Clients</span>
+            <div class="stat-icon teal"><i class="fa-solid fa-building-user"></i></div>
           </div>
+          <div class="stat-value" id="count-my-clients">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Active Projects</span>
+            <div class="stat-icon" style="background:rgba(99,102,241,0.2);color:#6366f1;"><i class="fa-solid fa-diagram-project"></i></div>
+          </div>
+          <div class="stat-value" id="count-my-projects">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Active Support Tickets</span>
+            <div class="stat-icon" style="background:rgba(245,158,11,0.2);color:#f59e0b;"><i class="fa-solid fa-headset"></i></div>
+          </div>
+          <div class="stat-value" id="count-my-tickets">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Assigned Tasks</span>
+            <div class="stat-icon" style="background:rgba(16,185,129,0.2);color:#10b981;"><i class="fa-solid fa-list-check"></i></div>
+          </div>
+          <div class="stat-value" id="count-my-tasks-total">0</div>
         </div>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Task Name</th>
-            <th>Project</th>
-            <th>Priority</th>
-            <th>Due Date</th>
-            <th>Progress</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="tasks-tbody">
-          <tr><td colspan="7" style="text-align:center;color:var(--teal-700);padding:32px;font-size:13.5px;font-weight:600;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;margin-bottom:8px;color:var(--teal-600);display:block;"></i> Loading tasks...</td></tr>
-        </tbody>
-      </table>
+      <!-- Search & Filters -->
+      <div class="card" style="padding:16px 20px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="position:relative; min-width:280px; flex:1; max-width:420px;">
+          <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
+          <input type="text" id="cust-search-input" class="form-input-clean" style="padding-left:38px;" placeholder="Search customer, branch, project...">
+        </div>
+        <button id="btn-refresh-customers" class="btn-secondary" style="padding:9px 16px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-rotate-right"></i> Refresh
+        </button>
+      </div>
+
+      <!-- Customer Cards Grid -->
+      <div id="my-customers-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap:20px; margin-bottom:30px;">
+        <div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted);">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--teal-600); margin-bottom:10px;"></i>
+          <div>Loading assigned customers &amp; projects...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================= VIEW 3: SUPPORT DESK ============================= -->
+    <div id="view-support-section" style="display:none;">
+      <!-- Support Stat Cards -->
+      <div class="stat-grid" style="margin-bottom:24px;">
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Total Tickets</span>
+            <div class="stat-icon teal"><i class="fa-solid fa-ticket"></i></div>
+          </div>
+          <div class="stat-value" id="count-support-total">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Active / Open</span>
+            <div class="stat-icon" style="background:rgba(239,68,68,0.2);color:#ef4444;"><i class="fa-solid fa-clock"></i></div>
+          </div>
+          <div class="stat-value" id="count-support-open">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">In Progress</span>
+            <div class="stat-icon" style="background:rgba(59,130,246,0.2);color:#3b82f6;"><i class="fa-solid fa-spinner"></i></div>
+          </div>
+          <div class="stat-value" id="count-support-inprogress">0</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card-top">
+            <span class="label">Resolved</span>
+            <div class="stat-icon" style="background:rgba(34,197,94,0.2);color:#22c55e;"><i class="fa-solid fa-circle-check"></i></div>
+          </div>
+          <div class="stat-value" id="count-support-resolved">0</div>
+        </div>
+      </div>
+
+      <!-- Support Table Card -->
+      <div class="card table-card">
+        <div class="card-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <h3 style="margin:0; font-size:16px; font-weight:800; color:var(--teal-900);">My Support Tickets</h3>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div class="tab-group" id="support-status-tabs">
+              <button class="active" data-status="all">All</button>
+              <button data-status="Open">Open</button>
+              <button data-status="In Progress">In Progress</button>
+              <button data-status="Resolved">Resolved</button>
+            </div>
+            <div class="tab-group" id="support-priority-tabs">
+              <button class="active" data-priority="all">All Priority</button>
+              <button data-priority="Critical">Critical</button>
+              <button data-priority="High">High</button>
+              <button data-priority="Medium">Medium</button>
+            </div>
+            <button id="btn-refresh-support" class="btn-secondary" style="padding:6px 12px; font-weight:700; font-size:12.5px;">
+              <i class="fa-solid fa-rotate-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Ticket Code</th>
+              <th>Customer &amp; Project</th>
+              <th>Issue Title &amp; Category</th>
+              <th>Priority &amp; Time Elapsed</th>
+              <th>Status</th>
+              <th>Reported By</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="support-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--teal-700);padding:32px;font-size:13.5px;font-weight:600;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;margin-bottom:8px;color:var(--teal-600);display:block;"></i> Loading support tickets...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
   </main>
 </div>
 
-<!-- Update Progress Modal -->
+<!-- ============================= MODAL 1: CREATE SUPPORT TICKET ============================= -->
+<div class="modal-overlay" id="create-ticket-modal" style="display:none; z-index:9999999;">
+  <div class="modal-card" style="max-width:760px; width:95%; max-height:90vh; overflow-y:auto;">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid rgba(0,0,0,0.08);">
+      <h3 style="font-size:18px; font-weight:800; color:var(--teal-900); display:flex; align-items:center; gap:8px; margin:0;">
+        <i class="fa-solid fa-headset" style="color:var(--teal-600);"></i> Raise Support Ticket
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" id="create-ticket-close" style="cursor:pointer; font-size:18px; color:var(--text-muted);"></i>
+    </div>
+
+    <form id="create-ticket-form">
+      <div style="font-size:12px; font-weight:800; color:var(--teal-800); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+        <i class="fa-solid fa-building"></i> 1. Customer &amp; Project Scope
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+        <div class="form-group">
+          <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Customer Account *</label>
+          <select id="ticket-customer" class="form-select-clean" required>
+            <option value="">Select Customer...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Related Project / Branch</label>
+          <select id="ticket-project" class="form-select-clean">
+            <option value="">None / General Maintenance</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="font-size:12px; font-weight:800; color:var(--teal-800); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+        <i class="fa-solid fa-sliders"></i> 2. Issue Severity &amp; Category
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+        <div class="form-group">
+          <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Category</label>
+          <select id="ticket-category" class="form-select-clean">
+            <option value="Bug">Technical Bug / Defect</option>
+            <option value="Feature Request">Feature Request</option>
+            <option value="Configuration">Configuration &amp; Setup</option>
+            <option value="Data Issue">Data / Report Issue</option>
+            <option value="General Question">Maintenance / SLA Support</option>
+            <option value="Billing">Billing &amp; Commercials</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Priority</label>
+          <select id="ticket-priority" class="form-select-clean">
+            <option value="Critical">🔴 Critical (Immediate Attention)</option>
+            <option value="High" selected>🟠 High (Within 2-4 Hours)</option>
+            <option value="Medium">🟡 Medium (Standard 8 Hours)</option>
+            <option value="Low">⚪ Low (General Query)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="font-size:12px; font-weight:800; color:var(--teal-800); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+        <i class="fa-solid fa-pen-to-square"></i> 3. Problem Context
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+        <div class="form-group">
+          <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Reported By (Contact Name)</label>
+          <input type="text" id="ticket-reported-by" class="form-input-clean" placeholder="e.g. Shrirang Joshi (Client) or Self">
+        </div>
+        <div class="form-group">
+          <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Client Phone (Optional for WhatsApp)</label>
+          <input type="text" id="ticket-phone" class="form-input-clean" placeholder="e.g. 9821027060">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Issue Summary / Title *</label>
+        <input type="text" id="ticket-title" class="form-input-clean" placeholder="e.g. Login button not working in Dahisar portal" required>
+      </div>
+      <div class="form-group" style="margin-bottom:16px;">
+        <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Detailed Description &amp; Reproduction Steps</label>
+        <textarea id="ticket-description" class="form-textarea-clean" rows="3" placeholder="Provide complete error description, what steps client took..."></textarea>
+      </div>
+
+      <div style="font-size:12px; font-weight:800; color:var(--teal-800); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+        <i class="fa-solid fa-paperclip"></i> 4. Screenshot / Attachment (Optional)
+      </div>
+      <input type="file" id="ticket-file-input" accept="image/*,.pdf,.zip,.log,.txt,.docx" style="display:none;">
+      <input type="hidden" id="ticket-file-url" value="">
+      <div class="dropzone-box" id="btn-upload-ticket-file" style="margin-bottom:20px;">
+        <div style="font-size:20px; color:var(--teal-600); margin-bottom:4px;"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+        <div style="font-size:13px; font-weight:700; color:var(--text-dark);">Click to upload screenshot or log file</div>
+        <div id="ticket-file-name" style="margin-top:4px; font-size:12px; font-weight:700; color:var(--teal-600);">No file selected</div>
+      </div>
+
+      <div class="action-btn-group" style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" class="btn-secondary" id="create-ticket-cancel">Cancel</button>
+        <button type="submit" class="btn-primary" id="btn-submit-create-ticket">
+          <i class="fa-solid fa-check-double"></i> Submit Support Ticket
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================= MODAL 2: TICKET WORKSPACE & DETAILS ============================= -->
+<div class="modal-overlay" id="ticket-workspace-modal" style="display:none; z-index:9999999;">
+  <div class="modal-card" style="max-width:860px; width:95%; max-height:90vh; overflow-y:auto;">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid rgba(0,0,0,0.08);">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span id="view-ticket-code" style="background:rgba(13,148,136,0.15); color:var(--teal-900); font-weight:800; font-size:13px; padding:4px 10px; border-radius:6px; border:1px solid rgba(13,148,136,0.3);">SUP-000000</span>
+        <div>
+          <h3 id="view-ticket-title" style="margin:0; font-size:17px; font-weight:800; color:var(--teal-900);">Issue Title</h3>
+          <p id="view-ticket-sub" style="margin:2px 0 0 0; font-size:12px; color:var(--text-muted);">Customer &amp; Project</p>
+        </div>
+      </div>
+      <i class="fa-solid fa-xmark modal-close" id="ticket-workspace-close" style="cursor:pointer; font-size:18px; color:var(--text-muted);"></i>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 280px; gap:20px;">
+      <!-- Left Column: Details, Status, Comments -->
+      <div>
+        <div style="background:rgba(0,0,0,0.03); border:1px solid rgba(0,0,0,0.07); border-radius:10px; padding:14px; margin-bottom:16px;">
+          <div style="font-size:11.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Issue Description</div>
+          <p id="view-ticket-desc" style="margin:0; font-size:13.5px; color:var(--text-dark); line-height:1.5; white-space:pre-line;"></p>
+          <div id="view-ticket-attachment" style="margin-top:10px; display:none;"></div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; background:#fff; border:1px solid rgba(0,0,0,0.1); border-radius:10px; padding:12px;">
+          <label style="font-weight:700; font-size:13px; color:var(--text-dark);">Change Status:</label>
+          <select id="view-ticket-status-select" class="form-select-clean" style="width:auto; padding:6px 12px; font-size:13px;">
+            <option value="Open">Open</option>
+            <option value="Assigned">Assigned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Waiting Customer">Waiting Customer</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Closed">Closed</option>
+          </select>
+          <button id="btn-update-ticket-status" class="btn-primary" style="padding:7px 14px; font-size:13px; font-weight:700;">
+            Update
+          </button>
+        </div>
+
+        <!-- Comments Section -->
+        <div>
+          <h4 style="font-size:13.5px; font-weight:800; color:var(--teal-900); margin:0 0 10px 0;">Work Notes &amp; Comments</h4>
+          <div id="ticket-comments-list" style="max-height:180px; overflow-y:auto; margin-bottom:12px; display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size:12px; color:var(--text-muted);">No comments yet.</div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="ticket-new-comment" class="form-input-clean" placeholder="Type resolution note or comment...">
+            <button id="btn-send-comment" class="btn-primary" style="padding:8px 16px; font-weight:700; white-space:nowrap;">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Meta info & Stopwatch Elapsed Timer -->
+      <div style="background:rgba(255,255,255,0.9); border:1px solid rgba(0,0,0,0.08); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <div style="font-size:11.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Time Elapsed &amp; SLA</div>
+          <div id="modal-sla-timer" style="font-size:13px; font-weight:700; color:var(--teal-900);">Calculating...</div>
+        </div>
+
+        <div>
+          <div style="font-size:11.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Category &amp; Priority</div>
+          <div id="modal-ticket-meta" style="font-size:12.5px; font-weight:700; color:var(--text-dark); display:flex; flex-direction:column; gap:4px;">-</div>
+        </div>
+
+        <div>
+          <div style="font-size:11.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Timeline Stream</div>
+          <ul class="timeline-stream" id="modal-ticket-history" style="max-height:220px; overflow-y:auto;">
+            <li class="timeline-item">
+              <div class="timeline-dot"></div>
+              <div style="font-size:12px; font-weight:700;">Ticket Logged</div>
+              <div style="font-size:11px; color:var(--text-muted);">Just now</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Update Progress Modal (for Tasks) -->
 <div class="modal-overlay" id="modal-progress" style="display:none; z-index:9999999;">
   <div class="modal-card" style="max-width:480px;">
     <div class="modal-header">
@@ -161,7 +583,7 @@
     </div>
     <div class="form-group">
       <label>Status</label>
-      <select id="progress-status">
+      <select id="progress-status" class="form-select-clean">
         <option value="To Do">To Do</option>
         <option value="In Progress">In Progress</option>
         <option value="Completed">Completed</option>
@@ -170,13 +592,13 @@
     </div>
     <div class="form-group" id="work-done-group" style="display:none;">
       <label>Work Description (What you worked on &amp; previous state)</label>
-      <textarea id="progress-work-done" rows="3" class="form-control" style="background:#fff;border:1px solid rgba(0,0,0,0.15);border-radius:8px;padding:8px 12px;width:100%;font-family:inherit;font-size:13.5px;" placeholder="Describe what you worked on, previous state of project, and what's left..."></textarea>
+      <textarea id="progress-work-done" rows="3" class="form-textarea-clean" placeholder="Describe what you worked on, previous state of project, and what's left..."></textarea>
     </div>
     <div class="form-group">
       <label>Completion % — <span id="progress-val-label">0</span>%</label>
       <input type="range" id="progress-slider" min="0" max="100" value="0" style="width:100%;accent-color:var(--teal-600);">
     </div>
-    <div class="action-btn-group">
+    <div class="action-btn-group" style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
       <button class="btn-secondary" id="close-progress-2">Cancel</button>
       <button class="btn-primary" id="submit-progress"><i class="fa-solid fa-floppy-disk"></i> Save Progress</button>
     </div>
@@ -189,4 +611,3 @@
 <script src="js/taskHandoverModal.js"></script>
 </body>
 </html>
-

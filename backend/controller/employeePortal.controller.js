@@ -1090,3 +1090,217 @@ export async function sendChatMessage(req, res) {
     }
 }
 
+// GET /api/v1/employee/my-customers
+export async function getMyCustomers(req, res) {
+    try {
+        const employeeId = await getEmployeeId(req.user.id);
+
+        const allCusts = await pool.query(`
+            SELECT c.*,
+                   COALESCE(
+                       JSON_AGG(
+                           JSON_BUILD_OBJECT(
+                               'id', p.id,
+                               'name', p.name,
+                               'description', p.description,
+                               'branch_name', p.branch_name,
+                               'status', p.status
+                           )
+                       ) FILTER (WHERE p.id IS NOT NULL), '[]'
+                   ) AS customer_projects
+            FROM customers c
+            LEFT JOIN projects p ON c.id = p.customer_id
+            GROUP BY c.id
+            ORDER BY c.name ASC;
+        `);
+
+        const allTasks = await pool.query(
+            "SELECT id, title, project_id, status, priority, due_date FROM tasks WHERE $1 = ANY(assigned_to);",
+            [employeeId]
+        );
+
+        const allTickets = await pool.query(`
+            SELECT t.*, c.name as customer_name, COALESCE(t.project_name, p.name, 'General') as project_name
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            LEFT JOIN projects p ON t.project_id = p.id
+            WHERE t.assigned_to = $1 OR t.assigned_team::text ILIKE $2
+            ORDER BY t.created_at DESC;
+        `, [employeeId, `%"id":${employeeId}%`]);
+
+        const assignedCustomers = [];
+
+        for (const c of allCusts.rows) {
+            let isAssigned = false;
+            let assignedBranches = [];
+            let branches = c.branches;
+            if (typeof branches === 'string') {
+                try { branches = JSON.parse(branches); } catch(e) { branches = []; }
+            }
+            if (Array.isArray(branches)) {
+                branches.forEach(b => {
+                    let bEmps = b.assignedEmployees || [];
+                    if (typeof bEmps === 'string') {
+                        try { bEmps = JSON.parse(bEmps); } catch(e) { bEmps = []; }
+                    }
+                    const matchB = Array.isArray(bEmps) && bEmps.some(e => {
+                        const eId = typeof e === 'object' && e ? e.id : e;
+                        return Number(eId) === Number(employeeId);
+                    });
+                    if (matchB) {
+                        isAssigned = true;
+                        assignedBranches.push(b);
+                    }
+                });
+            }
+
+            let custEmps = c.assigned_employees;
+            if (typeof custEmps === 'string') {
+                try { custEmps = JSON.parse(custEmps); } catch(e) { custEmps = []; }
+            }
+            if (Array.isArray(custEmps)) {
+                if (custEmps.some(e => {
+                    const eId = typeof e === 'object' && e ? e.id : e;
+                    return Number(eId) === Number(employeeId);
+                })) {
+                    isAssigned = true;
+                }
+            }
+
+            let projs = Array.isArray(c.customer_projects) ? c.customer_projects : [];
+            if (typeof projs === 'string') {
+                try { projs = JSON.parse(projs); } catch(e) { projs = []; }
+            }
+
+            const relatedTasks = allTasks.rows.filter(t => {
+                return projs.some(p => p.id === t.project_id);
+            });
+            if (relatedTasks.length > 0) isAssigned = true;
+
+            const relatedTickets = allTickets.rows.filter(t => t.customer_id === c.id);
+            if (relatedTickets.length > 0) isAssigned = true;
+
+            if (isAssigned || req.user.role === 'Admin') {
+                let activeProjects = [];
+                if (assignedBranches.length > 0) {
+                    assignedBranches.forEach(b => {
+                        let bProjs = b.projects || [];
+                        if (typeof bProjs === 'string') {
+                            try { bProjs = JSON.parse(bProjs); } catch(e) { bProjs = []; }
+                        }
+                        if (Array.isArray(bProjs)) {
+                            bProjs.forEach(p => {
+                                const pName = typeof p === 'string' ? p : (p.name || p.project_name);
+                                if (pName && !activeProjects.some(x => x.name === pName && x.branch === b.branch)) {
+                                    activeProjects.push({ name: pName, branch: b.branch || '', description: p.description || '' });
+                                }
+                            });
+                        }
+                    });
+                } else if (projs.length > 0) {
+                    projs.forEach(p => {
+                        activeProjects.push({ name: p.name, branch: p.branch_name || 'Main', description: p.description || '', id: p.id });
+                    });
+                }
+
+                if (activeProjects.length === 0 && Array.isArray(branches)) {
+                    branches.forEach(b => {
+                        let bProjs = b.projects || [];
+                        if (typeof bProjs === 'string') {
+                            try { bProjs = JSON.parse(bProjs); } catch(e) { bProjs = []; }
+                        }
+                        if (Array.isArray(bProjs)) {
+                            bProjs.forEach(p => {
+                                const pName = typeof p === 'string' ? p : (p.name || p.project_name);
+                                if (pName) activeProjects.push({ name: pName, branch: b.branch || '', description: p.description || '' });
+                            });
+                        }
+                    });
+                }
+
+                assignedCustomers.push({
+                    id: c.id,
+                    name: c.name,
+                    industry: c.industry || 'IT & Consulting',
+                    sla_type: c.sla_type || 'Standard',
+                    sla_response_time: c.sla_response_time,
+                    sla_resolution_time: c.sla_resolution_time,
+                    contract_start_date: c.contract_start_date,
+                    contract_end_date: c.contract_end_date,
+                    branches: assignedBranches.length > 0 ? assignedBranches : branches,
+                    activeProjects: activeProjects,
+                    totalTasks: relatedTasks.length,
+                    activeTasks: relatedTasks.filter(t => t.status !== 'Completed').length,
+                    totalTickets: relatedTickets.length,
+                    activeTickets: relatedTickets.filter(t => t.status !== 'Resolved' && t.status !== 'Closed').length,
+                    recentTickets: relatedTickets.slice(0, 5)
+                });
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: assignedCustomers,
+            allCustomers: allCusts.rows.map(c => ({ id: c.id, name: c.name, branches: c.branches }))
+        });
+    } catch (error) {
+        console.error("Error in getMyCustomers:", error);
+        return res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+}
+
+// GET /api/v1/employee/support-tickets
+export async function getEmployeeSupportTickets(req, res) {
+    try {
+        const employeeId = await getEmployeeId(req.user.id);
+        const { status, priority, search } = req.query;
+
+        let conditions = [`(t.assigned_to = $1 OR t.assigned_team::text ILIKE $2 OR t.reported_by ILIKE $3)`];
+        let params = [employeeId, `%"id":${employeeId}%`, `%${req.user.full_name || ''}%`];
+        let idx = 4;
+
+        if (status && status !== 'all') {
+            conditions.push(`t.status = $${idx++}`);
+            params.push(status);
+        }
+        if (priority && priority !== 'all') {
+            conditions.push(`t.priority = $${idx++}`);
+            params.push(priority);
+        }
+        if (search) {
+            conditions.push(`(t.ticket_code ILIKE $${idx} OR t.title ILIKE $${idx} OR c.name ILIKE $${idx})`);
+            params.push(`%${search}%`);
+            idx++;
+        }
+
+        const query = `
+            SELECT t.*,
+                   c.name as customer_name,
+                   COALESCE(t.project_name, p.name, 'General') as project_name,
+                   e.full_name as assigned_to_name
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            LEFT JOIN projects p ON t.project_id = p.id
+            LEFT JOIN employees e ON t.assigned_to = e.id
+            WHERE ${conditions.join(' AND ')}
+            ORDER BY 
+                CASE 
+                    WHEN t.priority = 'Critical' THEN 1
+                    WHEN t.priority = 'High' THEN 2
+                    WHEN t.priority = 'Medium' THEN 3
+                    ELSE 4
+                END,
+                t.created_at DESC;
+        `;
+
+        const result = await pool.query(query, params);
+        return res.status(200).json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error("Error in getEmployeeSupportTickets:", error);
+        return res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+}
+

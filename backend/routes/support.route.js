@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as supportController from '../controller/support.controller.js';
-import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
+import { protectRoute, isEmployeeOrAdmin } from '../middleware/protectRoute.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,8 +44,8 @@ router.post('/upload-attachment', upload.single('attachment'), (req, res) => {
     });
 });
 
-// Apply admin RBAC check globally on all support routes
-router.use(protectRoute, isAdmin);
+// Apply RBAC check (Employees & Admins can access support desk)
+router.use(protectRoute, isEmployeeOrAdmin);
 
 // Support Ticket REST Routes
 router.get('/', supportController.getTickets);

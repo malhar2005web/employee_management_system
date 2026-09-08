@@ -431,7 +431,9 @@ export const createTicket = async (req, res) => {
         const ticket_code = await generateTicketCode();
         const { responseDeadline, resolutionDeadline } = calculateSlaDeadlines(priority);
 
-        const initialStatus = (assigned_to || (assigned_team && assigned_team.length > 0)) ? 'Assigned' : 'Open';
+        const assignedToVal = assigned_to ? parseInt(assigned_to, 10) : (req.user?.employee_id || null);
+        const reportedByVal = reported_by || (req.user?.full_name ? `${req.user.full_name}` : 'Customer Admin');
+        const initialStatus = (assignedToVal || (assigned_team && assigned_team.length > 0)) ? 'Assigned' : 'Open';
         const attachmentsJson = JSON.stringify(attachments || []);
         const assignedTeamJson = JSON.stringify(assigned_team || []);
 
@@ -452,16 +454,16 @@ export const createTicket = async (req, res) => {
             project_name || null,
             workflow_id || null,
             task_id || null,
-            reported_by || 'Customer Admin',
+            reportedByVal,
             title,
             description || '',
             category || 'Bug',
             priority || 'Medium',
             initialStatus,
-            assigned_to || null,
+            assignedToVal || null,
             assignedTeamJson,
             customer_phone || null,
-            source || 'WEB',
+            source || (req.user?.role === 'Employee' ? 'EMPLOYEE_PORTAL' : 'WEB'),
             responseDeadline,
             resolutionDeadline,
             attachmentsJson

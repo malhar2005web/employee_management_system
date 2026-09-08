@@ -1,8 +1,43 @@
 import express from 'express';
-import { protectRoute, isEmployee } from '../middleware/protectRoute.js';
+import { protectRoute, isEmployee, isEmployeeOrAdmin } from '../middleware/protectRoute.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getOutEntries, createOutEntry, markReturnInTime } from '../controller/outEntry.controller.js';
+import {
+    getDashboardSummary,
+    getAttendanceStatus,
+    clockIn,
+    clockOut,
+    startBreak,
+    endBreak,
+    requestCorrection,
+    getAttendanceLogs,
+    getReports,
+    submitSelfReport,
+    submitDsrReport,
+    getLeaveBalances,
+    applyLeave,
+    getLeaveHistory,
+    getTasks,
+    updateTaskProgress,
+    getTimesheets,
+    submitTimesheet,
+    getGoals,
+    submitGoalSelfAssessment,
+    getTrainings,
+    completeTraining,
+    updateProfile,
+    changePassword,
+    getInbox,
+    markAllRead,
+    markOneRead,
+    getChatContacts,
+    getChatMessages,
+    sendChatMessage,
+    getMyCustomers,
+    getEmployeeSupportTickets
+} from '../controller/employeePortal.controller.js';
 
 const __filename_route = fileURLToPath(import.meta.url);
 const __dirname_route = path.dirname(__filename_route);
@@ -33,31 +68,6 @@ const chatUpload = multer({
     }
 });
 
-import {
-    getDashboardSummary,
-    getAttendanceStatus,
-    clockIn,
-    clockOut,
-    startBreak,
-    endBreak,
-    requestCorrection,
-    getAttendanceLogs,
-    getReports,
-    submitSelfReport,
-    submitDsrReport,
-    getLeaveBalances,
-    applyLeave,
-    getLeaveHistory,
-    getTasks,
-    updateTaskProgress,
-    getTimesheets,
-    submitTimesheet,
-    getGoals,
-    submitGoalSelfAssessment,
-    getTrainings,
-    completeTraining
-} from '../controller/employeePortal.controller.js';
-
 const router = express.Router();
 
 // Apply session checks and employee role validation globally on these routes
@@ -86,7 +96,6 @@ router.post("/leaves/apply", applyLeave);
 router.get("/leaves/history", getLeaveHistory);
 
 // Out Entry / Gate Pass
-import { getOutEntries, createOutEntry, markReturnInTime } from '../controller/outEntry.controller.js';
 router.get("/out-entries", getOutEntries);
 router.post("/out-entries", createOutEntry);
 router.put("/out-entries/:id/return", markReturnInTime);
@@ -107,19 +116,9 @@ router.put("/goals/:id/self-assessment", submitGoalSelfAssessment);
 router.get("/trainings", getTrainings);
 router.put("/trainings/:id/complete", completeTraining);
 
-// Profile & Password & Inbox
-import { 
-    updateProfile, 
-    changePassword, 
-    getInbox, 
-    markAllRead,
-    markOneRead,
-    getChatContacts,
-    getChatMessages,
-    sendChatMessage
-} from '../controller/employeePortal.controller.js';
-
-import { isEmployeeOrAdmin } from '../middleware/protectRoute.js';
+// My Customers & Support Tickets (for Employee Portal)
+router.get("/my-customers", getMyCustomers);
+router.get("/support-tickets", getEmployeeSupportTickets);
 
 // Chat routes (accessible by Employee & Admin)
 router.get("/chat/contacts", protectRoute, isEmployeeOrAdmin, getChatContacts);
