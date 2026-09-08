@@ -479,3 +479,60 @@ export function sanitizePhoneNumber(phone) {
     }
     return cleaned;
 }
+
+/**
+ * 8. Download Inbound WhatsApp Media to Local Disk
+ * Fetches media information using mediaId, downloads binary, saves to /uploads/support, and returns web URL
+ */
+export async function downloadWabaMediaToDisk(mediaId, defaultName = 'attachment.png') {
+    if (!mediaId) return null;
+    try {
+        const token = await getWabaAuthToken();
+        const uploadDir = path.join(process.cwd(), 'uploads', 'support');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        // Step 1: Retrieve Media metadata from WABA
+        const metaRes = await fetch(`${WABA_CONFIG.BASE_URL}/v19.0/${mediaId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const metaData = await metaRes.json();
+
+        let downloadUrl = metaData?.url || `${WABA_CONFIG.BASE_URL}/v19.0/${mediaId}`;
+        let mimeType = metaData?.mime_type || 'image/png';
+        let ext = '.png';
+        if (mimeType.includes('pdf')) ext = '.pdf';
+        else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = '.jpg';
+        else if (mimeType.includes('png')) ext = '.png';
+        else if (mimeType.includes('excel') || mimeType.includes('sheet')) ext = '.xlsx';
+
+        const safeFileName = `waba-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+        const filePath = path.join(uploadDir, safeFileName);
+
+        // Step 2: Download Media Binary
+        const fileRes = await fetch(downloadUrl, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (fileRes.ok) {
+            const arrayBuffer = await fileRes.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            fs.writeFileSync(filePath, buffer);
+            console.log(`✅ Saved inbound WABA media to: ${filePath}`);
+            return {
+                url: `/uploads/support/${safeFileName}`,
+                name: defaultName || safeFileName,
+                type: mimeType,
+                size: buffer.length
+            };
+        } else {
+            console.warn(`⚠️ Could not download WABA media binary: status ${fileRes.status}`);
+            return null;
+        }
+    } catch (err) {
+        console.error("❌ downloadWabaMediaToDisk Error:", err.message);
+        return null;
+    }
+}
+

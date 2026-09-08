@@ -17,9 +17,78 @@ export function formatTurnaroundTime(createdAt, resolvedAt = new Date()) {
     }
 }
 
+export async function createTicketInboxNotifications({
+    ticketCode,
+    title,
+    description = '',
+    priority = 'High',
+    assignedToId = null,
+    assignedTeam = [],
+    customerName = 'Valued Client',
+    projectName = 'General Project',
+    actionType = 'created',
+    attachments = []
+}) {
+    try {
+        const targetEmployeeIds = new Set();
+        if (assignedToId) targetEmployeeIds.add(parseInt(assignedToId, 10));
+
+        if (Array.isArray(assignedTeam)) {
+            for (const item of assignedTeam) {
+                if (typeof item === 'object' && item && item.id) targetEmployeeIds.add(parseInt(item.id, 10));
+                else if (typeof item === 'number') targetEmployeeIds.add(item);
+                else if (typeof item === 'string' && /^\d+$/.test(item)) targetEmployeeIds.add(parseInt(item, 10));
+            }
+        }
+
+        // If no employee assigned, default to Malhar (9) & Nitin (10)
+        if (targetEmployeeIds.size === 0) {
+            targetEmployeeIds.add(9);
+            targetEmployeeIds.add(10);
+        }
+
+        const notifTitle = actionType === 'resolved' 
+            ? `Support Ticket Resolved: ${ticketCode}` 
+            : `Assigned Support Ticket: ${ticketCode}`;
+        
+        const notifMessage = `Customer: ${customerName}\nProject: ${projectName}\nPriority: ${priority}\n\n${description || title}`;
+        const notifLink = `/admin-support.html?ticket_code=${ticketCode}`;
+        
+        const metadata = {
+            ticket_code: ticketCode,
+            title: title,
+            description: description || title,
+            customer_name: customerName,
+            project_name: projectName,
+            priority: priority,
+            action_type: actionType,
+            attachments: Array.isArray(attachments) ? attachments : (attachments ? [attachments] : [])
+        };
+
+        for (const empId of targetEmployeeIds) {
+            if (!empId) continue;
+            await pool.query(`
+                INSERT INTO notifications (
+                    recipient_id, type, title, message, link, is_read, created_at, metadata
+                ) VALUES ($1, 'Support Ticket', $2, $3, $4, false, NOW(), $5)
+            `, [
+                empId,
+                notifTitle,
+                notifMessage,
+                notifLink,
+                JSON.stringify(metadata)
+            ]);
+        }
+        console.log(`✅ Inbox notifications created for employees: [${Array.from(targetEmployeeIds).join(', ')}] for ticket ${ticketCode}`);
+    } catch (err) {
+        console.error("❌ Error creating ticket inbox notifications:", err.message);
+    }
+}
+
 export async function notifyTicketWhatsApp({
     ticketCode,
     title,
+    description = '',
     priority = 'High',
     assignedToId = null,
     assignedTeam = [],
@@ -30,12 +99,26 @@ export async function notifyTicketWhatsApp({
     attachments = []
 }) {
     try {
+        // Automatically ensure Employee Inbox notification is placed
+        await createTicketInboxNotifications({
+            ticketCode,
+            title,
+            description,
+            priority,
+            assignedToId,
+            assignedTeam,
+            customerName,
+            projectName,
+            actionType,
+            attachments
+        });
+
         const targetEmployeeIds = new Set();
         if (assignedToId) targetEmployeeIds.add(parseInt(assignedToId, 10));
 
         if (Array.isArray(assignedTeam)) {
             for (const item of assignedTeam) {
-                if (typeof item === 'object' && item.id) targetEmployeeIds.add(parseInt(item.id, 10));
+                if (typeof item === 'object' && item && item.id) targetEmployeeIds.add(parseInt(item.id, 10));
                 else if (typeof item === 'number') targetEmployeeIds.add(item);
                 else if (typeof item === 'string' && /^\d+$/.test(item)) targetEmployeeIds.add(parseInt(item, 10));
             }
@@ -347,10 +430,11 @@ export const createTicket = async (req, res) => {
 
         const newTicket = result.rows[0];
 
-        // Asynchronously notify assigned engineers on WhatsApp
+        // Asynchronously notify assigned engineers on WhatsApp & Employee Inbox
         notifyTicketWhatsApp({
             ticketCode: ticket_code,
             title,
+            description: description || '',
             priority: priority || 'Medium',
             assignedToId: assigned_to ? parseInt(assigned_to, 10) : null,
             assignedTeam: assigned_team || [],
@@ -588,6 +672,23 @@ export const assignTicket = async (req, res) => {
             SET assigned_to = $1, status = $2, updated_at = NOW()
             WHERE id = $3
         `, [assigned_to, newStatus, id]);
+
+        // Trigger WhatsApp & Inbox Notification for the assigned employee
+        const custRes = await pool.query(`SELECT name FROM customers WHERE id = $1`, [ticket.customer_id]);
+        const customerName = custRes.rows[0]?.name || 'Valued Client';
+
+        notifyTicketWhatsApp({
+            ticketCode: ticket.ticket_code,
+            title: ticket.title,
+            description: ticket.description || '',
+            priority: ticket.priority || 'Medium',
+            assignedToId: parseInt(assigned_to, 10),
+            assignedTeam: ticket.assigned_team || [],
+            customerName: customerName,
+            projectName: ticket.project_name || 'General Project',
+            actionType: 'assigned',
+            attachments: ticket.attachments || []
+        });
 
         // Log history
         await pool.query(`

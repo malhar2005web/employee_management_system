@@ -8,6 +8,7 @@ import {
     sendWhatsAppButtons,
     sendWhatsAppCtaUrl,
     uploadMediaToWaba,
+    downloadWabaMediaToDisk,
     sanitizePhoneNumber
 } from '../services/whatsapp.service.js';
 import {
@@ -678,7 +679,21 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
             .replace(/\n/g, ' ')
             .substring(0, 75);
 
-        const attachments = mediaAttachment ? [mediaAttachment] : [];
+        const attachments = [];
+        if (mediaAttachment) {
+            if (mediaAttachment.mediaId && !mediaAttachment.url) {
+                try {
+                    const downloaded = await downloadWabaMediaToDisk(mediaAttachment.mediaId, mediaAttachment.name);
+                    if (downloaded && downloaded.url) {
+                        mediaAttachment.url = downloaded.url;
+                        mediaAttachment.size = downloaded.size;
+                    }
+                } catch (dlErr) {
+                    console.error("Failed to download WABA media to disk:", dlErr.message);
+                }
+            }
+            attachments.push(mediaAttachment);
+        }
 
         const insertRes = await pool.query(`
             INSERT INTO support_tickets (
@@ -711,10 +726,11 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
             VALUES ($1, 'Customer (WhatsApp)', 'Ticket Created', 'Assigned', $2)
         `, [newTicket.id, `Ticket auto-created from WhatsApp message: ${titleSnippet}`]);
 
-        // Send alert to ALL assigned engineers (e.g. Nitin Sir, Malhar Kulkarni)
+        // Send alert to ALL assigned engineers (e.g. Nitin Sir, Malhar Kulkarni) & Inbox Notifications
         notifyTicketWhatsApp({
             ticketCode,
             title: titleSnippet,
+            description: issueText || titleSnippet,
             priority: 'High',
             assignedToId: assignedEmployees[0]?.id || 9,
             assignedTeam: assignedEmployees,

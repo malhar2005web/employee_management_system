@@ -113,6 +113,7 @@ import {
     changePassword, 
     getInbox, 
     markAllRead,
+    markOneRead,
     getChatContacts,
     getChatMessages,
     sendChatMessage
@@ -129,5 +130,6 @@ router.put("/profile", updateProfile);
 router.post("/change-password", changePassword);
 router.get("/inbox", getInbox);
 router.post("/inbox/mark-all-read", markAllRead);
+router.post("/inbox/:id/read", markOneRead);
 
 export default router;

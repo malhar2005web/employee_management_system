@@ -973,6 +973,22 @@ export async function markAllRead(req, res) {
     }
 }
 
+export async function markOneRead(req, res) {
+    try {
+        const employeeId = await getEmployeeId(req.user.id);
+        const { id } = req.params;
+        await pool.query(
+            "UPDATE notifications SET is_read = true WHERE id = $1 AND (recipient_id = $2 OR recipient_id IS NULL);",
+            [id, employeeId]
+        );
+
+        res.status(200).json({ success: true, message: "Notification marked as read" });
+    } catch (error) {
+        console.log("Error in markOneRead:", error.message);
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+}
+
 export async function getChatContacts(req, res) {
     try {
         const employeeId = await getEmployeeId(req.user.id);
