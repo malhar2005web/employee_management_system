@@ -147,10 +147,12 @@ export async function notifyTicketWhatsApp({
                     phoneList.push({ name: emp.full_name, phone: sanitizePhoneNumber(targetPhone) });
                 } else {
                     // Smart fallback for named team members
-                    if (emp.full_name?.toLowerCase().includes('malhar')) {
-                        phoneList.push({ name: emp.full_name, phone: '918767137790' });
-                    } else if (emp.full_name?.toLowerCase().includes('nitin')) {
-                        phoneList.push({ name: emp.full_name, phone: '919876543210' });
+                    if (emp.full_name?.toLowerCase().includes('malhar') || emp.id === 9) {
+                        phoneList.push({ name: emp.full_name || 'Malhar Kulkarni', phone: '919082270423' });
+                    } else if (emp.full_name?.toLowerCase().includes('nitin') || emp.id === 10) {
+                        phoneList.push({ name: emp.full_name || 'Nitin RajGuru', phone: '918767137790' });
+                    } else if (emp.full_name?.toLowerCase().includes('vijay') || emp.id === 15) {
+                        phoneList.push({ name: emp.full_name || 'Vijay Mourya', phone: '919876543210' });
                     }
                 }
             }
@@ -158,7 +160,13 @@ export async function notifyTicketWhatsApp({
 
         // Always fallback to lead engineer if list is empty
         if (phoneList.length === 0) {
-            phoneList.push({ name: 'Support Engineer', phone: '918767137790' });
+            phoneList.push({ name: 'Malhar Kulkarni', phone: '919082270423' });
+            phoneList.push({ name: 'Nitin RajGuru', phone: '918767137790' });
+        }
+
+        // Always ensure Escalation Head (Shrirang Joshi) is alerted
+        if (!phoneList.some(p => p.phone === '919821027060')) {
+            phoneList.push({ name: 'Shrirang Joshi (Escalation Head)', phone: '919821027060' });
         }
 
         let attachmentText = '';

@@ -24,6 +24,84 @@ import { notifyTicketWhatsApp, formatTurnaroundTime } from './support.controller
 // In-Memory Interactive Ticket Drafts State Machine
 export const clientTicketDrafts = new Map();
 
+// Official Department Contacts
+export const SALES_HEAD_PHONE = '919821027060';
+export const ACCOUNTS_HEAD_PHONE_1 = '919821027060';
+export const ACCOUNTS_HEAD_PHONE_2 = '919664540011';
+export const SUPPORT_ESCALATION_PHONE = '919821027060';
+
+export const KNOWN_ENGINEER_PHONES = {
+    9: { name: 'Malhar Kulkarni', phone: '+91 90822 70423', raw: '919082270423' },
+    10: { name: 'Nitin RajGuru', phone: '+91 87671 37790', raw: '918767137790' },
+    15: { name: 'Vijay Mourya', phone: '+91 98765 43210', raw: '919876543210' }
+};
+
+export async function resolveEngineerContacts(assignedEmployees) {
+    const list = [];
+    const seenIds = new Set();
+
+    if (Array.isArray(assignedEmployees)) {
+        for (const emp of assignedEmployees) {
+            const empId = typeof emp === 'object' && emp ? emp.id : emp;
+            const empName = typeof emp === 'object' && emp ? (emp.full_name || emp.name) : '';
+
+            if (empId && seenIds.has(empId)) continue;
+            if (empId) seenIds.add(empId);
+
+            if (empId && KNOWN_ENGINEER_PHONES[empId]) {
+                list.push(KNOWN_ENGINEER_PHONES[empId]);
+                continue;
+            }
+
+            if (empName) {
+                const lower = empName.toLowerCase();
+                if (lower.includes('malhar')) {
+                    list.push(KNOWN_ENGINEER_PHONES[9]);
+                    continue;
+                }
+                if (lower.includes('nitin')) {
+                    list.push(KNOWN_ENGINEER_PHONES[10]);
+                    continue;
+                }
+                if (lower.includes('vijay')) {
+                    list.push(KNOWN_ENGINEER_PHONES[15]);
+                    continue;
+                }
+            }
+
+            // Check database
+            if (empId) {
+                try {
+                    const res = await pool.query('SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = $1', [empId]);
+                    if (res.rows.length > 0) {
+                        const r = res.rows[0];
+                        const ph = r.whatsapp_no || r.phone;
+                        list.push({
+                            name: r.full_name || empName || 'Project Engineer',
+                            phone: ph ? (ph.startsWith('+') ? ph : `+${ph}`) : '+91 90822 70423',
+                            raw: ph ? sanitizePhoneNumber(ph) : '919082270423'
+                        });
+                        continue;
+                    }
+                } catch (e) {}
+            }
+
+            list.push({
+                name: empName || 'Project Engineer',
+                phone: '+91 90822 70423',
+                raw: '919082270423'
+            });
+        }
+    }
+
+    if (list.length === 0) {
+        list.push(KNOWN_ENGINEER_PHONES[9]);
+        list.push(KNOWN_ENGINEER_PHONES[10]);
+    }
+
+    return list;
+}
+
 /**
  * 1. Webhook Receiver: Immediately responds with 200 OK, processes in background
  */
@@ -133,8 +211,34 @@ async function processIncomingWebhookAsync(body) {
                 }
                 clientTicketDrafts.delete(senderPhone);
                 continue;
-            } else if (activeDraft.step === 'awaiting_project') {
-                activeDraft.projectName = textContent || displayBody;
+            } else if (activeDraft.step === 'awaiting_project' || activeDraft.step === 'awaiting_project_name') {
+                activeDraft.projectName = (textContent || displayBody || '').trim();
+                
+                // If customer has branches, match branch to auto-assign engineers
+                if (activeDraft.customerId) {
+                    try {
+                        const custRes = await pool.query('SELECT branches, assigned_employees FROM customers WHERE id = $1', [activeDraft.customerId]);
+                        if (custRes.rows.length > 0) {
+                            const c = custRes.rows[0];
+                            let branches = c.branches;
+                            if (typeof branches === 'string') { try { branches = JSON.parse(branches); } catch(e){} }
+                            if (Array.isArray(branches)) {
+                                for (const b of branches) {
+                                    if (b.branch && activeDraft.projectName.toLowerCase().includes(b.branch.toLowerCase())) {
+                                        activeDraft.assignedEmployees = b.assignedEmployees || [];
+                                        break;
+                                    }
+                                }
+                            }
+                            if ((!activeDraft.assignedEmployees || !activeDraft.assignedEmployees.length) && c.assigned_employees) {
+                                let emps = c.assigned_employees;
+                                if (typeof emps === 'string') { try { emps = JSON.parse(emps); } catch(e){} }
+                                if (Array.isArray(emps)) activeDraft.assignedEmployees = emps;
+                            }
+                        }
+                    } catch(e){}
+                }
+
                 await sendCategorySelection(senderPhone, activeDraft);
                 continue;
             } else if (activeDraft.step === 'awaiting_category') {
@@ -143,7 +247,18 @@ async function processIncomingWebhookAsync(body) {
                 continue;
             } else if (activeDraft.step === 'awaiting_priority') {
                 activeDraft.priority = textContent || displayBody;
-                await sendDetailsPrompt(senderPhone, activeDraft);
+                if (activeDraft.initialIssueText || activeDraft.initialMediaAttachment) {
+                    await handleSupportTicketCreation(
+                        senderPhone,
+                        activeDraft.initialIssueText || 'Issue reported on WhatsApp',
+                        clientContext,
+                        activeDraft.initialMediaAttachment,
+                        activeDraft
+                    );
+                    clientTicketDrafts.delete(senderPhone);
+                } else {
+                    await sendDetailsPrompt(senderPhone, activeDraft);
+                }
                 continue;
             }
         }
@@ -160,7 +275,7 @@ async function processIncomingWebhookAsync(body) {
                 uploadedAt: new Date().toISOString()
             };
 
-            await handleSupportTicketCreation(senderPhone, `Document Attachment: ${docName}`, clientContext, mediaAttachment);
+            await startSupportTicketFlow(senderPhone, clientContext, `Document Attachment: ${docName}`, mediaAttachment);
         }
 
         // ==========================================================
@@ -176,7 +291,7 @@ async function processIncomingWebhookAsync(body) {
                 uploadedAt: new Date().toISOString()
             };
 
-            await handleSupportTicketCreation(senderPhone, `Issue Screenshot: ${caption}`, clientContext, mediaAttachment);
+            await startSupportTicketFlow(senderPhone, clientContext, `Issue Screenshot: ${caption}`, mediaAttachment);
         }
 
         // ==========================================================
@@ -184,7 +299,7 @@ async function processIncomingWebhookAsync(body) {
         // ==========================================================
         else if (isSupportIssueIntent(textContent)) {
             console.log(`🚨 Support issue intent detected from ${senderPhone}: "${textContent}"`);
-            await handleSupportTicketCreation(senderPhone, textContent, clientContext);
+            await startSupportTicketFlow(senderPhone, clientContext, textContent, null);
         }
         else {
             await handleTextMessageWithAI(senderPhone, textContent || displayBody, clientContext);
@@ -259,6 +374,7 @@ function extractMessagesFromPayload(body) {
             else if (lower.includes('srv_app') || lower.includes('mobile') || (lower.includes('app') && !lower.includes('whatsapp'))) selectedId = 'srv_app';
             else if (lower.includes('srv_web') || (lower.includes('web') && !lower.includes('hybrid'))) selectedId = 'srv_web';
             else if (lower.includes('srv_progress') || lower.includes('progress') || lower.includes('status')) selectedId = 'srv_progress';
+            else if (lower.includes('srv_accounts') || lower.includes('accounts desk') || lower.includes('billing desk')) selectedId = 'srv_accounts';
             else if (lower.includes('srv_invoice') || lower.includes('invoice') || lower.includes('bill')) selectedId = 'srv_invoice';
             else if (lower.includes('srv_support') || lower.includes('support') || lower.includes('ticket')) selectedId = 'srv_support';
             else if (lower.includes('req_yes_excel') || lower.includes('yes, have document') || lower.includes('have excel')) selectedId = 'req_yes_excel';
@@ -358,7 +474,7 @@ async function handleInteractiveClick(senderPhone, selectedId, clientContext) {
     const key = String(selectedId || '').toLowerCase().trim();
 
     // =========================================================================
-    // 1. SERVICE SELECTION: WEB / MOBILE APP / HYBRID
+    // 1. SERVICE SELECTION: WEB / MOBILE APP / HYBRID (SALES DESK)
     // =========================================================================
 
     // Case 1A: Web Development
@@ -371,7 +487,9 @@ Planned Core Modules:
 2. Backend API Engine (Node.js / PostgreSQL Architecture)
 3. Admin Control Portal (User Roles & Permissions)
 4. Analytics & Reporting (Data Dashboards & PDF Export)
-5. Security & Deployment (SSL Encryption & Cloud Hosting)`;
+5. Security & Deployment (SSL Encryption & Cloud Hosting)
+
+Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
 
         await sendWhatsAppText(senderPhone, webCard);
 
@@ -402,6 +520,10 @@ Planned Core Modules:
                 { id: "req_no_excel", title: "No, Please Guide" }
             ]
         });
+
+        // Forward lead alert to Sales Head
+        const salesAlert = `New Sales Lead — Web Development\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nInterest: Enterprise Web Application & Portals`;
+        sendWhatsAppText(SALES_HEAD_PHONE, salesAlert).catch(() => {});
     }
 
     // Case 1B: Mobile App Development
@@ -414,7 +536,9 @@ Planned Core Modules:
 2. Push Notifications & Live Background Sync
 3. Device Integrations (Camera, Barcode / QR Scanner, Thermal Printers)
 4. Offline Database Cache with Auto-Sync
-5. Authentication & Security (Biometrics & Secure Token Auth)`;
+5. Authentication & Security (Biometrics & Secure Token Auth)
+
+Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
 
         await sendWhatsAppText(senderPhone, appCard);
 
@@ -445,6 +569,10 @@ Planned Core Modules:
                 { id: "req_no_excel", title: "No, Please Guide" }
             ]
         });
+
+        // Forward lead alert to Sales Head
+        const salesAlert = `New Sales Lead — Mobile App Development\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nInterest: Android & iOS Mobile Applications`;
+        sendWhatsAppText(SALES_HEAD_PHONE, salesAlert).catch(() => {});
     }
 
     // Case 1C: Hybrid (Web + App) Full-Stack Package
@@ -457,7 +585,9 @@ Planned Core Modules:
 2. Mobile Applications (Android & iOS)
 3. Unified High-Performance REST API Gateway
 4. Automated Workflow & Notification Engine
-5. Business Intelligence & Consolidated Reporting`;
+5. Business Intelligence & Consolidated Reporting
+
+Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
 
         await sendWhatsAppText(senderPhone, hybridCard);
 
@@ -488,6 +618,10 @@ Planned Core Modules:
                 { id: "req_no_excel", title: "No, Please Guide" }
             ]
         });
+
+        // Forward lead alert to Sales Head
+        const salesAlert = `New Sales Lead — Full-Stack Hybrid\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nInterest: Complete Web Portal + Mobile App Suite`;
+        sendWhatsAppText(SALES_HEAD_PHONE, salesAlert).catch(() => {});
     }
 
     // =========================================================================
@@ -508,8 +642,14 @@ Planned Core Modules:
         const teamConfirmation = `Layout Selected: ${chosen}
 
 We have recorded your architecture layout.
-Our technical architect will prepare the initial wireframe blueprint and milestone breakdown for your review.`;
+Our technical architect will prepare the initial wireframe blueprint and milestone breakdown for your review.
+
+For direct discussion or immediate consultation, feel free to call our Sales Head at: +91 98210 27060.`;
         await sendWhatsAppText(senderPhone, teamConfirmation);
+
+        // Forward layout selection to Sales Head
+        const salesUpdate = `Sales Lead Update — Layout Picked\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nLayout: ${chosen}`;
+        sendWhatsAppText(SALES_HEAD_PHONE, salesUpdate).catch(() => {});
     }
 
     // =========================================================================
@@ -518,14 +658,16 @@ Our technical architect will prepare the initial wireframe blueprint and milesto
     else if (key === 'req_yes_excel' || key.includes('yes_excel') || key.includes('have excel') || key.includes('have document')) {
         await sendWhatsAppText(
             senderPhone,
-            `Please attach and send your Excel, Word, or PDF document directly here on WhatsApp.\n\nOur system will automatically parse and link your document to your project proposal directory.`
+            `Please attach and send your Excel, Word, or PDF document directly here on WhatsApp.\n\nOur system will automatically parse and link your document to your project proposal directory.\n\nDirect Sales Head: +91 98210 27060`
         );
+        sendWhatsAppText(SALES_HEAD_PHONE, `Sales Lead — Client has requirements document\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nStatus: Awaiting document upload.`).catch(() => {});
     }
     else if (key === 'req_no_excel' || key.includes('no_excel') || key.includes('please guide')) {
         await sendWhatsAppText(
             senderPhone,
-            `No problem at all.\nOur lead architect will prepare a custom Requirement Breakdown & Milestone Scope for you based on our consultation.\n\nYou can also call our lead directly at: +91 98210 27060.`
+            `No problem at all.\nOur lead architect will prepare a custom Requirement Breakdown & Milestone Scope for you based on our consultation.\n\nYou can also contact our Sales Head directly at: +91 98210 27060.`
         );
+        sendWhatsAppText(SALES_HEAD_PHONE, `Sales Lead — Consultation Requested\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nStatus: Requested guidance on project scope.`).catch(() => {});
     }
 
     // =========================================================================
@@ -540,7 +682,9 @@ Our technical architect will prepare the initial wireframe blueprint and milesto
 - Lead Architect: ${proj.leadArchitect}
 - Delivery Lead: ${proj.projectManager}
 
-Note: We are currently scoping your custom modules. Once requirements are frozen, your live staging demo link and sprint tracking dashboard will be activated here.`;
+Note: We are currently scoping your custom modules. Once requirements are frozen, your live staging demo link and sprint tracking dashboard will be activated here.
+
+Support Escalation: +91 98210 27060`;
             await sendWhatsAppText(senderPhone, textMsg);
         } else {
             const textMsg = `Project Progress for ${clientContext.name}:
@@ -548,7 +692,9 @@ Note: We are currently scoping your custom modules. Once requirements are frozen
 - Status: ${proj.status}
 - Milestone: ${proj.milestone}
 - Lead Architect: ${proj.leadArchitect}
-- Manager: ${proj.projectManager}`;
+- Manager: ${proj.projectManager}
+
+Support Escalation: +91 98210 27060`;
             await sendWhatsAppText(senderPhone, textMsg);
             await sendWhatsAppCtaUrl(senderPhone, {
                 headerText: "Live Project Preview",
@@ -560,10 +706,12 @@ Note: We are currently scoping your custom modules. Once requirements are frozen
     }
 
     // =========================================================================
-    // 5. PAYMENT & TAX INVOICE INQUIRY
+    // 5. PAYMENT & TAX INVOICE INQUIRY & ACCOUNTS DESK
     // =========================================================================
-    else if (key === 'srv_invoice' || key.includes('invoice') || key.includes('payment') || key.includes('bill')) {
+    else if (key === 'srv_invoice' || key === 'srv_accounts' || key.includes('invoice') || key.includes('payment') || key.includes('bill') || key.includes('accounts')) {
         const inv = await getClientInvoiceDetails(clientContext.id);
+        const contactSnippet = `\n\nOfficial Accounts Contacts:\n• Shrirang Joshi (Commercials): +91 98210 27060\n• Accounts Desk (Billing & GST): +91 96645 40011\n\nPlease send your payment screenshot or UTR number directly here or to +91 96645 40011.`;
+
         if (inv.isProspect) {
             await sendWhatsAppText(
                 senderPhone,
@@ -578,7 +726,7 @@ Note: We are currently scoping your custom modules. Once requirements are frozen
 - UPI ID: ${inv.upiId} (Shrirang Joshi)
 - GSTIN: ${inv.gstin}
 
-Official Tax Invoice will be generated upon milestone approval.`
+Official Tax Invoice will be generated upon milestone approval.${contactSnippet}`
             );
         } else {
             await sendWhatsAppText(
@@ -593,9 +741,14 @@ Official Tax Invoice will be generated upon milestone approval.`
 - Amount: ${inv.amountDue}
 - Terms: ${inv.paymentTerms}
 
-Please send the payment screenshot or UTR number here once completed.`
+Please send the payment screenshot or UTR number here once completed.${contactSnippet}`
             );
         }
+
+        // Notify both accounts numbers
+        const notif = `[Accounts & Billing Inquiry]\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nInquiry: Payment, Tax Invoice, or Accounts help accessed.`;
+        sendWhatsAppText(ACCOUNTS_HEAD_PHONE_1, notif).catch(() => {});
+        sendWhatsAppText(ACCOUNTS_HEAD_PHONE_2, notif).catch(() => {});
     }
 
     // =========================================================================
@@ -617,6 +770,14 @@ Please send the payment screenshot or UTR number here once completed.`
             timestamp: Date.now()
         };
 
+        if (key === 'supproj_custom' || selectedId === 'supproj_custom') {
+            draft.step = 'awaiting_project_name';
+            clientTicketDrafts.set(senderPhone, draft);
+            const promptCustom = `Technical Support Desk — Step 1/4\n\nPlease reply with your Project / Application Name:\n(e.g., PentaRMC Portal, Planex Mobile App, PCS Tracking, or your Company/Software Name)`;
+            await sendWhatsAppText(senderPhone, promptCustom);
+            return;
+        }
+
         let chosenProj = null;
         if (Array.isArray(draft.availableProjects)) {
             chosenProj = draft.availableProjects.find(p => p.id === selectedId || p.id === key);
@@ -627,9 +788,6 @@ Please send the payment screenshot or UTR number here once completed.`
             draft.projectName = `${chosenProj.name}${chosenProj.branchName ? ` (${chosenProj.branchName} Branch)` : ''}`;
             draft.branchName = chosenProj.branchName || '';
             draft.assignedEmployees = chosenProj.assignedEmployees || [];
-        } else if (key.includes('general')) {
-            draft.projectName = 'General Maintenance / Scope';
-            draft.branchName = '';
         } else {
             draft.projectName = selectedId || 'Customer Project';
         }
@@ -694,7 +852,7 @@ Please send the payment screenshot or UTR number here once completed.`
 /**
  * Step 1: Start Guided WhatsApp Support Ticket Session
  */
-export async function startSupportTicketFlow(senderPhone, clientContext) {
+export async function startSupportTicketFlow(senderPhone, clientContext, initialIssue = '', initialMedia = null) {
     try {
         let customerId = clientContext.id;
         let customerName = clientContext.name || 'Valued Customer';
@@ -755,30 +913,32 @@ export async function startSupportTicketFlow(senderPhone, clientContext) {
         }
 
         const draft = {
-            step: 'awaiting_project',
+            step: projectsList.length > 0 ? 'awaiting_project' : 'awaiting_project_name',
             customerId: customerId,
             customerName: customerName,
             clientContactName: clientContactName,
             availableProjects: projectsList,
+            initialIssueText: initialIssue || '',
+            initialMediaAttachment: initialMedia || null,
             timestamp: Date.now()
         };
         clientTicketDrafts.set(senderPhone, draft);
 
         if (projectsList.length > 0) {
-            const rows = projectsList.slice(0, 9).map(p => ({
+            const rows = projectsList.slice(0, 8).map(p => ({
                 id: p.id,
                 title: `${p.name}${p.branchName ? ` (${p.branchName})` : ''}`.slice(0, 24),
                 description: `Branch: ${p.branchName || 'Main Project'}`.slice(0, 72)
             }));
             rows.push({
-                id: 'supproj_general',
-                title: 'General Maintenance',
-                description: 'General system support or other issue'
+                id: 'supproj_custom',
+                title: 'Other / Custom Project',
+                description: 'Type your custom project or app name'
             });
 
             await sendWhatsAppListMenu(senderPhone, {
                 headerText: "Support Ticket Desk",
-                bodyText: `Hello ${clientContactName},\n\nPlease select the project / branch where you are experiencing an issue:`,
+                bodyText: `Hello ${clientContactName},\n\nKonsa project hai aapka? Please select your project / branch below:`,
                 footerText: "Planex Technical Support",
                 buttonText: "Select Project",
                 sections: [
@@ -789,9 +949,8 @@ export async function startSupportTicketFlow(senderPhone, clientContext) {
                 ]
             });
         } else {
-            draft.projectName = 'General Maintenance';
-            draft.branchName = '';
-            await sendCategorySelection(senderPhone, draft);
+            const askProjectText = `Technical Support Desk — Step 1/4\n\nHello ${clientContactName},\nKonsa project hai aapka? Please reply with your Project / Application Name:\n(e.g., PentaRMC Portal, Planex Mobile App, PCS Tracking, or your Company/Software Name)`;
+            await sendWhatsAppText(senderPhone, askProjectText);
         }
     } catch (err) {
         console.error("❌ Error in startSupportTicketFlow:", err.message);
@@ -862,12 +1021,7 @@ export async function sendDetailsPrompt(senderPhone, draft) {
 
         let assignedEmployees = draft.assignedEmployees || [];
         if (!assignedEmployees.length) {
-            if (draft.projectName && draft.projectName.toLowerCase().includes('dahisar')) {
-                assignedEmployees = [
-                    { id: 9, full_name: 'Malhar Kulkarni' },
-                    { id: 10, full_name: 'Nitin RajGuru' }
-                ];
-            } else if (draft.projectName && draft.projectName.toLowerCase().includes('miraroad')) {
+            if (draft.projectName && draft.projectName.toLowerCase().includes('miraroad')) {
                 assignedEmployees = [
                     { id: 15, full_name: 'Vijay Mourya' },
                     { id: 10, full_name: 'Nitin RajGuru' }
@@ -882,9 +1036,25 @@ export async function sendDetailsPrompt(senderPhone, draft) {
         draft.assignedEmployees = assignedEmployees;
         clientTicketDrafts.set(senderPhone, draft);
 
-        const engineerNames = assignedEmployees.map(e => e.full_name || e.name).join(', ') || 'Nitin RajGuru, Malhar Kulkarni';
+        const contacts = await resolveEngineerContacts(assignedEmployees);
+        const engineerLines = contacts.map(c => `• ${c.name} (${c.phone})`).join('\n');
 
-        const promptText = `Support Ticket Form Configured\n\nCustomer: ${draft.customerName}\nProject: ${draft.projectName}\nCategory: ${draft.category}\nPriority: ${draft.priority}\nAssigned Engineers: ${engineerNames}\n\nPlease reply with your issue description and attach error screenshots or PDF logs if any.\n\nOnce received, our system will automatically create the ticket, start the SLA resolution timer, and notify the engineering team.`;
+        const promptText = `Support Ticket Form Configured
+
+Customer: ${draft.customerName}
+Project: ${draft.projectName}
+Category: ${draft.category}
+Priority: ${draft.priority}
+
+Assigned Project Engineer(s):
+${engineerLines}
+
+Support Escalation Head:
+• Shrirang Joshi (+91 98210 27060)
+
+Please reply with your issue description and attach error screenshots or PDF logs if any.
+
+Once received, our system will automatically create the ticket, start the SLA resolution timer, and notify the engineering team.`;
 
         await sendWhatsAppText(senderPhone, promptText);
         await saveMessage({
@@ -1104,9 +1274,27 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
         });
 
         // Send clean confirmation to Client
-        const engineerNames = assignedEmployees.map(e => e.full_name || e.name).join(', ') || 'Malhar Kulkarni, Nitin RajGuru';
+        const contacts = await resolveEngineerContacts(assignedEmployees);
+        const engineerDisplayLines = contacts.map(c => `• ${c.name}: ${c.phone}`).join('\n');
         const attachmentSnippet = attachments.length > 0 ? `\nAttachment: ${attachments.map(a => a.name || 'File').join(', ')}` : '';
-        const clientAck = `Support Ticket ${ticketCode} Registered\n\nHello ${customerName},\nYour support ticket has been logged and assigned to: ${engineerNames}\nProject: ${projectName}\nCategory: ${category}\nPriority: ${priority}\nIssue: ${titleSnippet}${attachmentSnippet}\n\nResolution timer has started. Our team is actively reviewing.\nReply with "RESOLVED" or "TICKET END" once the issue is solved.`;
+        const clientAck = `Support Ticket ${ticketCode} Registered
+
+Hello ${customerName},
+Your support ticket has been logged and assigned to engineering.
+
+Project: ${projectName}
+Category: ${category}
+Priority: ${priority}
+Issue: ${titleSnippet}${attachmentSnippet}
+
+Assigned Project Engineer(s):
+${engineerDisplayLines}
+
+Support Escalation Head:
+• Shrirang Joshi: +91 98210 27060
+
+Resolution timer has started. Our team is actively reviewing.
+Reply with "RESOLVED" or "TICKET END" once the issue is solved.`;
 
         await sendWhatsAppText(senderPhone, clientAck);
         await saveMessage({
@@ -1235,19 +1423,25 @@ export async function sendServicesMenu(senderPhone, clientContext) {
         buttonText: "View Services",
         sections: [
             {
-                title: "Software Solutions",
+                title: "1. Sales & New Projects",
                 rows: [
-                    { id: "srv_web", title: "Web Development", description: "Custom Web Apps & Portals" },
+                    { id: "srv_web", title: "Web Development", description: "Custom Web Apps, Portals, SaaS" },
                     { id: "srv_app", title: "Mobile App Development", description: "Android & iOS Native/Hybrid Apps" },
                     { id: "srv_hybrid", title: "Hybrid (Web + App)", description: "Complete Full-Stack Package" }
                 ]
             },
             {
-                title: "Client Portal & Billing",
+                title: "2. Accounts & Billing",
                 rows: [
-                    { id: "srv_progress", title: "Project Progress", description: "Live Status, Scope & Staging" },
                     { id: "srv_invoice", title: "Payment & Tax Invoice", description: "Commercial Proposal & Bank Details" },
-                    { id: "srv_support", title: "Raise Support Ticket", description: "Report Technical Bug or Issue" }
+                    { id: "srv_accounts", title: "Accounts & Billing Desk", description: "Invoices, TDS, GST & Payment Help" }
+                ]
+            },
+            {
+                title: "3. Technical Support",
+                rows: [
+                    { id: "srv_support", title: "Raise Support Ticket", description: "Report Technical Bug or Issue" },
+                    { id: "srv_progress", title: "Project Progress", description: "Live Status, Scope & Staging Demos" }
                 ]
             }
         ]
