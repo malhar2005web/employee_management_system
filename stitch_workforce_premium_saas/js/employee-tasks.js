@@ -742,7 +742,13 @@
         if (ticketFileUrl) ticketFileUrl.value = '';
         if (ticketFileName) ticketFileName.textContent = 'No file selected';
         populateCreateTicketCustomerDropdown();
-        if (createTicketModal) createTicketModal.style.display = 'flex';
+        if (createTicketModal) {
+            createTicketModal.style.display = 'flex';
+            createTicketModal.classList.add('active');
+            createTicketModal.style.opacity = '1';
+            document.body.classList.add('modal-open');
+        }
+        if (typeof window.openModal === 'function') window.openModal('create-ticket-modal');
     };
 
     window.openCreateTicketModalForCustomer = function(customerId, customerName) {
@@ -759,7 +765,13 @@
 
     [createTicketClose, createTicketCancel].forEach(el => {
         if (el) el.addEventListener('click', () => {
-            if (createTicketModal) createTicketModal.style.display = 'none';
+            if (createTicketModal) {
+                createTicketModal.classList.remove('active');
+                createTicketModal.style.opacity = '0';
+                setTimeout(() => { createTicketModal.style.display = 'none'; }, 200);
+            }
+            document.body.classList.remove('modal-open');
+            if (typeof window.closeModal === 'function') window.closeModal('create-ticket-modal');
         });
     });
 
@@ -910,13 +922,21 @@
                 }
 
                 // Render Comments & History
-                renderModalComments(data.comments || []);
-                renderModalHistory(data.history || []);
+                renderModalComments(t.comments || data.comments || []);
+                renderModalHistory(t.history || data.history || []);
 
-                if (ticketWorkspaceModal) ticketWorkspaceModal.style.display = 'flex';
+                const modalTarget = document.getElementById('ticket-workspace-modal');
+                if (modalTarget) {
+                    modalTarget.style.display = 'flex';
+                    modalTarget.classList.add('active');
+                    modalTarget.style.opacity = '1';
+                    document.body.classList.add('modal-open');
+                }
+                if (typeof window.openModal === 'function') window.openModal('ticket-workspace-modal');
             }
         } catch (e) {
-            showToast('Failed to load ticket details', 'error');
+            console.error('Failed to load ticket details:', e);
+            showToast('Failed to load ticket details: ' + e.message, 'error');
         }
     };
 

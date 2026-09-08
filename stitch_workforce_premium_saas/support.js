@@ -650,52 +650,58 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (!data.success || !data.data) {
-                alert("Failed to load ticket details");
+                alert(data.message || "Failed to load ticket details");
                 return;
             }
 
             const t = data.data;
 
             // Header info
-            document.getElementById('view-ticket-code').textContent = t.ticket_code;
-            document.getElementById('view-ticket-title').textContent = t.title;
-            document.getElementById('view-ticket-sub').textContent = `Reported by ${t.reported_by || 'Customer'} on ${new Date(t.created_at).toLocaleString()}`;
+            const codeEl = document.getElementById('view-ticket-code');
+            const titleEl = document.getElementById('view-ticket-title');
+            const subEl = document.getElementById('view-ticket-sub');
+            if (codeEl) codeEl.textContent = t.ticket_code;
+            if (titleEl) titleEl.textContent = t.title;
+            if (subEl) subEl.textContent = `Reported by ${t.reported_by || 'Customer'} on ${new Date(t.created_at).toLocaleString()}`;
 
             // Details & Attachments
-            document.getElementById('view-ticket-description').textContent = t.description || 'No detailed description provided.';
+            const descEl = document.getElementById('view-ticket-description');
+            if (descEl) descEl.textContent = t.description || 'No detailed description provided.';
             
             const attArea = document.getElementById('view-ticket-attachments-area');
             const attList = document.getElementById('view-ticket-attachments-list');
             if (t.attachments && Array.isArray(t.attachments) && t.attachments.length > 0) {
-                attArea.style.display = 'block';
-                attList.innerHTML = '';
-                t.attachments.forEach(att => {
-                    const url = typeof att === 'string' ? att : (att.url || (att.mediaId ? `/api/v1/whatsapp/media/${att.mediaId}` : '#'));
-                    const name = typeof att === 'string' ? 'Attachment' : (att.name || att.filename || 'Attachment');
-                    const isImage = (typeof att === 'object' && att.type === 'image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(name) || /\.(png|jpe?g|gif|webp|svg)$/i.test(url);
+                if (attArea) attArea.style.display = 'block';
+                if (attList) {
+                    attList.innerHTML = '';
+                    t.attachments.forEach(att => {
+                        const url = typeof att === 'string' ? att : (att.url || (att.mediaId ? `/api/v1/whatsapp/media/${att.mediaId}` : '#'));
+                        const name = typeof att === 'string' ? 'Attachment' : (att.name || att.filename || 'Attachment');
+                        const isImage = (typeof att === 'object' && att.type === 'image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(name) || /\.(png|jpe?g|gif|webp|svg)$/i.test(url);
 
-                    if (isImage && url && url !== '#') {
-                        attList.innerHTML += `
-                            <div style="display:inline-block; margin:6px; background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.12); border-radius:8px; padding:6px; text-align:center; vertical-align:top;">
-                                <a href="${url}" target="_blank" title="Click to view full image">
-                                    <img src="${url}" alt="${name}" style="max-width:200px; max-height:140px; border-radius:6px; display:block; object-fit:cover; margin-bottom:6px; box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+                        if (isImage && url && url !== '#') {
+                            attList.innerHTML += `
+                                <div style="display:inline-block; margin:6px; background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.12); border-radius:8px; padding:6px; text-align:center; vertical-align:top;">
+                                    <a href="${url}" target="_blank" title="Click to view full image">
+                                        <img src="${url}" alt="${name}" style="max-width:200px; max-height:140px; border-radius:6px; display:block; object-fit:cover; margin-bottom:6px; box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+                                    </a>
+                                    <a href="${url}" target="_blank" style="font-size:12px; font-weight:700; color:var(--teal-700); text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+                                        <i class="fa-solid fa-arrow-up-right-from-square"></i> ${name}
+                                    </a>
+                                </div>
+                            `;
+                        } else {
+                            attList.innerHTML += `
+                                <a href="${url}" target="_blank" class="badge" style="background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.15); color:var(--teal-800); font-weight:700; padding:8px 14px; margin:4px; font-size:12.5px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                                    <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:14px;"></i> ${name}
+                                    <i class="fa-solid fa-download" style="margin-left:4px; font-size:11px; color:var(--text-muted);"></i>
                                 </a>
-                                <a href="${url}" target="_blank" style="font-size:12px; font-weight:700; color:var(--teal-700); text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
-                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ${name}
-                                </a>
-                            </div>
-                        `;
-                    } else {
-                        attList.innerHTML += `
-                            <a href="${url}" target="_blank" class="badge" style="background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.15); color:var(--teal-800); font-weight:700; padding:8px 14px; margin:4px; font-size:12.5px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
-                                <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:14px;"></i> ${name}
-                                <i class="fa-solid fa-download" style="margin-left:4px; font-size:11px; color:var(--text-muted);"></i>
-                            </a>
-                        `;
-                    }
-                });
+                            `;
+                        }
+                    });
+                }
             } else {
-                attArea.style.display = 'none';
+                if (attArea) attArea.style.display = 'none';
             }
 
             // Controls
@@ -703,89 +709,118 @@ document.addEventListener('DOMContentLoaded', () => {
             if (metaAssigneeSelect) metaAssigneeSelect.value = t.assigned_to || '';
 
             // Metadata Card
-            document.getElementById('meta-customer-name').textContent = t.customer_name || 'Customer';
-            document.getElementById('meta-project-name').textContent = t.project_name || 'None / General';
-            document.getElementById('meta-category-badge').innerHTML = `<span class="badge" style="background:rgba(6,182,212,0.15); color:#0891b2;">${t.category || 'Bug'}</span>`;
-            document.getElementById('meta-priority-badge').innerHTML = getPriorityBadge(t.priority);
+            const metaCust = document.getElementById('meta-customer-name');
+            const metaProj = document.getElementById('meta-project-name');
+            const metaCat = document.getElementById('meta-category-badge');
+            const metaPri = document.getElementById('meta-priority-badge');
+            if (metaCust) metaCust.textContent = t.customer_name || 'Customer';
+            if (metaProj) metaProj.textContent = t.project_name || 'None / General';
+            if (metaCat) metaCat.innerHTML = `<span class="badge" style="background:rgba(6,182,212,0.15); color:#0891b2;">${t.category || 'Bug'}</span>`;
+            if (metaPri) metaPri.innerHTML = getPriorityBadge(t.priority);
 
             // Linked Task / Workflow Badges
             const linkedTaskEl = document.getElementById('meta-linked-task');
             const linkedWorkflowEl = document.getElementById('meta-linked-workflow');
 
-            if (t.task_id) {
-                linkedTaskEl.style.display = 'block';
-                document.getElementById('meta-linked-task-id').textContent = `Task #${t.task_id} (${t.task_name || 'Linked Task'})`;
-            } else {
-                linkedTaskEl.style.display = 'none';
+            if (linkedTaskEl) {
+                if (t.task_id) {
+                    linkedTaskEl.style.display = 'block';
+                    const ltid = document.getElementById('meta-linked-task-id');
+                    if (ltid) ltid.textContent = `Task #${t.task_id} (${t.task_name || 'Linked Task'})`;
+                } else {
+                    linkedTaskEl.style.display = 'none';
+                }
             }
 
-            if (t.workflow_id) {
-                linkedWorkflowEl.style.display = 'block';
-                document.getElementById('meta-linked-workflow-id').textContent = `Workflow #${t.workflow_id} (${t.workflow_title || 'Linked Workflow'})`;
-            } else {
-                linkedWorkflowEl.style.display = 'none';
+            if (linkedWorkflowEl) {
+                if (t.workflow_id) {
+                    linkedWorkflowEl.style.display = 'block';
+                    const lwid = document.getElementById('meta-linked-workflow-id');
+                    if (lwid) lwid.textContent = `Workflow #${t.workflow_id} (${t.workflow_title || 'Linked Workflow'})`;
+                } else {
+                    linkedWorkflowEl.style.display = 'none';
+                }
             }
 
             // SLA Timer Display
-            document.getElementById('meta-sla-countdown').innerHTML = getSlaTimerHtml(t);
+            const slaEl = document.getElementById('meta-sla-countdown');
+            if (slaEl) slaEl.innerHTML = getSlaTimerHtml(t);
 
             // Render Conversation Thread
             const commentsContainer = document.getElementById('workspace-comments-list');
-            if (t.comments && t.comments.length > 0) {
-                let commHtml = '';
-                t.comments.forEach(c => {
-                    const cDate = new Date(c.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    const isInternal = c.is_internal_note;
-                    const internalClass = isInternal ? 'internal-note' : '';
-                    const noteBadge = isInternal ? '<span class="badge" style="background:#fef3c7; color:#d97706; border:1px solid rgba(245,158,11,0.3); font-size:10px; margin-left:6px;"><i class="fa-solid fa-lock"></i> Internal Note</span>' : '';
+            const commentsList = t.comments || data.comments || [];
+            if (commentsContainer) {
+                if (commentsList.length > 0) {
+                    let commHtml = '';
+                    commentsList.forEach(c => {
+                        const cDate = new Date(c.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        const isInternal = c.is_internal_note;
+                        const internalClass = isInternal ? 'internal-note' : '';
+                        const noteBadge = isInternal ? '<span class="badge" style="background:#fef3c7; color:#d97706; border:1px solid rgba(245,158,11,0.3); font-size:10px; margin-left:6px;"><i class="fa-solid fa-lock"></i> Internal Note</span>' : '';
 
-                    commHtml += `
-                        <div class="chat-msg-item ${internalClass}">
-                            <div class="chat-msg-header">
-                                <span class="chat-msg-author">${c.author_name || 'Staff'} ${noteBadge}</span>
-                                <span style="color:var(--text-muted); font-size:11px;">${cDate}</span>
+                        commHtml += `
+                            <div class="chat-msg-item ${internalClass}">
+                                <div class="chat-msg-header">
+                                    <span class="chat-msg-author">${c.author_name || 'Staff'} ${noteBadge}</span>
+                                    <span style="color:var(--text-muted); font-size:11px;">${cDate}</span>
+                                </div>
+                                <div style="font-size:13px; color:var(--teal-950); line-height:1.4; white-space:pre-wrap;">${c.comment_text || c.comment || ''}</div>
                             </div>
-                            <div style="font-size:13px; color:var(--teal-950); line-height:1.4; white-space:pre-wrap;">${c.comment_text}</div>
-                        </div>
-                    `;
-                });
-                commentsContainer.innerHTML = commHtml;
-            } else {
-                commentsContainer.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:12.5px;">No comments yet. Start the conversation below.</div>';
+                        `;
+                    });
+                    commentsContainer.innerHTML = commHtml;
+                } else {
+                    commentsContainer.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:12.5px;">No comments yet. Start the conversation below.</div>';
+                }
             }
 
             // Render Timeline Audit Stream
             const historyContainer = document.getElementById('workspace-history-list');
-            if (t.history && t.history.length > 0) {
-                let histHtml = '';
-                t.history.forEach(h => {
-                    const hDate = new Date(h.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    histHtml += `
-                        <li class="timeline-item">
-                            <div class="timeline-dot"></div>
-                            <div style="font-weight:700; color:var(--teal-950);">${h.action}</div>
-                            <div style="color:var(--text-dark); font-size:11.5px;">${h.details || ''}</div>
-                            <div style="font-size:10.5px; color:var(--text-muted);">${h.performed_by || 'System'} • ${hDate}</div>
-                        </li>
-                    `;
-                });
-                historyContainer.innerHTML = histHtml;
-            } else {
-                historyContainer.innerHTML = '<li class="timeline-item"><div class="timeline-dot"></div><div>Ticket Created</div></li>';
+            const historyList = t.history || data.history || [];
+            if (historyContainer) {
+                if (historyList.length > 0) {
+                    let histHtml = '';
+                    historyList.forEach(h => {
+                        const hDate = new Date(h.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        histHtml += `
+                            <li class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <div style="font-weight:700; color:var(--teal-950);">${h.action || 'Status Changed'}</div>
+                                <div style="color:var(--text-dark); font-size:11.5px;">${h.details || ''}</div>
+                                <div style="font-size:10.5px; color:var(--text-muted);">${h.performed_by || 'System'} • ${hDate}</div>
+                            </li>
+                        `;
+                    });
+                    historyContainer.innerHTML = histHtml;
+                } else {
+                    historyContainer.innerHTML = '<li class="timeline-item"><div class="timeline-dot"></div><div>Ticket Created</div></li>';
+                }
             }
 
-            if (typeof window.openModal === 'function') window.openModal(ticketWorkspaceModal);
-            else if (ticketWorkspaceModal) ticketWorkspaceModal.classList.add('active');
+            const modalTarget = document.getElementById('ticket-workspace-modal');
+            if (modalTarget) {
+                modalTarget.style.display = 'flex';
+                modalTarget.classList.add('active');
+                modalTarget.style.opacity = '1';
+                document.body.classList.add('modal-open');
+            }
+            if (typeof window.openModal === 'function') window.openModal('ticket-workspace-modal');
         } catch (err) {
             console.error("Error opening ticket workspace:", err);
-            alert("Error loading ticket workspace");
+            alert("Error loading ticket workspace: " + err.message);
         }
     };
 
     if (ticketWorkspaceClose) {
         ticketWorkspaceClose.addEventListener('click', () => {
-            if (typeof window.closeModal === 'function') window.closeModal(ticketWorkspaceModal);
-            else if (ticketWorkspaceModal) ticketWorkspaceModal.classList.remove('active');
+            const modalTarget = document.getElementById('ticket-workspace-modal');
+            if (modalTarget) {
+                modalTarget.classList.remove('active');
+                modalTarget.style.opacity = '0';
+                setTimeout(() => { modalTarget.style.display = 'none'; }, 200);
+            }
+            document.body.classList.remove('modal-open');
+            if (typeof window.closeModal === 'function') window.closeModal('ticket-workspace-modal');
             currentActiveTicketId = null;
         });
     }
