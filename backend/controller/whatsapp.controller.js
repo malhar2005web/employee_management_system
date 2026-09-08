@@ -500,6 +500,43 @@ async function processIncomingWebhookAsync(body) {
         if (activeDraft) {
             console.log(`📋 Active Draft for ${senderPhone} at step: [${activeDraft.step}]`);
 
+            if (activeDraft.step === 'awaiting_sales_info') {
+                const rawInfo = (textContent || displayBody || '').trim();
+                const parsed = parseCustomerInput(rawInfo);
+                const comp = parsed.companyName || activeDraft.customerName || 'Valued Client';
+                const proj = parsed.projectName || 'Enterprise Software Solution';
+
+                // Automatically Persist Customer & Project in Database & AI Memory
+                await persistCustomerInfo({
+                    senderPhone,
+                    companyName: comp,
+                    gstNo: parsed.gstNo,
+                    branchName: parsed.branchName,
+                    contactName: parsed.contactName,
+                    email: parsed.email,
+                    projectName: proj,
+                    projectDesc: 'Customer onboarded via WhatsApp Sales Desk'
+                });
+
+                const salesAck = `Project Scope Registered for ${comp}\n\nProject Scope: ${proj}\n\nOur engineering team has registered your requirements. We are preparing the architecture blueprint and milestone quotation.\n\nPrefer discussing scope over phone call? Feel free to contact Shrirang Joshi directly: +91 98210 27060.`;
+                await sendWhatsAppText(senderPhone, salesAck);
+
+                await sendWhatsAppButtons(senderPhone, {
+                    headerText: "Sales Consultation",
+                    bodyText: "Explore our architecture blueprints or connect directly on phone:",
+                    footerText: "Planex Enterprise Hub",
+                    buttons: [
+                        { id: "srv_web", title: "Web Packages" },
+                        { id: "srv_app", title: "Mobile App Packages" },
+                        { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
+                    ]
+                });
+
+                sendWhatsAppText(SALES_HEAD_PHONE, `New Sales Requirements\n\nClient: ${comp}\nProject: ${proj}\nPhone: ${senderPhone}\nContact: ${parsed.contactName || comp}`).catch(() => {});
+                clientTicketDrafts.delete(senderPhone);
+                continue;
+            }
+
             if (activeDraft.step === 'awaiting_billing_info' || activeDraft.step === 'awaiting_billing_project') {
                 const rawInfo = (textContent || displayBody || '').trim();
                 const parsed = parseCustomerInput(rawInfo);
@@ -1991,27 +2028,18 @@ export async function sendServicesMenu(senderPhone, clientContext) {
 }
 
 /**
- * Sub-Menu: Sales & New Projects (Web, Mobile App, Hybrid)
+ * Sub-Menu: Sales & New Projects (With Structured Customer Fields)
  */
 export async function sendSalesSubMenu(senderPhone, clientContext) {
-    const salesIntro = `Planex Sales & Engineering Desk\n\nHello ${clientContext.name}, we build high-performance Web Applications, Mobile Apps, and Enterprise Full-Stack Suites.\n\nPlease select your project requirement below:`;
-
-    await sendWhatsAppListMenu(senderPhone, {
-        headerText: "Sales & New Projects",
-        bodyText: salesIntro,
-        footerText: "Pentasoft Consultancy",
-        buttonText: "Choose Project Type",
-        sections: [
-            {
-                title: "Software Development Packages",
-                rows: [
-                    { id: "srv_web", title: "Web Development", description: "Custom Web Apps, Portals, SaaS" },
-                    { id: "srv_app", title: "Mobile App Development", description: "Android & iOS Native/Hybrid Apps" },
-                    { id: "srv_hybrid", title: "Hybrid (Web + App)", description: "Complete Full-Stack Package" }
-                ]
-            }
-        ]
+    clientTicketDrafts.set(senderPhone, {
+        step: 'awaiting_sales_info',
+        customerId: clientContext.id,
+        customerName: clientContext.name,
+        timestamp: Date.now()
     });
+
+    const askSalesInfo = `Planex Sales & Project Consultation\n\nPlease provide your organization & project requirements:\n• Company Name:\n• Branch Location & GST Number (if applicable):\n• Contact Person Name & Email:\n• Project Scope / Requirement (e.g., Web App, Mobile App, or Full-Stack Hybrid):\n\nOur engineering team will prepare your custom architecture blueprint and commercial quote.\n\nPrefer discussing project requirements over phone call? Tap the button below to connect with Shrirang Joshi:`;
+    await sendWhatsAppText(senderPhone, askSalesInfo);
 
     await sendWhatsAppButtons(senderPhone, {
         headerText: "Direct Sales Consultation",
