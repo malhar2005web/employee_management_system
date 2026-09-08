@@ -3,9 +3,19 @@ import { sendWhatsAppTemplate, sendWhatsAppText, sanitizePhoneNumber } from '../
 
 export function formatTurnaroundTime(createdAt, resolvedAt = new Date()) {
     try {
+        if (typeof createdAt === 'number') {
+            const totalMinutes = Math.max(1, Math.round(createdAt / 60));
+            const hours = Math.floor(totalMinutes / 60);
+            const mins = totalMinutes % 60;
+            if (hours > 0 && mins > 0) return `${hours} hr ${mins} min`;
+            if (hours > 0) return `${hours} hr`;
+            return `${mins} min`;
+        }
+
         const start = new Date(createdAt).getTime();
         const end = new Date(resolvedAt).getTime();
-        const diffMs = Math.abs(end - start);
+        let diffMs = Math.abs(end - start);
+
         const totalMinutes = Math.max(1, Math.round(diffMs / 60000));
         const hours = Math.floor(totalMinutes / 60);
         const mins = totalMinutes % 60;
@@ -527,7 +537,7 @@ export const updateTicket = async (req, res) => {
                 response_deadline = $11, resolution_deadline = $12,
                 responded_at = $13, resolved_at = $14, updated_at = NOW()
             WHERE id = $15
-            RETURNING *
+            RETURNING *, EXTRACT(EPOCH FROM (NOW() - created_at)) AS elapsed_seconds
         `, [
             newTitle, newDesc, newCat, newPri, newStat,
             newAssigned, newAssignedTeam, newCust, newProj, newProjName,
@@ -537,7 +547,8 @@ export const updateTicket = async (req, res) => {
 
         // If newly resolved, alert engineers
         if (newStat === 'Resolved' && oldStatus !== 'Resolved') {
-            const turnaroundStr = formatTurnaroundTime(ticket.created_at, new Date());
+            const elapsedSec = Number(updateRes.rows[0]?.elapsed_seconds);
+            const turnaroundStr = !isNaN(elapsedSec) ? formatTurnaroundTime(elapsedSec) : formatTurnaroundTime(ticket.created_at, new Date());
 
             notifyTicketWhatsApp({
                 ticketCode: ticket.ticket_code,
@@ -608,11 +619,12 @@ export const updateTicketStatus = async (req, res) => {
             UPDATE support_tickets 
             SET status = $1, responded_at = $2, resolved_at = $3, updated_at = NOW()
             WHERE id = $4
-            RETURNING *
+            RETURNING *, EXTRACT(EPOCH FROM (NOW() - created_at)) AS elapsed_seconds
         `, [status, respondedAt, resolvedAt, id]);
 
         if (status === 'Resolved' && oldStatus !== 'Resolved') {
-            const turnaroundStr = formatTurnaroundTime(ticket.created_at, new Date());
+            const elapsedSec = Number(updateRes.rows[0]?.elapsed_seconds);
+            const turnaroundStr = !isNaN(elapsedSec) ? formatTurnaroundTime(elapsedSec) : formatTurnaroundTime(ticket.created_at, new Date());
 
             notifyTicketWhatsApp({
                 ticketCode: ticket.ticket_code,

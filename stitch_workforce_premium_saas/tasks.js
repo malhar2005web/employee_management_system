@@ -222,19 +222,29 @@ document.addEventListener('DOMContentLoaded', () => {
         accountManagerSelect.value = project && project.account_manager_id ? project.account_manager_id : '';
     });
 
+    const TEAM_THEME_COLORS = [
+        { border: '#0f766e', bg: 'linear-gradient(135deg, #0f766e, #115e59)', text: '#0f766e', light: 'rgba(15, 118, 110, 0.12)' },
+        { border: '#0284c7', bg: 'linear-gradient(135deg, #0284c7, #0369a1)', text: '#0284c7', light: 'rgba(2, 132, 199, 0.12)' },
+        { border: '#7c3aed', bg: 'linear-gradient(135deg, #7c3aed, #6d28d9)', text: '#7c3aed', light: 'rgba(124, 58, 237, 0.12)' },
+        { border: '#d97706', bg: 'linear-gradient(135deg, #d97706, #b45309)', text: '#d97706', light: 'rgba(217, 119, 6, 0.12)' },
+        { border: '#e11d48', bg: 'linear-gradient(135deg, #e11d48, #be123c)', text: '#e11d48', light: 'rgba(225, 29, 72, 0.12)' }
+    ];
+
+    const getTeamTheme = index => TEAM_THEME_COLORS[index % TEAM_THEME_COLORS.length];
+
     const renderEmployeeChecklist = (selectedIds = []) => {
         const groups = groupedEmployees();
         return Object.keys(groups).map(group => {
             const items = groups[group].map(emp => `
-                <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;">
-                    <input type="checkbox" class="member-checkbox" value="${emp.id}" ${selectedIds.includes(parseInt(emp.id, 10)) ? 'checked' : ''}>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--text-dark);cursor:pointer;">
+                    <input type="checkbox" class="member-checkbox" value="${emp.id}" ${selectedIds.includes(parseInt(emp.id, 10)) ? 'checked' : ''} style="accent-color:var(--teal-700);width:15px;height:15px;cursor:pointer;">
                     ${emp.full_name}
                 </label>
             `).join('');
             return `
-                <div style="padding:8px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.05);">
-                    <label style="display:flex;align-items:center;gap:7px;color:var(--teal-900);font-size:12px;font-weight:900;margin-bottom:7px;">
-                        <input type="checkbox" class="team-group-toggle" style="width:auto;"> ${group}
+                <div style="padding:8px 10px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.4);margin-bottom:6px;">
+                    <label style="display:flex;align-items:center;gap:7px;color:var(--teal-900);font-size:12px;font-weight:900;margin-bottom:6px;cursor:pointer;">
+                        <input type="checkbox" class="team-group-toggle" style="width:auto;accent-color:var(--teal-700);"> ${group}
                     </label>
                     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">${items}</div>
                 </div>
@@ -247,47 +257,263 @@ document.addEventListener('DOMContentLoaded', () => {
             const box = toggle.closest('div');
             toggle.addEventListener('change', () => {
                 box.querySelectorAll('.member-checkbox').forEach(input => input.checked = toggle.checked);
+                updateTeamNumbersAndCounts();
+                refreshAllTaskAssignees();
             });
+        });
+    };
+
+    const updateTeamNumbersAndCounts = () => {
+        const teamCards = Array.from(teamList.querySelectorAll('.workflow-team-card'));
+        teamCards.forEach((card, idx) => {
+            const theme = getTeamTheme(idx);
+            card.style.borderLeft = `6px solid ${theme.border}`;
+            
+            const numStr = String(idx + 1).padStart(2, '0');
+            const pillEl = card.querySelector('.team-badge-pill');
+            if (pillEl) {
+                pillEl.style.background = theme.bg;
+                pillEl.innerHTML = `<i class="fa-solid fa-users"></i> TEAM ${numStr}`;
+            }
+
+            const nameInput = card.querySelector('.team-name');
+            const titleEl = card.querySelector('.team-header-title');
+            if (titleEl && nameInput) {
+                titleEl.textContent = nameInput.value.trim() || `Team ${numStr}`;
+            }
+
+            const checkedCount = card.querySelectorAll('.team-members .member-checkbox:checked').length;
+            const leadVal = card.querySelector('.team-lead')?.value;
+            const totalCount = checkedCount + (leadVal ? 1 : 0);
+            const countBadge = card.querySelector('.team-count-badge');
+            if (countBadge) {
+                countBadge.style.color = theme.text;
+                countBadge.style.background = theme.light;
+                countBadge.style.borderColor = `${theme.border}40`;
+                countBadge.innerHTML = `<i class="fa-solid fa-user-check"></i> ${totalCount} Selected Member${totalCount === 1 ? '' : 's'}`;
+            }
+        });
+    };
+
+    const getSelectedTeamEmployees = (targetTeamTempId = null) => {
+        const teamCards = Array.from(teamList.querySelectorAll('.workflow-team-card'));
+        
+        // 1. If targetTeamTempId is specified, prioritize members of that specific team
+        if (targetTeamTempId) {
+            const specificCard = teamCards.find(c => c.dataset.teamId === targetTeamTempId);
+            if (specificCard) {
+                const teamName = specificCard.querySelector('.team-name')?.value.trim() || 'Selected Team';
+                const checkedIds = Array.from(specificCard.querySelectorAll('.team-members .member-checkbox:checked')).map(i => parseInt(i.value, 10));
+                const leadId = parseInt(specificCard.querySelector('.team-lead')?.value, 10);
+                const idSet = new Set(checkedIds);
+                if (!isNaN(leadId) && leadId) idSet.add(leadId);
+
+                const teamEmps = employeesCache.filter(e => idSet.has(parseInt(e.id, 10)));
+                if (teamEmps.length > 0) {
+                    return {
+                        employees: teamEmps,
+                        source: 'team',
+                        teamName: teamName
+                    };
+                }
+            }
+        }
+
+        // 2. Otherwise collect all members selected across all teams in Section 2
+        const allIdsSet = new Set();
+        teamCards.forEach(card => {
+            card.querySelectorAll('.team-members .member-checkbox:checked').forEach(input => {
+                const val = parseInt(input.value, 10);
+                if (!isNaN(val)) allIdsSet.add(val);
+            });
+            const leadVal = parseInt(card.querySelector('.team-lead')?.value, 10);
+            if (!isNaN(leadVal) && leadVal) allIdsSet.add(leadVal);
+        });
+
+        if (allIdsSet.size > 0) {
+            const allSelectedEmps = employeesCache.filter(e => allIdsSet.has(parseInt(e.id, 10)));
+            return {
+                employees: allSelectedEmps,
+                source: 'all_teams',
+                teamName: 'All Selected Team Members'
+            };
+        }
+
+        // 3. Fallback if no team members selected yet
+        return {
+            employees: employeesCache,
+            source: 'all_company',
+            teamName: 'All Employees'
+        };
+    };
+
+    const renderTaskEmployeeChecklist = (selectedIds = [], targetTeamTempId = null) => {
+        const { employees, source, teamName } = getSelectedTeamEmployees(targetTeamTempId);
+
+        if (source === 'all_company') {
+            const groups = groupedEmployees();
+            return `
+                <div style="font-size:11.5px;color:var(--text-muted);font-style:italic;margin-bottom:8px;padding:6px 10px;background:rgba(255,255,255,0.4);border-radius:6px;border:1px dashed rgba(0,0,0,0.15);">
+                    <i class="fa-solid fa-circle-info" style="color:var(--teal-700);margin-right:4px;"></i> Select members in Section 2 (Teams) above to auto-filter this list to your team members only.
+                </div>
+                ${Object.keys(groups).map(group => {
+                    const items = groups[group].map(emp => `
+                        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--text-dark);cursor:pointer;">
+                            <input type="checkbox" class="member-checkbox" value="${emp.id}" ${selectedIds.includes(parseInt(emp.id, 10)) ? 'checked' : ''} style="accent-color:var(--teal-700);width:15px;height:15px;cursor:pointer;">
+                            ${emp.full_name}
+                        </label>
+                    `).join('');
+                    return `
+                        <div style="padding:8px 10px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.4);margin-bottom:6px;">
+                            <label style="display:flex;align-items:center;gap:7px;color:var(--teal-900);font-size:12px;font-weight:900;margin-bottom:6px;cursor:pointer;">
+                                <input type="checkbox" class="team-group-toggle" style="width:auto;accent-color:var(--teal-700);"> ${group}
+                            </label>
+                            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">${items}</div>
+                        </div>
+                    `;
+                }).join('')}
+            `;
+        }
+
+        // Render sleek filtered team member cards
+        const items = employees.map(emp => `
+            <label class="task-member-option">
+                <input type="checkbox" class="member-checkbox" value="${emp.id}" ${selectedIds.includes(parseInt(emp.id, 10)) ? 'checked' : ''} style="accent-color:var(--teal-700);width:15px;height:15px;cursor:pointer;">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--teal-700);color:#fff;font-size:10px;font-weight:800;">${(emp.full_name || 'U').slice(0,2).toUpperCase()}</span>
+                <span style="font-weight:700;color:var(--text-dark);font-size:12.5px;">${emp.full_name}</span>
+                ${emp.designation ? `<span style="font-size:11px;font-weight:500;color:var(--text-muted);margin-left:auto;">${emp.designation}</span>` : ''}
+            </label>
+        `).join('');
+
+        return `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:11.5px;font-weight:800;color:var(--teal-900);display:inline-flex;align-items:center;gap:5px;">
+                    <i class="fa-solid fa-user-check" style="color:var(--teal-700);"></i> Available Members: <strong>${teamName}</strong> (${employees.length} Selected)
+                </span>
+                <span style="font-size:11px;color:var(--text-muted);">Pick task assignees</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;">
+                ${items}
+            </div>
+        `;
+    };
+
+    const teamMemberOptions = (selected = '', targetTeamTempId = null) => {
+        const { employees } = getSelectedTeamEmployees(targetTeamTempId);
+        return `<option value="">None Selected</option>` + employees.map(emp => (
+            `<option value="${emp.id}" ${parseInt(selected, 10) === parseInt(emp.id, 10) ? 'selected' : ''}>${emp.full_name}${emp.designation ? ` (${emp.designation})` : ''}</option>`
+        )).join('');
+    };
+
+    const refreshTaskAssigneesForCard = (card) => {
+        const teamSelect = card.querySelector('.task-team');
+        const teamTempId = teamSelect ? teamSelect.value : '';
+        const empContainer = card.querySelector('.task-employees');
+        if (empContainer) {
+            const currentlyChecked = Array.from(empContainer.querySelectorAll('.member-checkbox:checked')).map(cb => parseInt(cb.value, 10));
+            empContainer.innerHTML = renderTaskEmployeeChecklist(currentlyChecked, teamTempId);
+            bindGroupToggles(empContainer);
+        }
+
+        // Subtasks assignee dropdowns in this card
+        card.querySelectorAll('.subtask-card').forEach(stCard => {
+            const assigneeSelect = stCard.querySelector('.subtask-assignee');
+            if (assigneeSelect) {
+                const curVal = assigneeSelect.value;
+                assigneeSelect.innerHTML = teamMemberOptions(curVal, teamTempId);
+                if (curVal) assigneeSelect.value = curVal;
+            }
+        });
+    };
+
+    const refreshAllTaskAssignees = () => {
+        builderList.querySelectorAll('.workflow-task-card').forEach(card => {
+            refreshTaskAssigneesForCard(card);
         });
     };
 
     const addTeamCard = (data = {}) => {
         const tempId = data.tempId || `team-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const order = teamList.querySelectorAll('.workflow-team-card').length + 1;
+        const numStr = String(order).padStart(2, '0');
+        const theme = getTeamTheme(order - 1);
+
         const card = document.createElement('div');
         card.className = 'workflow-team-card';
         card.dataset.teamId = tempId;
-        card.style.cssText = 'padding:12px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.08);';
+        card.style.borderLeft = `6px solid ${theme.border}`;
+
         card.innerHTML = `
+            <div class="team-card-header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span class="team-badge-pill" style="background:${theme.bg};"><i class="fa-solid fa-users"></i> TEAM ${numStr}</span>
+                    <h4 class="team-header-title" style="margin:0;">${data.name || `Team ${numStr}`}</h4>
+                    <span class="team-count-badge" style="color:${theme.text};background:${theme.light};"><i class="fa-solid fa-user-check"></i> 0 Selected Members</span>
+                </div>
+                <button type="button" class="action-pill delete btn-remove-team"><i class="fa-solid fa-trash"></i> Remove Team</button>
+            </div>
             <div class="grid-two-col">
                 <div class="form-group">
-                    <label>Team Name</label>
-                    <input type="text" class="team-name" value="${data.name || ''}" placeholder="Development Team">
+                    <label style="font-weight:700;color:var(--teal-900);">Team Name</label>
+                    <input type="text" class="team-name" value="${data.name || ''}" placeholder="e.g. Development Team" style="font-weight:700;">
                 </div>
                 <div class="form-group">
-                    <label>Team Lead</label>
+                    <label style="font-weight:700;color:var(--teal-900);">Team Lead</label>
                     <select class="team-lead">${employeeOptions(data.leadId || '')}</select>
                 </div>
             </div>
             <div class="form-group">
-                <label>Members</label>
+                <label style="font-weight:700;color:var(--teal-900);margin-bottom:6px;">Select Team Members</label>
                 <div class="team-members" style="display:flex;flex-direction:column;gap:8px;">${renderEmployeeChecklist(data.memberIds || [])}</div>
             </div>
-            <button type="button" class="action-pill delete btn-remove-team"><i class="fa-solid fa-trash"></i> Remove Team</button>
         `;
         teamList.appendChild(card);
         bindGroupToggles(card);
+
+        // Event listeners
         card.querySelector('.btn-remove-team').addEventListener('click', () => {
             card.remove();
+            updateTeamNumbersAndCounts();
             refreshTaskTeamOptions();
+            refreshAllTaskAssignees();
         });
-        card.querySelector('.team-name').addEventListener('input', refreshTaskTeamOptions);
+
+        const nameInput = card.querySelector('.team-name');
+        nameInput.addEventListener('input', () => {
+            const titleEl = card.querySelector('.team-header-title');
+            if (titleEl) titleEl.textContent = nameInput.value.trim() || `Team ${numStr}`;
+            refreshTaskTeamOptions();
+            refreshAllTaskAssignees();
+        });
+
+        const leadSelect = card.querySelector('.team-lead');
+        leadSelect.addEventListener('change', () => {
+            updateTeamNumbersAndCounts();
+            refreshAllTaskAssignees();
+        });
+
+        card.querySelector('.team-members').addEventListener('change', () => {
+            updateTeamNumbersAndCounts();
+            refreshAllTaskAssignees();
+        });
+
+        updateTeamNumbersAndCounts();
         refreshTaskTeamOptions();
+        refreshAllTaskAssignees();
     };
 
     const refreshTaskTeamOptions = () => {
         builderList.querySelectorAll('.task-team').forEach(select => {
             const current = select.value;
             select.innerHTML = teamOptions(current);
+            const card = select.closest('.workflow-task-card');
+            if (card) {
+                const teamBadge = card.querySelector('.task-team-tag');
+                if (teamBadge) {
+                    const selectedText = select.options[select.selectedIndex]?.text;
+                    teamBadge.innerHTML = `<i class="fa-solid fa-users-gear"></i> ${selectedText && select.value ? selectedText : 'All Teams'}`;
+                }
+            }
         });
     };
 
@@ -298,30 +524,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const addWorkflowTaskCard = (data = {}) => {
         const tempId = data.tempId || `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         const order = builderList.querySelectorAll('.workflow-task-card').length + 1;
+        const numStr = String(order).padStart(2, '0');
         const card = document.createElement('div');
         card.className = 'workflow-task-card';
         card.dataset.taskId = tempId;
-        card.style.cssText = 'padding:14px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.08);backdrop-filter:blur(16px);';
+
         card.innerHTML = `
-            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.25);">
-                <strong style="color:var(--teal-900);font-size:14px;">Step <span class="step-no">${order}</span></strong>
+            <div class="task-card-header">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span class="task-step-pill"><i class="fa-solid fa-list-check"></i> TASK ${numStr}</span>
+                    <h4 class="task-header-title" style="margin:0;">${data.name || `Task ${numStr}`}</h4>
+                    <span class="task-team-tag"><i class="fa-solid fa-users-gear"></i> All Teams</span>
+                </div>
                 <button type="button" class="action-pill delete btn-remove-task"><i class="fa-solid fa-trash"></i> Remove</button>
             </div>
             <div class="grid-two-col">
                 <div class="form-group">
-                    <label>Task Name</label>
-                    <input type="text" class="task-name" value="${data.name || ''}" placeholder="e.g. Requirement Gathering">
+                    <label style="font-weight:700;color:var(--teal-900);">Task Name</label>
+                    <input type="text" class="task-name" value="${data.name || ''}" placeholder="e.g. Requirement Gathering" style="font-weight:700;">
                 </div>
                 <div class="form-group">
-                    <label>Assigned Team</label>
+                    <label style="font-weight:700;color:var(--teal-900);">Assigned Team</label>
                     <select class="task-team">${teamOptions(data.teamTempId || '')}</select>
                 </div>
-                <div class="form-group">
-                    <label>Assigned Employee(s)</label>
-                    <div class="task-employees" style="display:flex;flex-direction:column;gap:8px;">${renderEmployeeChecklist(data.assignedEmployeeIds || [])}</div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label style="font-weight:700;color:var(--teal-900);">Assigned Employee(s)</label>
+                    <div class="task-employees" style="display:flex;flex-direction:column;gap:8px;">
+                        ${renderTaskEmployeeChecklist(data.assignedEmployeeIds || [], data.teamTempId || '')}
+                    </div>
                 </div>
                 
-                <!-- Dynamic Sub Tasks Module replacing Depends On -->
+                <!-- Dynamic Sub Tasks Module -->
                 <div class="form-group subtasks-module-group" style="grid-column: span 2; margin-top: 6px;">
                     <div class="subtasks-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <div style="display: flex; align-items: center; gap: 10px;">
@@ -336,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
 
                     <!-- Progress Bar for Sub Tasks -->
-                    <div class="subtask-progress-wrapper" style="display: none; margin-bottom: 12px; padding: 10px 14px; background: rgba(255, 255, 255, 0.15); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); backdrop-filter: blur(12px);">
+                    <div class="subtask-progress-wrapper" style="display: none; margin-bottom: 12px; padding: 10px 14px; background: rgba(255, 255, 255, 0.2); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); backdrop-filter: blur(12px);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--teal-900);">
                             <span>Sub Tasks Progress</span>
                             <span class="subtask-progress-stats"><strong class="subtask-progress-percent">0%</strong> (<span class="subtask-completed-count">0</span>/<span class="subtask-total-count">0</span> Completed)</span>
@@ -382,6 +615,25 @@ document.addEventListener('DOMContentLoaded', () => {
         card.querySelector('.task-status').value = data.status || 'Not Started';
         card.querySelector('.task-priority').value = data.priority || 'Medium';
         bindGroupToggles(card);
+
+        // Listen for task name changes
+        const taskNameInput = card.querySelector('.task-name');
+        taskNameInput.addEventListener('input', () => {
+            const titleEl = card.querySelector('.task-header-title');
+            if (titleEl) titleEl.textContent = taskNameInput.value.trim() || `Task ${numStr}`;
+            refreshDependencyOptions();
+        });
+
+        // Listen for task team changes
+        const taskTeamSelect = card.querySelector('.task-team');
+        taskTeamSelect.addEventListener('change', () => {
+            const teamBadge = card.querySelector('.task-team-tag');
+            if (teamBadge) {
+                const selectedText = taskTeamSelect.options[taskTeamSelect.selectedIndex]?.text;
+                teamBadge.innerHTML = `<i class="fa-solid fa-users-gear"></i> ${selectedText && taskTeamSelect.value ? selectedText : 'All Teams'}`;
+            }
+            refreshTaskAssigneesForCard(card);
+        });
 
         // Subtask module elements & logic
         const subtasksContainer = card.querySelector('.subtasks-container');
@@ -430,9 +682,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 parentStatusSelect.value = 'Completed';
             }
 
+            const currentParentOrder = Array.from(builderList.querySelectorAll('.workflow-task-card')).indexOf(card) + 1;
             subtaskCards.forEach((sc, idx) => {
                 const idxSpan = sc.querySelector('.subtask-index');
-                if (idxSpan) idxSpan.textContent = idx + 1;
+                if (idxSpan) idxSpan.textContent = `${currentParentOrder}.${idx + 1}`;
             });
         };
 
@@ -451,13 +704,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const addSubtaskCard = (stData = {}) => {
             const subtaskId = stData.id || `subtask-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            const currentParentOrder = Array.from(builderList.querySelectorAll('.workflow-task-card')).indexOf(card) + 1;
+            const currentSubOrder = subtasksContainer.querySelectorAll('.subtask-card').length + 1;
+            const currentParentTeamId = card.querySelector('.task-team')?.value || '';
+
             const stCard = document.createElement('div');
             stCard.className = 'subtask-card';
             stCard.dataset.subtaskId = subtaskId;
             stCard.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,0.08);">
                     <span style="font-size: 12px; font-weight: 800; color: var(--teal-900); display: flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-list-check" style="color: var(--teal-700);"></i> Sub Task <span class="subtask-index">1</span>
+                        <i class="fa-solid fa-list-check" style="color: var(--teal-700);"></i> Sub Task <span class="subtask-index">${currentParentOrder}.${currentSubOrder}</span>
                     </span>
                     <button type="button" class="action-pill delete btn-remove-subtask" style="padding: 3px 10px; font-size: 11.5px; border-radius: 12px; background: rgba(214, 79, 79, 0.15); color: var(--red); border: 1px solid rgba(214,79,79,0.3); font-weight: 700; cursor: pointer; transition: all 0.2s;">
                         <i class="fa-solid fa-trash"></i> Remove Sub Task
@@ -473,7 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="form-group">
                         <label style="font-size: 11.5px; font-weight: 700; color: var(--teal-900);">Assigned Employee</label>
                         <select class="subtask-assignee" style="width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.6); font-size: 12.5px; font-weight: 600; color: var(--text-dark);">
-                            ${employeeOptions(stData.assignedEmployeeId || '')}
+                            ${teamMemberOptions(stData.assignedEmployeeId || '', currentParentTeamId)}
                         </select>
                     </div>
 
@@ -549,13 +806,38 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStepNumbers();
             refreshDependencyOptions();
         });
-        card.querySelector('.task-name').addEventListener('input', refreshDependencyOptions);
+
+        updateStepNumbers();
         refreshDependencyOptions();
     };
 
     const updateStepNumbers = () => {
-        builderList.querySelectorAll('.workflow-task-card').forEach((card, index) => {
-            card.querySelector('.step-no').textContent = index + 1;
+        const taskCards = Array.from(builderList.querySelectorAll('.workflow-task-card'));
+        taskCards.forEach((card, index) => {
+            const numStr = String(index + 1).padStart(2, '0');
+            const pillEl = card.querySelector('.task-step-pill');
+            if (pillEl) {
+                pillEl.innerHTML = `<i class="fa-solid fa-list-check"></i> TASK ${numStr}`;
+            }
+
+            const titleEl = card.querySelector('.task-header-title');
+            const nameInput = card.querySelector('.task-name');
+            if (titleEl && nameInput) {
+                titleEl.textContent = nameInput.value.trim() || `Task ${numStr}`;
+            }
+
+            const teamSelect = card.querySelector('.task-team');
+            const teamBadge = card.querySelector('.task-team-tag');
+            if (teamBadge && teamSelect) {
+                const selectedText = teamSelect.options[teamSelect.selectedIndex]?.text;
+                teamBadge.innerHTML = `<i class="fa-solid fa-users-gear"></i> ${selectedText && teamSelect.value ? selectedText : 'All Teams'}`;
+            }
+
+            // Update subtask index labels
+            card.querySelectorAll('.subtask-card').forEach((stCard, sIdx) => {
+                const stIdxSpan = stCard.querySelector('.subtask-index');
+                if (stIdxSpan) stIdxSpan.textContent = `${index + 1}.${sIdx + 1}`;
+            });
         });
     };
 
@@ -583,6 +865,8 @@ document.addEventListener('DOMContentLoaded', () => {
         addTeamCard({ name: 'Testing Team' });
         addTeamCard({ name: 'Design Team' });
         defaultSteps.forEach(name => addWorkflowTaskCard({ name }));
+        updateTeamNumbersAndCounts();
+        updateStepNumbers();
         refreshDependencyOptions();
     };
 
@@ -1416,6 +1700,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        updateTeamNumbersAndCounts();
+        updateStepNumbers();
+        refreshAllTaskAssignees();
         refreshDependencyOptions();
 
         if (modal) {

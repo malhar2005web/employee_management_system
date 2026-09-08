@@ -1156,14 +1156,17 @@ export async function handleTicketResolutionByClient(senderPhone, clientContext)
         }
 
         const ticket = ticketRes.rows[0];
-        const durationStr = formatTurnaroundTime(ticket.created_at, new Date());
 
-        // Update DB
-        await pool.query(`
+        // Update DB and extract exact elapsed duration
+        const updateRes = await pool.query(`
             UPDATE support_tickets 
             SET status = 'Resolved', resolved_at = NOW(), updated_at = NOW()
-            WHERE id = $1;
+            WHERE id = $1
+            RETURNING *, EXTRACT(EPOCH FROM (NOW() - created_at)) AS elapsed_seconds;
         `, [ticket.id]);
+
+        const elapsedSec = Number(updateRes.rows[0]?.elapsed_seconds);
+        const durationStr = !isNaN(elapsedSec) ? formatTurnaroundTime(elapsedSec) : formatTurnaroundTime(ticket.created_at, new Date());
 
         // Log history
         await pool.query(`

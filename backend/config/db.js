@@ -3,9 +3,13 @@ import { ENV_VARS } from './envVars.js';
 
 const { Pool } = pg;
 
-// Parse timestamp without timezone (OID 1114) as UTC Date
+// Parse timestamp without timezone (OID 1114) with Asia/Kolkata timezone (+05:30)
 pg.types.setTypeParser(1114, function(stringValue) {
-    return new Date(stringValue + 'Z');
+    if (!stringValue) return null;
+    if (!stringValue.includes('Z') && !stringValue.includes('+') && !stringValue.includes('-') && stringValue.length >= 10) {
+        return new Date(stringValue.replace(' ', 'T') + '+05:30');
+    }
+    return new Date(stringValue);
 });
 
 // Parse DATE without timezone (OID 1082) as raw 'YYYY-MM-DD' string
