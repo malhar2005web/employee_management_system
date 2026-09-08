@@ -104,41 +104,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
                                createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        const deadlineMs = ticket.resolution_deadline ? new Date(ticket.resolution_deadline).getTime() : (Date.now() + 4 * 3600000);
-        const remainingMs = deadlineMs - Date.now();
+        const createdMs = createdDate.getTime();
+        const elapsedMs = Math.max(0, Date.now() - createdMs);
+        const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
+        const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
+        const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
 
-        if (remainingMs > 0) {
-            const rH = String(Math.floor(remainingMs / 3600000)).padStart(2, '0');
-            const rM = String(Math.floor((remainingMs % 3600000) / 60000)).padStart(2, '0');
-            const rS = String(Math.floor((remainingMs % 60000) / 1000)).padStart(2, '0');
-
-            return `<div class="live-ticket-timer" data-deadline="${ticket.resolution_deadline || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-                <div style="font-weight:700; color:#0f766e; display:flex; align-items:center; gap:4px;">
-                    <i class="fa-regular fa-hourglass-half"></i>
-                    <span class="live-timer-text">${rH}:${rM}:${rS}</span>
-                    <span style="font-size:11px; font-weight:600; color:#0f766e;">left</span>
-                </div>
-                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
-                    <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
-                </div>
-            </div>`;
-        } else {
-            const breachMs = Math.abs(remainingMs);
-            const bH = String(Math.floor(breachMs / 3600000)).padStart(2, '0');
-            const bM = String(Math.floor((breachMs % 3600000) / 60000)).padStart(2, '0');
-            const bS = String(Math.floor((breachMs % 60000) / 1000)).padStart(2, '0');
-
-            return `<div class="live-ticket-timer" data-deadline="${ticket.resolution_deadline || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-                <div style="font-weight:800; color:#dc2626; display:flex; align-items:center; gap:4px;">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span class="live-timer-text">-${bH}:${bM}:${bS}</span>
-                    <span style="font-size:11px; font-weight:800; color:#dc2626; text-transform:uppercase;">Breached</span>
-                </div>
-                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
-                    <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
-                </div>
-            </div>`;
-        }
+        return `<div class="live-ticket-timer" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+            <div style="font-weight:700; color:#0f766e; display:flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-stopwatch" style="color:#0f766e;"></i>
+                <span class="live-timer-text">${eH}:${eM}:${eS}</span>
+                <span style="font-size:11px; font-weight:600; color:#0f766e;">elapsed</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
+                <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
+            </div>
+        </div>`;
     };
 
     // Helper to dynamically render project options based on chosen Customer Account
@@ -1054,26 +1035,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const status = el.getAttribute('data-status');
                 if (status === 'Resolved' || status === 'Closed') return;
 
-                const deadlineStr = el.getAttribute('data-deadline');
-                if (!deadlineStr) return;
+                const createdStr = el.getAttribute('data-created');
+                if (!createdStr) return;
 
-                const deadlineMs = new Date(deadlineStr).getTime();
-                const remainingMs = deadlineMs - Date.now();
+                const createdMs = new Date(createdStr).getTime();
+                if (isNaN(createdMs)) return;
+
+                const elapsedMs = Math.max(0, Date.now() - createdMs);
                 const textEl = el.querySelector('.live-timer-text');
                 if (!textEl) return;
 
-                if (remainingMs > 0) {
-                    const rH = String(Math.floor(remainingMs / 3600000)).padStart(2, '0');
-                    const rM = String(Math.floor((remainingMs % 3600000) / 60000)).padStart(2, '0');
-                    const rS = String(Math.floor((remainingMs % 60000) / 1000)).padStart(2, '0');
-                    textEl.textContent = `${rH}:${rM}:${rS}`;
-                } else {
-                    const breachMs = Math.abs(remainingMs);
-                    const bH = String(Math.floor(breachMs / 3600000)).padStart(2, '0');
-                    const bM = String(Math.floor((breachMs % 3600000) / 60000)).padStart(2, '0');
-                    const bS = String(Math.floor((breachMs % 60000) / 1000)).padStart(2, '0');
-                    textEl.textContent = `-${bH}:${bM}:${bS}`;
-                }
+                const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
+                const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
+                const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
+                textEl.textContent = `${eH}:${eM}:${eS}`;
             });
         }, 1000);
     };
