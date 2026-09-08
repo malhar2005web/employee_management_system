@@ -824,6 +824,8 @@ export async function runMigrations() {
                 updated_at TIMESTAMP DEFAULT NOW()
             );
 
+            ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS started_resolving_at TIMESTAMP;
+
             CREATE TABLE IF NOT EXISTS support_ticket_comments (
                 id SERIAL PRIMARY KEY,
                 ticket_id INT REFERENCES support_tickets(id) ON DELETE CASCADE,

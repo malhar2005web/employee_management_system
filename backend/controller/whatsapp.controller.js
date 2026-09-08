@@ -2243,3 +2243,26 @@ async function ensureWhatsAppTables() {
         // Table exists
     }
 }
+
+/**
+ * 4. Stream or Redirect WhatsApp Media by Media ID
+ */
+export async function getMediaStream(req, res) {
+    try {
+        const { mediaId } = req.params;
+        if (!mediaId || mediaId === 'null' || mediaId === 'undefined') {
+            return res.status(404).json({ success: false, message: 'Invalid or missing media ID' });
+        }
+
+        const downloaded = await downloadWabaMediaToDisk(mediaId);
+        if (downloaded && downloaded.url) {
+            return res.redirect(downloaded.url);
+        }
+
+        return res.status(404).json({ success: false, message: 'Media attachment could not be downloaded or has expired.' });
+    } catch (err) {
+        console.error("❌ getMediaStream Error:", err.message);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+}
+

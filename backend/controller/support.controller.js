@@ -542,9 +542,13 @@ export const updateTicket = async (req, res) => {
 
         let respondedAt = ticket.responded_at;
         let resolvedAt = ticket.resolved_at;
+        let startedResolvingAt = ticket.started_resolving_at;
 
         if (status && status !== 'Open' && !respondedAt) {
             respondedAt = new Date();
+        }
+        if (status === 'In Progress' && !startedResolvingAt) {
+            startedResolvingAt = new Date();
         }
         if (status && (status === 'Resolved' || status === 'Closed') && !resolvedAt) {
             resolvedAt = new Date();
@@ -566,14 +570,14 @@ export const updateTicket = async (req, res) => {
             SET title = $1, description = $2, category = $3, priority = $4, status = $5,
                 assigned_to = $6, assigned_team = $7, customer_id = $8, project_id = $9, project_name = $10,
                 response_deadline = $11, resolution_deadline = $12,
-                responded_at = $13, resolved_at = $14, updated_at = NOW()
-            WHERE id = $15
-            RETURNING *, EXTRACT(EPOCH FROM (NOW() - created_at)) AS elapsed_seconds
+                responded_at = $13, resolved_at = $14, started_resolving_at = $15, updated_at = NOW()
+            WHERE id = $16
+            RETURNING *, EXTRACT(EPOCH FROM (NOW() - COALESCE(started_resolving_at, created_at))) AS elapsed_seconds
         `, [
             newTitle, newDesc, newCat, newPri, newStat,
             newAssigned, newAssignedTeam, newCust, newProj, newProjName,
             responseDeadline, resolutionDeadline,
-            respondedAt, resolvedAt, id
+            respondedAt, resolvedAt, startedResolvingAt, id
         ]);
 
         // If newly resolved, alert engineers
@@ -638,9 +642,13 @@ export const updateTicketStatus = async (req, res) => {
 
         let respondedAt = ticket.responded_at;
         let resolvedAt = ticket.resolved_at;
+        let startedResolvingAt = ticket.started_resolving_at;
 
         if (status !== 'Open' && !respondedAt) {
             respondedAt = new Date();
+        }
+        if (status === 'In Progress' && !startedResolvingAt) {
+            startedResolvingAt = new Date();
         }
         if ((status === 'Resolved' || status === 'Closed') && !resolvedAt) {
             resolvedAt = new Date();
@@ -648,10 +656,10 @@ export const updateTicketStatus = async (req, res) => {
 
         const updateRes = await pool.query(`
             UPDATE support_tickets 
-            SET status = $1, responded_at = $2, resolved_at = $3, updated_at = NOW()
-            WHERE id = $4
-            RETURNING *, EXTRACT(EPOCH FROM (NOW() - created_at)) AS elapsed_seconds
-        `, [status, respondedAt, resolvedAt, id]);
+            SET status = $1, responded_at = $2, resolved_at = $3, started_resolving_at = $4, updated_at = NOW()
+            WHERE id = $5
+            RETURNING *, EXTRACT(EPOCH FROM (NOW() - COALESCE(started_resolving_at, created_at))) AS elapsed_seconds
+        `, [status, respondedAt, resolvedAt, startedResolvingAt, id]);
 
         if (status === 'Resolved' && oldStatus !== 'Resolved') {
             const elapsedSec = Number(updateRes.rows[0]?.elapsed_seconds);

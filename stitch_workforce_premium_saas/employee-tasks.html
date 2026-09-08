@@ -513,19 +513,24 @@
           <div id="view-ticket-attachment" style="margin-top:10px; display:none;"></div>
         </div>
 
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; background:#fff; border:1px solid rgba(0,0,0,0.1); border-radius:10px; padding:12px;">
-          <label style="font-weight:700; font-size:13px; color:var(--text-dark);">Change Status:</label>
-          <select id="view-ticket-status-select" class="form-select-clean" style="width:auto; padding:6px 12px; font-size:13px;">
-            <option value="Open">Open</option>
-            <option value="Assigned">Assigned</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Waiting Customer">Waiting Customer</option>
-            <option value="Resolved">Resolved</option>
-            <option value="Closed">Closed</option>
-          </select>
-          <button id="btn-update-ticket-status" class="btn-primary" style="padding:7px 14px; font-size:13px; font-weight:700;">
-            Update
-          </button>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px; background:#fff; border:1px solid rgba(0,0,0,0.1); border-radius:10px; padding:12px;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <label style="font-weight:700; font-size:13px; color:var(--text-dark);">Status:</label>
+            <select id="view-ticket-status-select" class="form-select-clean" style="width:auto; padding:6px 12px; font-size:13px;">
+              <option value="Open">Open</option>
+              <option value="Assigned">Assigned</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Waiting Customer">Waiting Customer</option>
+              <option value="Resolved">Resolved</option>
+              <option value="Closed">Closed</option>
+            </select>
+            <button id="btn-update-ticket-status" class="btn-secondary" style="padding:6px 12px; font-size:12.5px; font-weight:700;">
+              Update
+            </button>
+          </div>
+          <div id="modal-quick-action-container" style="display:flex; gap:8px;">
+            <!-- Injected dynamically: Start Resolving or Resolve Button -->
+          </div>
         </div>
 
         <!-- Comments Section -->

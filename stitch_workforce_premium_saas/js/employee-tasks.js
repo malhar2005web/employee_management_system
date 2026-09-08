@@ -506,8 +506,9 @@
             }
 
             let durText = '';
-            if (ticket.resolved_at && ticket.created_at) {
-                const diff = Math.abs(new Date(ticket.resolved_at).getTime() - new Date(ticket.created_at).getTime());
+            const startMsRaw = ticket.started_resolving_at || ticket.created_at;
+            if (ticket.resolved_at && startMsRaw) {
+                const diff = Math.abs(new Date(ticket.resolved_at).getTime() - new Date(startMsRaw).getTime());
                 const rH = Math.floor(diff / 3600000);
                 const rM = Math.floor((diff % 3600000) / 60000);
                 const rS = Math.floor((diff % 60000) / 1000);
@@ -528,17 +529,33 @@
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
                                createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        const createdMs = createdDate.getTime();
-        const elapsedMs = Math.max(0, Date.now() - createdMs);
+        // If Open or Assigned and resolution not started yet:
+        if ((ticket.status === 'Open' || ticket.status === 'Assigned') && !ticket.started_resolving_at) {
+            return `<div class="emp-live-timer" data-started="" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+                <div style="font-weight:700; color:#0d9488; display:flex; align-items:center; gap:4px;">
+                    <i class="fa-solid fa-stopwatch" style="color:#0d9488;"></i>
+                    <span class="live-timer-text">00:00:00</span>
+                    <span style="font-size:11px; font-weight:600; color:#0d9488;">elapsed</span>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
+                    <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
+                </div>
+            </div>`;
+        }
+
+        // Active In Progress or resolution started
+        const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
+        const startMs = new Date(startTimeRaw).getTime();
+        const elapsedMs = Math.max(0, Date.now() - startMs);
         const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
         const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
         const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
 
-        return `<div class="emp-live-timer" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-            <div style="font-weight:700; color:#0f766e; display:flex; align-items:center; gap:4px;">
-                <i class="fa-solid fa-stopwatch" style="color:#0f766e;"></i>
+        return `<div class="emp-live-timer" data-started="${ticket.started_resolving_at || ticket.created_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+            <div style="font-weight:700; color:#2563eb; display:flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-stopwatch fa-spin" style="--fa-animation-duration: 3s; color:#2563eb;"></i>
                 <span class="live-timer-text">${eH}:${eM}:${eS}</span>
-                <span style="font-size:11px; font-weight:600; color:#0f766e;">elapsed</span>
+                <span style="font-size:11px; font-weight:700; color:#2563eb;">elapsed</span>
             </div>
             <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
                 <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
@@ -590,6 +607,34 @@
                 statusBadge = '<span style="font-size:12px; font-weight:700; color:#ea580c; background:rgba(234,88,12,0.15); border:1px solid rgba(234,88,12,0.3); padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-envelope-open"></i> Open</span>';
             }
 
+            let actionButtons = `
+                <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:700;" onclick="window.openTicketWorkspaceModal(${t.id})">
+                    <i class="fa-regular fa-folder-open"></i> Open
+                </button>
+            `;
+
+            if (t.status === 'Open' || t.status === 'Assigned') {
+                actionButtons += `
+                    <button class="btn-primary" style="padding:5px 12px; font-size:12px; font-weight:800; background:#0d9488; border-color:#0d9488; display:inline-flex; align-items:center; gap:5px;" onclick="window.startResolvingTicket(${t.id})">
+                        <i class="fa-solid fa-play"></i> Start Resolving
+                    </button>
+                `;
+            } else if (t.status === 'In Progress') {
+                actionButtons += `
+                    <button class="btn-primary" style="padding:5px 12px; font-size:12px; font-weight:800; background:#16a34a; border-color:#16a34a; display:inline-flex; align-items:center; gap:5px;" onclick="window.quickResolveTicket(${t.id})">
+                        <i class="fa-solid fa-circle-check"></i> Resolve
+                    </button>
+                `;
+            }
+
+            let hasAtt = false;
+            if (t.attachments) {
+                try {
+                    const parsedAtt = typeof t.attachments === 'string' ? JSON.parse(t.attachments) : t.attachments;
+                    hasAtt = Array.isArray(parsedAtt) && parsedAtt.length > 0;
+                } catch(e) { hasAtt = false; }
+            }
+
             return `<tr>
                 <td>
                     <div style="font-weight:800; color:var(--teal-900); font-size:13px;">${t.ticket_code}</div>
@@ -607,7 +652,7 @@
                         <span style="font-size:11px; font-weight:700; background:rgba(14,165,233,0.12); color:#0284c7; padding:1px 6px; border-radius:4px;">
                             ${t.category || 'Bug'}
                         </span>
-                        ${t.attachments && JSON.parse(typeof t.attachments === 'string' ? t.attachments : '[]').length > 0 ? `<span style="font-size:11px; color:var(--text-muted);"><i class="fa-solid fa-paperclip"></i></span>` : ''}
+                        ${hasAtt ? `<span style="font-size:11px; color:var(--text-muted);"><i class="fa-solid fa-paperclip"></i></span>` : ''}
                     </div>
                 </td>
                 <td>
@@ -620,13 +665,7 @@
                 </td>
                 <td>
                     <div style="display:flex; gap:6px; align-items:center;">
-                        <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:700;" onclick="window.openTicketWorkspaceModal(${t.id})">
-                            <i class="fa-regular fa-folder-open"></i> Open
-                        </button>
-                        ${t.status !== 'Resolved' && t.status !== 'Closed' ? `
-                        <button class="btn-primary" style="padding:5px 10px; font-size:12px; font-weight:700; background:#16a34a; border-color:#16a34a;" onclick="window.quickResolveTicket(${t.id})">
-                            <i class="fa-solid fa-check"></i> Resolve
-                        </button>` : ''}
+                        ${actionButtons}
                     </div>
                 </td>
             </tr>`;
@@ -892,7 +931,35 @@
                 document.getElementById('view-ticket-title').textContent = t.title;
                 document.getElementById('view-ticket-sub').textContent = `${t.customer_name || 'Customer'} • Project: ${t.project_name || 'General'}`;
                 document.getElementById('view-ticket-desc').textContent = t.description || 'No detailed reproduction steps provided.';
-                document.getElementById('view-ticket-status-select').value = t.status || 'Open';
+                
+                const statusSelect = document.getElementById('view-ticket-status-select');
+                if (statusSelect) statusSelect.value = t.status || 'Open';
+
+                // Modal Quick Action Buttons (Start Resolving or Mark Resolved)
+                const quickActionContainer = document.getElementById('modal-quick-action-container');
+                if (quickActionContainer) {
+                    if (t.status === 'Open' || t.status === 'Assigned') {
+                        quickActionContainer.innerHTML = `
+                            <button type="button" class="btn-primary" style="padding:6px 14px; font-size:12.5px; font-weight:800; background:linear-gradient(135deg, #0d9488, #0f766e); border:none; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(13,148,136,0.3);" onclick="window.startResolvingTicket(${t.id})">
+                                <i class="fa-solid fa-play"></i> Start Resolving
+                            </button>
+                        `;
+                    } else if (t.status === 'In Progress') {
+                        quickActionContainer.innerHTML = `
+                            <button type="button" class="btn-primary" style="padding:6px 14px; font-size:12.5px; font-weight:800; background:linear-gradient(135deg, #16a34a, #15803d); border:none; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(22,163,74,0.3);" onclick="window.quickResolveTicket(${t.id})">
+                                <i class="fa-solid fa-circle-check"></i> Mark Resolved
+                            </button>
+                        `;
+                    } else if (t.status === 'Resolved' || t.status === 'Closed') {
+                        quickActionContainer.innerHTML = `
+                            <span style="font-size:12px; font-weight:700; color:#16a34a; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); padding:4px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-circle-check"></i> Resolved
+                            </span>
+                        `;
+                    } else {
+                        quickActionContainer.innerHTML = '';
+                    }
+                }
 
                 // Timer & Meta
                 document.getElementById('modal-sla-timer').innerHTML = getSlaElapsedTimerHtml(t);
@@ -902,21 +969,63 @@
                     <div><span style="color:var(--text-muted);">Reported By:</span> <strong>${t.reported_by || 'Staff'}</strong></div>
                 `;
 
-                // Attachment
+                // Bulletproof Attachment Rendering
                 const attDiv = document.getElementById('view-ticket-attachment');
                 let atts = [];
                 if (t.attachments) {
-                    try { atts = typeof t.attachments === 'string' ? JSON.parse(t.attachments) : t.attachments; } catch(e) { atts = []; }
+                    try { 
+                        atts = typeof t.attachments === 'string' ? JSON.parse(t.attachments) : t.attachments; 
+                    } catch(e) { 
+                        atts = typeof t.attachments === 'string' && t.attachments.trim() ? [t.attachments] : []; 
+                    }
                 }
                 if (Array.isArray(atts) && atts.length > 0) {
                     attDiv.style.display = 'block';
-                    attDiv.innerHTML = `<div style="font-size:11px; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Attachments</div>` +
-                        atts.map(url => {
-                            const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
-                            return isImg 
-                                ? `<a href="${url}" target="_blank"><img src="${url}" style="max-width:180px; max-height:120px; border-radius:8px; border:1px solid rgba(0,0,0,0.15); margin-top:4px;"></a>`
-                                : `<a href="${url}" target="_blank" class="btn-secondary" style="font-size:12px; padding:4px 8px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-file"></i> View Attachment</a>`;
-                        }).join(' ');
+                    attDiv.innerHTML = `<div style="font-size:11px; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Attachments</div><div style="display:flex; flex-wrap:wrap; gap:8px;">` +
+                        atts.map(att => {
+                            let url = '';
+                            let name = 'Attachment';
+                            let isImg = false;
+
+                            if (typeof att === 'string') {
+                                url = att.trim();
+                                name = url.split('/').pop() || 'Attachment';
+                                isImg = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url);
+                            } else if (typeof att === 'object' && att !== null) {
+                                url = att.url || (att.mediaId ? `/api/v1/whatsapp/media/${att.mediaId}` : '');
+                                name = att.name || att.filename || att.caption || 'Attachment';
+                                isImg = att.type === 'image' || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name) || /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+                            }
+
+                            if (url && url !== '#' && url !== '[object Object]') {
+                                if (isImg) {
+                                    return `
+                                        <div style="background:rgba(255,255,255,0.9); border:1px solid rgba(0,0,0,0.12); border-radius:8px; padding:6px; display:inline-flex; flex-direction:column; align-items:center; gap:4px;">
+                                            <a href="${url}" target="_blank" title="Click to view full image">
+                                                <img src="${url}" alt="${name}" style="max-width:180px; max-height:120px; object-fit:cover; border-radius:6px; border:1px solid rgba(0,0,0,0.08);">
+                                            </a>
+                                            <a href="${url}" target="_blank" class="btn-secondary" style="font-size:11.5px; font-weight:700; padding:2px 8px; display:inline-flex; align-items:center; gap:4px; text-decoration:none;">
+                                                <i class="fa-solid fa-arrow-up-right-from-square"></i> View Image
+                                            </a>
+                                        </div>
+                                    `;
+                                } else {
+                                    return `
+                                        <a href="${url}" target="_blank" class="btn-secondary" style="font-size:12px; font-weight:700; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:6px; color:var(--teal-900);">
+                                            <i class="fa-solid fa-paperclip" style="color:var(--teal-600);"></i>
+                                            <span>${name}</span>
+                                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10.5px; color:var(--text-muted);"></i>
+                                        </a>
+                                    `;
+                                }
+                            } else {
+                                return `
+                                    <span class="badge" style="background:rgba(100,116,139,0.12); color:#475569; font-size:12px; font-weight:600; padding:6px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:5px;">
+                                        <i class="fa-solid fa-paperclip" style="color:#64748b;"></i> ${name}
+                                    </span>
+                                `;
+                            }
+                        }).join('') + `</div>`;
                 } else {
                     attDiv.style.display = 'none';
                 }
@@ -974,6 +1083,58 @@
             </li>
         `).join('');
     }
+
+    // Start Resolving Ticket (Live Timer Begins)
+    window.startResolvingTicket = async function(ticketId) {
+        try {
+            const res = await fetch(`/api/v1/support/${ticketId}/status`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    status: 'In Progress', 
+                    notes: 'Resolution started by assigned engineer.' 
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Resolution started! Live timer active.', 'success');
+                if (activeDetailTicketId && String(activeDetailTicketId) === String(ticketId)) {
+                    await window.openTicketWorkspaceModal(ticketId);
+                }
+                await loadSupportTickets();
+                await loadMyCustomers();
+            } else {
+                showToast(data.message || 'Could not start resolution', 'error');
+            }
+        } catch (e) {
+            showToast('Error starting resolution', 'error');
+        }
+    };
+
+    // Quick Resolve Ticket
+    window.quickResolveTicket = async function(ticketId) {
+        if (!confirm('Mark this support ticket as Resolved?')) return;
+        try {
+            const res = await fetch(`/api/v1/support/${ticketId}/status`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'Resolved', notes: 'Ticket marked as resolved by assigned engineer.' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Ticket resolved successfully!', 'success');
+                if (activeDetailTicketId && String(activeDetailTicketId) === String(ticketId)) {
+                    await window.openTicketWorkspaceModal(ticketId);
+                }
+                await loadSupportTickets();
+                await loadMyCustomers();
+            }
+        } catch (e) {
+            showToast('Error resolving ticket', 'error');
+        }
+    };
 
     // Update Status from Detail Modal
     const btnUpdateTicketStatus = document.getElementById('btn-update-ticket-status');
@@ -1035,40 +1196,19 @@
         });
     }
 
-    // Quick Resolve Ticket
-    window.quickResolveTicket = async function(ticketId) {
-        if (!confirm('Mark this support ticket as Resolved?')) return;
-        try {
-            const res = await fetch(`/api/v1/support/${ticketId}/status`, {
-                method: 'PUT',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'Resolved', notes: 'Ticket marked as resolved by assigned engineer.' })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast('Ticket resolved successfully!', 'success');
-                await loadSupportTickets();
-                await loadMyCustomers();
-            }
-        } catch (e) {
-            showToast('Error resolving ticket', 'error');
-        }
-    };
-
-    // Live Ticking Stopwatch for Employee Support Table
+    // Live Ticking Stopwatch for Employee Support Table & Modal
     setInterval(() => {
         document.querySelectorAll('.emp-live-timer').forEach(el => {
             const status = el.getAttribute('data-status');
             if (status === 'Resolved' || status === 'Closed') return;
 
-            const createdStr = el.getAttribute('data-created');
-            if (!createdStr) return;
+            const startedStr = el.getAttribute('data-started');
+            if (!startedStr) return; // Stays at 00:00:00 until Start Resolving is clicked!
 
-            const createdMs = new Date(createdStr).getTime();
-            if (isNaN(createdMs)) return;
+            const startMs = new Date(startedStr).getTime();
+            if (isNaN(startMs)) return;
 
-            const elapsedMs = Math.max(0, Date.now() - createdMs);
+            const elapsedMs = Math.max(0, Date.now() - startMs);
             const textEl = el.querySelector('.live-timer-text');
             if (!textEl) return;
 

@@ -78,18 +78,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             let durText = '';
-            if (ticket.resolved_at && ticket.created_at) {
-                const diff = Math.abs(new Date(ticket.resolved_at).getTime() - new Date(ticket.created_at).getTime());
+            const startMsRaw = ticket.started_resolving_at || ticket.created_at;
+            if (ticket.resolved_at && startMsRaw) {
+                const diff = Math.abs(new Date(ticket.resolved_at).getTime() - new Date(startMsRaw).getTime());
                 const rH = Math.floor(diff / 3600000);
                 const rM = Math.floor((diff % 3600000) / 60000);
                 const rS = Math.floor((diff % 60000) / 1000);
-                if (rH > 0) {
-                    durText = `${rH}h ${rM}m`;
-                } else if (rM > 0) {
-                    durText = `${rM} min`;
-                } else {
-                    durText = `${Math.max(1, rS)}s`;
-                }
+                if (rH > 0) durText = `${rH}h ${rM}m`;
+                else if (rM > 0) durText = `${rM} min`;
+                else durText = `${Math.max(1, rS)}s`;
             }
 
             return `<div style="font-size:12px; line-height:1.4;">
@@ -104,17 +101,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
                                createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        const createdMs = createdDate.getTime();
-        const elapsedMs = Math.max(0, Date.now() - createdMs);
+        // If Open or Assigned and resolution not started yet:
+        if ((ticket.status === 'Open' || ticket.status === 'Assigned') && !ticket.started_resolving_at) {
+            return `<div class="live-ticket-timer" data-started="" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+                <div style="font-weight:700; color:#0d9488; display:flex; align-items:center; gap:4px;">
+                    <i class="fa-solid fa-stopwatch" style="color:#0d9488;"></i>
+                    <span class="live-timer-text">00:00:00</span>
+                    <span style="font-size:11px; font-weight:600; color:#0d9488;">elapsed</span>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
+                    <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
+                </div>
+            </div>`;
+        }
+
+        const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
+        const startMs = new Date(startTimeRaw).getTime();
+        const elapsedMs = Math.max(0, Date.now() - startMs);
         const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
         const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
         const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
 
-        return `<div class="live-ticket-timer" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-            <div style="font-weight:700; color:#0f766e; display:flex; align-items:center; gap:4px;">
-                <i class="fa-solid fa-stopwatch" style="color:#0f766e;"></i>
+        return `<div class="live-ticket-timer" data-started="${ticket.started_resolving_at || ticket.created_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+            <div style="font-weight:700; color:#2563eb; display:flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-stopwatch fa-spin" style="--fa-animation-duration: 3s; color:#2563eb;"></i>
                 <span class="live-timer-text">${eH}:${eM}:${eS}</span>
-                <span style="font-size:11px; font-weight:600; color:#0f766e;">elapsed</span>
+                <span style="font-size:11px; font-weight:700; color:#2563eb;">elapsed</span>
             </div>
             <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
                 <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
@@ -510,10 +522,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${getStatusBadge(t.status)}</td>
                         <td>${assigneeName}</td>
                         <td>
-                            <div style="display:flex; gap:6px;">
+                            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                                 <button type="button" class="btn-secondary" onclick="window.openTicketWorkspace(${t.id})" style="padding:5px 10px; font-size:12px; font-weight:700;" title="Open Ticket Workspace">
                                     <i class="fa-solid fa-folder-open" style="color:var(--teal-600);"></i> Open
                                 </button>
+                                ${t.status === 'Open' || t.status === 'Assigned' ? `
+                                <button type="button" class="btn-primary" style="padding:5px 10px; font-size:12px; font-weight:800; background:#0d9488; border-color:#0d9488; display:inline-flex; align-items:center; gap:4px;" onclick="window.startResolvingTicket(${t.id})">
+                                    <i class="fa-solid fa-play"></i> Start
+                                </button>` : ''}
+                                ${t.status === 'In Progress' ? `
+                                <button type="button" class="btn-primary" style="padding:5px 10px; font-size:12px; font-weight:800; background:#16a34a; border-color:#16a34a; display:inline-flex; align-items:center; gap:4px;" onclick="window.quickResolveTicket(${t.id})">
+                                    <i class="fa-solid fa-circle-check"></i> Resolve
+                                </button>` : ''}
                                 <button type="button" class="btn-secondary" onclick="window.openEditTicketModal(${t.id})" style="padding:5px 10px; font-size:12px; font-weight:700; background:rgba(217,119,6,0.1); color:#d97706; border:1px solid rgba(217,119,6,0.3);" title="Edit Support Ticket">
                                     <i class="fa-solid fa-pen-to-square"></i> Edit
                                 </button>
@@ -670,35 +690,60 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const attArea = document.getElementById('view-ticket-attachments-area');
             const attList = document.getElementById('view-ticket-attachments-list');
-            if (t.attachments && Array.isArray(t.attachments) && t.attachments.length > 0) {
+            let atts = [];
+            if (t.attachments) {
+                try {
+                    atts = typeof t.attachments === 'string' ? JSON.parse(t.attachments) : t.attachments;
+                } catch(e) {
+                    atts = typeof t.attachments === 'string' && t.attachments.trim() ? [t.attachments] : [];
+                }
+            }
+            if (Array.isArray(atts) && atts.length > 0) {
                 if (attArea) attArea.style.display = 'block';
                 if (attList) {
-                    attList.innerHTML = '';
-                    t.attachments.forEach(att => {
-                        const url = typeof att === 'string' ? att : (att.url || (att.mediaId ? `/api/v1/whatsapp/media/${att.mediaId}` : '#'));
-                        const name = typeof att === 'string' ? 'Attachment' : (att.name || att.filename || 'Attachment');
-                        const isImage = (typeof att === 'object' && att.type === 'image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(name) || /\.(png|jpe?g|gif|webp|svg)$/i.test(url);
+                    attList.innerHTML = atts.map(att => {
+                        let url = '';
+                        let name = 'Attachment';
+                        let isImage = false;
 
-                        if (isImage && url && url !== '#') {
-                            attList.innerHTML += `
-                                <div style="display:inline-block; margin:6px; background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.12); border-radius:8px; padding:6px; text-align:center; vertical-align:top;">
-                                    <a href="${url}" target="_blank" title="Click to view full image">
-                                        <img src="${url}" alt="${name}" style="max-width:200px; max-height:140px; border-radius:6px; display:block; object-fit:cover; margin-bottom:6px; box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+                        if (typeof att === 'string') {
+                            url = att.trim();
+                            name = url.split('/').pop() || 'Attachment';
+                            isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url);
+                        } else if (typeof att === 'object' && att !== null) {
+                            url = att.url || (att.mediaId ? `/api/v1/whatsapp/media/${att.mediaId}` : '');
+                            name = att.name || att.filename || att.caption || 'Attachment';
+                            isImage = att.type === 'image' || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name) || /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+                        }
+
+                        if (url && url !== '#' && url !== '[object Object]') {
+                            if (isImage) {
+                                return `
+                                    <div style="display:inline-block; margin:6px; background:rgba(255,255,255,0.85); border:1px solid rgba(0,0,0,0.12); border-radius:8px; padding:6px; text-align:center; vertical-align:top;">
+                                        <a href="${url}" target="_blank" title="Click to view full image">
+                                            <img src="${url}" alt="${name}" style="max-width:200px; max-height:140px; border-radius:6px; display:block; object-fit:cover; margin-bottom:6px; box-shadow:0 2px 6px rgba(0,0,0,0.08);" onerror="this.style.display='none';">
+                                        </a>
+                                        <a href="${url}" target="_blank" style="font-size:12px; font-weight:700; color:var(--teal-700); text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-arrow-up-right-from-square"></i> ${name}
+                                        </a>
+                                    </div>
+                                `;
+                            } else {
+                                return `
+                                    <a href="${url}" target="_blank" class="badge" style="background:rgba(255,255,255,0.85); border:1px solid rgba(0,0,0,0.15); color:var(--teal-800); font-weight:700; padding:8px 14px; margin:4px; font-size:12.5px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                                        <i class="fa-solid fa-paperclip" style="color:var(--teal-600); font-size:14px;"></i> ${name}
+                                        <i class="fa-solid fa-arrow-up-right-from-square" style="margin-left:4px; font-size:11px; color:var(--text-muted);"></i>
                                     </a>
-                                    <a href="${url}" target="_blank" style="font-size:12px; font-weight:700; color:var(--teal-700); text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
-                                        <i class="fa-solid fa-arrow-up-right-from-square"></i> ${name}
-                                    </a>
-                                </div>
-                            `;
+                                `;
+                            }
                         } else {
-                            attList.innerHTML += `
-                                <a href="${url}" target="_blank" class="badge" style="background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.15); color:var(--teal-800); font-weight:700; padding:8px 14px; margin:4px; font-size:12.5px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
-                                    <i class="fa-solid fa-file-pdf" style="color:#ef4444; font-size:14px;"></i> ${name}
-                                    <i class="fa-solid fa-download" style="margin-left:4px; font-size:11px; color:var(--text-muted);"></i>
-                                </a>
+                            return `
+                                <span class="badge" style="background:rgba(100,116,139,0.12); color:#475569; font-size:12px; font-weight:600; padding:6px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:5px; margin:4px;">
+                                    <i class="fa-solid fa-paperclip" style="color:#64748b;"></i> ${name}
+                                </span>
                             `;
                         }
-                    });
+                    }).join('');
                 }
             } else {
                 if (attArea) attArea.style.display = 'none';
@@ -850,6 +895,53 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Quick Start Resolving Ticket from Admin Table or Modal
+    window.startResolvingTicket = async function(ticketId) {
+        try {
+            const res = await fetch(`/api/v1/support/${ticketId}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'In Progress', notes: 'Resolution work started.' })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (typeof showToast === 'function') showToast("Resolution started! Live SLA timer active.", "success");
+                if (currentActiveTicketId && String(currentActiveTicketId) === String(ticketId)) {
+                    window.openTicketWorkspace(ticketId);
+                }
+                loadTickets();
+            } else {
+                alert(data.message || "Failed to start resolution");
+            }
+        } catch (err) {
+            console.error("Error starting resolution:", err);
+        }
+    };
+
+    // Quick Resolve Ticket from Admin Table
+    window.quickResolveTicket = async function(ticketId) {
+        if (!confirm("Mark this support ticket as Resolved?")) return;
+        try {
+            const res = await fetch(`/api/v1/support/${ticketId}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'Resolved', notes: 'Marked as resolved.' })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (typeof showToast === 'function') showToast("Ticket marked as Resolved!", "success");
+                if (currentActiveTicketId && String(currentActiveTicketId) === String(ticketId)) {
+                    window.openTicketWorkspace(ticketId);
+                }
+                loadTickets();
+            } else {
+                alert(data.message || "Failed to resolve ticket");
+            }
+        } catch (err) {
+            console.error("Error resolving ticket:", err);
+        }
+    };
 
     // Assignee Change Listener in Workspace
     if (metaAssigneeSelect) {
@@ -1070,13 +1162,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const status = el.getAttribute('data-status');
                 if (status === 'Resolved' || status === 'Closed') return;
 
-                const createdStr = el.getAttribute('data-created');
-                if (!createdStr) return;
+                const startedStr = el.getAttribute('data-started');
+                if (!startedStr) return; // Stays 00:00:00 until Start Resolving is clicked!
 
-                const createdMs = new Date(createdStr).getTime();
-                if (isNaN(createdMs)) return;
+                const startMs = new Date(startedStr).getTime();
+                if (isNaN(startMs)) return;
 
-                const elapsedMs = Math.max(0, Date.now() - createdMs);
+                const elapsedMs = Math.max(0, Date.now() - startMs);
                 const textEl = el.querySelector('.live-timer-text');
                 if (!textEl) return;
 

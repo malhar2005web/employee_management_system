@@ -5,7 +5,8 @@ import fs from 'fs';
 import {
     handleWebhook,
     sendDirectMessage,
-    getChatHistory
+    getChatHistory,
+    getMediaStream
 } from '../controller/whatsapp.controller.js';
 
 const router = express.Router();
@@ -52,5 +53,8 @@ router.post('/send-direct', upload.single('mediaFile'), sendDirectMessage);
 
 // 3. Get Chat History for a Phone Number
 router.get('/history/:phone', getChatHistory);
+
+// 4. Stream / View WhatsApp Media Attachment
+router.get('/media/:mediaId', getMediaStream);
 
 export default router;
