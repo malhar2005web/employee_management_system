@@ -221,20 +221,31 @@ document.addEventListener('DOMContentLoaded', () => {
             contactsContainer.appendChild(row);
         };
 
-        const addNestedProject = (pId = '', pName = '', pDesc = '') => {
+        const addNestedProject = (pId = '', pName = '', pDesc = '', pDeadline = '') => {
             const row = document.createElement('div');
             row.style.display = 'grid';
-            row.style.gridTemplateColumns = '1.2fr 1.8fr auto';
+            row.style.gridTemplateColumns = '1.3fr 1.3fr 1.1fr auto';
             row.style.gap = '8px';
             row.style.alignItems = 'center';
             row.className = 'project-entry-row-nested';
             row.innerHTML = `
                 <input type="hidden" class="project-id" value="${pId}">
-                <input type="text" placeholder="Project Name" class="project-name" value="${pName}" required style="padding:8px 10px; font-size:13.5px; width:100%; min-width:0; box-sizing:border-box;">
-                <input type="text" placeholder="Description" class="project-desc" value="${pDesc}" style="padding:8px 10px; font-size:13.5px; width:100%; min-width:0; box-sizing:border-box;">
-                <i class="fa-regular fa-trash-can btn-remove-nested-item" style="color:var(--red); cursor:pointer; padding:4px; font-size:14px;"></i>
+                <input type="text" placeholder="Project Name *" class="project-name" value="${pName}" required style="padding:8px 10px; font-size:13px; width:100%; min-width:0; box-sizing:border-box;">
+                <input type="text" placeholder="Description (optional)" class="project-desc" value="${pDesc}" style="padding:8px 10px; font-size:13px; width:100%; min-width:0; box-sizing:border-box;">
+                <input type="date" placeholder="Project Deadline" class="project-deadline" value="${pDeadline}" title="Project Deadline" style="padding:7px 8px; font-size:12px; width:100%; min-width:0; box-sizing:border-box; background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.15); border-radius:var(--radius-sm);">
+                <i class="fa-regular fa-trash-can btn-remove-nested-item" style="color:var(--red); cursor:pointer; padding:4px; font-size:14px;" title="Remove Project"></i>
             `;
             row.querySelector('.btn-remove-nested-item').addEventListener('click', () => row.remove());
+
+            // Auto-sync top-level deadline when project deadline is picked
+            const dlInput = row.querySelector('.project-deadline');
+            dlInput.addEventListener('change', () => {
+                const topDl = document.getElementById('cust-deadline');
+                if (topDl && (!topDl.value || dlInput.value > topDl.value)) {
+                    topDl.value = dlInput.value;
+                }
+            });
+
             projectsContainer.appendChild(row);
         };
 
@@ -296,7 +307,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (projects && projects.length > 0) {
-            projects.forEach(p => addNestedProject(p.id, p.name, p.description));
+            projects.forEach(p => {
+                const pDl = p.deadline ? (typeof p.deadline === 'string' ? p.deadline.slice(0, 10) : new Date(p.deadline).toISOString().split('T')[0]) : '';
+                addNestedProject(p.id, p.name, p.description, pDl);
+            });
         } else {
             addNestedProject(); // Add 1 empty row initially
         }
@@ -653,15 +667,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Extract nested projects
+            // Extract nested projects with deadlines
             const projectRows = card.querySelectorAll('.project-entry-row-nested');
             const projects = [];
             projectRows.forEach(row => {
                 const pId = row.querySelector('.project-id').value || null;
                 const pName = row.querySelector('.project-name').value.trim();
                 const pDesc = row.querySelector('.project-desc').value.trim();
+                const pDlInput = row.querySelector('.project-deadline');
+                const pDeadline = pDlInput && pDlInput.value ? pDlInput.value : null;
                 if (pName) {
-                    projects.push({ id: pId, name: pName, description: pDesc });
+                    projects.push({ id: pId, name: pName, description: pDesc, deadline: pDeadline });
                 }
             });
 
@@ -688,10 +704,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // Collect all unique assigned employees across all branches
         const assigned_employees = Array.from(allAssignedEmpMap.values());
 
+        // Derive overall deadline from projects if top-level input not explicitly set
+        let topDeadline = document.getElementById('cust-deadline').value || null;
+        if (!topDeadline && branches.length > 0) {
+            for (const b of branches) {
+                for (const p of b.projects) {
+                    if (p.deadline) {
+                        if (!topDeadline || p.deadline > topDeadline) {
+                            topDeadline = p.deadline;
+                        }
+                    }
+                }
+            }
+        }
+
         const payload = {
             name: document.getElementById('cust-name').value.trim(),
             branches,
-            deadline: document.getElementById('cust-deadline').value || null,
+            deadline: topDeadline,
             industry: document.getElementById('cust-industry').value || null,
             slaType: document.getElementById('cust-sla-type').value || null,
             slaResponseTime: document.getElementById('cust-sla-response').value || null,

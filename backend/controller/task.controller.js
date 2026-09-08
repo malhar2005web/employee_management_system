@@ -213,13 +213,14 @@ export async function createWorkflow(req, res) {
             for (const task of tasks) {
                 if (!task.name) continue;
                 const assignedTeamId = task.teamTempId ? tempTeamMap.get(task.teamTempId) : null;
+                const initialHistory = JSON.stringify([{ status: task.status || 'Not Started', changed_at: new Date().toISOString() }]);
                 const taskRes = await client.query(`
                     INSERT INTO workflow_tasks (
                         workflow_id, step_order, name, assigned_team_id, assigned_employee_ids,
                         estimated_hours, deadline, status, priority, dependencies, completion_percentage,
                         status_history
                     )
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, jsonb_build_array(jsonb_build_object('status', $8::text, 'changed_at', NOW()::text)))
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
                     RETURNING *;
                 `, [
                     workflow.id,
@@ -232,7 +233,8 @@ export async function createWorkflow(req, res) {
                     task.status || 'Not Started',
                     task.priority || 'Medium',
                     [],
-                    task.completionPercentage ? parseInt(task.completionPercentage, 10) : 0
+                    task.completionPercentage ? parseInt(task.completionPercentage, 10) : 0,
+                    initialHistory
                 ]);
                 tempTaskMap.set(task.tempId || task.name, taskRes.rows[0].id);
             }
@@ -272,7 +274,7 @@ export async function createWorkflow(req, res) {
     } catch (error) {
         await client.query("ROLLBACK");
         console.log("Error in createWorkflow:", error.message);
-        res.status(500).json({ success: false, message: "Internal server error" });
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
     } finally {
         client.release();
     }

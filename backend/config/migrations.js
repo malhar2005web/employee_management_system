@@ -738,6 +738,8 @@ export async function runMigrations() {
             ALTER TABLE customers ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
             ALTER TABLE tasks ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
             ALTER TABLE projects ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
+            ALTER TABLE projects ADD COLUMN IF NOT EXISTS deadline DATE;
+            ALTER TABLE projects ADD COLUMN IF NOT EXISTS start_date DATE;
             ALTER TABLE attendance ADD COLUMN IF NOT EXISTS uuid UUID DEFAULT uuid_generate_v4();
 
             CREATE TABLE IF NOT EXISTS import_jobs (

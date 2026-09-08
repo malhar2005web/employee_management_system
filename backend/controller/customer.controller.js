@@ -11,6 +11,7 @@ export async function getCustomers(req, res) {
                                'id', p.id,
                                'name', p.name,
                                'description', p.description,
+                               'deadline', p.deadline,
                                'branch_name', p.branch_name,
                                'status', p.status
                            )
@@ -70,6 +71,22 @@ export async function createCustomer(req, res) {
             return res.status(400).json({ success: false, message: "Customer name is required" });
         }
 
+        // Calculate latest deadline from projects if top-level deadline is not given
+        let finalDeadline = deadline || null;
+        if (!finalDeadline && branches && Array.isArray(branches)) {
+            for (const b of branches) {
+                if (b.projects && Array.isArray(b.projects)) {
+                    for (const p of b.projects) {
+                        if (p.deadline) {
+                            if (!finalDeadline || p.deadline > finalDeadline) {
+                                finalDeadline = p.deadline;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         await client.query("BEGIN");
 
         const query = `
@@ -85,7 +102,7 @@ export async function createCustomer(req, res) {
             slaResolutionTime || null,
             contractStartDate || null,
             contractEndDate || null,
-            deadline || null,
+            finalDeadline,
             industry || null,
             createdBy,
             assigned_employees ? JSON.stringify(assigned_employees) : '[]'
@@ -101,9 +118,9 @@ export async function createCustomer(req, res) {
                     for (const p of b.projects) {
                         if (p.name) {
                             await client.query(
-                                `INSERT INTO projects (name, description, customer_id, branch_name, status)
-                                 VALUES ($1, $2, $3, $4, $5)`,
-                                [p.name, p.description || null, customer.id, b.branch || null, 'In Progress']
+                                `INSERT INTO projects (name, description, customer_id, branch_name, deadline, status)
+                                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                                [p.name, p.description || null, customer.id, b.branch || null, p.deadline || finalDeadline || null, 'In Progress']
                             );
                         }
                     }
@@ -119,7 +136,7 @@ export async function createCustomer(req, res) {
     } catch (error) {
         await client.query("ROLLBACK");
         console.log("Error in createCustomer:", error.message);
-        res.status(500).json({ success: false, message: "Internal server error" });
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
     } finally {
         client.release();
     }
@@ -161,22 +178,31 @@ async function syncCustomerAssignmentsAndChat(client, customer, assigned_employe
         const empId = typeof emp === 'object' ? (emp.id || emp.employee_id) : emp;
         if (!empId) continue;
 
-        // A. Add to Chat Group Members
+        // A. Add to Chat Group Members (chat_channel_members references employees.id)
         await client.query(
             `INSERT INTO chat_channel_members (channel_id, employee_id, role)
              VALUES ($1, $2, 'Member')
              ON CONFLICT (channel_id, employee_id) DO NOTHING`,
             [channelId, empId]
-        );
+        ).catch(err => console.warn("Chat member add warning:", err.message));
 
-        // B. Push Inbox Notification
-        const notifTitle = `Project & Account Assignment`;
-        const notifMsg = `You have been added to Customer Project Team: ${customer.name}`;
-        await client.query(
-            `INSERT INTO notifications (title, message, type, recipient_id, channel_id, created_at)
-             VALUES ($1, $2, 'Project Assignment', $3, $4, NOW())`,
-            [notifTitle, notifMsg, empId, channelId]
-        );
+        // B. Push Inbox Notification (notifications.recipient_id references users.id)
+        try {
+            const empUserRes = await client.query(`SELECT user_id FROM employees WHERE id = $1`, [empId]);
+            const recipientUserId = empUserRes.rows[0]?.user_id;
+
+            if (recipientUserId) {
+                const notifTitle = `Project & Account Assignment`;
+                const notifMsg = `You have been added to Customer Project Team: ${customer.name}`;
+                await client.query(
+                    `INSERT INTO notifications (title, message, type, recipient_id, channel_id, created_at)
+                     VALUES ($1, $2, 'Project Assignment', $3, $4, NOW())`,
+                    [notifTitle, notifMsg, recipientUserId, channelId]
+                );
+            }
+        } catch (notifErr) {
+            console.warn("Assignment notification warning:", notifErr.message);
+        }
     }
 }
 
@@ -188,6 +214,22 @@ export async function updateCustomer(req, res) {
 
         if (!name) {
             return res.status(400).json({ success: false, message: "Customer name is required" });
+        }
+
+        // Calculate latest deadline from projects if top-level deadline is not given
+        let finalDeadline = deadline || null;
+        if (!finalDeadline && branches && Array.isArray(branches)) {
+            for (const b of branches) {
+                if (b.projects && Array.isArray(b.projects)) {
+                    for (const p of b.projects) {
+                        if (p.deadline) {
+                            if (!finalDeadline || p.deadline > finalDeadline) {
+                                finalDeadline = p.deadline;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         await client.query("BEGIN");
@@ -206,7 +248,7 @@ export async function updateCustomer(req, res) {
             slaResolutionTime || null,
             contractStartDate || null,
             contractEndDate || null,
-            deadline || null,
+            finalDeadline,
             industry || null,
             assigned_employees ? JSON.stringify(assigned_employees) : '[]',
             id
@@ -231,6 +273,7 @@ export async function updateCustomer(req, res) {
                                 id: p.id || null,
                                 name: p.name,
                                 description: p.description,
+                                deadline: p.deadline || finalDeadline || null,
                                 branch_name: b.branch
                             });
                         }
@@ -250,17 +293,17 @@ export async function updateCustomer(req, res) {
                 // Update existing
                 await client.query(
                     `UPDATE projects 
-                     SET name = $1, description = $2, branch_name = $3, updated_at = CURRENT_TIMESTAMP
-                     WHERE id = $4 AND customer_id = $5`,
-                    [p.name, p.description || null, p.branch_name || null, p.id, id]
+                     SET name = $1, description = $2, branch_name = $3, deadline = $4, updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $5 AND customer_id = $6`,
+                    [p.name, p.description || null, p.branch_name || null, p.deadline || null, p.id, id]
                 );
                 submittedProjectIds.push(parseInt(p.id, 10));
             } else {
                 // Insert new
                 const newProjRes = await client.query(
-                    `INSERT INTO projects (name, description, customer_id, branch_name, status)
-                     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-                    [p.name, p.description || null, id, p.branch_name || null, 'In Progress']
+                    `INSERT INTO projects (name, description, customer_id, branch_name, deadline, status)
+                     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                    [p.name, p.description || null, id, p.branch_name || null, p.deadline || null, 'In Progress']
                 );
                 submittedProjectIds.push(newProjRes.rows[0].id);
             }
@@ -280,7 +323,7 @@ export async function updateCustomer(req, res) {
     } catch (error) {
         await client.query("ROLLBACK");
         console.log("Error in updateCustomer:", error.message);
-        res.status(500).json({ success: false, message: "Internal server error" });
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
     } finally {
         client.release();
     }
