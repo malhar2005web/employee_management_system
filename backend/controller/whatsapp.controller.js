@@ -103,6 +103,103 @@ export async function resolveEngineerContacts(assignedEmployees) {
 }
 
 /**
+ * Check if message expresses a direct phone call intent
+ */
+export function isCallIntent(text) {
+    if (!text) return false;
+    const lower = String(text).toLowerCase().trim();
+    return lower === 'btn_call_shrirang' ||
+           lower === 'call_shrirang' ||
+           lower === 'call_lead' ||
+           lower === 'call_sales' ||
+           lower === 'call' ||
+           lower === 'phone' ||
+           lower.includes('call karo') ||
+           lower.includes('call me') ||
+           lower.includes('phone karo') ||
+           lower.includes('phone pe') ||
+           lower.includes('talk on call') ||
+           lower.includes('talk on phone') ||
+           lower.includes('direct call') ||
+           lower.includes('call please') ||
+           lower.includes('call shree') ||
+           lower.includes('call shrirang');
+}
+
+/**
+ * Send Direct Consultation & Call Card with Shrirang Joshi (+91 98210 27060)
+ */
+export async function sendDirectCallCard(senderPhone, clientContext, note = '') {
+    const callCard = `📞 Direct Consultation with Shrirang Joshi
+
+Lead Architect & Business Head:
+• Mobile: +91 98210 27060
+• Direct WhatsApp: https://wa.me/919821027060
+
+Feel free to call anytime to discuss your project scope, company requirements, or billing over phone.
+
+Our team has also been notified of your call request.`;
+
+    await sendWhatsAppText(senderPhone, callCard);
+
+    await sendWhatsAppCtaUrl(senderPhone, {
+        headerText: "Direct Call Option",
+        bodyText: "Tap below to connect directly with Shrirang Joshi on WhatsApp or Phone Call:",
+        displayText: "Call / WhatsApp Shrirang",
+        url: "https://wa.me/919821027060?text=Hi%20Shrirang%20Joshi,%20I%20would%20like%20to%20discuss%20project%20details"
+    });
+
+    const notif = `📞 [Direct Call Request from WhatsApp]\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nNote: ${note || 'Client requested direct phone call.'}`;
+    sendWhatsAppText(SALES_HEAD_PHONE, notif).catch(() => {});
+}
+
+/**
+ * Send Full Commercial Proposal & Bank Details for a specific Project / Company
+ */
+export async function sendProjectInvoiceDetails(senderPhone, clientContext, projectName = 'General Project', companyName = '') {
+    const finalComp = companyName || clientContext.name || 'Valued Client';
+    const inv = await getClientInvoiceDetails(clientContext.id);
+
+    const invoiceMsg = `Tax Invoice & Commercial Ledger
+
+Client / Company: ${finalComp}
+Project: ${projectName}
+Stage: ${inv.status || 'Active Scope / Proposal'}
+
+Official Accounts & Invoicing Contacts:
+• Shrirang Joshi (Commercials): +91 98210 27060
+• Accounts Desk (Billing & GST): +91 96645 40011
+
+Bank & Payment Account:
+- Beneficiary: Pentasoft Consultancy
+- Bank: HDFC Bank
+- Account No: 50200063819231
+- IFSC Code: HDFC0000290
+- UPI ID: joshi.shrirang@hdfcbank (Shrirang Joshi)
+- GSTIN: 27AABPJ2329N1ZB
+
+Please send your payment screenshot or UTR number directly here or to +91 96645 40011.
+
+📞 Prefer discussing on call? Call Shrirang Joshi: +91 98210 27060`;
+
+    await sendWhatsAppText(senderPhone, invoiceMsg);
+
+    await sendWhatsAppButtons(senderPhone, {
+        headerText: "Need Help with Billing?",
+        bodyText: `You can send payment receipts/UTR directly here, or connect on call with Shrirang Joshi:`,
+        footerText: "Planex Accounts Desk",
+        buttons: [
+            { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
+        ]
+    });
+
+    // Notify both accounts numbers
+    const notif = `[Invoice & Billing Request]\nCompany: ${finalComp}\nProject: ${projectName}\nPhone: ${senderPhone}\nStatus: Client viewed invoice & bank ledger.`;
+    sendWhatsAppText(ACCOUNTS_HEAD_PHONE_1, notif).catch(() => {});
+    sendWhatsAppText(ACCOUNTS_HEAD_PHONE_2, notif).catch(() => {});
+}
+
+/**
  * 1. Webhook Receiver: Immediately responds with 200 OK, processes in background
  */
 export async function handleWebhook(req, res) {
@@ -172,6 +269,16 @@ async function processIncomingWebhookAsync(body) {
         }
 
         // ==========================================================
+        // ROUTE 0.5: DIRECT CALL INTENT (PREFER TALKING ON CALL)
+        // ==========================================================
+        if (isCallIntent(textContent || selectedId)) {
+            console.log(`📞 Direct Call intent detected from ${senderPhone}: "${textContent || selectedId}"`);
+            clientTicketDrafts.delete(senderPhone);
+            await sendDirectCallCard(senderPhone, clientContext, textContent || selectedId);
+            continue;
+        }
+
+        // ==========================================================
         // ROUTE 1: DETERMINISTIC BUTTON / LIST MENU CLICKS
         // ==========================================================
         if (msgType === 'interactive' || msgType === 'button' || selectedId) {
@@ -180,11 +287,29 @@ async function processIncomingWebhookAsync(body) {
         }
 
         // ==========================================================
-        // ROUTE 2: ACTIVE SUPPORT TICKET DRAFT FLOW HANDLER
+        // ROUTE 2: ACTIVE DRAFT FLOW HANDLER (SUPPORT / BILLING / ONBOARDING)
         // ==========================================================
         const activeDraft = clientTicketDrafts.get(senderPhone);
         if (activeDraft) {
-            console.log(`📋 Active Support Draft for ${senderPhone} at step: [${activeDraft.step}]`);
+            console.log(`📋 Active Draft for ${senderPhone} at step: [${activeDraft.step}]`);
+
+            if (activeDraft.step === 'awaiting_billing_info' || activeDraft.step === 'awaiting_billing_project') {
+                const rawInfo = (textContent || displayBody || '').trim();
+                let company = activeDraft.customerName && activeDraft.customerName !== 'Valued Client' ? activeDraft.customerName : 'Valued Client';
+                let project = rawInfo;
+
+                if (rawInfo.includes('-') || rawInfo.includes(',') || rawInfo.includes('\n') || rawInfo.includes('&') || rawInfo.toLowerCase().includes('company:')) {
+                    const parts = rawInfo.split(/[-,\n&]/).map(p => p.trim()).filter(Boolean);
+                    if (parts.length >= 2) {
+                        company = parts[0].replace(/company\s*[:=]/i, '').trim();
+                        project = parts.slice(1).join(' - ').replace(/project\s*[:=]/i, '').trim();
+                    }
+                }
+
+                await sendProjectInvoiceDetails(senderPhone, clientContext, project, company);
+                clientTicketDrafts.delete(senderPhone);
+                continue;
+            }
 
             if (activeDraft.step === 'awaiting_details') {
                 if (msgType === 'document') {
@@ -212,7 +337,16 @@ async function processIncomingWebhookAsync(body) {
                 clientTicketDrafts.delete(senderPhone);
                 continue;
             } else if (activeDraft.step === 'awaiting_project' || activeDraft.step === 'awaiting_project_name') {
-                activeDraft.projectName = (textContent || displayBody || '').trim();
+                const rawInfo = (textContent || displayBody || '').trim();
+                let projName = rawInfo;
+                if (rawInfo.includes('-') || rawInfo.includes(',') || rawInfo.includes('\n')) {
+                    const parts = rawInfo.split(/[-,\n]/).map(p => p.trim()).filter(Boolean);
+                    if (parts.length >= 2 && (!activeDraft.customerName || activeDraft.customerName === 'Valued Customer')) {
+                        activeDraft.customerName = parts[0];
+                        projName = parts.slice(1).join(' - ');
+                    }
+                }
+                activeDraft.projectName = projName;
                 
                 // If customer has branches, match branch to auto-assign engineers
                 if (activeDraft.customerId) {
@@ -474,6 +608,14 @@ async function handleInteractiveClick(senderPhone, selectedId, clientContext) {
     const key = String(selectedId || '').toLowerCase().trim();
 
     // =========================================================================
+    // 0. DIRECT CALL / CONSULTATION BUTTON CLICKED (SHRIRANG JOSHI)
+    // =========================================================================
+    if (key === 'btn_call_shrirang' || key === 'call_lead' || key === 'call_sales' || key === 'call_shrirang' || key.includes('call_shrirang')) {
+        await sendDirectCallCard(senderPhone, clientContext, 'User clicked Call Shrirang button on WhatsApp');
+        return;
+    }
+
+    // =========================================================================
     // 1. SERVICE SELECTION: WEB / MOBILE APP / HYBRID (SALES DESK)
     // =========================================================================
 
@@ -513,11 +655,12 @@ Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
 
         await sendWhatsAppButtons(senderPhone, {
             headerText: "Requirements & Scope Check",
-            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this Web Application?`,
+            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this Web Application?\n\nOr prefer discussing scope on phone?`,
             footerText: "Pentasoft Consultancy",
             buttons: [
                 { id: "req_yes_excel", title: "Yes, Have Document" },
-                { id: "req_no_excel", title: "No, Please Guide" }
+                { id: "req_no_excel", title: "No, Please Guide" },
+                { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
             ]
         });
 
@@ -562,11 +705,12 @@ Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
 
         await sendWhatsAppButtons(senderPhone, {
             headerText: "Requirements & Scope Check",
-            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this Mobile App?`,
+            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this Mobile App?\n\nOr prefer discussing scope on phone?`,
             footerText: "Pentasoft Consultancy",
             buttons: [
                 { id: "req_yes_excel", title: "Yes, Have Document" },
-                { id: "req_no_excel", title: "No, Please Guide" }
+                { id: "req_no_excel", title: "No, Please Guide" },
+                { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
             ]
         });
 
@@ -611,11 +755,12 @@ Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
 
         await sendWhatsAppButtons(senderPhone, {
             headerText: "Requirements & Scope Check",
-            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this project?`,
+            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this project?\n\nOr prefer discussing scope on phone?`,
             footerText: "Pentasoft Consultancy",
             buttons: [
                 { id: "req_yes_excel", title: "Yes, Have Document" },
-                { id: "req_no_excel", title: "No, Please Guide" }
+                { id: "req_no_excel", title: "No, Please Guide" },
+                { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
             ]
         });
 
@@ -706,49 +851,167 @@ Support Escalation: +91 98210 27060`;
     }
 
     // =========================================================================
-    // 5. PAYMENT & TAX INVOICE INQUIRY & ACCOUNTS DESK
+    // 5. PAYMENT & TAX INVOICE INQUIRY & ACCOUNTS DESK (WITH PROJECT & COMPANY INQUIRY)
     // =========================================================================
     else if (key === 'srv_invoice' || key === 'srv_accounts' || key.includes('invoice') || key.includes('payment') || key.includes('bill') || key.includes('accounts')) {
-        const inv = await getClientInvoiceDetails(clientContext.id);
-        const contactSnippet = `\n\nOfficial Accounts Contacts:\n• Shrirang Joshi (Commercials): +91 98210 27060\n• Accounts Desk (Billing & GST): +91 96645 40011\n\nPlease send your payment screenshot or UTR number directly here or to +91 96645 40011.`;
+        let customerId = clientContext.id;
+        let customerName = clientContext.name || 'Valued Client';
+        let projectsList = [];
 
-        if (inv.isProspect) {
-            await sendWhatsAppText(
-                senderPhone,
-                `Commercial Proposal & Billing Details:
-- Client: ${clientContext.name}
-- Stage: ${inv.status}
-- Billing Terms: ${inv.paymentTerms}
-- Beneficiary: ${inv.beneficiary}
-- Bank: ${inv.bankName}
-- Account No: ${inv.accountNo}
-- IFSC Code: ${inv.ifsc}
-- UPI ID: ${inv.upiId} (Shrirang Joshi)
-- GSTIN: ${inv.gstin}
+        if (customerId) {
+            try {
+                const custRes = await pool.query(`SELECT id, name, branches FROM customers WHERE id = $1`, [customerId]);
+                if (custRes.rows.length > 0) {
+                    const c = custRes.rows[0];
+                    customerName = c.name || customerName;
+                    let branches = c.branches;
+                    if (typeof branches === 'string') {
+                        try { branches = JSON.parse(branches); } catch(e){}
+                    }
+                    if (Array.isArray(branches)) {
+                        branches.forEach((b, bIdx) => {
+                            const bName = b.branch || `Branch ${bIdx + 1}`;
+                            let bProjs = b.projects;
+                            if (typeof bProjs === 'string') {
+                                try { bProjs = JSON.parse(bProjs); } catch(e){}
+                            }
+                            if (Array.isArray(bProjs)) {
+                                bProjs.forEach((p, pIdx) => {
+                                    const pName = typeof p === 'string' ? p : (p.name || p.project_name || 'Module');
+                                    projectsList.push({
+                                        id: `billproj_${bIdx}_${pIdx}`,
+                                        name: pName,
+                                        branchName: bName
+                                    });
+                                });
+                            }
+                        });
+                    }
+                }
 
-Official Tax Invoice will be generated upon milestone approval.${contactSnippet}`
-            );
+                const dbProjRes = await pool.query(`SELECT id, name, branch_name FROM projects WHERE customer_id = $1`, [customerId]);
+                for (const dp of dbProjRes.rows) {
+                    if (!projectsList.some(p => p.name.toLowerCase() === dp.name.toLowerCase() && p.branchName.toLowerCase() === (dp.branch_name || '').toLowerCase())) {
+                        projectsList.push({
+                            id: `billproj_db_${dp.id}`,
+                            name: dp.name,
+                            branchName: dp.branch_name || ''
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching projects for billing:", err.message);
+            }
+        }
+
+        if (projectsList.length > 0) {
+            clientTicketDrafts.set(senderPhone, {
+                step: 'awaiting_billing_project',
+                customerId: customerId,
+                customerName: customerName,
+                availableProjects: projectsList,
+                timestamp: Date.now()
+            });
+
+            const rows = projectsList.slice(0, 8).map(p => ({
+                id: p.id,
+                title: `${p.name}${p.branchName ? ` (${p.branchName})` : ''}`.slice(0, 24),
+                description: `Branch: ${p.branchName || 'Main'}`.slice(0, 72)
+            }));
+            rows.push({
+                id: 'billproj_custom',
+                title: 'Other / Custom Project',
+                description: 'Provide company & project details'
+            });
+
+            await sendWhatsAppListMenu(senderPhone, {
+                headerText: "Accounts & Billing Desk",
+                bodyText: `Hello ${customerName},\n\nKonsa project hai aapka? Please select your project below to view commercial ledger & tax invoice details:`,
+                footerText: "Planex Accounts Hub",
+                buttonText: "Select Project",
+                sections: [
+                    {
+                        title: "Your Projects",
+                        rows: rows
+                    }
+                ]
+            });
+
+            await sendWhatsAppButtons(senderPhone, {
+                headerText: "Prefer Discussing on Call?",
+                bodyText: `If you prefer discussing billing, TDS, or custom quotes over call:`,
+                footerText: "Planex Accounts Desk",
+                buttons: [
+                    { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
+                ]
+            });
         } else {
-            await sendWhatsAppText(
-                senderPhone,
-                `Tax Invoice & Payment Details (${inv.invoiceNumber}):
-- Beneficiary: ${inv.beneficiary}
-- GSTIN: ${inv.gstin}
-- Bank: ${inv.bankName}
-- Account No: ${inv.accountNo}
-- IFSC Code: ${inv.ifsc}
-- UPI ID: ${inv.upiId}
-- Amount: ${inv.amountDue}
-- Terms: ${inv.paymentTerms}
+            // New Client / Prospect without registered projects
+            clientTicketDrafts.set(senderPhone, {
+                step: 'awaiting_billing_info',
+                customerId: null,
+                customerName: customerName,
+                timestamp: Date.now()
+            });
 
-Please send the payment screenshot or UTR number here once completed.${contactSnippet}`
-            );
+            const askBillingInfo = `Accounts & Invoicing Desk\n\nHello ${customerName},\nKonsa project aur company hai aapka? Please reply with your:\n1. Company Name\n2. Project / Software Name\n\nWe will send your Tax Invoice and Commercial Ledger details.\n\n📞 Prefer discussing directly on call? Tap the button below:`;
+            await sendWhatsAppText(senderPhone, askBillingInfo);
+
+            await sendWhatsAppButtons(senderPhone, {
+                headerText: "Direct Call Option",
+                bodyText: `If you prefer telling details on call instead of typing:`,
+                footerText: "Pentasoft Consultancy",
+                buttons: [
+                    { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
+                ]
+            });
         }
 
         // Notify both accounts numbers
-        const notif = `[Accounts & Billing Inquiry]\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nInquiry: Payment, Tax Invoice, or Accounts help accessed.`;
+        const notif = `[Accounts & Billing Inquiry]\n\nClient: ${customerName}\nPhone: ${senderPhone}\nInquiry: Payment, Tax Invoice, or Accounts help accessed.`;
         sendWhatsAppText(ACCOUNTS_HEAD_PHONE_1, notif).catch(() => {});
         sendWhatsAppText(ACCOUNTS_HEAD_PHONE_2, notif).catch(() => {});
+    }
+
+    // =========================================================================
+    // 5B. INTERACTIVE BILLING PROJECT SELECTION
+    // =========================================================================
+    else if (key.startsWith('billproj_')) {
+        let draft = clientTicketDrafts.get(senderPhone) || {
+            step: 'awaiting_billing_project',
+            customerId: clientContext.id,
+            customerName: clientContext.name,
+            timestamp: Date.now()
+        };
+
+        if (key === 'billproj_custom' || selectedId === 'billproj_custom') {
+            draft.step = 'awaiting_billing_info';
+            clientTicketDrafts.set(senderPhone, draft);
+            await sendWhatsAppText(
+                senderPhone,
+                `Accounts & Billing Desk\n\nPlease reply with your Company Name and Project Name:\n(e.g., Acme Corp - CRM Portal)`
+            );
+            await sendWhatsAppButtons(senderPhone, {
+                headerText: "Direct Call Option",
+                bodyText: `Prefer telling details on call? Tap below:`,
+                footerText: "Pentasoft Consultancy",
+                buttons: [
+                    { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
+                ]
+            });
+            return;
+        }
+
+        let chosenProj = null;
+        if (Array.isArray(draft.availableProjects)) {
+            chosenProj = draft.availableProjects.find(p => p.id === selectedId || p.id === key);
+        }
+
+        const projName = chosenProj ? `${chosenProj.name}${chosenProj.branchName ? ` (${chosenProj.branchName})` : ''}` : (selectedId.replace('billproj_', '') || 'Customer Project');
+        const compName = draft.customerName && draft.customerName !== 'Valued Client' ? draft.customerName : clientContext.name;
+
+        await sendProjectInvoiceDetails(senderPhone, clientContext, projName, compName);
+        clientTicketDrafts.delete(senderPhone);
     }
 
     // =========================================================================
@@ -775,6 +1038,14 @@ Please send the payment screenshot or UTR number here once completed.${contactSn
             clientTicketDrafts.set(senderPhone, draft);
             const promptCustom = `Technical Support Desk — Step 1/4\n\nPlease reply with your Project / Application Name:\n(e.g., PentaRMC Portal, Planex Mobile App, PCS Tracking, or your Company/Software Name)`;
             await sendWhatsAppText(senderPhone, promptCustom);
+            await sendWhatsAppButtons(senderPhone, {
+                headerText: "Direct Call Option",
+                bodyText: `Prefer explaining on call instead of typing?`,
+                footerText: "Planex Technical Support",
+                buttons: [
+                    { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
+                ]
+            });
             return;
         }
 
@@ -785,7 +1056,7 @@ Please send the payment screenshot or UTR number here once completed.${contactSn
 
         if (chosenProj) {
             draft.projectId = chosenProj.id;
-            draft.projectName = `${chosenProj.name}${chosenProj.branchName ? ` (${chosenProj.branchName} Branch)` : ''}`;
+            draft.projectName = `${chosenProj.name}${chosenProj.branchName ? ` (${chosenProj.branchName})` : ''}`;
             draft.branchName = chosenProj.branchName || '';
             draft.assignedEmployees = chosenProj.assignedEmployees || [];
         } else {
@@ -948,9 +1219,27 @@ export async function startSupportTicketFlow(senderPhone, clientContext, initial
                     }
                 ]
             });
+
+            await sendWhatsAppButtons(senderPhone, {
+                headerText: "Prefer Discussing on Call?",
+                bodyText: `If you prefer explaining the issue on call directly to Shrirang Joshi:`,
+                footerText: "Planex Technical Support",
+                buttons: [
+                    { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
+                ]
+            });
         } else {
-            const askProjectText = `Technical Support Desk — Step 1/4\n\nHello ${clientContactName},\nKonsa project hai aapka? Please reply with your Project / Application Name:\n(e.g., PentaRMC Portal, Planex Mobile App, PCS Tracking, or your Company/Software Name)`;
+            const askProjectText = `Technical Support Desk — Step 1/4\n\nHello ${clientContactName},\nKonsa project aur company hai aapka? Please reply with your Company Name & Project / Application Name:\n(e.g., PentaRMC Portal, Planex Mobile App, PCS Tracking, or your Company/Software Name)\n\n📞 Prefer explaining on call? Tap the button below:`;
             await sendWhatsAppText(senderPhone, askProjectText);
+
+            await sendWhatsAppButtons(senderPhone, {
+                headerText: "Direct Call Option",
+                bodyText: `Prefer explaining on call instead of typing?`,
+                footerText: "Planex Technical Support",
+                buttons: [
+                    { id: "btn_call_shrirang", title: "📞 Call Shrirang" }
+                ]
+            });
         }
     } catch (err) {
         console.error("❌ Error in startSupportTicketFlow:", err.message);
