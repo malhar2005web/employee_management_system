@@ -12,9 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Controls
     const ticketSearch = document.getElementById('ticket-search');
     const filterCustomer = document.getElementById('filter-customer');
+    const filterEmployee = document.getElementById('filter-employee');
     const filterCategory = document.getElementById('filter-category');
     const filterPriority = document.getElementById('filter-priority');
     const filterStatus = document.getElementById('filter-status');
+    const filterFromDate = document.getElementById('filter-from-date');
+    const filterToDate = document.getElementById('filter-to-date');
+    const btnClearDates = document.getElementById('btn-clear-dates');
     const btnRefreshTickets = document.getElementById('btn-refresh-tickets');
     const ticketsList = document.getElementById('tickets-list');
     const logoutBtn = document.getElementById('logout-btn');
@@ -378,15 +382,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 editProjSelect.addEventListener('change', (e) => window.handleProjectSelectChange(e.target.value, 'edit-ticket-assignee', 'edit-ticket-customer'));
             }
 
-            // Populate Staff Modal & Workspace Selects
+            // Populate Staff Modal, Filter & Workspace Selects
             const ticketAssigneeSelect = document.getElementById('ticket-assignee');
             const editAssigneeSelect = document.getElementById('edit-ticket-assignee');
+            if (filterEmployee) filterEmployee.innerHTML = '<option value="all">All Employees</option>';
             if (ticketAssigneeSelect) ticketAssigneeSelect.innerHTML = '<option value="">Unassigned</option>';
             if (editAssigneeSelect) editAssigneeSelect.innerHTML = '<option value="">Unassigned</option>';
             if (metaAssigneeSelect) metaAssigneeSelect.innerHTML = '<option value="">Unassigned</option>';
 
             employeesCache.forEach(e => {
                 const opt = `<option value="${e.id}">${e.full_name} (${e.role || 'Staff'})</option>`;
+                if (filterEmployee) filterEmployee.innerHTML += `<option value="${e.id}">${e.full_name}</option>`;
                 if (ticketAssigneeSelect) ticketAssigneeSelect.innerHTML += opt;
                 if (editAssigneeSelect) editAssigneeSelect.innerHTML += opt;
                 if (metaAssigneeSelect) metaAssigneeSelect.innerHTML += opt;
@@ -401,12 +407,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadTickets = async () => {
         const search = ticketSearch ? ticketSearch.value.trim() : '';
         const customer = filterCustomer ? filterCustomer.value : 'all';
+        const employee = filterEmployee ? filterEmployee.value : 'all';
         const category = filterCategory ? filterCategory.value : 'all';
         const priority = filterPriority ? filterPriority.value : 'all';
         const status = filterStatus ? filterStatus.value : 'all';
+        const fromDate = filterFromDate ? filterFromDate.value : '';
+        const toDate = filterToDate ? filterToDate.value : '';
 
         try {
-            const res = await fetch(`/api/v1/support?search=${encodeURIComponent(search)}&customer_id=${customer}&category=${category}&priority=${priority}&status=${status}`);
+            const queryParams = new URLSearchParams({
+                search,
+                customer_id: customer,
+                employee_id: employee,
+                category,
+                priority,
+                status,
+                from_date: fromDate,
+                to_date: toDate
+            });
+
+            const res = await fetch(`/api/v1/support?${queryParams.toString()}`);
             const data = await res.json();
 
             if (!data.success) {
@@ -496,9 +516,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Wire Filter Listeners
     if (ticketSearch) ticketSearch.addEventListener('input', loadTickets);
     if (filterCustomer) filterCustomer.addEventListener('change', loadTickets);
+    if (filterEmployee) filterEmployee.addEventListener('change', loadTickets);
     if (filterCategory) filterCategory.addEventListener('change', loadTickets);
     if (filterPriority) filterPriority.addEventListener('change', loadTickets);
     if (filterStatus) filterStatus.addEventListener('change', loadTickets);
+    if (filterFromDate) filterFromDate.addEventListener('change', loadTickets);
+    if (filterToDate) filterToDate.addEventListener('change', loadTickets);
+    if (btnClearDates) btnClearDates.addEventListener('click', () => {
+        if (filterFromDate) filterFromDate.value = '';
+        if (filterToDate) filterToDate.value = '';
+        loadTickets();
+    });
     if (btnRefreshTickets) btnRefreshTickets.addEventListener('click', loadTickets);
 
     // Modal 1: Create Ticket Modal Handlers

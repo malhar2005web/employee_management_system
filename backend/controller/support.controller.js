@@ -236,7 +236,7 @@ async function generateTicketCode() {
 // GET /api/v1/support - List tickets with filters & counts
 export const getTickets = async (req, res) => {
     try {
-        const { search, status, priority, category, customer_id } = req.query;
+        const { search, status, priority, category, customer_id, employee_id, assigned_to, from_date, to_date, from, to } = req.query;
 
         let conditions = [];
         let params = [];
@@ -258,8 +258,29 @@ export const getTickets = async (req, res) => {
             conditions.push(`t.customer_id = $${idx++}`);
             params.push(customer_id);
         }
+
+        const chosenEmp = employee_id || assigned_to;
+        if (chosenEmp && chosenEmp !== 'all') {
+            conditions.push(`(t.assigned_to = $${idx} OR t.assigned_team::text ILIKE $${idx + 1})`);
+            params.push(parseInt(chosenEmp, 10) || 0);
+            params.push(`%"id":${chosenEmp}%`);
+            idx += 2;
+        }
+
+        const fromDateVal = from_date || from;
+        if (fromDateVal) {
+            conditions.push(`DATE(t.created_at) >= $${idx++}`);
+            params.push(fromDateVal);
+        }
+
+        const toDateVal = to_date || to;
+        if (toDateVal) {
+            conditions.push(`DATE(t.created_at) <= $${idx++}`);
+            params.push(toDateVal);
+        }
+
         if (search) {
-            conditions.push(`(t.ticket_code ILIKE $${idx} OR t.title ILIKE $${idx} OR t.reported_by ILIKE $${idx} OR c.name ILIKE $${idx})`);
+            conditions.push(`(t.ticket_code ILIKE $${idx} OR t.title ILIKE $${idx} OR t.reported_by ILIKE $${idx} OR c.name ILIKE $${idx} OR e.full_name ILIKE $${idx})`);
             params.push(`%${search}%`);
             idx++;
         }

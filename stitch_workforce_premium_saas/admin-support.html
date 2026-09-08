@@ -58,7 +58,6 @@
     font-size: 22px;
   }
 
-  /* Support Filter Bar (Ultra-Sleek Single Line Bar) */
   .support-filter-bar {
     display: flex;
     align-items: center;
@@ -76,23 +75,38 @@
     align-items: center;
     gap: 10px;
     width: 100%;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
   .filter-group select, .filter-group input {
-    padding: 10px 14px !important;
+    padding: 9px 13px !important;
     border-radius: var(--radius-sm) !important;
     border: 1.5px solid #CBD5E1 !important;
     background: rgba(255, 255, 255, 0.88) !important;
-    font-size: 14.5px !important;
+    font-size: 14px !important;
     outline: none;
     font-weight: 600 !important;
     color: #1E293B !important;
     min-width: 0;
   }
-    font-size: 13px;
-    outline: none;
-    font-weight: 500;
-    color: var(--text-dark);
+  .filter-date-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1.5px solid #CBD5E1;
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+  .filter-date-group input[type="date"] {
+    border: none !important;
+    background: transparent !important;
+    padding: 4px 6px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #1E293B !important;
+    outline: none !important;
+    box-shadow: none !important;
   }
 
   /* Support Ticket Workspace Modal */
@@ -502,16 +516,20 @@
       </div>
     </div>
 
-    <!-- Ultra-Sleek Single Line Filter & Action Bar -->
+    <!-- Ultra-Sleek Support Filter & Action Bar -->
     <div class="support-filter-bar">
       <div class="filter-group">
-        <input type="text" id="ticket-search" placeholder="Search ticket SUP-..., title..." style="flex: 1.5; min-width: 160px;">
+        <input type="text" id="ticket-search" placeholder="Search ticket SUP-..., title..." style="flex: 1.4; min-width: 170px;">
         
-        <select id="filter-customer" style="flex: 1;">
+        <select id="filter-customer" style="flex: 1; min-width: 135px;">
           <option value="all">All Customers</option>
         </select>
 
-        <select id="filter-category" style="flex: 1;">
+        <select id="filter-employee" style="flex: 1; min-width: 135px;">
+          <option value="all">All Employees</option>
+        </select>
+
+        <select id="filter-category" style="flex: 0.9; min-width: 125px;">
           <option value="all">All Categories</option>
           <option value="Bug">Bug</option>
           <option value="Feature Request">Feature Request</option>
@@ -524,7 +542,7 @@
           <option value="General Question">General Question</option>
         </select>
 
-        <select id="filter-priority" style="flex: 1;">
+        <select id="filter-priority" style="flex: 0.9; min-width: 115px;">
           <option value="all">All Priorities</option>
           <option value="Critical">Critical</option>
           <option value="High">High</option>
@@ -532,7 +550,7 @@
           <option value="Low">Low</option>
         </select>
 
-        <select id="filter-status" style="flex: 1;">
+        <select id="filter-status" style="flex: 0.9; min-width: 115px;">
           <option value="all">All Statuses</option>
           <option value="Open">Open</option>
           <option value="Assigned">Assigned</option>
@@ -541,6 +559,19 @@
           <option value="Resolved">Resolved</option>
           <option value="Closed">Closed</option>
         </select>
+
+        <!-- Date Range Filter (From & To Date Pickers) -->
+        <div class="filter-date-group">
+          <span style="font-size: 12.5px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 4px;">
+            <i class="fa-regular fa-calendar-days" style="color: #0F766E;"></i> From:
+          </span>
+          <input type="date" id="filter-from-date" title="Filter tickets from date">
+          <span style="font-size: 12.5px; font-weight: 700; color: #475569; margin-left: 4px;">To:</span>
+          <input type="date" id="filter-to-date" title="Filter tickets to date">
+          <button type="button" id="btn-clear-dates" style="background: none; border: none; color: #94A3B8; cursor: pointer; padding: 2px 4px; font-size: 13px;" title="Clear Date Filter">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
 
         <button id="btn-refresh-tickets" class="btn-primary" style="padding:10px 18px; font-weight:700; font-size:14.5px; white-space:nowrap; flex-shrink:0; display:inline-flex; align-items:center; gap:6px;">
           <i class="fa-solid fa-rotate-right"></i> Refresh
