@@ -27,6 +27,30 @@
     const filterMonthEl = document.getElementById('filter-month');
     if (filterMonthEl) filterMonthEl.value = `${today.getFullYear()}-${mm}`;
 
+    function formatHoursMins(val, returnDashIfZero = false) {
+        if (val === null || val === undefined || val === '' || val === '—' || val === '-') {
+            return returnDashIfZero ? '—' : '0 hrs 0 mins';
+        }
+        const num = parseFloat(val);
+        if (isNaN(num) || num <= 0) {
+            return returnDashIfZero ? '—' : '0 hrs 0 mins';
+        }
+        const totalMinutes = Math.round(num * 60);
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        
+        const hUnit = hrs === 1 ? 'hr' : 'hrs';
+        const mUnit = mins === 1 ? 'min' : 'mins';
+
+        if (hrs > 0 && mins > 0) {
+            return `${hrs} ${hUnit} ${mins} ${mUnit}`;
+        } else if (hrs > 0) {
+            return `${hrs} ${hUnit}`;
+        } else {
+            return `${mins} ${mUnit}`;
+        }
+    }
+
     // --- Load today's status ---
     async function loadTodayStatus() {
         try {
@@ -43,14 +67,10 @@
             }
 
             // Clock In button state
-            if (rec.login_time && !rec.logout_time) {
+            if (rec.logout_time) {
+                setClockInState(false, null, true);
+            } else {
                 setClockInState(true, rec.login_time);
-            } else if (rec.login_time && rec.logout_time) {
-                setClockInState(false, rec.login_time, true);
-                const outBtn = document.getElementById('btn-clock-out');
-                const inBtn = document.getElementById('btn-clock-in');
-                if (outBtn) outBtn.disabled = true;
-                if (inBtn) inBtn.disabled = true;
             }
 
             const todayStatus = document.getElementById('today-status');
@@ -59,7 +79,7 @@
 
             if (todayStatus) todayStatus.textContent = rec.status || 'Present';
             if (todayHours && rec.total_hours) {
-                todayHours.textContent = parseFloat(rec.total_hours).toFixed(2);
+                todayHours.textContent = formatHoursMins(rec.total_hours, false);
             }
             if (todayCheckin && rec.login_time) {
                 todayCheckin.textContent = 'Checked in at ' + new Date(rec.login_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -79,21 +99,20 @@
             if (badge) { badge.className = 'status-pill done'; badge.textContent = 'Clocked Out'; }
             if (inBtn) inBtn.disabled = true;
             if (outBtn) outBtn.disabled = true;
-            if (label) label.textContent = 'Session completed for today.';
-            return;
-        }
-
-        if (isIn) {
+            if (label) label.textContent = 'Day completed';
+        } else if (isIn) {
             if (badge) { badge.className = 'status-pill progress'; badge.textContent = 'Clocked In'; }
             if (inBtn) inBtn.disabled = true;
             if (outBtn) outBtn.disabled = false;
-            const t = new Date(loginTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-            if (label) label.textContent = `Clocked in at ${t}`;
+            if (label && loginTime) {
+                const t = new Date(loginTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                label.textContent = 'In: ' + t;
+            }
         } else {
-            if (badge) { badge.className = 'status-pill pending'; badge.textContent = 'Not Clocked In'; }
+            if (badge) { badge.className = 'status-pill delayed'; badge.textContent = 'Not Clocked In'; }
             if (inBtn) inBtn.disabled = false;
             if (outBtn) outBtn.disabled = true;
-            if (label) label.textContent = '';
+            if (label) label.textContent = '—';
         }
     }
 
@@ -111,7 +130,7 @@
                 if (data.success) {
                     showToast('Clocked in successfully!', 'success');
                     await loadTodayStatus();
-                    await loadHistory();
+                    await loadAttendanceHistory();
                 } else {
                     showToast(data.message || 'Clock-in failed', 'error');
                 }
@@ -135,7 +154,7 @@
                 if (data.success) {
                     showToast('Clocked out successfully!', 'success');
                     setClockInState(false, null, true);
-                    await loadHistory();
+                    await loadAttendanceHistory();
                 } else {
                     showToast(data.message || 'Clock-out failed', 'error');
                 }
@@ -145,48 +164,74 @@
         });
     }
 
-    // --- Load Attendance History ---
-    async function loadHistory(queryOverride) {
+    // --- Quick Filter Button Event Handlers ---
+    const btnThisMonth = document.getElementById('btn-quick-this-month');
+    const btnLastMonth = document.getElementById('btn-quick-last-month');
+    const btnAll2026 = document.getElementById('btn-quick-all-2026');
+
+    if (btnThisMonth) {
+        btnThisMonth.addEventListener('click', () => {
+            const d = new Date();
+            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (filterMonthEl) filterMonthEl.value = ym;
+            loadAttendanceHistory();
+        });
+    }
+
+    if (btnLastMonth) {
+        btnLastMonth.addEventListener('click', () => {
+            const d = new Date();
+            d.setMonth(d.getMonth() - 1);
+            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (filterMonthEl) filterMonthEl.value = ym;
+            loadAttendanceHistory();
+        });
+    }
+
+    if (btnAll2026) {
+        btnAll2026.addEventListener('click', () => {
+            if (filterMonthEl) filterMonthEl.value = '';
+            loadAttendanceHistory('2026');
+        });
+    }
+
+    // --- Load Attendance History Logs ---
+    async function loadAttendanceHistory(yearOverride) {
+        const tbody = document.getElementById('attendance-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">Loading attendance records...</td></tr>';
+
         try {
-            const tbody = document.getElementById('attendance-tbody');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading attendance records...</td></tr>';
+            let url = '/api/v1/employee/attendance/history';
+            if (yearOverride) {
+                url += `?year=${yearOverride}`;
+            } else if (filterMonthEl && filterMonthEl.value) {
+                const [y, m] = filterMonthEl.value.split('-');
+                url += `?year=${y}&month=${m}`;
             }
 
-            let queryString = queryOverride;
-            if (!queryString) {
-                const filterVal = filterMonthEl ? filterMonthEl.value : '';
-                if (filterVal) {
-                    queryString = `month=${filterVal}`;
-                } else {
-                    const now = new Date();
-                    queryString = `month=${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                }
-            }
-
-            const res = await fetch(`/api/v1/employee/attendance/logs?${queryString}`, { credentials: 'include' });
+            const res = await fetch(url, { credentials: 'include' });
             const data = await res.json();
-            if (!tbody) return;
-
-            if (!data.success || !data.data || !data.data.length) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;"><i class="fa-regular fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;"></i>No attendance records found for this period.</td></tr>';
-                const mPres = document.getElementById('month-present');
-                const mLate = document.getElementById('month-late');
-                if (mPres) mPres.textContent = '0';
-                if (mLate) mLate.textContent = '0';
+            if (!data.success) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);">${data.message || 'Error loading records'}</td></tr>`;
                 return;
             }
 
             const logs = data.data;
 
             // Summary stats for present & late
-            const presentCount = logs.filter(r => r.calculated_status === 'Present' || r.calculated_status === 'Late' || r.status === 'Present').length;
-            const lateCount = logs.filter(r => r.calculated_status === 'Late' || r.is_late_login).length;
+            const presentCount = (logs || []).filter(r => r.calculated_status === 'Present' || r.calculated_status === 'Late' || r.status === 'Present').length;
+            const lateCount = (logs || []).filter(r => r.calculated_status === 'Late' || r.is_late_login).length;
 
             const mPres = document.getElementById('month-present');
             const mLate = document.getElementById('month-late');
             if (mPres) mPres.textContent = presentCount;
             if (mLate) mLate.textContent = lateCount;
+
+            if (!logs || !logs.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">No attendance records found.</td></tr>';
+                return;
+            }
 
             const todayIso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 
@@ -202,8 +247,8 @@
                 const loginStr = r.login_time ? new Date(r.login_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
                 const logoutStr = r.logout_time ? new Date(r.logout_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
                 const hours = (r.total_working_hours && parseFloat(r.total_working_hours) > 0)
-                    ? parseFloat(r.total_working_hours).toFixed(2) + ' hrs'
-                    : '0.00 hrs';
+                    ? formatHoursMins(r.total_working_hours, true)
+                    : '—';
 
                 const status = r.calculated_status || r.status || 'Absent';
                 let statusBadge = '';
@@ -229,7 +274,7 @@
                     <td>${day}</td>
                     <td style="color:${r.login_time ? 'var(--teal-900)' : 'var(--text-muted)'}; font-weight:${r.login_time ? '700' : 'normal'};">${loginStr}</td>
                     <td style="color:${r.logout_time ? 'var(--teal-900)' : 'var(--text-muted)'}; font-weight:${r.logout_time ? '700' : 'normal'};">${logoutStr}</td>
-                    <td>${hours}</td>
+                    <td style="font-weight:700; color:var(--teal-900);">${hours}</td>
                     <td>${statusBadge}</td>
                 </tr>`;
             }).join('');

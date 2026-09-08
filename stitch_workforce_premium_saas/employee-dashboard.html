@@ -559,8 +559,19 @@
           timeLabel.textContent = `Clocked out at ${logoutLocal}${breakInfo}`;
         }
 
-        const finalHrs = rec.total_hours ? parseFloat(rec.total_hours).toFixed(2) : '0.00';
-        if (hoursDisplay) hoursDisplay.textContent = `${finalHrs} hrs`;
+        let finalHrsText = '0 hrs 0 mins';
+        if (rec.total_hours) {
+          const num = parseFloat(rec.total_hours);
+          if (!isNaN(num) && num > 0) {
+            const totM = Math.round(num * 60);
+            const h = Math.floor(totM / 60);
+            const m = totM % 60;
+            const hU = h === 1 ? 'hr' : 'hrs';
+            const mU = m === 1 ? 'min' : 'mins';
+            finalHrsText = (h > 0 && m > 0) ? `${h} ${hU} ${m} ${mU}` : (h > 0 ? `${h} ${hU}` : `${m} ${mU}`);
+          }
+        }
+        if (hoursDisplay) hoursDisplay.textContent = finalHrsText;
       }
     } catch (e) {
       console.error("Error in loadTodayStatus:", e);

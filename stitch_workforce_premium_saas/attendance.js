@@ -1,4 +1,28 @@
 document.addEventListener('DOMContentLoaded', () => {
+    function formatHoursMins(val, returnDashIfZero = false) {
+        if (val === null || val === undefined || val === '' || val === '—' || val === '-') {
+            return returnDashIfZero ? '—' : '0 hrs 0 mins';
+        }
+        const num = parseFloat(val);
+        if (isNaN(num) || num <= 0) {
+            return returnDashIfZero ? '—' : '0 hrs 0 mins';
+        }
+        const totalMinutes = Math.round(num * 60);
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        
+        const hUnit = hrs === 1 ? 'hr' : 'hrs';
+        const mUnit = mins === 1 ? 'min' : 'mins';
+
+        if (hrs > 0 && mins > 0) {
+            return `${hrs} ${hUnit} ${mins} ${mUnit}`;
+        } else if (hrs > 0) {
+            return `${hrs} ${hUnit}`;
+        } else {
+            return `${mins} ${mUnit}`;
+        }
+    }
+
     // Main Top-Level Tabs (Attendance vs Leaves vs Out Entry)
     const tabBtnAttendance = document.getElementById('tab-btn-attendance');
     const tabBtnLeave = document.getElementById('tab-btn-leave');
@@ -396,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong style="color:#334155;">${log.date || today}</strong></td>
                     <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>
                     <td><strong style="color:${logoutStr !== '—' ? '#0f172a' : '#94a3b8'};">${logoutStr}</strong></td>
-                    <td>${log.total_working_hours ? `${log.total_working_hours} hrs` : '0.00 hrs'}</td>
+                    <td><strong style="color:#0f172a;">${formatHoursMins(log.total_working_hours, true)}</strong></td>
                     <td>${log.overtime ? `${log.overtime} mins` : '—'}</td>
                     <td><span class="status-pill ${statusClass}" style="${statusBadgeStyle}">${log.status || 'Absent'}</span></td>
                     <td>
@@ -504,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 r.date,
                 r.login_time ? (String(r.login_time).includes('T') ? String(r.login_time).split('T')[1].slice(0, 5) : r.login_time) : '—',
                 r.logout_time ? (String(r.logout_time).includes('T') ? String(r.logout_time).split('T')[1].slice(0, 5) : r.logout_time) : '—',
-                r.total_working_hours ? `${r.total_working_hours} hrs` : '0.00 hrs',
+                formatHoursMins(r.total_working_hours, true),
                 r.overtime ? `${r.overtime} mins` : '—',
                 r.status || 'Absent',
                 r.punch_source || 'TERAMIND'
@@ -1544,7 +1568,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (histKpiPresent) histKpiPresent.textContent = summary.present || 0;
             if (histKpiLate) histKpiLate.textContent = summary.late || 0;
             if (histKpiAbsent) histKpiAbsent.textContent = summary.absent || 0;
-            if (histKpiHours) histKpiHours.textContent = summary.totalHours ? `${summary.totalHours} hrs` : '0.00 hrs';
+            if (histKpiHours) histKpiHours.textContent = formatHoursMins(summary.totalHours, false);
 
             renderModalAttendanceTable();
         } catch (e) {
@@ -1604,7 +1628,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding:12px 16px; font-weight:800; color:#334155;">${r.date}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_in !== '—' ? '#047857' : '#94a3b8'};">${r.check_in || '—'}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_out !== '—' ? '#0f172a' : '#94a3b8'};">${r.check_out || '—'}</td>
-                <td style="padding:12px 16px; font-weight:700; color:#0f172a;">${r.working_hours ? `${r.working_hours} hrs` : '0.00 hrs'}</td>
+                <td style="padding:12px 16px; font-weight:700; color:#0f172a;">${formatHoursMins(r.working_hours, true)}</td>
                 <td style="padding:12px 16px; font-weight:700; color:${r.overtime ? '#047857' : '#64748b'};">${r.overtime ? `${r.overtime} mins` : '—'}</td>
                 <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
                 <td style="padding:12px 16px; text-align:center;">${srcBadge}</td>
@@ -1741,7 +1765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     r.date,
                     r.check_in || '—',
                     r.check_out || '—',
-                    r.working_hours ? `${r.working_hours} hrs` : '0.00 hrs',
+                    formatHoursMins(r.working_hours, true),
                     r.overtime ? `${r.overtime} mins` : '—',
                     r.status || 'Present',
                     r.source || 'TERAMIND'
