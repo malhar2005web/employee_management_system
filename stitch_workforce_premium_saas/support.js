@@ -69,40 +69,76 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper: Compute SLA & Elapsed Live Timer display
     const getSlaTimerHtml = (ticket) => {
         if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
+            let resDateStr = '';
+            const resTimeRaw = ticket.resolved_at || ticket.updated_at;
+            if (resTimeRaw) {
+                const resD = new Date(resTimeRaw);
+                resDateStr = resD.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
+                             resD.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            }
+
+            let durText = '';
             if (ticket.resolved_at && ticket.created_at) {
-                const diff = Math.max(0, new Date(ticket.resolved_at).getTime() - new Date(ticket.created_at).getTime());
+                const diff = Math.abs(new Date(ticket.resolved_at).getTime() - new Date(ticket.created_at).getTime());
                 const rH = Math.floor(diff / 3600000);
                 const rM = Math.floor((diff % 3600000) / 60000);
-                const durText = rH > 0 ? `${rH}h ${rM}m` : `${rM}m`;
-                return `<span style="color:#16a34a; font-weight:700; font-size:12px;"><i class="fa-solid fa-check-double"></i> Resolved in ${durText}</span>`;
+                const rS = Math.floor((diff % 60000) / 1000);
+                if (rH > 0) {
+                    durText = `${rH}h ${rM}m`;
+                } else if (rM > 0) {
+                    durText = `${rM} min`;
+                } else {
+                    durText = `${Math.max(1, rS)}s`;
+                }
             }
-            return '<span style="color:#16a34a; font-weight:700; font-size:12px;"><i class="fa-solid fa-check-double"></i> Met SLA</span>';
+
+            return `<div style="font-size:12px; line-height:1.4;">
+                <span style="color:#16a34a; font-weight:700; display:flex; align-items:center; gap:4px;">
+                    <i class="fa-solid fa-circle-check"></i> Resolved${durText ? ` (${durText})` : ''}
+                </span>
+                ${resDateStr ? `<span style="font-size:11px; color:#475569; font-weight:600; display:block; margin-top:2px;"><i class="fa-regular fa-calendar-check" style="color:#16a34a;"></i> ${resDateStr}</span>` : ''}
+            </div>`;
         }
 
-        const createdMs = ticket.created_at ? new Date(ticket.created_at).getTime() : Date.now();
-        const elapsedSec = Math.max(0, Math.floor((Date.now() - createdMs) / 1000));
-        const elH = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
-        const elM = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0');
-        const elS = String(elapsedSec % 60).padStart(2, '0');
-        const elapsedFormatted = `${elH}:${elM}:${elS}`;
+        const createdDate = ticket.created_at ? new Date(ticket.created_at) : new Date();
+        const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
+                               createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        let deadlineInfo = '';
-        if (ticket.resolution_deadline) {
-            const diffMs = new Date(ticket.resolution_deadline).getTime() - Date.now();
-            if (diffMs <= 0) {
-                deadlineInfo = '<span style="color:#dc2626; font-weight:800; font-size:11px; margin-left:4px;"><i class="fa-solid fa-skull"></i> Breached</span>';
-            } else {
-                const leftH = Math.floor(diffMs / 3600000);
-                const leftM = Math.floor((diffMs % 3600000) / 60000);
-                deadlineInfo = `<span style="color:var(--text-muted); font-size:11px; margin-left:4px;">(${leftH}h ${leftM}m left)</span>`;
-            }
+        const deadlineMs = ticket.resolution_deadline ? new Date(ticket.resolution_deadline).getTime() : (Date.now() + 4 * 3600000);
+        const remainingMs = deadlineMs - Date.now();
+
+        if (remainingMs > 0) {
+            const rH = String(Math.floor(remainingMs / 3600000)).padStart(2, '0');
+            const rM = String(Math.floor((remainingMs % 3600000) / 60000)).padStart(2, '0');
+            const rS = String(Math.floor((remainingMs % 60000) / 1000)).padStart(2, '0');
+
+            return `<div class="live-ticket-timer" data-deadline="${ticket.resolution_deadline || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+                <div style="font-weight:700; color:#0f766e; display:flex; align-items:center; gap:4px;">
+                    <i class="fa-regular fa-hourglass-half"></i>
+                    <span class="live-timer-text">${rH}:${rM}:${rS}</span>
+                    <span style="font-size:11px; font-weight:600; color:#0f766e;">left</span>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
+                    <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
+                </div>
+            </div>`;
+        } else {
+            const breachMs = Math.abs(remainingMs);
+            const bH = String(Math.floor(breachMs / 3600000)).padStart(2, '0');
+            const bM = String(Math.floor((breachMs % 3600000) / 60000)).padStart(2, '0');
+            const bS = String(Math.floor((breachMs % 60000) / 1000)).padStart(2, '0');
+
+            return `<div class="live-ticket-timer" data-deadline="${ticket.resolution_deadline || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+                <div style="font-weight:800; color:#dc2626; display:flex; align-items:center; gap:4px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span class="live-timer-text">-${bH}:${bM}:${bS}</span>
+                    <span style="font-size:11px; font-weight:800; color:#dc2626; text-transform:uppercase;">Breached</span>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
+                    <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
+                </div>
+            </div>`;
         }
-
-        return `<div class="live-ticket-timer" data-created="${ticket.created_at || ''}" data-deadline="${ticket.resolution_deadline || ''}" data-status="${ticket.status}" style="font-size:12px; font-weight:700; color:#0d9488; display:flex; align-items:center; flex-wrap:wrap;">
-            <i class="fa-regular fa-clock" style="margin-right:4px;"></i>
-            <span class="live-timer-text">${elapsedFormatted}</span>
-            ${deadlineInfo}
-        </div>`;
     };
 
     // Helper to dynamically render project options based on chosen Customer Account
@@ -1018,18 +1054,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 const status = el.getAttribute('data-status');
                 if (status === 'Resolved' || status === 'Closed') return;
 
-                const createdStr = el.getAttribute('data-created');
-                if (!createdStr) return;
+                const deadlineStr = el.getAttribute('data-deadline');
+                if (!deadlineStr) return;
 
-                const createdMs = new Date(createdStr).getTime();
-                const elapsedSec = Math.max(0, Math.floor((Date.now() - createdMs) / 1000));
-                const elH = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
-                const elM = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0');
-                const elS = String(elapsedSec % 60).padStart(2, '0');
-
+                const deadlineMs = new Date(deadlineStr).getTime();
+                const remainingMs = deadlineMs - Date.now();
                 const textEl = el.querySelector('.live-timer-text');
-                if (textEl) {
-                    textEl.textContent = `${elH}:${elM}:${elS}`;
+                if (!textEl) return;
+
+                if (remainingMs > 0) {
+                    const rH = String(Math.floor(remainingMs / 3600000)).padStart(2, '0');
+                    const rM = String(Math.floor((remainingMs % 3600000) / 60000)).padStart(2, '0');
+                    const rS = String(Math.floor((remainingMs % 60000) / 1000)).padStart(2, '0');
+                    textEl.textContent = `${rH}:${rM}:${rS}`;
+                } else {
+                    const breachMs = Math.abs(remainingMs);
+                    const bH = String(Math.floor(breachMs / 3600000)).padStart(2, '0');
+                    const bM = String(Math.floor((breachMs % 3600000) / 60000)).padStart(2, '0');
+                    const bS = String(Math.floor((breachMs % 60000) / 1000)).padStart(2, '0');
+                    textEl.textContent = `-${bH}:${bM}:${bS}`;
                 }
             });
         }, 1000);
