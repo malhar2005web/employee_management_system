@@ -926,9 +926,12 @@ export function isResolutionKeyword(text) {
 export function isSupportIssueIntent(text) {
     if (!text) return false;
     const lower = String(text).toLowerCase().trim();
-    if (isGreeting(text) || isResolutionKeyword(text)) return false;
+    
+    // Direct keywords for technical issue/bug reporting
     return lower.includes('not working') || 
            lower.includes('button not working') || 
+           lower.includes('login button') || 
+           lower.includes('login issue') || 
            lower.includes('nahi chal raha') || 
            lower.includes('error') || 
            lower.includes('bug') || 
@@ -1206,10 +1209,11 @@ function isGreeting(text) {
         lower.includes('excel') || lower.includes('document') || lower.includes('blueprint') ||
         lower.includes('opt_') || lower.includes('srv_') || lower.includes('req_') ||
         lower.includes('package') || lower.includes('saas') || lower.includes('flutter') || lower.includes('react') ||
-        isResolutionKeyword(text) || isSupportIssueIntent(text)) {
+        lower.includes('issue') || lower.includes('bug') || lower.includes('error') || lower.includes('problem') ||
+        lower.includes('not working') || lower.includes('resolved') || lower.includes('close')) {
         return false;
     }
-    const clean = lower.replace(/[^a-z0-9\s]/g, '');
+    const clean = lower.replace(/[^a-z0-9\s]/g, '').trim();
     const greetings = [
         'hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'namaskar', 'halo', 'yo',
         'good morning', 'good evening', 'good afternoon', 'what services', 'kya services'
