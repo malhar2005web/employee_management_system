@@ -32,10 +32,22 @@ export async function identifyClient(phone) {
 
         if (custRes.rows.length > 0) {
             const customer = custRes.rows[0];
+            let contactName = customer.name;
+            try {
+                let cp = customer.contact_persons;
+                if (typeof cp === 'string') cp = JSON.parse(cp);
+                if (Array.isArray(cp) && cp.length > 0) {
+                    const match = cp.find(c => c.phone && c.phone.includes(last10));
+                    if (match && match.name) contactName = match.name;
+                    else if (cp[0].name) contactName = cp[0].name;
+                }
+            } catch (e) {}
+
             return {
                 type: 'customer',
                 id: customer.id,
                 name: customer.name,
+                contactName: contactName,
                 company: customer.name,
                 industry: customer.industry,
                 projects: customer.projects || []
