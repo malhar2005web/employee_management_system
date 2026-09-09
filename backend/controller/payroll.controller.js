@@ -1,4 +1,5 @@
 import { pool } from '../config/db.js';
+import { getWebPagesApplicationsGrid } from '../services/teramind.service.js';
 
 /**
  * Helper to get days in a given month (YYYY-MM)
@@ -11,6 +12,8 @@ function getDaysInMonth(yearMonth) {
 /**
  * GET /api/v1/payroll/monthly?yearMonth=YYYY-MM
  * Calculates and returns full monthly attendance matrix, salary & deductions matching Book1.xlsx
+ * Resolves attendance using real DB data: Manual HR overrides, Portal Punches, Approved Leaves,
+ * Company Holidays, and Workstation Telemetry Activity (Teramind / SQL Server).
  */
 export async function getMonthlyPayroll(req, res) {
     try {
@@ -26,10 +29,11 @@ export async function getMonthlyPayroll(req, res) {
         const startDate = `${yearMonth}-01`;
         const endDate = `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`;
 
-        // 1. Fetch active employees
+        // 1. Fetch active employees with workstation mappings and salary parameters
         const empRes = await pool.query(`
             SELECT e.id, e.full_name, e.employee_code, 
                    COALESCE(m.computer_name, '—') as computer_name,
+                   m.computer_id,
                    COALESCE(d.name, 'General') as department,
                    COALESCE(des.title, 'Staff') as designation,
                    COALESCE(e.base_salary, 30000.00) as base_salary,
@@ -44,38 +48,173 @@ export async function getMonthlyPayroll(req, res) {
             LEFT JOIN employee_teramind_mapping m ON e.id = m.employee_id
             LEFT JOIN departments d ON e.department_id = d.id
             LEFT JOIN designations des ON e.designation_id = des.id
-            WHERE e.status != 'Terminated' OR e.status IS NULL
+            WHERE (e.status != 'Terminated' AND e.status != 'Inactive') OR e.status IS NULL
             ORDER BY e.id ASC;
         `);
         const employees = empRes.rows;
 
-        // 2. Fetch Attendance Records for this month
+        // 2. Fetch Attendance Records from 'attendance' table
         const attRes = await pool.query(`
             SELECT employee_id, date::text as date_str, status, punch_source, login_time, logout_time, 
-                   total_working_hours, overtime, is_on_break, total_break_seconds
+                   total_working_hours, overtime, is_on_break, total_break_seconds,
+                   manual_check_in, manual_check_out, portal_check_in, portal_check_out, approval_status
             FROM attendance
             WHERE date >= $1 AND date <= $2;
         `, [startDate, endDate]);
         const attendanceMap = new Map(); // key: `${empId}_${date_str}`
-        attRes.rows.forEach(a => attendanceMap.set(`${a.employee_id}_${a.date_str}`, a));
+        attRes.rows.forEach(a => {
+            const dStr = a.date_str.split('T')[0];
+            attendanceMap.set(`${a.employee_id}_${dStr}`, a);
+        });
 
         // 3. Fetch Approved Leaves for this month
-        const leaveRes = await pool.query(`
-            SELECT employee_id, leave_type, start_date::text as s_date, end_date::text as e_date, status
-            FROM leave_requests
-            WHERE status = 'Approved' 
-              AND ((start_date <= $2 AND end_date >= $1));
-        `, [startDate, endDate]);
-        const leaveList = leaveRes.rows;
+        const leaveMap = new Map(); // key: `${empId}_${date_str}`
+        try {
+            const leaveRes = await pool.query(`
+                SELECT lr.employee_id, lr.leave_type, lr.start_date, lr.end_date, lr.status
+                FROM leave_requests lr
+                WHERE lr.status = 'Approved' 
+                  AND NOT (lr.end_date < $1::date OR lr.start_date > $2::date);
+            `, [startDate, endDate]);
 
-        // 4. Fetch any manually saved/overridden payroll records for this month
+            leaveRes.rows.forEach(l => {
+                const s = new Date(l.start_date);
+                const e = new Date(l.end_date);
+                for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+                    const dStr = d.toISOString().split('T')[0];
+                    if (dStr >= startDate && dStr <= endDate) {
+                        leaveMap.set(`${l.employee_id}_${dStr}`, l);
+                    }
+                }
+            });
+        } catch (lErr) {
+            console.warn("Payroll leaves fetch warning:", lErr.message);
+        }
+
+        // 4. Fetch Company Holidays for this month
+        const holidayMap = new Map(); // key: `YYYY-MM-DD`
+        try {
+            const holidayRes = await pool.query(`
+                SELECT date::text as h_date, name, type 
+                FROM holidays 
+                WHERE date >= $1 AND date <= $2;
+            `, [startDate, endDate]);
+            holidayRes.rows.forEach(h => {
+                const dStr = h.h_date.split('T')[0];
+                holidayMap.set(dStr, h);
+            });
+        } catch (hErr) {
+            console.warn("Payroll holidays fetch warning:", hErr.message);
+        }
+
+        // 5. Fetch Workstation Activity Telemetry (Live Teramind / Historical pcs_attendance_sheet / attendance_user_rtp)
+        const compActivityMap = new Map(); // key: `${compKey}_${dateStr}` -> { totalSecs: number, count: number }
+
+        // 5a. Historical SQL Server dataset (Jan-Jul 2026)
+        if (startDate < '2026-08-01') {
+            try {
+                const sheetRes = await pool.query(`
+                    SELECT computer, rep_datetime::date as punch_date, duration
+                    FROM pcs_attendance_sheet
+                    WHERE rep_datetime >= $1::timestamp AND rep_datetime < ($2::timestamp + INTERVAL '1 day')
+                    ORDER BY rep_datetime ASC;
+                `, [startDate, endDate]);
+
+                sheetRes.rows.forEach(r => {
+                    const cName = (r.computer || '').toLowerCase();
+                    const dStr = String(r.punch_date).split('T')[0];
+                    let durSecs = 0;
+                    if (r.duration) {
+                        const parts = String(r.duration).split(':');
+                        if (parts.length >= 3) {
+                            durSecs = (parseInt(parts[0], 10) * 3600) + (parseInt(parts[1], 10) * 60) + parseInt(parts[2], 10);
+                        }
+                    }
+                    if (cName) {
+                        const key = `${cName}_${dStr}`;
+                        const prev = compActivityMap.get(key) || { totalSecs: 0, count: 0 };
+                        compActivityMap.set(key, { totalSecs: prev.totalSecs + durSecs, count: prev.count + 1 });
+                    }
+                });
+            } catch (sErr) {
+                console.warn("Payroll historical pcs_attendance_sheet fetch warning:", sErr.message);
+            }
+        }
+
+        // 5b. Live Teramind API dataset (Aug-Sep 2026+)
+        if (endDate >= '2026-08-01') {
+            const allCompIds = employees.map(e => e.computer_id).filter(Boolean).map(id => parseInt(id, 10));
+            const tmStart = Math.max(
+                Math.floor(new Date(`${startDate}T00:00:00+05:30`).getTime() / 1000),
+                Math.floor(new Date('2026-08-01T00:00:00+05:30').getTime() / 1000)
+            );
+            const tmEnd = Math.floor(new Date(`${endDate}T23:59:59+05:30`).getTime() / 1000);
+
+            try {
+                const gridParams = {
+                    periodStart: String(tmStart),
+                    periodEnd: String(tmEnd),
+                    pageSize: 10000
+                };
+                if (allCompIds.length > 0) gridParams.computers = allCompIds;
+
+                const gridPromise = getWebPagesApplicationsGrid(gridParams);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Teramind grid fetch timeout')), 2500)
+                );
+                const gridRes = await Promise.race([gridPromise, timeoutPromise]);
+                const gridRows = gridRes?.rows || [];
+
+                gridRows.forEach(r => {
+                    const cId = r.computer?.computer_id ? String(r.computer.computer_id) : null;
+                    const cName = (r.computer?.name || '').toLowerCase();
+                    const ts = r.time || (r.timestamp?.timestamp ? r.timestamp.timestamp : null);
+                    const dur = r.duration || 0;
+                    if (!ts) return;
+
+                    const dObj = new Date(ts * 1000);
+                    const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(dObj);
+
+                    if (cId) {
+                        const keyId = `${cId}_${dStr}`;
+                        const prev = compActivityMap.get(keyId) || { totalSecs: 0, count: 0 };
+                        compActivityMap.set(keyId, { totalSecs: prev.totalSecs + dur, count: prev.count + 1 });
+                    }
+                    if (cName) {
+                        const keyName = `${cName}_${dStr}`;
+                        const prev = compActivityMap.get(keyName) || { totalSecs: 0, count: 0 };
+                        compActivityMap.set(keyName, { totalSecs: prev.totalSecs + dur, count: prev.count + 1 });
+                    }
+                });
+            } catch (tmErr) {
+                console.warn("Payroll Teramind grid fetch warning (fallback to DB):", tmErr.message);
+            }
+        }
+
+        // 5c. Check attendance_user_rtp table if available
+        const rtpMap = new Map(); // key: `${empId}_${date_str}`
+        try {
+            const rtpRes = await pool.query(`
+                SELECT employee_id, date_times::text as d_str, is_present, total_seconds, total_hours
+                FROM attendance_user_rtp
+                WHERE date_times >= $1 AND date_times <= $2;
+            `, [startDate, endDate]);
+            rtpRes.rows.forEach(r => {
+                const dStr = r.d_str.split('T')[0];
+                rtpMap.set(`${r.employee_id}_${dStr}`, r);
+            });
+        } catch (rErr) {
+            console.warn("Payroll attendance_user_rtp fetch warning:", rErr.message);
+        }
+
+        // 6. Fetch any manually saved/overridden payroll records for this month
         const savedPayrollRes = await pool.query(`
             SELECT * FROM monthly_payroll_records WHERE year_month = $1;
         `, [yearMonth]);
         const savedPayrollMap = new Map();
         savedPayrollRes.rows.forEach(r => savedPayrollMap.set(r.employee_id, r));
 
-        // 5. Build Monthly Matrix and Financials per Employee
+        // 7. Build Monthly Matrix and Financials per Employee
         const records = [];
         let totalGrossPayroll = 0;
         let totalNetPayroll = 0;
@@ -95,10 +234,14 @@ export async function getMonthlyPayroll(req, res) {
             const ptMiscDeduction = parseFloat(savedRec.pt_misc_deduction ?? emp.pt_misc_deduction ?? 200.00);
             let latePenalty = parseFloat(savedRec.late_hours_deduction ?? 0.00);
 
+            const cId = emp.computer_id ? String(emp.computer_id) : null;
+            const cName = (emp.computer_name || '').toLowerCase();
+
             const dailyMatrix = {};
             let countP = 0;
             let countW = 0;
-            let countH = 0;
+            let countHL = 0;
+            let countH = 0; // Half Day (0.5 Present, 0.5 Absent)
             let countL = 0;
             let countLH = 0;
             let countA = 0;
@@ -110,66 +253,110 @@ export async function getMonthlyPayroll(req, res) {
                 const dateStr = `${yearMonth}-${dayStr}`;
                 const curDateObj = new Date(year, month - 1, d);
                 const dayOfWeek = curDateObj.getDay(); // 0 = Sunday
+                const isFuture = dateStr > todayIST;
 
-                const att = attendanceMap.get(`${emp.id}_${dateStr}`);
+                const dbAtt = attendanceMap.get(`${emp.id}_${dateStr}`);
+                const isLeave = leaveMap.get(`${emp.id}_${dateStr}`);
+                const isHoliday = holidayMap.get(dateStr);
+                const rtp = rtpMap.get(`${emp.id}_${dateStr}`);
 
-                // Check leave
-                const isLeave = leaveList.find(l => 
-                    l.employee_id === emp.id && 
-                    dateStr >= l.s_date && 
-                    dateStr <= l.e_date
-                );
+                // Check telemetry activity
+                let actData = null;
+                if (cId && compActivityMap.has(`${cId}_${dateStr}`)) {
+                    actData = compActivityMap.get(`${cId}_${dateStr}`);
+                } else if (cName && compActivityMap.has(`${cName}_${dateStr}`)) {
+                    actData = compActivityMap.get(`${cName}_${dateStr}`);
+                }
+                const hasTelemetry = actData && (actData.totalSecs > 0 || actData.count > 0);
+                const hasRtpPresent = rtp && (rtp.is_present === 'P' || (rtp.total_seconds && rtp.total_seconds > 0));
 
-                let code = 'A'; // Default if workday and no attendance
+                let code = 'A'; // default
+
+                // 1. Sunday -> Weekly Off
                 if (dayOfWeek === 0) {
-                    code = 'W'; // Sunday = Weekly Off
+                    code = 'W';
                     countW++;
-                } else if (isLeave) {
-                    if (isLeave.leave_type && isLeave.leave_type.toLowerCase().includes('half')) {
+                }
+                // 2. Company Public Holiday -> HL (Paid Holiday)
+                else if (isHoliday) {
+                    code = 'HL';
+                    countHL++;
+                }
+                // 3. Approved Leave
+                else if (isLeave) {
+                    const lType = (isLeave.leave_type || '').toLowerCase();
+                    if (lType.includes('half')) {
                         code = 'LH';
                         countLH++;
-                    } else if (isLeave.leave_type && isLeave.leave_type.toLowerCase().includes('paid')) {
+                    } else if (lType.includes('paid')) {
                         code = 'LP';
                         countLP++;
                     } else {
                         code = 'L';
                         countL++;
                     }
-                } else if (att) {
-                    if (att.status === 'Present' || att.status === 'Auto-Synced') {
-                        code = 'P';
-                        countP++;
-                    } else if (att.status === 'Half Day') {
+                }
+                // 4. Manual HR / Admin Approved Override
+                else if (dbAtt && (dbAtt.manual_check_in || dbAtt.approval_status === 'Approved')) {
+                    if (dbAtt.status === 'Half Day') {
                         code = 'H';
                         countH++;
-                    } else if (att.status === 'Late') {
-                        code = 'P'; // Late login still counts as present, late penalty handles deduction
-                        countP++;
-                    } else if (att.status === 'On Leave') {
+                    } else if (dbAtt.status === 'Absent') {
+                        code = 'A';
+                        countA++;
+                    } else if (dbAtt.status === 'On Leave' || dbAtt.status === 'Leave') {
                         code = 'L';
                         countL++;
                     } else {
-                        code = 'A';
-                        countA++;
+                        code = 'P';
+                        countP++;
                     }
 
-                    if (att.total_working_hours) {
-                        totalWorkedHours += parseFloat(att.total_working_hours) || 0;
+                    if (dbAtt.total_working_hours) {
+                        totalWorkedHours += parseFloat(dbAtt.total_working_hours) || 0;
                     }
-                } else {
-                    // Check if date is in the future
-                    if (dateStr > todayIST) {
-                        code = '—';
+                }
+                // 5. Employee Portal Punch (Web portal login)
+                else if (dbAtt && (dbAtt.portal_check_in || dbAtt.punch_source === 'PORTAL' || (dbAtt.login_time && dbAtt.punch_source !== 'TERAMIND' && dbAtt.punch_source !== 'AUTO'))) {
+                    if (dbAtt.status === 'Half Day') {
+                        code = 'H';
+                        countH++;
                     } else {
-                        code = 'A';
-                        countA++;
+                        code = 'P';
+                        countP++;
                     }
+
+                    if (dbAtt.total_working_hours) {
+                        totalWorkedHours += parseFloat(dbAtt.total_working_hours) || 0;
+                    }
+                }
+                // 6. Workstation Telemetry Activity (Live Teramind / SQL Server / RTP)
+                else if (hasTelemetry || hasRtpPresent) {
+                    code = 'P';
+                    countP++;
+
+                    if (actData && actData.totalSecs > 0) {
+                        totalWorkedHours += (actData.totalSecs / 3600);
+                    } else if (rtp && rtp.total_seconds > 0) {
+                        totalWorkedHours += (rtp.total_seconds / 3600);
+                    } else if (dbAtt && dbAtt.total_working_hours) {
+                        totalWorkedHours += parseFloat(dbAtt.total_working_hours) || 0;
+                    }
+                }
+                // 7. Future Date (Not yet reached) -> Dash (—) (Zero deduction, not absent)
+                else if (isFuture) {
+                    code = '—';
+                }
+                // 8. Past Weekday with zero activity -> Absent
+                else {
+                    code = 'A';
+                    countA++;
                 }
 
                 dailyMatrix[d] = code;
             }
 
-            // Calculations matching Book1.xlsx
+            // Calculations strictly matching Book1.xlsx
             // Column AI: Total Present = COUNTIF(P) + COUNTIF(H)*0.5 + COUNTIF(LH)*0.5
             const presentDays = parseFloat((countP + (countH * 0.5) + (countLH * 0.5)).toFixed(1));
 
@@ -179,8 +366,8 @@ export async function getMonthlyPayroll(req, res) {
             // Column AL: Total Leaves = COUNTIF(L) + COUNTIF(LH)*0.5 - COUNTIF(LP)
             const leaveDays = parseFloat((countL + (countLH * 0.5) - countLP).toFixed(1));
 
-            // Column AV: Month Divisor (30 days standard or actual days)
-            const monthDays = 30; // standard 30-day salary divider from Book1.xlsx $AV$1
+            // Column AV: Month Divisor (30 days standard from Book1.xlsx $AV$1)
+            const monthDays = 30;
             const dailyRate = baseSalary / monthDays;
 
             // Column AW: Absent Amount = (Base Salary / 30) * Absent Days

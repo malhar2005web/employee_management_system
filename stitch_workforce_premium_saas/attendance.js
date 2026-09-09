@@ -2157,9 +2157,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 let badgeColor = '#64748b';
                 if (code === 'P') { badgeBg = '#dcfce7'; badgeColor = '#15803d'; }
                 else if (code === 'W') { badgeBg = '#f8fafc'; badgeColor = '#94a3b8'; }
+                else if (code === 'HL') { badgeBg = '#fef3c7'; badgeColor = '#b45309'; }
                 else if (code === 'H') { badgeBg = '#ffedd5'; badgeColor = '#c2410c'; }
                 else if (code === 'L') { badgeBg = '#e0f2fe'; badgeColor = '#0369a1'; }
                 else if (code === 'LH') { badgeBg = '#f3e8ff'; badgeColor = '#7e22ce'; }
+                else if (code === 'LP') { badgeBg = '#ecfdf5'; badgeColor = '#047857'; }
                 else if (code === 'A') { badgeBg = '#fee2e2'; badgeColor = '#b91c1c'; }
 
                 rowHtml += `
