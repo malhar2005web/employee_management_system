@@ -1066,17 +1066,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateBillingReportKPIs(data) {
-        let totalClients = data.length;
+        let totalClients = (data || []).length;
         let totalPlants = 0;
         let totalTickets = 0;
         let totalHours = 0;
         let totalPayable = 0;
 
-        data.forEach(cust => {
-            totalPlants += (cust.plants || []).length;
-            totalTickets += cust.totalTickets || 0;
-            totalHours += cust.totalHours || 0;
-            totalPayable += cust.totalPayable || 0;
+        (data || []).forEach(cust => {
+            const plants = cust.plants || [];
+            totalPlants += plants.length;
+            totalTickets += parseInt(cust.total_tickets || cust.totalTickets || 0, 10);
+            totalHours += parseFloat(cust.total_hours || cust.totalHours || 0);
+            totalPayable += parseFloat(cust.total_payable || cust.totalPayable || 0);
         });
 
         const kpiClients = document.getElementById('kpi-report-clients');
@@ -1111,6 +1112,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         data.forEach((cust) => {
+            const custId = cust.customer_id || cust.id;
+            const custName = cust.customer_name || cust.name || 'Unnamed Customer';
+            const custRate = parseFloat(cust.billing_rate || cust.billingRate || 1000);
+            const custHours = parseFloat(cust.total_hours || cust.totalHours || 0);
+            const custTickets = parseInt(cust.total_tickets || cust.totalTickets || 0, 10);
+            const custPayable = parseFloat(cust.total_payable || cust.totalPayable || 0);
+            const custIndustry = cust.industry || 'IT / Engineering';
+
             // Status Dot logic
             let statusClass = 'both-inactive';
             let statusTooltip = 'Both Inactive';
@@ -1129,64 +1138,72 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusTooltip = 'Plant Active';
             }
 
-            const plantCount = (cust.plants || []).length;
+            const plants = cust.plants || [];
+            const plantCount = plants.length;
 
             // Level 1: Customer Row
             const custTr = document.createElement('tr');
             custTr.className = 'report-row-cust';
-            custTr.dataset.custId = cust.id;
+            custTr.dataset.custId = custId;
             custTr.style.cursor = 'pointer';
-            custTr.style.background = 'rgba(248, 250, 252, 0.9)';
-            custTr.style.borderBottom = '1.5px solid #e2e8f0';
+            custTr.style.background = 'rgba(248, 250, 252, 0.95)';
+            custTr.style.borderBottom = '1.5px solid #cbd5e1';
             custTr.style.fontWeight = '700';
 
             custTr.innerHTML = `
                 <td style="padding:14px 16px;">
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <i class="fa-solid fa-chevron-right cust-chevron" id="cust-chevron-${cust.id}" style="color:var(--teal-600); width:14px; font-size:13px; transition:transform 0.2s;"></i>
+                        <i class="fa-solid fa-chevron-right cust-chevron" id="cust-chevron-${custId}" style="color:var(--teal-600); width:14px; font-size:13px; transition:transform 0.2s;"></i>
                         <span class="cust-status-dot ${statusClass}" style="animation:none;" title="${statusTooltip}"></span>
-                        <span style="font-size:14.5px; font-weight:800; color:#0f172a;">${escapeHtml(cust.name)}</span>
+                        <span style="font-size:14.5px; font-weight:800; color:#0f172a;">${escapeHtml(custName)}</span>
                     </div>
                 </td>
                 <td style="padding:14px 12px;">
                     <span class="badge" style="background:#e0f2fe; color:#0284c7; font-weight:700; font-size:11.5px; padding:3px 8px; border-radius:6px;">${plantCount} ${plantCount === 1 ? 'Plant' : 'Plants'}</span>
-                    ${cust.industry ? `<span style="font-size:11.5px; color:#64748b; margin-left:6px; font-weight:600;">${escapeHtml(cust.industry)}</span>` : ''}
+                    ${custIndustry ? `<span style="font-size:11.5px; color:#64748b; margin-left:6px; font-weight:600;">${escapeHtml(custIndustry)}</span>` : ''}
                 </td>
                 <td style="padding:14px 12px; text-align:center;">
-                    <span class="badge" style="background:#fef3c7; color:#b45309; font-weight:800; padding:3px 10px; border-radius:12px; font-size:12px;">${cust.totalTickets || 0}</span>
+                    <span class="badge" style="background:#fef3c7; color:#b45309; font-weight:800; padding:3px 10px; border-radius:12px; font-size:12px;">${custTickets}</span>
                 </td>
                 <td style="padding:14px 12px;">
-                    <span style="font-weight:700; color:#0f172a; font-size:13px;"><i class="fa-regular fa-clock" style="color:#0f766e; margin-right:4px;"></i>${(cust.totalHours || 0).toFixed(2)} hrs</span>
+                    <span style="font-weight:700; color:#0f172a; font-size:13px;"><i class="fa-regular fa-clock" style="color:#0f766e; margin-right:4px;"></i>${custHours.toFixed(2)} hrs</span>
                 </td>
                 <td style="padding:14px 12px;">
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="color:#0f766e; font-weight:800; font-size:13px;">₹${Number(cust.billingRate || 1000).toLocaleString('en-IN')}/hr</span>
+                        <span style="color:#0f766e; font-weight:800; font-size:13px;">₹${Number(custRate).toLocaleString('en-IN')}/hr</span>
                         <span style="font-size:10px; color:#64748b; background:#f1f5f9; padding:1px 5px; border-radius:4px; font-weight:600;">Default</span>
                     </div>
                 </td>
                 <td style="padding:14px 16px; text-align:right;">
-                    <span style="font-weight:900; font-size:14px; color:#047857; background:rgba(16,185,129,0.15); padding:4px 10px; border-radius:6px; border:1px solid rgba(16,185,129,0.3); display:inline-block;">₹${Math.round(cust.totalPayable || 0).toLocaleString('en-IN')}</span>
+                    <span style="font-weight:900; font-size:14px; color:#047857; background:rgba(16,185,129,0.15); padding:4px 10px; border-radius:6px; border:1px solid rgba(16,185,129,0.3); display:inline-block;">₹${Math.round(custPayable).toLocaleString('en-IN')}</span>
                 </td>
                 <td style="padding:14px 16px; text-align:center;">
-                    <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('customer', ${cust.id}, '', '${escapeHtml(cust.name)}', ${cust.billingRate || 1000})" title="Edit Default Billing Rate" style="color:#0f766e; background:#f0fdfa; border:1px solid #99f6e4; padding:5px 9px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:700;">
+                    <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('customer', ${custId}, '', '${escapeHtml(custName)}', ${custRate})" title="Edit Default Billing Rate" style="color:#0f766e; background:#f0fdfa; border:1px solid #99f6e4; padding:5px 9px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:700;">
                         <i class="fa-solid fa-pen-to-square"></i> Rate
                     </button>
                 </td>
             `;
 
             custTr.addEventListener('click', () => {
-                window.toggleCustomerRow(cust.id);
+                window.toggleCustomerRow(custId);
             });
 
             tbody.appendChild(custTr);
 
             // Level 2: Plant / Branch Rows
-            (cust.plants || []).forEach((plant, plantIdx) => {
-                const plantKey = `${cust.id}_${plantIdx}`;
-                const projCount = (plant.projects || []).length;
+            plants.forEach((plant, plantIdx) => {
+                const plantKey = `${custId}_${plantIdx}`;
+                const plantName = plant.plant_name || plant.branchName || plant.branch || 'Main Plant';
+                const plantGst = plant.gst_no || plant.gstNo || plant.gst || 'No GST';
+                const plantRate = parseFloat(plant.hourly_rate || plant.billingRate || custRate);
+                const plantHours = parseFloat(plant.total_hours || plant.totalHours || 0);
+                const plantTickets = parseInt(plant.total_tickets || plant.totalTickets || 0, 10);
+                const plantPayable = parseFloat(plant.total_payable || plant.totalPayable || 0);
+                const projects = plant.projects || [];
+                const projCount = projects.length;
 
                 const plantTr = document.createElement('tr');
-                plantTr.className = `report-row-plant cust-child-${cust.id}`;
+                plantTr.className = `report-row-plant cust-child-${custId}`;
                 plantTr.dataset.plantKey = plantKey;
                 plantTr.style.display = 'none';
                 plantTr.style.cursor = 'pointer';
@@ -1198,31 +1215,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="display:flex; align-items:center; gap:8px; padding-left:26px;">
                             <i class="fa-solid fa-chevron-right plant-chevron" id="plant-chevron-${plantKey}" style="color:#0284c7; width:12px; font-size:11px; transition:transform 0.2s;"></i>
                             <i class="fa-solid fa-industry" style="color:#0284c7; font-size:13px;"></i>
-                            <span style="font-size:13.5px; font-weight:700; color:#1e293b;">${escapeHtml(plant.branchName || 'General Plant')}</span>
+                            <span style="font-size:13.5px; font-weight:700; color:#1e293b;">${escapeHtml(plantName)}</span>
                             ${plant.isActivePlant ? '<span style="width:7px; height:7px; border-radius:50%; background:#22c55e; display:inline-block;" title="Active Plant"></span>' : ''}
                         </div>
                     </td>
                     <td style="padding:12px 12px;">
-                        <span style="font-family:monospace; font-size:11.5px; font-weight:600; color:#475569; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #e2e8f0;">${escapeHtml(plant.gstNo || 'No GST')}</span>
+                        <span style="font-family:monospace; font-size:11.5px; font-weight:600; color:#475569; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #e2e8f0;">${escapeHtml(plantGst)}</span>
                         <span style="font-size:11px; color:#64748b; margin-left:4px;">(${projCount} ${projCount === 1 ? 'proj' : 'projs'})</span>
                     </td>
                     <td style="padding:12px 12px; text-align:center;">
-                        <span style="font-weight:700; color:#475569; font-size:12px;">${plant.totalTickets || 0}</span>
+                        <span style="font-weight:700; color:#475569; font-size:12px;">${plantTickets}</span>
                     </td>
                     <td style="padding:12px 12px;">
-                        <span style="font-weight:700; color:#334155; font-size:12.5px;">${(plant.totalHours || 0).toFixed(2)} hrs</span>
+                        <span style="font-weight:700; color:#334155; font-size:12.5px;">${plantHours.toFixed(2)} hrs</span>
                     </td>
                     <td style="padding:12px 12px;">
                         <div style="display:flex; align-items:center; gap:5px;">
-                            <span style="color:#0284c7; font-weight:800; font-size:12.5px;">₹${Number(plant.billingRate || cust.billingRate || 1000).toLocaleString('en-IN')}/hr</span>
+                            <span style="color:#0284c7; font-weight:800; font-size:12.5px;">₹${Number(plantRate).toLocaleString('en-IN')}/hr</span>
                             <span style="font-size:9.5px; color:#64748b; background:#f0f9ff; padding:1px 4px; border-radius:3px; font-weight:600;">Plant</span>
                         </div>
                     </td>
                     <td style="padding:12px 16px; text-align:right;">
-                        <span style="font-weight:800; font-size:13px; color:#0f766e;">₹${Math.round(plant.totalPayable || 0).toLocaleString('en-IN')}</span>
+                        <span style="font-weight:800; font-size:13px; color:#0f766e;">₹${Math.round(plantPayable).toLocaleString('en-IN')}</span>
                     </td>
                     <td style="padding:12px 16px; text-align:center;">
-                        <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('plant', ${cust.id}, '${escapeHtml(plant.branchName)}', '${escapeHtml(cust.name + ' - ' + plant.branchName)}', ${plant.billingRate || cust.billingRate || 1000})" title="Edit Plant Rate" style="color:#0284c7; background:#f0f9ff; border:1px solid #bae6fd; padding:3px 7px; border-radius:5px; font-size:11.5px; cursor:pointer;">
+                        <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('plant', ${custId}, '${escapeHtml(plantName)}', '${escapeHtml(custName + ' - ' + plantName)}', ${plantRate})" title="Edit Plant Rate" style="color:#0284c7; background:#f0f9ff; border:1px solid #bae6fd; padding:3px 7px; border-radius:5px; font-size:11.5px; cursor:pointer;">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
                     </td>
@@ -1235,9 +1252,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.appendChild(plantTr);
 
                 // Level 3: Project Rows
-                (plant.projects || []).forEach(proj => {
-                    const projKey = `${plantKey}_${proj.projectId || 'gen'}`;
-                    const empCount = (proj.employees || []).length;
+                projects.forEach(proj => {
+                    const projId = proj.project_id || proj.projectId || proj.id;
+                    const projKey = `${plantKey}_${projId || 'gen'}`;
+                    const projName = proj.project_name || proj.projectName || proj.name || 'Core Operations';
+                    const projRate = parseFloat(proj.hourly_rate || proj.billingRate || plantRate);
+                    const projHours = parseFloat(proj.total_hours || proj.totalHours || 0);
+                    const projTickets = parseInt(proj.total_tickets || proj.totalTickets || 0, 10);
+                    const projCost = parseFloat(proj.total_cost || proj.totalCost || proj.totalPayable || 0);
+                    const projStatus = proj.status || 'Active';
+                    const employees = proj.employees || [];
+                    const empCount = employees.length;
 
                     const projTr = document.createElement('tr');
                     projTr.className = `report-row-project plant-child-${plantKey}`;
@@ -1252,32 +1277,32 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="display:flex; align-items:center; gap:8px; padding-left:52px;">
                                 <i class="fa-solid fa-chevron-right proj-chevron" id="proj-chevron-${projKey}" style="color:#6366f1; width:11px; font-size:10.5px; transition:transform 0.2s;"></i>
                                 <i class="fa-solid fa-folder-tree" style="color:#6366f1; font-size:12px;"></i>
-                                <span style="font-size:13px; font-weight:700; color:#334155;">${escapeHtml(proj.projectName || 'General Support')}</span>
-                                <span class="badge" style="background:${proj.status === 'Completed' ? '#dcfce7' : '#e0e7ff'}; color:${proj.status === 'Completed' ? '#15803d' : '#4338ca'}; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700;">${escapeHtml(proj.status || 'Active')}</span>
+                                <span style="font-size:13px; font-weight:700; color:#334155;">${escapeHtml(projName)}</span>
+                                <span class="badge" style="background:${projStatus === 'Completed' ? '#dcfce7' : '#e0e7ff'}; color:${projStatus === 'Completed' ? '#15803d' : '#4338ca'}; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700;">${escapeHtml(projStatus)}</span>
                             </div>
                         </td>
                         <td style="padding:10px 12px;">
-                            <span style="font-size:11px; color:#64748b; font-weight:600;">${escapeHtml(proj.projectCode || '-')}</span>
+                            <span style="font-size:11px; color:#64748b; font-weight:600;">${escapeHtml(proj.project_code || proj.projectCode || '-')}</span>
                             <span style="font-size:11px; color:#64748b; margin-left:4px;">(${empCount} ${empCount === 1 ? 'emp' : 'emps'})</span>
                         </td>
                         <td style="padding:10px 12px; text-align:center;">
-                            <span style="font-weight:600; color:#64748b; font-size:11.5px;">${proj.totalTickets || 0}</span>
+                            <span style="font-weight:600; color:#64748b; font-size:11.5px;">${projTickets}</span>
                         </td>
                         <td style="padding:10px 12px;">
-                            <span style="font-weight:600; color:#334155; font-size:12px;">${(proj.totalHours || 0).toFixed(2)} hrs</span>
+                            <span style="font-weight:600; color:#334155; font-size:12px;">${projHours.toFixed(2)} hrs</span>
                         </td>
                         <td style="padding:10px 12px;">
                             <div style="display:flex; align-items:center; gap:5px;">
-                                <span style="color:#6366f1; font-weight:800; font-size:12px;">₹${Number(proj.billingRate || plant.billingRate || 1000).toLocaleString('en-IN')}/hr</span>
+                                <span style="color:#6366f1; font-weight:800; font-size:12px;">₹${Number(projRate).toLocaleString('en-IN')}/hr</span>
                                 <span style="font-size:9px; color:#64748b; background:#eef2ff; padding:1px 4px; border-radius:3px; font-weight:600;">Proj</span>
                             </div>
                         </td>
                         <td style="padding:10px 16px; text-align:right;">
-                            <span style="font-weight:800; font-size:12.5px; color:#334155;">₹${Math.round(proj.totalCost || 0).toLocaleString('en-IN')}</span>
+                            <span style="font-weight:800; font-size:12.5px; color:#334155;">₹${Math.round(projCost).toLocaleString('en-IN')}</span>
                         </td>
                         <td style="padding:10px 16px; text-align:center;">
-                            ${proj.projectId ? `
-                                <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('project', ${proj.projectId}, '', '${escapeHtml(proj.projectName)}', ${proj.billingRate || plant.billingRate || 1000})" title="Edit Project Rate" style="color:#6366f1; background:#eef2ff; border:1px solid #c7d2fe; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
+                            ${projId ? `
+                                <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('project', ${projId}, '', '${escapeHtml(projName)}', ${projRate})" title="Edit Project Rate" style="color:#6366f1; background:#eef2ff; border:1px solid #c7d2fe; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </button>
                             ` : ''}
@@ -1291,48 +1316,56 @@ document.addEventListener('DOMContentLoaded', () => {
                     tbody.appendChild(projTr);
 
                     // Level 4: Employee Rows
-                    (proj.employees || []).forEach(emp => {
+                    employees.forEach(emp => {
+                        const empId = emp.employee_id || emp.employeeId || emp.id;
+                        const empName = emp.employee_name || emp.employeeName || emp.full_name || 'Assigned Staff';
+                        const empCode = emp.employee_code || emp.employeeCode || `EMP-${empId || '000'}`;
+                        const empRate = parseFloat(emp.hourly_rate || emp.hourlyRate || projRate);
+                        const empHours = parseFloat(emp.total_hours || emp.totalHours || emp.hours || 0);
+                        const empCost = parseFloat(emp.total_cost || emp.totalCost || (empHours * empRate));
+                        const tasks = emp.tasks_done || emp.tickets || [];
+                        const taskCount = tasks.length;
+
                         const empTr = document.createElement('tr');
                         empTr.className = `report-row-emp proj-child-${projKey}`;
                         empTr.style.display = 'none';
                         empTr.style.background = '#ffffff';
                         empTr.style.borderBottom = '1px solid #f1f5f9';
 
-                        const initials = getInitials(emp.employeeName);
-                        const ticketCount = (emp.tickets || []).length;
+                        const initials = getInitials(empName);
 
                         empTr.innerHTML = `
                             <td style="padding:9px 16px;">
                                 <div style="padding-left:78px; display:flex; align-items:center; gap:8px;">
                                     <div style="width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg, #0d9488, #0f766e); color:white; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; flex-shrink:0;">${initials}</div>
                                     <div>
-                                        <div style="font-size:12.5px; font-weight:800; color:#0f172a;">${escapeHtml(emp.employeeName)}</div>
-                                        <div style="font-size:10.5px; color:#64748b; font-weight:600;">${escapeHtml(emp.role || 'Staff')}</div>
+                                        <div style="font-size:12.5px; font-weight:800; color:#0f172a;">${escapeHtml(empName)}</div>
+                                        <div style="font-size:10.5px; color:#64748b; font-weight:600;">${escapeHtml(empCode)} • ${escapeHtml(emp.role || 'Staff')}</div>
                                     </div>
                                 </div>
                             </td>
                             <td style="padding:9px 12px;">
-                                <span style="font-size:11px; color:#64748b;">${ticketCount} ${ticketCount === 1 ? 'task/ticket' : 'tasks/tickets'}</span>
+                                <span style="font-size:11px; color:#64748b;">${taskCount} ${taskCount === 1 ? 'task/ticket' : 'tasks/tickets'}</span>
                             </td>
                             <td style="padding:9px 12px; text-align:center;">
-                                <span style="font-weight:600; font-size:11.5px; color:#475569;">${ticketCount}</span>
+                                <span style="font-weight:600; font-size:11.5px; color:#475569;">${taskCount}</span>
                             </td>
                             <td style="padding:9px 12px;">
-                                <span style="font-weight:700; color:#0f172a; font-size:12px;">${(emp.totalHours || 0).toFixed(2)} hrs</span>
+                                <span style="font-weight:700; color:#0f172a; font-size:12px;">${empHours.toFixed(2)} hrs</span>
                             </td>
                             <td style="padding:9px 12px;">
                                 <div style="display:flex; align-items:center; gap:5px;">
-                                    <span style="color:#0d9488; font-weight:800; font-size:12px;">₹${Number(emp.hourlyRate || 1000).toLocaleString('en-IN')}/hr</span>
+                                    <span style="color:#0d9488; font-weight:800; font-size:12px;">₹${Number(empRate).toLocaleString('en-IN')}/hr</span>
                                     <span style="font-size:9px; color:#64748b; background:#f0fdfa; padding:1px 4px; border-radius:3px; font-weight:600;">Emp</span>
                                 </div>
                             </td>
                             <td style="padding:9px 16px; text-align:right;">
-                                <div style="font-weight:800; font-size:12.5px; color:#047857;">₹${Math.round(emp.totalCost || 0).toLocaleString('en-IN')}</div>
-                                <div style="font-size:10px; color:#64748b;">${(emp.totalHours || 0).toFixed(1)}h × ₹${Number(emp.hourlyRate || 1000).toLocaleString('en-IN')}</div>
+                                <div style="font-weight:800; font-size:12.5px; color:#047857;">₹${Math.round(empCost).toLocaleString('en-IN')}</div>
+                                <div style="font-size:10px; color:#64748b;">${empHours.toFixed(1)}h × ₹${Number(empRate).toLocaleString('en-IN')}</div>
                             </td>
                             <td style="padding:9px 16px; text-align:center;">
-                                ${emp.employeeId ? `
-                                    <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('employee', ${emp.employeeId}, '', '${escapeHtml(emp.employeeName)}', ${emp.hourlyRate || 1000})" title="Edit Employee Rate" style="color:#0d9488; background:#f0fdfa; border:1px solid #99f6e4; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
+                                ${empId ? `
+                                    <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('employee', ${empId}, '', '${escapeHtml(empName)}', ${empRate})" title="Edit Employee Rate" style="color:#0d9488; background:#f0fdfa; border:1px solid #99f6e4; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
                                         <i class="fa-solid fa-pen-to-square"></i>
                                     </button>
                                 ` : ''}
@@ -1341,29 +1374,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         tbody.appendChild(empTr);
 
-                        // If employee has specific tickets, render task item rows
-                        if (ticketCount > 0) {
-                            (emp.tickets || []).forEach(ticket => {
+                        // If employee has specific tickets/tasks, render task item rows
+                        if (taskCount > 0) {
+                            tasks.forEach(ticket => {
                                 const taskTr = document.createElement('tr');
                                 taskTr.className = `report-row-emp proj-child-${projKey}`;
                                 taskTr.style.display = 'none';
                                 taskTr.style.background = '#fcfdfe';
                                 taskTr.style.borderBottom = '1px dashed #e2e8f0';
 
-                                const durHours = parseFloat(ticket.duration_hours || 0);
-                                const tRate = parseFloat(emp.hourlyRate || 1000);
-                                const tCost = durHours * tRate;
+                                const tCode = ticket.code || ticket.ticket_code || ticket.ticket_number || 'TASK';
+                                const tTitle = ticket.title || ticket.description || 'Support Task';
+                                const tStatus = ticket.status || 'Completed';
+                                const durHours = parseFloat(ticket.hours || ticket.duration_hours || 0);
+                                const tRate = parseFloat(ticket.rate || empRate);
+                                const tCost = parseFloat(ticket.cost || (durHours * tRate));
 
                                 taskTr.innerHTML = `
                                     <td style="padding:6px 16px;">
                                         <div style="padding-left:106px; display:flex; align-items:center; gap:6px;">
                                             <i class="fa-solid fa-circle-check" style="color:#10b981; font-size:10px;"></i>
-                                            <span style="font-family:monospace; font-size:11px; font-weight:700; color:#0284c7;">${escapeHtml(ticket.ticket_number || '-')}</span>
-                                            <span style="font-size:11.5px; color:#475569; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(ticket.title || '')}">${escapeHtml(ticket.title || 'Support Task')}</span>
+                                            <span style="font-family:monospace; font-size:11px; font-weight:700; color:#0284c7;">${escapeHtml(tCode)}</span>
+                                            <span style="font-size:11.5px; color:#475569; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(tTitle)}">${escapeHtml(tTitle)}</span>
                                         </div>
                                     </td>
                                     <td style="padding:6px 12px;">
-                                        <span style="font-size:10.5px; color:#64748b;">${escapeHtml(ticket.status || 'Resolved')}</span>
+                                        <span style="font-size:10.5px; color:#64748b;">${escapeHtml(tStatus)}</span>
                                     </td>
                                     <td style="padding:6px 12px; text-align:center;">
                                         <span style="font-size:10.5px; color:#94a3b8;">1</span>
