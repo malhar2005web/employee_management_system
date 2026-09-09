@@ -395,12 +395,13 @@ export const getTicketById = async (req, res) => {
             SELECT 
                 st.*,
                 e.full_name AS assigned_to_name,
-                e.role AS assigned_to_role,
+                COALESCE(u.role, 'Staff') AS assigned_to_role,
                 cb.full_name AS completed_by_name,
                 dep.title AS depends_on_title,
                 dep.status AS depends_on_status
             FROM ticket_subtasks st
             LEFT JOIN employees e ON st.assigned_to = e.id
+            LEFT JOIN users u ON e.user_id = u.id
             LEFT JOIN employees cb ON st.completed_by = cb.id
             LEFT JOIN ticket_subtasks dep ON st.depends_on_subtask_id = dep.id
             WHERE st.ticket_id = $1
@@ -1162,12 +1163,13 @@ export const getSubtasksByTicketId = async (req, res) => {
             SELECT 
                 st.*,
                 e.full_name AS assigned_to_name,
-                e.role AS assigned_to_role,
+                COALESCE(u.role, 'Staff') AS assigned_to_role,
                 cb.full_name AS completed_by_name,
                 dep.title AS depends_on_title,
                 dep.status AS depends_on_status
             FROM ticket_subtasks st
             LEFT JOIN employees e ON st.assigned_to = e.id
+            LEFT JOIN users u ON e.user_id = u.id
             LEFT JOIN employees cb ON st.completed_by = cb.id
             LEFT JOIN ticket_subtasks dep ON st.depends_on_subtask_id = dep.id
             WHERE st.ticket_id = $1
