@@ -2216,7 +2216,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="pill-hourly-rate">₹${Number(r.hourly_billing_rate || 1000).toLocaleString('en-IN')}/hr</span>
                 </td>
                 <td style="padding:8px 10px;">
-                    <button type="button" class="btn-payroll-edit-action" onclick="window.openEditPayrollRatesModalByIndex(${idx})" title="Edit Rates & Financials">
+                    <button type="button" class="btn-payroll-edit-action" data-index="${idx}" onclick="event.stopPropagation(); window.openEditPayrollRatesModalByIndex(${idx})" title="Edit Rates & Financials">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
                 </td>
@@ -2234,12 +2234,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const empRecord = list[index];
         if (empRecord) {
             window.openEditPayrollRatesModal(empRecord);
+        } else {
+            console.warn("No empRecord found at index", index);
         }
     };
 
     window.openEditPayrollRatesModal = (empRecord) => {
         const modal = document.getElementById('modal-payroll-rates');
-        if (!modal) return;
+        if (!modal) {
+            console.error("modal-payroll-rates not found in DOM");
+            return;
+        }
         if (!empRecord) return;
 
         const empIdEl = document.getElementById('rate-emp-id');
@@ -2295,18 +2300,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         recalcLive();
+
         modal.style.display = 'flex';
+        modal.style.opacity = '1';
+        modal.style.pointerEvents = 'auto';
+        modal.classList.add('active');
+        document.body.classList.add('modal-open');
+        if (typeof window.openModal === 'function') {
+            window.openModal(modal);
+        }
     };
 
     const closePayrollRatesModal = () => {
         const modal = document.getElementById('modal-payroll-rates');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.style.display = 'none';
+            modal.style.opacity = '0';
+            modal.classList.remove('active');
+        }
+        document.body.classList.remove('modal-open');
     };
 
     const modalCloseBtn = document.getElementById('payroll-rates-modal-close');
     const modalCancelBtn = document.getElementById('payroll-rates-cancel-btn');
     if (modalCloseBtn) modalCloseBtn.addEventListener('click', closePayrollRatesModal);
     if (modalCancelBtn) modalCancelBtn.addEventListener('click', closePayrollRatesModal);
+
+    if (payrollMatrixTbody) {
+        payrollMatrixTbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-payroll-edit-action');
+            if (btn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.index, 10);
+                if (!isNaN(idx)) {
+                    window.openEditPayrollRatesModalByIndex(idx);
+                }
+            }
+        });
+    }
 
     if (payrollRatesForm) {
         payrollRatesForm.addEventListener('submit', async (e) => {
