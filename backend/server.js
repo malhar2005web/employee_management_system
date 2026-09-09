@@ -125,6 +125,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/organization", organizationRoutes);
 app.use("/api/v1/admin/employees", employeeRoutes);
 app.use("/api/v1/admin/customers", customerRoutes);
+app.use("/api/v1/customers", customerRoutes);
 app.use("/api/v1/admin/projects", projectRoutes);
 app.use("/api/v1/admin/tasks", taskRoutes);
 app.use("/api/v1/admin/attendance", attendanceRoutes);

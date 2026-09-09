@@ -1022,7 +1022,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (endDate) params.append('endDate', endDate);
             if (search) params.append('search', search);
 
-            const res = await fetch(`/api/v1/customers/billing-report?${params.toString()}`);
+            const token = localStorage.getItem('token') || '';
+            const headers = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const res = await fetch(`/api/v1/customers/billing-report?${params.toString()}`, {
+                headers,
+                credentials: 'include'
+            });
             const result = await res.json();
 
             if (!res.ok || !result.success) {
@@ -1527,9 +1534,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
+                const token = localStorage.getItem('token') || '';
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
                 const res = await fetch('/api/v1/customers/billing-rate', {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
+                    credentials: 'include',
                     body: JSON.stringify({
                         entityType,
                         entityId: entityId ? parseInt(entityId, 10) : null,
