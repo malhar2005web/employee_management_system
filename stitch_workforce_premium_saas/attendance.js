@@ -39,9 +39,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Inner Attendance Sub-Tabs
     const tabLogs = document.getElementById('tab-logs');
+    const tabPayrollRegister = document.getElementById('tab-payroll-register');
     const tabPcsSummary = document.getElementById('tab-pcs-summary');
     const tabPending = document.getElementById('tab-pending');
     const viewLogs = document.getElementById('view-logs');
+    const viewPayroll = document.getElementById('view-payroll');
     const viewPcsSummary = document.getElementById('view-pcs-summary');
     const viewPending = document.getElementById('view-pending');
     const viewTitle = document.getElementById('table-title') || document.getElementById('view-title');
@@ -49,6 +51,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterPcsMonth = document.getElementById('filter-pcs-month');
     const btnRefreshPcs = document.getElementById('btn-refresh-pcs');
     const pcsSummaryList = document.getElementById('pcs-summary-list');
+
+    // DOM Elements - Monthly Payroll & Pricing
+    const payrollMonthSelect = document.getElementById('payroll-month-select');
+    const btnPayrollPrevMonth = document.getElementById('btn-payroll-prev-month');
+    const btnPayrollCurrentMonth = document.getElementById('btn-payroll-current-month');
+    const btnPayrollNextMonth = document.getElementById('btn-payroll-next-month');
+    const payrollSearchInput = document.getElementById('payroll-search-input');
+    const btnExportPayrollCsv = document.getElementById('btn-export-payroll-csv');
+
+    const payrollKpiGross = document.getElementById('payroll-kpi-gross');
+    const payrollKpiNet = document.getElementById('payroll-kpi-net');
+    const payrollKpiDeductions = document.getElementById('payroll-kpi-deductions');
+    const payrollKpiAvgrate = document.getElementById('payroll-kpi-avgrate');
+
+    const payrollMatrixThead = document.getElementById('payroll-matrix-thead');
+    const payrollMatrixTbody = document.getElementById('payroll-matrix-tbody');
+
+    const modalPayrollRates = document.getElementById('modal-payroll-rates');
+    const payrollRatesModalClose = document.getElementById('payroll-rates-modal-close');
+    const payrollRatesCancelBtn = document.getElementById('payroll-rates-cancel-btn');
+    const payrollRatesForm = document.getElementById('payroll-rates-form');
 
     // DOM Elements - Correction Modal
     const correctionModal = document.getElementById('correction-modal');
@@ -201,13 +224,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabBtnOutEntry) tabBtnOutEntry.addEventListener('click', () => switchMainTab('out-entry'));
     if (tabBtnHolidays) tabBtnHolidays.addEventListener('click', () => switchMainTab('holidays'));
 
-    // Switch Inner Attendance Sub-Tabs (Daily Logs vs Monthly Summary vs Corrections)
+    // Switch Inner Attendance Sub-Tabs (Daily Logs vs Monthly Summary vs Corrections vs Payroll)
     const switchAttendanceTab = (tabName) => {
         if (tabLogs) tabLogs.classList.remove('active');
+        if (tabPayrollRegister) tabPayrollRegister.classList.remove('active');
         if (tabPcsSummary) tabPcsSummary.classList.remove('active');
         if (tabPending) tabPending.classList.remove('active');
 
         if (viewLogs) viewLogs.style.display = 'none';
+        if (viewPayroll) viewPayroll.style.display = 'none';
         if (viewPcsSummary) viewPcsSummary.style.display = 'none';
         if (viewPending) viewPending.style.display = 'none';
         if (btnRunCalc) btnRunCalc.style.display = 'none';
@@ -217,6 +242,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (viewLogs) viewLogs.style.display = 'block';
             if (viewTitle) viewTitle.textContent = 'Daily Check-Ins';
             loadLogs();
+        } else if (tabName === 'payroll') {
+            if (tabPayrollRegister) tabPayrollRegister.classList.add('active');
+            if (viewPayroll) viewPayroll.style.display = 'block';
+            if (viewTitle) viewTitle.textContent = 'Monthly Payroll & Employee Pricing Register';
+            loadMonthlyPayroll();
         } else if (tabName === 'pcs-summary') {
             if (tabPcsSummary) tabPcsSummary.classList.add('active');
             if (viewPcsSummary) viewPcsSummary.style.display = 'block';
@@ -232,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (tabLogs) tabLogs.addEventListener('click', () => switchAttendanceTab('logs'));
+    if (tabPayrollRegister) tabPayrollRegister.addEventListener('click', () => switchAttendanceTab('payroll'));
     if (tabPcsSummary) tabPcsSummary.addEventListener('click', () => switchAttendanceTab('pcs-summary'));
     if (tabPending) tabPending.addEventListener('click', () => switchAttendanceTab('pending'));
 
@@ -2014,6 +2045,312 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        });
+    }
+
+    // =========================================================================
+    // 💼 MONTHLY PAYROLL & PRICING REGISTER (Matching Book1.xlsx Model)
+    // =========================================================================
+    let currentPayrollData = [];
+    let currentPayrollMonth = today.substring(0, 7); // e.g. "2026-09"
+    let currentPayrollDaysInMonth = 30;
+
+    async function loadMonthlyPayroll() {
+        if (!payrollMatrixTbody) return;
+        payrollMatrixTbody.innerHTML = '<tr><td colspan="50" style="text-align:center; padding:36px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--teal-600);"></i><div style="margin-top:10px; font-weight:700; color:#64748b; font-size:13.5px;">Calculating monthly attendance matrix & payroll formulas...</div></td></tr>';
+
+        if (payrollMonthSelect && !payrollMonthSelect.value) {
+            payrollMonthSelect.value = currentPayrollMonth;
+        }
+        const ym = (payrollMonthSelect && payrollMonthSelect.value) ? payrollMonthSelect.value : currentPayrollMonth;
+        currentPayrollMonth = ym;
+
+        try {
+            const resp = await fetch(`/api/v1/payroll/monthly?yearMonth=${ym}`);
+            const resData = await resp.json();
+            if (!resp.ok || !resData.success) {
+                payrollMatrixTbody.innerHTML = `<tr><td colspan="50" style="text-align:center; padding:32px; color:var(--red); font-weight:700;">${resData.message || 'Failed to load payroll records'}</td></tr>`;
+                return;
+            }
+
+            currentPayrollData = resData.data || [];
+            currentPayrollDaysInMonth = resData.daysInMonth || 30;
+            const summary = resData.summary || {};
+
+            if (payrollKpiGross) payrollKpiGross.textContent = `₹${(summary.totalGrossPayroll || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+            if (payrollKpiNet) payrollKpiNet.textContent = `₹${(summary.totalNetPayroll || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+            if (payrollKpiDeductions) payrollKpiDeductions.textContent = `₹${(summary.totalDeductions || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+            if (payrollKpiAvgrate) payrollKpiAvgrate.textContent = `₹${(summary.avgHourlyRate || 1000).toLocaleString('en-IN')}/hr`;
+
+            renderPayrollMatrixTable(currentPayrollDaysInMonth);
+
+        } catch (e) {
+            console.error("Error loading payroll data:", e);
+            payrollMatrixTbody.innerHTML = '<tr><td colspan="50" style="text-align:center; padding:32px; color:var(--red); font-weight:700;">Network error loading payroll records.</td></tr>';
+        }
+    }
+
+    function renderPayrollMatrixTable(daysInMonth = 30) {
+        if (!payrollMatrixThead || !payrollMatrixTbody) return;
+
+        let searchFilter = (payrollSearchInput && payrollSearchInput.value) ? payrollSearchInput.value.toLowerCase().trim() : '';
+        let filteredList = currentPayrollData;
+        if (searchFilter) {
+            filteredList = filteredList.filter(r => 
+                (r.employee_name && r.employee_name.toLowerCase().includes(searchFilter)) ||
+                (r.employee_code && r.employee_code.toLowerCase().includes(searchFilter)) ||
+                (r.department && r.department.toLowerCase().includes(searchFilter))
+            );
+        }
+
+        // Build thead with exact columns from Book1.xlsx
+        let thHtml = `
+            <th style="padding:10px 14px; position:sticky; left:0; background:#0f172a; z-index:4; min-width:180px; text-align:left;">Employee</th>
+            <th style="padding:10px 10px; min-width:105px; background:#1e293b; color:#cbd5e1;">Salary (AO)</th>
+        `;
+        for (let d = 1; d <= daysInMonth; d++) {
+            thHtml += `<th style="padding:8px 2px; min-width:30px; width:30px; font-weight:800; text-align:center;">${d}</th>`;
+        }
+        thHtml += `
+            <th style="padding:10px 8px; min-width:65px; background:#1e293b; color:#4ade80;">Present (AI)</th>
+            <th style="padding:10px 8px; min-width:65px; background:#1e293b; color:#f87171;">Absent (AK)</th>
+            <th style="padding:10px 8px; min-width:65px; background:#1e293b; color:#38bdf8;">Leave (AL)</th>
+            <th style="padding:10px 8px; min-width:80px; background:#1e293b; color:#cbd5e1;">Advance (AP)</th>
+            <th style="padding:10px 8px; min-width:80px; background:#1e293b; color:#cbd5e1;">Loan (AR)</th>
+            <th style="padding:10px 8px; min-width:85px; background:#1e293b; color:#cbd5e1;">Loan Bal (AS)</th>
+            <th style="padding:10px 8px; min-width:85px; background:#1e293b; color:#34d399;">Incentive (AT)</th>
+            <th style="padding:10px 8px; min-width:75px; background:#1e293b; color:#cbd5e1;">Late (AU)</th>
+            <th style="padding:10px 8px; min-width:85px; background:#1e293b; color:#f87171;">AbsAmt (AW)</th>
+            <th style="padding:10px 8px; min-width:75px; background:#1e293b; color:#cbd5e1;">Mobile (AX)</th>
+            <th style="padding:10px 10px; min-width:105px; background:#1e293b; font-weight:800; color:#fbbf24;">Gross Sal (AY)</th>
+            <th style="padding:10px 8px; min-width:75px; background:#1e293b; color:#cbd5e1;">PT/Misc (AZ)</th>
+            <th style="padding:10px 12px; min-width:115px; background:#065f46; color:#a7f3d0; font-weight:800;">Net Salary (BA)</th>
+            <th style="padding:10px 10px; min-width:105px; background:#1e3a8a; color:#bfdbfe; font-weight:800;">Rate (₹/hr)</th>
+            <th style="padding:10px 10px; min-width:70px; background:#1e293b; color:#cbd5e1;">Action</th>
+        `;
+        payrollMatrixThead.innerHTML = thHtml;
+
+        if (filteredList.length === 0) {
+            payrollMatrixTbody.innerHTML = `<tr><td colspan="50" style="text-align:center; padding:32px; color:#94a3b8; font-weight:700;">No employee records found for this period.</td></tr>`;
+            return;
+        }
+
+        payrollMatrixTbody.innerHTML = '';
+        filteredList.forEach((r, idx) => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #e2e8f0';
+            tr.style.background = idx % 2 === 0 ? 'white' : '#f8fafc';
+
+            let rowHtml = `
+                <td style="padding:10px 14px; position:sticky; left:0; background:${idx % 2 === 0 ? 'white' : '#f8fafc'}; z-index:2; text-align:left; border-right:1px solid #e2e8f0;">
+                    <div style="font-weight:800; color:#0f172a; font-size:13px;">${r.employee_name}</div>
+                    <div style="font-size:11px; color:#64748b;">${r.employee_code} • ${r.designation || 'Staff'}</div>
+                </td>
+                <td style="padding:10px 10px; font-weight:800; color:#334155; background:${idx % 2 === 0 ? '#f8fafc' : '#f1f5f9'}; border-right:1px solid #e2e8f0;">
+                    ₹${Number(r.base_salary || 0).toLocaleString('en-IN')}
+                </td>
+            `;
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const code = r.daily_matrix[d] || '—';
+                let badgeBg = '#f1f5f9';
+                let badgeColor = '#64748b';
+                if (code === 'P') { badgeBg = '#dcfce7'; badgeColor = '#15803d'; }
+                else if (code === 'W') { badgeBg = '#f8fafc'; badgeColor = '#94a3b8'; }
+                else if (code === 'H') { badgeBg = '#ffedd5'; badgeColor = '#c2410c'; }
+                else if (code === 'L') { badgeBg = '#e0f2fe'; badgeColor = '#0369a1'; }
+                else if (code === 'LH') { badgeBg = '#f3e8ff'; badgeColor = '#7e22ce'; }
+                else if (code === 'A') { badgeBg = '#fee2e2'; badgeColor = '#b91c1c'; }
+
+                rowHtml += `
+                    <td style="padding:3px 1px; border-right:1px solid #f1f5f9;">
+                        <span style="display:inline-block; width:22px; height:22px; line-height:22px; border-radius:4px; font-size:10.5px; font-weight:800; background:${badgeBg}; color:${badgeColor}; text-align:center;">
+                            ${code}
+                        </span>
+                    </td>
+                `;
+            }
+
+            rowHtml += `
+                <td style="padding:8px; font-weight:800; color:#15803d; background:#f0fdf4;">${r.present_days}</td>
+                <td style="padding:8px; font-weight:800; color:#b91c1c; background:#fef2f2;">${r.absent_days}</td>
+                <td style="padding:8px; font-weight:800; color:#0369a1; background:#f0f9ff;">${r.leave_days}</td>
+                <td style="padding:8px; font-weight:700; color:#475569;">${r.advance_deduction > 0 ? `₹${r.advance_deduction}` : '—'}</td>
+                <td style="padding:8px; font-weight:700; color:#475569;">${r.loan_deduction > 0 ? `₹${r.loan_deduction}` : '—'}</td>
+                <td style="padding:8px; font-weight:600; color:#64748b;">${r.loan_balance > 0 ? `₹${r.loan_balance}` : '—'}</td>
+                <td style="padding:8px; font-weight:700; color:#059669;">${r.incentive_addition > 0 ? `+₹${r.incentive_addition}` : '—'}</td>
+                <td style="padding:8px; font-weight:700; color:#b45309;">${r.late_hours_deduction > 0 ? `₹${r.late_hours_deduction}` : '—'}</td>
+                <td style="padding:8px; font-weight:800; color:#dc2626; background:#fff1f2;">${r.absent_deduction > 0 ? `₹${Number(r.absent_deduction).toLocaleString('en-IN')}` : '₹0'}</td>
+                <td style="padding:8px; font-weight:700; color:#475569;">${r.mobile_deduction > 0 ? `₹${r.mobile_deduction}` : '—'}</td>
+                <td style="padding:8px 10px; font-weight:800; color:#0f172a; background:#fefce8;">₹${Number(r.gross_salary || 0).toLocaleString('en-IN')}</td>
+                <td style="padding:8px; font-weight:700; color:#475569;">${r.pt_misc_deduction > 0 ? `₹${r.pt_misc_deduction}` : '—'}</td>
+                <td style="padding:8px 12px; font-weight:900; color:#065f46; background:#dcfce7; font-size:13px;">₹${Number(r.net_salary || 0).toLocaleString('en-IN')}</td>
+                <td style="padding:8px 10px; font-weight:800; color:#1e40af; background:#eff6ff;">₹${Number(r.hourly_billing_rate || 1000).toLocaleString('en-IN')}/hr</td>
+                <td style="padding:8px 10px;">
+                    <button type="button" class="btn-table-action" onclick='openEditPayrollRatesModal(${JSON.stringify(r)})' title="Edit Rates & Financials" style="color:var(--teal-600); background:#f1f5f9; width:30px; height:30px; border-radius:6px; border:none; cursor:pointer;">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                </td>
+            `;
+
+            tr.innerHTML = rowHtml;
+            payrollMatrixTbody.appendChild(tr);
+        });
+    }
+
+    // Modal Rates Editor
+    window.openEditPayrollRatesModal = (empRecord) => {
+        if (!modalPayrollRates) return;
+        document.getElementById('rate-emp-id').value = empRecord.employee_id;
+        document.getElementById('rate-emp-name').textContent = empRecord.employee_name;
+        document.getElementById('rate-emp-code').textContent = `${empRecord.employee_code} • ${empRecord.designation || 'Staff'}`;
+        document.getElementById('rate-emp-month').textContent = currentPayrollMonth;
+
+        document.getElementById('rate-base-salary').value = empRecord.base_salary || 30000;
+        document.getElementById('rate-hourly-billing').value = empRecord.hourly_billing_rate || 1000;
+        document.getElementById('rate-advance').value = empRecord.advance_deduction || 0;
+        document.getElementById('rate-loan').value = empRecord.loan_deduction || 0;
+        document.getElementById('rate-loan-balance').value = empRecord.loan_balance || 0;
+        document.getElementById('rate-incentive').value = empRecord.incentive_addition || 0;
+        document.getElementById('rate-mobile').value = empRecord.mobile_deduction || 0;
+        document.getElementById('rate-pt-misc').value = empRecord.pt_misc_deduction || 200;
+
+        const recalcLive = () => {
+            const sal = parseFloat(document.getElementById('rate-base-salary').value || 0);
+            const adv = parseFloat(document.getElementById('rate-advance').value || 0);
+            const loan = parseFloat(document.getElementById('rate-loan').value || 0);
+            const inc = parseFloat(document.getElementById('rate-incentive').value || 0);
+            const mob = parseFloat(document.getElementById('rate-mobile').value || 0);
+            const pt = parseFloat(document.getElementById('rate-pt-misc').value || 0);
+            const absDays = empRecord.absent_days || 0;
+            const absAmt = (sal / 30) * absDays;
+
+            const gross = sal - adv - loan;
+            const net = gross + inc - mob - absAmt - pt;
+
+            document.getElementById('preview-gross').textContent = `₹${gross.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+            document.getElementById('preview-net').textContent = `₹${net.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+        };
+
+        ['rate-base-salary', 'rate-advance', 'rate-loan', 'rate-incentive', 'rate-mobile', 'rate-pt-misc'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.oninput = recalcLive;
+        });
+
+        recalcLive();
+        modalPayrollRates.style.display = 'flex';
+    };
+
+    if (payrollRatesModalClose) {
+        payrollRatesModalClose.addEventListener('click', () => {
+            if (modalPayrollRates) modalPayrollRates.style.display = 'none';
+        });
+    }
+
+    if (payrollRatesCancelBtn) {
+        payrollRatesCancelBtn.addEventListener('click', () => {
+            if (modalPayrollRates) modalPayrollRates.style.display = 'none';
+        });
+    }
+
+    if (payrollRatesForm) {
+        payrollRatesForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const empId = document.getElementById('rate-emp-id').value;
+            const payload = {
+                year_month: currentPayrollMonth,
+                base_salary: parseFloat(document.getElementById('rate-base-salary').value || 0),
+                hourly_rate: parseFloat(document.getElementById('rate-hourly-billing').value || 1000),
+                advance_amount: parseFloat(document.getElementById('rate-advance').value || 0),
+                loan_amount: parseFloat(document.getElementById('rate-loan').value || 0),
+                loan_balance: parseFloat(document.getElementById('rate-loan-balance').value || 0),
+                incentive_amount: parseFloat(document.getElementById('rate-incentive').value || 0),
+                mobile_deduction: parseFloat(document.getElementById('rate-mobile').value || 0),
+                pt_misc_deduction: parseFloat(document.getElementById('rate-pt-misc').value || 0)
+            };
+
+            const submitBtn = document.getElementById('payroll-rates-save-btn');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            }
+
+            try {
+                const resp = await fetch(`/api/v1/payroll/employee/${empId}/rates`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const resData = await resp.json();
+
+                if (resp.ok && resData.success) {
+                    if (modalPayrollRates) modalPayrollRates.style.display = 'none';
+                    if (typeof showToast === 'function') {
+                        showToast("✅ Employee salary & billing rates updated successfully!", "success");
+                    } else {
+                        alert("Employee salary & billing rates updated successfully!");
+                    }
+                    loadMonthlyPayroll();
+                } else {
+                    alert(resData.message || "Failed to update employee rates");
+                }
+            } catch (err) {
+                console.error("Error saving rates:", err);
+                alert("Network error updating employee rates");
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save & Apply Pricing';
+                }
+            }
+        });
+    }
+
+    // Month Select & Navigation
+    if (payrollMonthSelect) {
+        payrollMonthSelect.addEventListener('change', () => {
+            currentPayrollMonth = payrollMonthSelect.value;
+            loadMonthlyPayroll();
+        });
+    }
+
+    if (btnPayrollCurrentMonth) {
+        btnPayrollCurrentMonth.addEventListener('click', () => {
+            currentPayrollMonth = today.substring(0, 7);
+            if (payrollMonthSelect) payrollMonthSelect.value = currentPayrollMonth;
+            loadMonthlyPayroll();
+        });
+    }
+
+    if (btnPayrollPrevMonth) {
+        btnPayrollPrevMonth.addEventListener('click', () => {
+            const [y, m] = currentPayrollMonth.split('-').map(Number);
+            const prevD = new Date(y, m - 2, 1);
+            currentPayrollMonth = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
+            if (payrollMonthSelect) payrollMonthSelect.value = currentPayrollMonth;
+            loadMonthlyPayroll();
+        });
+    }
+
+    if (btnPayrollNextMonth) {
+        btnPayrollNextMonth.addEventListener('click', () => {
+            const [y, m] = currentPayrollMonth.split('-').map(Number);
+            const nextD = new Date(y, m, 1);
+            currentPayrollMonth = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}`;
+            if (payrollMonthSelect) payrollMonthSelect.value = currentPayrollMonth;
+            loadMonthlyPayroll();
+        });
+    }
+
+    if (payrollSearchInput) {
+        payrollSearchInput.addEventListener('input', () => {
+            renderPayrollMatrixTable(currentPayrollDaysInMonth);
+        });
+    }
+
+    if (btnExportPayrollCsv) {
+        btnExportPayrollCsv.addEventListener('click', () => {
+            window.location.href = `/api/v1/payroll/export-csv?yearMonth=${currentPayrollMonth}`;
         });
     }
 

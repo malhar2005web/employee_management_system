@@ -228,10 +228,77 @@
           <div style="display:flex; align-items:center; gap:12px;">
             <div class="tab-group" id="attendance-subtabs">
               <button class="active" id="tab-logs">Daily Logs</button>
+              <button id="tab-payroll-register"><i class="fa-solid fa-file-invoice-dollar"></i> Monthly Payroll &amp; Pricing</button>
               <button id="tab-pcs-summary"><i class="fa-solid fa-chart-pie"></i> Monthly Summary</button>
               <button id="tab-pending">Pending Corrections</button>
             </div>
             <button type="button" class="btn-primary" id="btn-run-calc" style="display:none; padding:7px 14px; font-size:12.5px; border-radius:var(--radius-sm);"><i class="fa-solid fa-bolt"></i> Calculate Attendance</button>
+          </div>
+        </div>
+
+        <!-- Monthly Payroll & Employee Pricing View (Matching Book1.xlsx) -->
+        <div id="view-payroll" style="display:none;">
+          <!-- Payroll Toolbar -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding:12px 16px; background:rgba(255,255,255,0.45); border-radius:12px; border:1px solid rgba(255,255,255,0.6); flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <label for="payroll-month-select" style="font-size:12.5px; font-weight:800; color:var(--teal-900); display:flex; align-items:center; gap:4px;">
+                  <i class="fa-solid fa-calendar-days"></i> Select Month:
+                </label>
+                <input type="month" id="payroll-month-select" style="padding:6px 12px; height:36px; font-size:13px; font-weight:700; border-radius:8px; border:1.5px solid #cbd5e1; background:white; color:#0f172a; outline:none;">
+              </div>
+              <button type="button" class="btn" id="btn-payroll-prev-month" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 10px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+              <button type="button" class="btn" id="btn-payroll-current-month" style="background:var(--teal-900); color:white; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;">Current Month</button>
+              <button type="button" class="btn" id="btn-payroll-next-month" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 10px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;">Next <i class="fa-solid fa-chevron-right"></i></button>
+              <div style="position:relative; margin-left:6px;">
+                <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:11px; color:#94a3b8; font-size:12px;"></i>
+                <input type="text" id="payroll-search-input" placeholder="Search employee..." style="padding:6px 10px 6px 30px; height:36px; font-size:12.5px; border-radius:8px; border:1.5px solid #cbd5e1; background:white; width:180px; outline:none;">
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" class="btn-primary" id="btn-export-payroll-csv" style="background:linear-gradient(135deg, #059669, #047857); padding:7px 16px; font-size:12.5px; border-radius:8px; display:inline-flex; align-items:center; gap:6px; font-weight:700; color:white; border:none; cursor:pointer; box-shadow:0 2px 6px rgba(5,150,105,0.25);">
+                <i class="fa-solid fa-file-excel"></i> Export Book1 Format (.CSV)
+              </button>
+            </div>
+          </div>
+
+          <!-- Payroll Stat KPIs -->
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:14px; margin-bottom:18px;">
+            <div style="background:white; padding:14px 16px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);">
+              <div style="font-size:11.5px; font-weight:700; color:#64748b; text-transform:uppercase;">Gross Salary Budget (AY)</div>
+              <div style="font-size:20px; font-weight:800; color:#0f172a; margin-top:4px;" id="payroll-kpi-gross">₹0</div>
+              <div style="font-size:11px; color:#10b981; font-weight:600; margin-top:2px;">Base CTC - Advance - Loan</div>
+            </div>
+            <div style="background:white; padding:14px 16px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);">
+              <div style="font-size:11.5px; font-weight:700; color:#64748b; text-transform:uppercase;">Total Net Payable (BA)</div>
+              <div style="font-size:20px; font-weight:800; color:#059669; margin-top:4px;" id="payroll-kpi-net">₹0</div>
+              <div style="font-size:11px; color:#64748b; font-weight:600; margin-top:2px;">Post-Absence, PT &amp; Incentives</div>
+            </div>
+            <div style="background:white; padding:14px 16px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);">
+              <div style="font-size:11.5px; font-weight:700; color:#64748b; text-transform:uppercase;">Total Deductions</div>
+              <div style="font-size:20px; font-weight:800; color:#dc2626; margin-top:4px;" id="payroll-kpi-deductions">₹0</div>
+              <div style="font-size:11px; color:#ef4444; font-weight:600; margin-top:2px;">Absent + Advance + Loan + PT</div>
+            </div>
+            <div style="background:white; padding:14px 16px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);">
+              <div style="font-size:11.5px; font-weight:700; color:#64748b; text-transform:uppercase;">Avg Billing Rate</div>
+              <div style="font-size:20px; font-weight:800; color:#2563eb; margin-top:4px;" id="payroll-kpi-avgrate">₹1,000/hr</div>
+              <div style="font-size:11px; color:#3b82f6; font-weight:600; margin-top:2px;">Client Project Billing Rate</div>
+            </div>
+          </div>
+
+          <!-- Interactive Payroll Matrix Table (Full Screen Width / Sticky Header) -->
+          <div style="overflow-x:auto; max-height:600px; border-radius:10px; border:1px solid #e2e8f0; background:white;">
+            <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center; min-width:1800px;" id="table-payroll-matrix">
+              <thead style="position:sticky; top:0; background:#0f172a; color:white; z-index:3;">
+                <tr id="payroll-matrix-thead" style="font-size:11.5px; text-transform:uppercase; letter-spacing:0.5px;">
+                  <!-- Injected via JavaScript based on month days (1..31) -->
+                </tr>
+              </thead>
+              <tbody id="payroll-matrix-tbody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -920,18 +987,107 @@
         <textarea id="holiday-desc" rows="2" placeholder="e.g. Office closed / All branches holiday" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #cbd5e1; box-sizing:border-box; font-size:13.5px;"></textarea>
       </div>
 
-      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
-        <button type="button" class="btn-secondary" id="holiday-cancel-btn" style="padding:8px 16px;">Cancel</button>
-        <button type="submit" class="btn-primary" id="holiday-save-btn" style="padding:8px 18px;"><i class="fa-solid fa-floppy-disk"></i> Save Holiday</button>
+<!-- ================= EDIT EMPLOYEE PRICING & RATES MODAL ================= -->
+<div class="modal-overlay" id="modal-payroll-rates" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.65); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center;">
+  <div class="modal-box" style="background:white; border-radius:14px; width:90%; max-width:620px; box-shadow:0 20px 40px rgba(0,0,0,0.2); overflow:hidden; border:1px solid rgba(255,255,255,0.8);">
+    <div class="modal-header" style="background:linear-gradient(135deg, #0f172a, #1e293b); color:white; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0; font-size:16px; font-weight:800; display:flex; align-items:center; gap:8px;">
+        <i class="fa-solid fa-calculator" style="color:#10b981;"></i> Edit Employee Pricing &amp; Rates
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" id="payroll-rates-modal-close" style="cursor:pointer; font-size:18px; color:#94a3b8;"></i>
+    </div>
+    <form id="payroll-rates-form" style="padding:20px;">
+      <input type="hidden" id="rate-emp-id">
+      
+      <!-- Employee Info Banner -->
+      <div style="background:#f8fafc; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-weight:800; color:#0f172a; font-size:14px;" id="rate-emp-name">Employee Name</div>
+          <div style="font-size:11.5px; color:#64748b;" id="rate-emp-code">EMP-0000 • Staff</div>
+        </div>
+        <div style="text-align:right;">
+          <span style="background:#dcfce7; color:#15803d; font-weight:800; font-size:11px; padding:3px 8px; border-radius:6px;" id="rate-emp-month">2026-09</span>
+        </div>
+      </div>
+
+      <!-- Core Salary & Hourly Billing Rate Grid -->
+      <div class="grid-two-col" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:12px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">
+            Base Monthly CTC / Salary (AO) <span style="color:#ef4444;">*</span>
+          </label>
+          <div style="position:relative;">
+            <span style="position:absolute; left:10px; top:9px; font-weight:700; color:#64748b;">₹</span>
+            <input type="number" id="rate-base-salary" min="0" step="100" required style="width:100%; padding:8px 10px 8px 24px; border-radius:6px; border:1.5px solid #cbd5e1; font-weight:700; font-size:13.5px; box-sizing:border-box;">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:12px; font-weight:700; color:#2563eb; margin-bottom:4px; display:block;">
+            Customer Project Billing Rate (₹/hr) <span style="color:#ef4444;">*</span>
+          </label>
+          <div style="position:relative;">
+            <span style="position:absolute; left:10px; top:9px; font-weight:700; color:#2563eb;">₹</span>
+            <input type="number" id="rate-hourly-billing" min="0" step="50" required style="width:100%; padding:8px 10px 8px 24px; border-radius:6px; border:1.5px solid #93c5fd; font-weight:700; font-size:13.5px; box-sizing:border-box; color:#1d4ed8;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Deductions & Additions Grid -->
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:14px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:11.5px; font-weight:700; color:#475569; margin-bottom:4px; display:block;">Advance (AP)</label>
+          <input type="number" id="rate-advance" min="0" step="50" style="width:100%; padding:7px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:12.5px; box-sizing:border-box;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:11.5px; font-weight:700; color:#475569; margin-bottom:4px; display:block;">Loan EMI (AR)</label>
+          <input type="number" id="rate-loan" min="0" step="50" style="width:100%; padding:7px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:12.5px; box-sizing:border-box;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:11.5px; font-weight:700; color:#475569; margin-bottom:4px; display:block;">Loan Bal (AS)</label>
+          <input type="number" id="rate-loan-balance" min="0" step="100" style="width:100%; padding:7px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:12.5px; box-sizing:border-box;">
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:14px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:11.5px; font-weight:700; color:#059669; margin-bottom:4px; display:block;">Incentives (AT)</label>
+          <input type="number" id="rate-incentive" min="0" step="50" style="width:100%; padding:7px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:12.5px; box-sizing:border-box; color:#059669; font-weight:700;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:11.5px; font-weight:700; color:#475569; margin-bottom:4px; display:block;">Mobile (AX)</label>
+          <input type="number" id="rate-mobile" min="0" step="50" style="width:100%; padding:7px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:12.5px; box-sizing:border-box;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:11.5px; font-weight:700; color:#475569; margin-bottom:4px; display:block;">PT / Misc (AZ)</label>
+          <input type="number" id="rate-pt-misc" min="0" step="50" style="width:100%; padding:7px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:12.5px; box-sizing:border-box;">
+        </div>
+      </div>
+
+      <!-- Live Calculation Breakdown Box -->
+      <div style="background:#f1f5f9; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:16px; font-size:12px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span style="color:#64748b;">Gross Salary (AO - AP - AR):</span>
+          <strong style="color:#0f172a;" id="preview-gross">₹29,000.00</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:#059669; font-weight:700;">Est. Net Salary (BA):</span>
+          <strong style="color:#059669; font-size:14px;" id="preview-net">₹26,550.00</strong>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+        <button type="button" class="btn-secondary" id="payroll-rates-cancel-btn" style="padding:8px 16px;">Cancel</button>
+        <button type="submit" class="btn-primary" id="payroll-rates-save-btn" style="padding:8px 20px; background:linear-gradient(135deg, #059669, #047857);"><i class="fa-solid fa-floppy-disk"></i> Save &amp; Apply Pricing</button>
       </div>
     </form>
   </div>
 </div>
 
 <script src="auth.js"></script>
-<script src="script.js?v=20260909_3"></script>
+<script src="script.js?v=20260909_4"></script>
 <script src="js/csv-exporter.js"></script>
 <script src="js/csvImportExportModal.js"></script>
-<script src="attendance.js?v=20260909_3"></script>
+<script src="attendance.js?v=20260909_4"></script>
 </body>
 </html>

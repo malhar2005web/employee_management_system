@@ -742,15 +742,18 @@ export async function getCustomerBillingReport(req, res) {
 
 export async function updateBillingRate(req, res) {
     try {
-        const { entity_type, id, branch_name, hourly_rate } = req.body;
-        const rate = parseFloat(hourly_rate);
+        const { entity_type, id, branch_name, hourly_rate, entityType, entityId, branchName, hourlyRate } = req.body;
+        const eType = entity_type || entityType;
+        const eId = id || entityId;
+        const bName = branch_name || branchName;
+        const rate = parseFloat(hourly_rate !== undefined ? hourly_rate : hourlyRate);
 
         if (isNaN(rate) || rate < 0) {
             return res.status(400).json({ success: false, message: "Valid hourly rate is required" });
         }
 
-        if (entity_type === 'plant') {
-            if (!id || !branch_name) {
+        if (eType === 'plant') {
+            if (!eId || !bName) {
                 return res.status(400).json({ success: false, message: "Customer ID and Branch/Plant Name are required" });
             }
             await pool.query(`
@@ -758,13 +761,13 @@ export async function updateBillingRate(req, res) {
                 VALUES ($1, $2, $3, NOW())
                 ON CONFLICT (customer_id, branch_name) DO UPDATE
                 SET hourly_rate = EXCLUDED.hourly_rate, updated_at = NOW();
-            `, [id, branch_name, rate]);
-        } else if (entity_type === 'customer') {
-            await pool.query(`UPDATE customers SET billing_rate = $1, updated_at = NOW() WHERE id = $2;`, [rate, id]);
-        } else if (entity_type === 'project') {
-            await pool.query(`UPDATE projects SET billing_rate = $1, updated_at = NOW() WHERE id = $2;`, [rate, id]);
-        } else if (entity_type === 'employee') {
-            await pool.query(`UPDATE employees SET hourly_rate = $1, updated_at = NOW() WHERE id = $2;`, [rate, id]);
+            `, [eId, bName, rate]);
+        } else if (eType === 'customer') {
+            await pool.query(`UPDATE customers SET billing_rate = $1, updated_at = NOW() WHERE id = $2;`, [rate, eId]);
+        } else if (eType === 'project') {
+            await pool.query(`UPDATE projects SET billing_rate = $1, updated_at = NOW() WHERE id = $2;`, [rate, eId]);
+        } else if (eType === 'employee') {
+            await pool.query(`UPDATE employees SET hourly_rate = $1, updated_at = NOW() WHERE id = $2;`, [rate, eId]);
         } else {
             return res.status(400).json({ success: false, message: "Invalid entity_type" });
         }

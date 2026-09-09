@@ -983,6 +983,53 @@ export async function runMigrations() {
         console.error('❌ Phase 17 Migration Error:', e.message);
     }
 
+    // Phase 18: Employee Pricing, Monthly Payroll Register & Rate Customization (matching Book1.xlsx)
+    try {
+        await client.query(`
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS base_salary NUMERIC(10,2) DEFAULT 30000.00;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC(10,2) DEFAULT 1000.00;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS advance_amount NUMERIC(10,2) DEFAULT 0.00;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS loan_amount NUMERIC(10,2) DEFAULT 0.00;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS loan_balance NUMERIC(10,2) DEFAULT 0.00;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS incentive_amount NUMERIC(10,2) DEFAULT 0.00;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS mobile_deduction NUMERIC(10,2) DEFAULT 0.00;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS pt_misc_deduction NUMERIC(10,2) DEFAULT 200.00;
+
+            CREATE TABLE IF NOT EXISTS monthly_payroll_records (
+                id SERIAL PRIMARY KEY,
+                employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                year_month VARCHAR(7) NOT NULL,
+                total_days INT DEFAULT 30,
+                present_days NUMERIC(5,2) DEFAULT 0.00,
+                absent_days NUMERIC(5,2) DEFAULT 0.00,
+                leave_days NUMERIC(5,2) DEFAULT 0.00,
+                base_salary NUMERIC(10,2) DEFAULT 30000.00,
+                absent_deduction NUMERIC(10,2) DEFAULT 0.00,
+                advance_deduction NUMERIC(10,2) DEFAULT 0.00,
+                loan_deduction NUMERIC(10,2) DEFAULT 0.00,
+                loan_balance NUMERIC(10,2) DEFAULT 0.00,
+                incentive_addition NUMERIC(10,2) DEFAULT 0.00,
+                late_hours_deduction NUMERIC(10,2) DEFAULT 0.00,
+                mobile_deduction NUMERIC(10,2) DEFAULT 0.00,
+                pt_misc_deduction NUMERIC(10,2) DEFAULT 200.00,
+                gross_salary NUMERIC(10,2) DEFAULT 0.00,
+                net_salary NUMERIC(10,2) DEFAULT 0.00,
+                hourly_billing_rate NUMERIC(10,2) DEFAULT 1000.00,
+                effective_hourly_cost NUMERIC(10,2) DEFAULT 0.00,
+                total_working_hours NUMERIC(7,2) DEFAULT 0.00,
+                daily_matrix JSONB DEFAULT '{}'::jsonb,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(employee_id, year_month)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_monthly_payroll_ym ON monthly_payroll_records(year_month);
+            CREATE INDEX IF NOT EXISTS idx_monthly_payroll_emp ON monthly_payroll_records(employee_id);
+        `);
+        console.log('✅ Phase 18 Employee Pricing & Monthly Payroll Register tables ensured.');
+    } catch (e) {
+        console.error('❌ Phase 18 Migration Error:', e.message);
+    }
+
     client.release();
     console.log('🎉 All migrations complete.');
 }
