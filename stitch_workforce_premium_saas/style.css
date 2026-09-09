@@ -1015,3 +1015,423 @@ input[type="range"]::-webkit-slider-thumb:hover {
   }
 }
 
+/* ==========================================================================
+   ✨ ULTRA-MODERN MONTHLY PAYROLL & EMPLOYEE PRICING REGISTER STYLES
+   ========================================================================== */
+
+.payroll-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.payroll-kpi-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow: hidden;
+}
+
+.payroll-kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.payroll-kpi-card.kpi-gross::before { background: linear-gradient(90deg, #0d9488, #14b8a6); }
+.payroll-kpi-card.kpi-net::before { background: linear-gradient(90deg, #059669, #10b981); }
+.payroll-kpi-card.kpi-deduct::before { background: linear-gradient(90deg, #e11d48, #f43f5e); }
+.payroll-kpi-card.kpi-rate::before { background: linear-gradient(90deg, #4f46e5, #6366f1); }
+
+.payroll-kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.payroll-kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.payroll-kpi-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.payroll-kpi-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
+.kpi-gross .payroll-kpi-icon { background: rgba(13, 148, 136, 0.12); color: #0d9488; }
+.kpi-net .payroll-kpi-icon { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.kpi-deduct .payroll-kpi-icon { background: rgba(225, 29, 72, 0.12); color: #e11d48; }
+.kpi-rate .payroll-kpi-icon { background: rgba(79, 70, 229, 0.12); color: #4f46e5; }
+
+.payroll-kpi-value {
+  font-size: 24px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  font-feature-settings: 'tnum';
+  margin-bottom: 4px;
+}
+
+.kpi-net .payroll-kpi-value { color: #059669; }
+.kpi-deduct .payroll-kpi-value { color: #e11d48; }
+.kpi-rate .payroll-kpi-value { color: #4f46e5; }
+
+.payroll-kpi-sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Payroll Control Toolbar */
+.payroll-toolbar-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.payroll-month-ctrl {
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 2px 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: border-color 0.2s;
+}
+
+.payroll-month-ctrl:focus-within {
+  border-color: var(--teal-600);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+.payroll-btn-nav {
+  background: transparent;
+  color: #475569;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.payroll-btn-nav:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.payroll-btn-today {
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  color: white !important;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
+  transition: all 0.2s;
+}
+
+.payroll-btn-today:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 10px rgba(13, 148, 136, 0.35);
+}
+
+.payroll-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.payroll-search-box i {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.payroll-search-box input {
+  padding: 8px 12px 8px 34px !important;
+  height: 38px;
+  font-size: 13px !important;
+  font-weight: 600;
+  border-radius: 10px !important;
+  border: 1.5px solid #e2e8f0 !important;
+  background: white !important;
+  color: #0f172a;
+  width: 220px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.payroll-search-box input:focus {
+  border-color: var(--teal-600) !important;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15) !important;
+  width: 260px;
+}
+
+.btn-export-payroll {
+  background: linear-gradient(135deg, #059669, #047857) !important;
+  padding: 9px 18px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  border-radius: 10px !important;
+  color: white !important;
+  border: none !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3) !important;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.btn-export-payroll:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4) !important;
+}
+
+/* Master Payroll Matrix Table Glass Wrapper */
+.payroll-table-wrapper {
+  overflow-x: auto;
+  max-height: 640px;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: white;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.04);
+}
+
+.payroll-table-wrapper::-webkit-scrollbar {
+  height: 9px;
+  width: 9px;
+}
+
+.payroll-table-wrapper::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.payroll-table-wrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.payroll-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+#table-payroll-matrix {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  text-align: center;
+  min-width: 1850px;
+}
+
+#table-payroll-matrix thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #0f172a;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+#table-payroll-matrix thead tr th {
+  padding: 12px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #f1f5f9;
+  border-bottom: 2px solid #334155;
+  white-space: nowrap;
+}
+
+#table-payroll-matrix tbody tr {
+  transition: all 0.2s ease;
+}
+
+#table-payroll-matrix tbody tr:hover {
+  background: #f0fdfa !important;
+}
+
+#table-payroll-matrix tbody tr:hover td.col-sticky-emp {
+  background: #f0fdfa !important;
+}
+
+.col-sticky-emp {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  text-align: left !important;
+  box-shadow: 3px 0 10px rgba(0,0,0,0.03);
+  border-right: 1.5px solid #e2e8f0;
+}
+
+/* Day Matrix Status Badges */
+.matrix-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  transition: transform 0.15s;
+}
+
+.matrix-badge:hover {
+  transform: scale(1.18);
+}
+
+.matrix-badge.status-P {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  box-shadow: 0 1px 2px rgba(22, 163, 74, 0.1);
+}
+
+.matrix-badge.status-A {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  box-shadow: 0 1px 2px rgba(220, 38, 38, 0.1);
+}
+
+.matrix-badge.status-W {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+  font-weight: 700;
+}
+
+.matrix-badge.status-HL {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.matrix-badge.status-L {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.matrix-badge.status-LH {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.matrix-badge.status-LP {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.matrix-badge.status-H {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.matrix-badge.status-empty {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+/* Custom Highlight Amount Pills */
+.pill-net-salary {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  color: #065f46;
+  border: 1.5px solid #a7f3d0;
+  border-radius: 8px;
+  font-weight: 900;
+  font-size: 13.5px;
+  padding: 6px 12px;
+  display: inline-block;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.08);
+}
+
+.pill-hourly-rate {
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  color: #3730a3;
+  border: 1.5px solid #c7d2fe;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 12.5px;
+  padding: 5px 11px;
+  display: inline-block;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.08);
+}
+
+.btn-payroll-edit-action {
+  background: white;
+  color: var(--teal-600);
+  border: 1.5px solid #cbd5e1;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.btn-payroll-edit-action:hover {
+  background: var(--teal-600);
+  color: white;
+  border-color: var(--teal-600);
+  transform: translateY(-1px) scale(1.06);
+  box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25);
+}
+
