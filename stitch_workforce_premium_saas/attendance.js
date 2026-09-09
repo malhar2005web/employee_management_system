@@ -2216,7 +2216,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="pill-hourly-rate">₹${Number(r.hourly_billing_rate || 1000).toLocaleString('en-IN')}/hr</span>
                 </td>
                 <td style="padding:8px 10px;">
-                    <button type="button" class="btn-payroll-edit-action" onclick='openEditPayrollRatesModal(${JSON.stringify(r)})' title="Edit Rates & Financials">
+                    <button type="button" class="btn-payroll-edit-action" onclick="window.openEditPayrollRatesModalByIndex(${idx})" title="Edit Rates & Financials">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
                 </td>
@@ -2225,44 +2225,68 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.innerHTML = rowHtml;
             payrollMatrixTbody.appendChild(tr);
         });
+        window._currentPayrollFilteredList = filteredList;
     }
 
     // Modal Rates Editor
+    window.openEditPayrollRatesModalByIndex = (index) => {
+        const list = window._currentPayrollFilteredList || currentPayrollData || [];
+        const empRecord = list[index];
+        if (empRecord) {
+            window.openEditPayrollRatesModal(empRecord);
+        }
+    };
+
     window.openEditPayrollRatesModal = (empRecord) => {
-        if (!modalPayrollRates) return;
-        document.getElementById('rate-emp-id').value = empRecord.employee_id;
-        document.getElementById('rate-emp-name').textContent = empRecord.employee_name;
-        document.getElementById('rate-emp-code').textContent = `${empRecord.employee_code} • ${empRecord.designation || 'Staff'}`;
-        document.getElementById('rate-emp-month').textContent = currentPayrollMonth;
+        const modal = document.getElementById('modal-payroll-rates');
+        if (!modal) return;
+        if (!empRecord) return;
+
+        const empIdEl = document.getElementById('rate-emp-id');
+        const empNameEl = document.getElementById('rate-emp-name');
+        const empCodeEl = document.getElementById('rate-emp-code');
+        const empMonthEl = document.getElementById('rate-emp-month');
+
+        if (empIdEl) empIdEl.value = empRecord.employee_id;
+        if (empNameEl) empNameEl.textContent = empRecord.employee_name || 'Employee';
+        if (empCodeEl) empCodeEl.textContent = `${empRecord.employee_code || ''} • ${empRecord.designation || 'Staff'}`;
+        if (empMonthEl) empMonthEl.textContent = currentPayrollMonth;
 
         const initials = (empRecord.employee_name || 'EM').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
         const avEl = document.getElementById('rate-emp-avatar');
         if (avEl) avEl.textContent = initials;
 
-        document.getElementById('rate-base-salary').value = empRecord.base_salary || 30000;
-        document.getElementById('rate-hourly-billing').value = empRecord.hourly_billing_rate || 1000;
-        document.getElementById('rate-advance').value = empRecord.advance_deduction || 0;
-        document.getElementById('rate-loan').value = empRecord.loan_deduction || 0;
-        document.getElementById('rate-loan-balance').value = empRecord.loan_balance || 0;
-        document.getElementById('rate-incentive').value = empRecord.incentive_addition || 0;
-        document.getElementById('rate-mobile').value = empRecord.mobile_deduction || 0;
-        document.getElementById('rate-pt-misc').value = empRecord.pt_misc_deduction || 200;
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val;
+        };
+
+        setVal('rate-base-salary', empRecord.base_salary || 30000);
+        setVal('rate-hourly-billing', empRecord.hourly_billing_rate || 1000);
+        setVal('rate-advance', empRecord.advance_deduction || 0);
+        setVal('rate-loan', empRecord.loan_deduction || 0);
+        setVal('rate-loan-balance', empRecord.loan_balance || 0);
+        setVal('rate-incentive', empRecord.incentive_addition || 0);
+        setVal('rate-mobile', empRecord.mobile_deduction || 0);
+        setVal('rate-pt-misc', empRecord.pt_misc_deduction || 200);
 
         const recalcLive = () => {
-            const sal = parseFloat(document.getElementById('rate-base-salary').value || 0);
-            const adv = parseFloat(document.getElementById('rate-advance').value || 0);
-            const loan = parseFloat(document.getElementById('rate-loan').value || 0);
-            const inc = parseFloat(document.getElementById('rate-incentive').value || 0);
-            const mob = parseFloat(document.getElementById('rate-mobile').value || 0);
-            const pt = parseFloat(document.getElementById('rate-pt-misc').value || 0);
+            const sal = parseFloat(document.getElementById('rate-base-salary')?.value || 0);
+            const adv = parseFloat(document.getElementById('rate-advance')?.value || 0);
+            const loan = parseFloat(document.getElementById('rate-loan')?.value || 0);
+            const inc = parseFloat(document.getElementById('rate-incentive')?.value || 0);
+            const mob = parseFloat(document.getElementById('rate-mobile')?.value || 0);
+            const pt = parseFloat(document.getElementById('rate-pt-misc')?.value || 0);
             const absDays = empRecord.absent_days || 0;
             const absAmt = (sal / 30) * absDays;
 
             const gross = sal - adv - loan;
             const net = gross + inc - mob - absAmt - pt;
 
-            document.getElementById('preview-gross').textContent = `₹${gross.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
-            document.getElementById('preview-net').textContent = `₹${net.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+            const pGross = document.getElementById('preview-gross');
+            const pNet = document.getElementById('preview-net');
+            if (pGross) pGross.textContent = `₹${gross.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+            if (pNet) pNet.textContent = `₹${net.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
         };
 
         ['rate-base-salary', 'rate-advance', 'rate-loan', 'rate-incentive', 'rate-mobile', 'rate-pt-misc'].forEach(id => {
@@ -2271,20 +2295,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         recalcLive();
-        modalPayrollRates.style.display = 'flex';
+        modal.style.display = 'flex';
     };
 
-    if (payrollRatesModalClose) {
-        payrollRatesModalClose.addEventListener('click', () => {
-            if (modalPayrollRates) modalPayrollRates.style.display = 'none';
-        });
-    }
+    const closePayrollRatesModal = () => {
+        const modal = document.getElementById('modal-payroll-rates');
+        if (modal) modal.style.display = 'none';
+    };
 
-    if (payrollRatesCancelBtn) {
-        payrollRatesCancelBtn.addEventListener('click', () => {
-            if (modalPayrollRates) modalPayrollRates.style.display = 'none';
-        });
-    }
+    const modalCloseBtn = document.getElementById('payroll-rates-modal-close');
+    const modalCancelBtn = document.getElementById('payroll-rates-cancel-btn');
+    if (modalCloseBtn) modalCloseBtn.addEventListener('click', closePayrollRatesModal);
+    if (modalCancelBtn) modalCancelBtn.addEventListener('click', closePayrollRatesModal);
 
     if (payrollRatesForm) {
         payrollRatesForm.addEventListener('submit', async (e) => {
