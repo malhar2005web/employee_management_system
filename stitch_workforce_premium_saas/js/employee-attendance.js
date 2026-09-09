@@ -164,47 +164,21 @@
         });
     }
 
-    // --- Quick Filter Button Event Handlers ---
-    const btnThisMonth = document.getElementById('btn-quick-this-month');
-    const btnLastMonth = document.getElementById('btn-quick-last-month');
-    const btnAll2026 = document.getElementById('btn-quick-all-2026');
-
-    if (btnThisMonth) {
-        btnThisMonth.addEventListener('click', () => {
-            const d = new Date();
-            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            if (filterMonthEl) filterMonthEl.value = ym;
-            loadAttendanceHistory();
-        });
-    }
-
-    if (btnLastMonth) {
-        btnLastMonth.addEventListener('click', () => {
-            const d = new Date();
-            d.setMonth(d.getMonth() - 1);
-            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            if (filterMonthEl) filterMonthEl.value = ym;
-            loadAttendanceHistory();
-        });
-    }
-
-    if (btnAll2026) {
-        btnAll2026.addEventListener('click', () => {
-            if (filterMonthEl) filterMonthEl.value = '';
-            loadAttendanceHistory('2026');
-        });
-    }
-
     // --- Load Attendance History Logs ---
-    async function loadAttendanceHistory(yearOverride) {
+    async function loadAttendanceHistory(param) {
         const tbody = document.getElementById('attendance-tbody');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:32px;">Loading attendance records...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:32px;"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i>Loading attendance records...</td></tr>';
 
         try {
             let url = '/api/v1/employee/attendance/history';
-            if (yearOverride) {
-                url += `?year=${yearOverride}`;
+            if (typeof param === 'string' && param.includes('=')) {
+                url += `?${param}`;
+            } else if (typeof param === 'string' && param.length === 4) {
+                url += `?year=${param}`;
+            } else if (typeof param === 'string' && param.includes('-')) {
+                const [y, m] = param.split('-');
+                url += `?year=${y}&month=${m}`;
             } else if (filterMonthEl && filterMonthEl.value) {
                 const [y, m] = filterMonthEl.value.split('-');
                 url += `?year=${y}&month=${m}`;
@@ -213,22 +187,22 @@
             const res = await fetch(url, { credentials: 'include' });
             const data = await res.json();
             if (!data.success) {
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);">${data.message || 'Error loading records'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:24px;">${data.message || 'Error loading records'}</td></tr>`;
                 return;
             }
 
-            const logs = data.data;
+            const logs = data.data || [];
 
             // Summary stats for present & late
-            const presentCount = (logs || []).filter(r => r.calculated_status === 'Present' || r.calculated_status === 'Late' || r.status === 'Present').length;
-            const lateCount = (logs || []).filter(r => r.calculated_status === 'Late' || r.is_late_login).length;
+            const presentCount = logs.filter(r => r.calculated_status === 'Present' || r.calculated_status === 'Late' || r.status === 'Present').length;
+            const lateCount = logs.filter(r => r.calculated_status === 'Late' || r.is_late_login).length;
 
             const mPres = document.getElementById('month-present');
             const mLate = document.getElementById('month-late');
             if (mPres) mPres.textContent = presentCount;
             if (mLate) mLate.textContent = lateCount;
 
-            if (!logs || !logs.length) {
+            if (!logs.length) {
                 tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:32px;">No attendance records found.</td></tr>';
                 return;
             }
@@ -283,10 +257,12 @@
                 </tr>`;
             }).join('');
         } catch (e) {
-            console.error(e);
+            console.error("loadAttendanceHistory error:", e);
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:24px;">Failed to load attendance records.</td></tr>`;
         }
     }
 
+    window.loadAttendanceHistory = loadAttendanceHistory;
     const loadHistory = loadAttendanceHistory;
 
     // Quick filter toolbar actions
@@ -312,7 +288,7 @@
     if (filterMonthEl) {
         filterMonthEl.addEventListener('change', () => {
             setButtonActive(null);
-            loadHistory();
+            loadAttendanceHistory(filterMonthEl.value);
         });
     }
 
@@ -322,7 +298,7 @@
             const curM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             if (filterMonthEl) filterMonthEl.value = curM;
             setButtonActive(btnThisMonth);
-            loadHistory(`month=${curM}`);
+            loadAttendanceHistory(`year=${now.getFullYear()}&month=${String(now.getMonth() + 1).padStart(2, '0')}`);
         });
     }
 
@@ -333,7 +309,7 @@
             const prevM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             if (filterMonthEl) filterMonthEl.value = prevM;
             setButtonActive(btnLastMonth);
-            loadHistory(`month=${prevM}`);
+            loadAttendanceHistory(`year=${now.getFullYear()}&month=${String(now.getMonth() + 1).padStart(2, '0')}`);
         });
     }
 
@@ -341,7 +317,7 @@
         btnAll2026.addEventListener('click', () => {
             if (filterMonthEl) filterMonthEl.value = '';
             setButtonActive(btnAll2026);
-            loadHistory('year=2026');
+            loadAttendanceHistory('year=2026');
         });
     }
 
@@ -607,7 +583,24 @@
         setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3000);
     }
 
-    await loadTodayStatus();
-    await loadHistory();
-    loadEmployeeOutEntries();
+    window.loadTodayStatus = loadTodayStatus;
+    window.loadAttendanceHistory = loadAttendanceHistory;
+
+    try {
+        await loadTodayStatus();
+    } catch (e) {
+        console.error("Initial loadTodayStatus error:", e);
+    }
+
+    try {
+        await loadAttendanceHistory();
+    } catch (e) {
+        console.error("Initial loadAttendanceHistory error:", e);
+    }
+
+    try {
+        loadEmployeeOutEntries();
+    } catch (e) {
+        console.error("Initial loadEmployeeOutEntries error:", e);
+    }
 })();

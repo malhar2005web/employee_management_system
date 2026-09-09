@@ -427,15 +427,29 @@ export async function getAttendanceLogs(req, res) {
             startDateStr = startDate;
             endDateStr = endDate;
         } else if (month && month !== 'all') {
-            const cleanMonth = month.replace(/-/g, '').slice(0, 6);
-            const y = parseInt(cleanMonth.slice(0, 4), 10);
-            const m = parseInt(cleanMonth.slice(4, 6), 10);
+            const cleanMonth = String(month).replace(/[^0-9]/g, '');
+            let y = year ? parseInt(String(year).replace(/[^0-9]/g, ''), 10) : new Date().getFullYear();
+            let m = 1;
+            if (cleanMonth.length === 6) {
+                y = parseInt(cleanMonth.slice(0, 4), 10);
+                m = parseInt(cleanMonth.slice(4, 6), 10);
+            } else if (cleanMonth.length <= 2) {
+                m = parseInt(cleanMonth, 10);
+            } else {
+                const now = new Date();
+                y = now.getFullYear();
+                m = now.getMonth() + 1;
+            }
+            if (isNaN(y) || y < 2000 || y > 2100) y = new Date().getFullYear();
+            if (isNaN(m) || m < 1 || m > 12) m = new Date().getMonth() + 1;
+
             startDateStr = `${y}-${String(m).padStart(2, '0')}-01`;
             const daysInM = new Date(y, m, 0).getDate();
             endDateStr = `${y}-${String(m).padStart(2, '0')}-${String(daysInM).padStart(2, '0')}`;
         } else if (year) {
-            startDateStr = `${year}-01-01`;
-            endDateStr = `${year}-12-31`;
+            const cleanYear = parseInt(String(year).replace(/[^0-9]/g, ''), 10) || new Date().getFullYear();
+            startDateStr = `${cleanYear}-01-01`;
+            endDateStr = `${cleanYear}-12-31`;
         } else {
             const now = new Date();
             const y = now.getFullYear();
