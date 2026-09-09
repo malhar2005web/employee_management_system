@@ -106,7 +106,9 @@ export async function getAttendanceLogs(req, res) {
                 if (allCompIds.length > 0) {
                     gridParams.computers = allCompIds;
                 }
-                const gridRes = await getWebPagesApplicationsGrid(gridParams);
+                const gridPromise = getWebPagesApplicationsGrid(gridParams);
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Teramind grid fetch timeout')), 2500));
+                const gridRes = await Promise.race([gridPromise, timeoutPromise]);
                 const gridRows = gridRes?.rows || [];
 
                 gridRows.forEach(r => {
@@ -131,7 +133,7 @@ export async function getAttendanceLogs(req, res) {
                     }
                 });
             } catch (e) {
-                console.warn("getAttendanceLogs Teramind grid fetch warning:", e.message);
+                console.warn("getAttendanceLogs Teramind grid fetch warning (fallback to DB):", e.message);
             }
         }
 
@@ -358,6 +360,63 @@ export async function getAttendanceLogs(req, res) {
                         punch_source: 'AUTO'
                     };
                 }
+
+                // Robust Calculation of Total Login Time (loginHr) & Overtime (OvTHrs)
+                const workingHoursNum = parseFloat(finalRecord.total_working_hours) || 0;
+                let loginHoursNum = 0;
+                let overtimeHoursNum = 0;
+
+                const targetDateObj = new Date(`${targetDateStr}T12:00:00+05:30`);
+                const dayOfWeek = targetDateObj.getDay();
+                const isSunday = (dayOfWeek === 0);
+                const isSaturday = (dayOfWeek === 6);
+
+                if (dbRecord && dbRecord.login_seconds && dbRecord.login_seconds > 0) {
+                    loginHoursNum = dbRecord.login_seconds / 3600;
+                } else if (finalRecord.login_time && finalRecord.logout_time) {
+                    const inD = new Date(finalRecord.login_time);
+                    const outD = new Date(finalRecord.logout_time);
+                    if (!isNaN(inD.getTime()) && !isNaN(outD.getTime()) && outD > inD) {
+                        loginHoursNum = (outD.getTime() - inD.getTime()) / (1000 * 3600);
+                    }
+                } else if (finalRecord.login_time && isToday) {
+                    const inD = new Date(finalRecord.login_time);
+                    if (!isNaN(inD.getTime())) {
+                        loginHoursNum = Math.max(0, (Date.now() - inD.getTime()) / (1000 * 3600));
+                    }
+                }
+                if (loginHoursNum < workingHoursNum) {
+                    loginHoursNum = workingHoursNum;
+                }
+
+                if (dbRecord && dbRecord.overtime_seconds && dbRecord.overtime_seconds > 0) {
+                    overtimeHoursNum = dbRecord.overtime_seconds / 3600;
+                } else if (dbRecord && dbRecord.overtime && typeof dbRecord.overtime === 'number' && dbRecord.overtime > 0) {
+                    overtimeHoursNum = dbRecord.overtime / 60;
+                } else if (finalRecord.overtime && typeof finalRecord.overtime === 'number' && finalRecord.overtime > 0) {
+                    overtimeHoursNum = finalRecord.overtime / 60;
+                } else if (isSunday && workingHoursNum > 0) {
+                    overtimeHoursNum = workingHoursNum;
+                } else if (finalRecord.logout_time) {
+                    const outD = new Date(finalRecord.logout_time);
+                    if (!isNaN(outD.getTime())) {
+                        const outParts = new Intl.DateTimeFormat('en-GB', {
+                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).formatToParts(outD);
+                        const p = {};
+                        outParts.forEach(({ type, value }) => { p[type] = value; });
+                        const outH = parseInt(p.hour, 10);
+                        const outM = parseInt(p.minute, 10);
+                        const cutoffTotalMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
+                        const currentTotalMins = outH * 60 + outM;
+                        if (currentTotalMins > cutoffTotalMins) {
+                            overtimeHoursNum = (currentTotalMins - cutoffTotalMins) / 60;
+                        }
+                    }
+                }
+
+                finalRecord.login_hours = loginHoursNum > 0 ? loginHoursNum.toFixed(2) : '0.00';
+                finalRecord.overtime_hours = overtimeHoursNum > 0 ? overtimeHoursNum.toFixed(2) : '0.00';
 
                 logs.push(finalRecord);
             }
@@ -611,12 +670,14 @@ export async function getEmployeeAttendanceHistory(req, res) {
             const tmEnd = Math.floor(new Date(`${endDateStr}T23:59:59+05:30`).getTime() / 1000);
 
             try {
-                const gridRes = await getWebPagesApplicationsGrid({
+                const gridPromise = getWebPagesApplicationsGrid({
                     computers: [parseInt(emp.computer_id, 10)],
                     periodStart: String(tmStart),
                     periodEnd: String(tmEnd),
                     pageSize: 10000
                 });
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Teramind history fetch timeout')), 2500));
+                const gridRes = await Promise.race([gridPromise, timeoutPromise]);
                 const rows = gridRes?.rows || [];
 
                 const tmDateMap = new Map();
@@ -677,7 +738,7 @@ export async function getEmployeeAttendanceHistory(req, res) {
                     });
                 });
             } catch (tErr) {
-                console.warn("Teramind history fetch error:", tErr.message);
+                console.warn("Teramind history fetch error (fallback to DB):", tErr.message);
             }
         }
 
@@ -753,6 +814,41 @@ export async function getEmployeeAttendanceHistory(req, res) {
 
         let present = 0, late = 0, absent = 0, totalHours = 0;
         sortedLogs.forEach(l => {
+            const wHours = parseFloat(l.working_hours) || 0;
+            let logHrs = 0;
+            let ovtHrs = 0;
+
+            if (l.check_in && l.check_out && l.check_in !== '—' && l.check_out !== '—') {
+                const [inH, inM] = l.check_in.split(':').map(Number);
+                const [outH, outM] = l.check_out.split(':').map(Number);
+                const inMins = inH * 60 + inM;
+                const outMins = outH * 60 + outM;
+                if (outMins > inMins) {
+                    logHrs = (outMins - inMins) / 60;
+                }
+            }
+            if (logHrs < wHours) logHrs = wHours;
+
+            const targetDateObj = new Date(`${l.date}T12:00:00+05:30`);
+            const isSat = targetDateObj.getDay() === 6;
+            const isSun = targetDateObj.getDay() === 0;
+
+            if (isSun && wHours > 0) {
+                ovtHrs = wHours;
+            } else if (l.overtime && typeof l.overtime === 'number' && l.overtime > 0) {
+                ovtHrs = l.overtime / 60;
+            } else if (l.check_out && l.check_out !== '—') {
+                const [outH, outM] = l.check_out.split(':').map(Number);
+                const cutoff = isSat ? (16 * 60 + 30) : (19 * 60);
+                const outTotal = outH * 60 + outM;
+                if (outTotal > cutoff) {
+                    ovtHrs = (outTotal - cutoff) / 60;
+                }
+            }
+
+            l.login_hours = logHrs > 0 ? logHrs.toFixed(2) : '0.00';
+            l.overtime_hours = ovtHrs > 0 ? ovtHrs.toFixed(2) : '0.00';
+
             if (l.status === 'Present') present++;
             else if (l.status === 'Late') late++;
             else if (l.status === 'Absent') absent++;

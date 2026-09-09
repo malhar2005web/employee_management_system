@@ -411,6 +411,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#b45309; background:#fef3c7; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-umbrella-beach"></i> Approved Leave</span></div>`;
                 }
 
+                const loginHours = (log.login_hours && parseFloat(log.login_hours) > 0) ? formatHoursMins(log.login_hours, true) : '—';
+                const ovtHours = (log.overtime_hours && parseFloat(log.overtime_hours) > 0) ? formatHoursMins(log.overtime_hours, true) : (log.overtime ? `${log.overtime} mins` : '—');
+                const workingHours = (log.total_working_hours && parseFloat(log.total_working_hours) > 0) ? formatHoursMins(log.total_working_hours, true) : '—';
+
                 tr.innerHTML = `
                     <td>
                         <div style="font-weight:700; color:var(--text-dark);">${log.full_name || 'Unknown'}</div>
@@ -420,8 +424,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong style="color:#334155;">${log.date || today}</strong></td>
                     <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>
                     <td><strong style="color:${logoutStr !== '—' ? '#0f172a' : '#94a3b8'};">${logoutStr}</strong></td>
-                    <td><strong style="color:#0f172a;">${formatHoursMins(log.total_working_hours, true)}</strong></td>
-                    <td>${log.overtime ? `${log.overtime} mins` : '—'}</td>
+                    <td><strong style="color:#334155;">${loginHours}</strong></td>
+                    <td><strong style="color:${parseFloat(log.overtime_hours || log.overtime || 0) > 0 ? '#b45309' : '#64748b'};">${ovtHours}</strong></td>
+                    <td><strong style="color:#0f172a;">${workingHours}</strong></td>
                     <td><span class="status-pill ${statusClass}" style="${statusBadgeStyle}">${log.status || 'Absent'}</span></td>
                     <td>
                         <div style="display:flex; align-items:center; gap:6px;">
@@ -520,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const sDate = filterStartDate ? filterStartDate.value : today;
             const eDate = filterEndDate ? filterEndDate.value : sDate;
 
-            const headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Total Hours", "Overtime (min)", "Status", "Source"];
+            const headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Total Login Time", "Overtime (OVT)", "Total Working Hours", "Status", "Source"];
             const rows = currentDailyLogsCache.map(r => [
                 r.employee_code || '',
                 r.full_name || '',
@@ -528,8 +533,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 r.date,
                 r.login_time ? (String(r.login_time).includes('T') ? String(r.login_time).split('T')[1].slice(0, 5) : r.login_time) : '—',
                 r.logout_time ? (String(r.logout_time).includes('T') ? String(r.logout_time).split('T')[1].slice(0, 5) : r.logout_time) : '—',
+                formatHoursMins(r.login_hours, true),
+                (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—'),
                 formatHoursMins(r.total_working_hours, true),
-                r.overtime ? `${r.overtime} mins` : '—',
                 r.status || 'Absent',
                 r.punch_source || 'TERAMIND'
             ]);
@@ -1580,13 +1586,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderModalAttendanceTable(filterQuery = '') {
         if (!histTableHead || !histTableBody) return;
         histTableHead.innerHTML = `
-            <th style="padding:12px 16px; white-space:nowrap; width:150px;">Date</th>
-            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Check-In (In Time)</th>
-            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Check-Out (Out Time)</th>
-            <th style="padding:12px 16px; white-space:nowrap; width:150px;">Working Duration</th>
-            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Overtime</th>
-            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:120px;">Status</th>
-            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:150px;">Punch Source</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:130px;">Date</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:120px;">Check-In</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:120px;">Check-Out</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:130px;">Total Login Time</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:130px;">Overtime (OVT)</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:130px;">Working Hours</th>
+            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:110px;">Status</th>
+            <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:130px;">Punch Source</th>
         `;
 
         let list = currentHistoryData;
@@ -1596,7 +1603,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (list.length === 0) {
-            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px; display:block; margin-bottom:8px; color:#94a3b8;"></i>No attendance records found for this period.</td></tr>';
+            histTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px; display:block; margin-bottom:8px; color:#94a3b8;"></i>No attendance records found for this period.</td></tr>';
             return;
         }
 
@@ -1624,12 +1631,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 srcBadge = '<span style="font-size:11px; background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-umbrella-beach"></i> Leave</span>';
             }
 
+            const loginHours = (r.login_hours && parseFloat(r.login_hours) > 0) ? formatHoursMins(r.login_hours, true) : '—';
+            const ovtHours = (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—');
+            const workingHours = (r.working_hours && parseFloat(r.working_hours) > 0) ? formatHoursMins(r.working_hours, true) : '—';
+
             tr.innerHTML = `
                 <td style="padding:12px 16px; font-weight:800; color:#334155;">${r.date}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_in !== '—' ? '#047857' : '#94a3b8'};">${r.check_in || '—'}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_out !== '—' ? '#0f172a' : '#94a3b8'};">${r.check_out || '—'}</td>
-                <td style="padding:12px 16px; font-weight:700; color:#0f172a;">${formatHoursMins(r.working_hours, true)}</td>
-                <td style="padding:12px 16px; font-weight:700; color:${r.overtime ? '#047857' : '#64748b'};">${r.overtime ? `${r.overtime} mins` : '—'}</td>
+                <td style="padding:12px 16px; font-weight:600; color:#334155;">${loginHours}</td>
+                <td style="padding:12px 16px; font-weight:700; color:${parseFloat(r.overtime_hours || r.overtime || 0) > 0 ? '#b45309' : '#64748b'};">${ovtHours}</td>
+                <td style="padding:12px 16px; font-weight:700; color:#0f172a;">${workingHours}</td>
                 <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
                 <td style="padding:12px 16px; text-align:center;">${srcBadge}</td>
             `;
@@ -1757,7 +1769,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let filename = '';
 
             if (currentModalType === 'attendance') {
-                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Total Working Hours", "Overtime (min)", "Status", "Punch Source"];
+                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Total Login Time", "Overtime (OVT)", "Total Working Hours", "Status", "Punch Source"];
                 rows = currentHistoryData.map(r => [
                     r.employee_code || currentEmpCode,
                     r.full_name || currentEmpName,
@@ -1765,8 +1777,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     r.date,
                     r.check_in || '—',
                     r.check_out || '—',
+                    formatHoursMins(r.login_hours, true),
+                    (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—'),
                     formatHoursMins(r.working_hours, true),
-                    r.overtime ? `${r.overtime} mins` : '—',
                     r.status || 'Present',
                     r.source || 'TERAMIND'
                 ]);

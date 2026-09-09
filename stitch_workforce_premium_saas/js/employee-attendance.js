@@ -199,7 +199,7 @@
     async function loadAttendanceHistory(yearOverride) {
         const tbody = document.getElementById('attendance-tbody');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">Loading attendance records...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:32px;">Loading attendance records...</td></tr>';
 
         try {
             let url = '/api/v1/employee/attendance/history';
@@ -213,7 +213,7 @@
             const res = await fetch(url, { credentials: 'include' });
             const data = await res.json();
             if (!data.success) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);">${data.message || 'Error loading records'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);">${data.message || 'Error loading records'}</td></tr>`;
                 return;
             }
 
@@ -229,7 +229,7 @@
             if (mLate) mLate.textContent = lateCount;
 
             if (!logs || !logs.length) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">No attendance records found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:32px;">No attendance records found.</td></tr>';
                 return;
             }
 
@@ -246,6 +246,8 @@
 
                 const loginStr = r.login_time ? new Date(r.login_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
                 const logoutStr = r.logout_time ? new Date(r.logout_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
+                const loginHours = (r.login_hours && parseFloat(r.login_hours) > 0) ? formatHoursMins(r.login_hours, true) : '—';
+                const ovtHours = (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : '—';
                 const hours = (r.total_working_hours && parseFloat(r.total_working_hours) > 0)
                     ? formatHoursMins(r.total_working_hours, true)
                     : '—';
@@ -274,6 +276,8 @@
                     <td>${day}</td>
                     <td style="color:${r.login_time ? 'var(--teal-900)' : 'var(--text-muted)'}; font-weight:${r.login_time ? '700' : 'normal'};">${loginStr}</td>
                     <td style="color:${r.logout_time ? 'var(--teal-900)' : 'var(--text-muted)'}; font-weight:${r.logout_time ? '700' : 'normal'};">${logoutStr}</td>
+                    <td style="font-weight:600; color:#334155;">${loginHours}</td>
+                    <td style="font-weight:700; color:${parseFloat(r.overtime_hours || 0) > 0 ? '#b45309' : 'var(--text-muted)'};">${ovtHours}</td>
                     <td style="font-weight:700; color:var(--teal-900);">${hours}</td>
                     <td>${statusBadge}</td>
                 </tr>`;
@@ -282,6 +286,8 @@
             console.error(e);
         }
     }
+
+    const loadHistory = loadAttendanceHistory;
 
     // Quick filter toolbar actions
     const btnThisMonth = document.getElementById('btn-quick-this-month');

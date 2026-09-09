@@ -84,6 +84,7 @@ router.post("/attendance/break/start", startBreak);
 router.post("/attendance/break/end", endBreak);
 router.post("/attendance/correction", requestCorrection);
 router.get("/attendance/logs", getAttendanceLogs);
+router.get("/attendance/history", getAttendanceLogs);
 
 // Reports
 router.get("/reports", getReports);
