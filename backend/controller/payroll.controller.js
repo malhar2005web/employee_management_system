@@ -647,9 +647,10 @@ export async function exportPayrollCSV(req, res) {
 
             for (let d = 1; d <= 31; d++) {
                 if (d <= daysInMonth) {
-                    row.push(r.daily_matrix[d] || '—');
+                    const val = r.daily_matrix[d];
+                    row.push((!val || val === '—') ? '-' : `"${val}"`);
                 } else {
-                    row.push('—');
+                    row.push('-');
                 }
             }
 
@@ -678,7 +679,7 @@ export async function exportPayrollCSV(req, res) {
             csvRows.push(row.join(','));
         });
 
-        const csvContent = csvRows.join('\r\n');
+        const csvContent = '\uFEFF' + csvRows.join('\r\n');
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="Employee_Payroll_Register_${yearMonth}.csv"`);
         res.status(200).send(csvContent);
