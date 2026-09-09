@@ -521,25 +521,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         </td>
                         <td>${getStatusBadge(t.status)}</td>
                         <td>${assigneeName}</td>
-                        <td>
-                            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                                <button type="button" class="btn-secondary" onclick="window.openTicketWorkspace(${t.id})" style="padding:5px 10px; font-size:12px; font-weight:700;" title="Open Ticket Workspace">
-                                    <i class="fa-solid fa-folder-open" style="color:var(--teal-600);"></i> Open
+                        <td style="white-space:nowrap;">
+                            <div style="display:inline-flex; gap:4px; align-items:center; flex-wrap:nowrap;">
+                                <button type="button" class="btn-secondary" onclick="window.openTicketWorkspace(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Open Ticket Workspace">
+                                    <i class="fa-solid fa-folder-open" style="color:var(--teal-600); font-size:11px;"></i> Open
                                 </button>
                                 ${t.status === 'Open' || t.status === 'Assigned' ? `
-                                <button type="button" class="btn-primary" style="padding:5px 10px; font-size:12px; font-weight:800; background:#0d9488; border-color:#0d9488; display:inline-flex; align-items:center; gap:4px;" onclick="window.startResolvingTicket(${t.id})">
-                                    <i class="fa-solid fa-play"></i> Start
+                                <button type="button" class="btn-primary" style="padding:4px 8px; font-size:11px; font-weight:800; background:#0d9488; border-color:#0d9488; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.startResolvingTicket(${t.id})">
+                                    <i class="fa-solid fa-play" style="font-size:10px;"></i> Start
                                 </button>` : ''}
                                 ${t.status === 'In Progress' ? `
-                                <button type="button" class="btn-primary" style="padding:5px 10px; font-size:12px; font-weight:800; background:#16a34a; border-color:#16a34a; display:inline-flex; align-items:center; gap:4px;" onclick="window.quickResolveTicket(${t.id})">
-                                    <i class="fa-solid fa-circle-check"></i> Resolve
+                                <button type="button" class="btn-primary" style="padding:4px 8px; font-size:11px; font-weight:800; background:#16a34a; border-color:#16a34a; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.quickResolveTicket(${t.id})">
+                                    <i class="fa-solid fa-circle-check" style="font-size:11px;"></i> Resolve
                                 </button>` : ''}
                                 ${t.status === 'Resolved' || t.status === 'Closed' ? `
-                                <button type="button" class="btn-secondary" onclick="window.reopenTicket(${t.id})" style="padding:5px 10px; font-size:12px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); display:inline-flex; align-items:center; gap:4px;" title="Reopen Support Ticket">
-                                    <i class="fa-solid fa-rotate-left"></i> Reopen
+                                <button type="button" class="btn-secondary" onclick="window.reopenTicket(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Reopen Support Ticket">
+                                    <i class="fa-solid fa-rotate-left" style="font-size:10.5px;"></i> Reopen
                                 </button>` : ''}
-                                <button type="button" class="btn-secondary" onclick="window.openEditTicketModal(${t.id})" style="padding:5px 10px; font-size:12px; font-weight:700; background:rgba(217,119,6,0.1); color:#d97706; border:1px solid rgba(217,119,6,0.3);" title="Edit Support Ticket">
-                                    <i class="fa-solid fa-pen-to-square"></i> Edit
+                                <button type="button" class="btn-secondary" onclick="window.openEditTicketModal(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(217,119,6,0.1); color:#d97706; border:1px solid rgba(217,119,6,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Edit Support Ticket">
+                                    <i class="fa-solid fa-pen-to-square" style="font-size:10.5px;"></i> Edit
                                 </button>
                             </div>
                         </td>

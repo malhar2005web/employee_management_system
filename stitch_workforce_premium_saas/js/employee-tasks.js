@@ -608,33 +608,33 @@
             }
 
             let actionButtons = `
-                <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:700;" onclick="window.openTicketWorkspaceModal(${t.id})">
-                    <i class="fa-regular fa-folder-open"></i> Open
+                <button class="btn-secondary" style="padding:4px 8px; font-size:11px; font-weight:700; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.openTicketWorkspaceModal(${t.id})">
+                    <i class="fa-regular fa-folder-open" style="font-size:11px;"></i> Open
                 </button>
             `;
 
             if (t.status === 'Open' || t.status === 'Assigned') {
                 actionButtons += `
-                    <button class="btn-primary" style="padding:5px 12px; font-size:12px; font-weight:800; background:#0d9488; border-color:#0d9488; display:inline-flex; align-items:center; gap:5px;" onclick="window.startResolvingTicket(${t.id})">
-                        <i class="fa-solid fa-play"></i> Start Resolving
+                    <button class="btn-primary" style="padding:4px 8px; font-size:11px; font-weight:800; background:#0d9488; border-color:#0d9488; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.startResolvingTicket(${t.id})">
+                        <i class="fa-solid fa-play" style="font-size:10px;"></i> Start
                     </button>
-                    <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:4px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
-                        <i class="fa-solid fa-share-nodes"></i> Transfer
+                    <button class="btn-secondary" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                        <i class="fa-solid fa-share-nodes" style="font-size:10.5px;"></i> Transfer
                     </button>
                 `;
             } else if (t.status === 'In Progress') {
                 actionButtons += `
-                    <button class="btn-primary" style="padding:5px 12px; font-size:12px; font-weight:800; background:#16a34a; border-color:#16a34a; display:inline-flex; align-items:center; gap:5px;" onclick="window.quickResolveTicket(${t.id})">
-                        <i class="fa-solid fa-circle-check"></i> Resolve
+                    <button class="btn-primary" style="padding:4px 8px; font-size:11px; font-weight:800; background:#16a34a; border-color:#16a34a; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.quickResolveTicket(${t.id})">
+                        <i class="fa-solid fa-circle-check" style="font-size:11px;"></i> Resolve
                     </button>
-                    <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:4px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
-                        <i class="fa-solid fa-share-nodes"></i> Transfer
+                    <button class="btn-secondary" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                        <i class="fa-solid fa-share-nodes" style="font-size:10.5px;"></i> Transfer
                     </button>
                 `;
             } else if (t.status === 'Resolved' || t.status === 'Closed') {
                 actionButtons += `
-                    <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); display:inline-flex; align-items:center; gap:4px;" onclick="window.openReopenTicketModal(${t.id})" title="Reopen & Resume Ticket">
-                        <i class="fa-solid fa-rotate-left"></i> Reopen
+                    <button class="btn-secondary" style="padding:4px 8px; font-size:11px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.openReopenTicketModal(${t.id})" title="Reopen & Resume Ticket">
+                        <i class="fa-solid fa-rotate-left" style="font-size:10.5px;"></i> Reopen
                     </button>
                 `;
             }
@@ -675,8 +675,8 @@
                 <td style="font-size:12px; color:var(--text-dark); font-weight:600;">
                     ${t.reported_by || 'Staff'}
                 </td>
-                <td>
-                    <div style="display:flex; gap:6px; align-items:center;">
+                <td style="white-space:nowrap;">
+                    <div style="display:inline-flex; gap:4px; align-items:center; flex-wrap:nowrap;">
                         ${actionButtons}
                     </div>
                 </td>
