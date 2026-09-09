@@ -610,6 +610,91 @@
   </div>
 </div>
 
+<!-- ============================= MODAL: TRANSFER SUPPORT TICKET ============================= -->
+<div class="modal-overlay" id="modal-ticket-transfer" style="display:none; z-index:9999999;">
+  <div class="modal-card" style="max-width:540px; width:95%; background:rgba(255,255,255,0.96); border-radius:18px; box-shadow:0 16px 48px rgba(0,0,0,0.25);">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid rgba(0,0,0,0.08);">
+      <h3 style="font-size:17px; font-weight:800; color:var(--teal-900); display:flex; align-items:center; gap:8px; margin:0;">
+        <i class="fa-solid fa-share-nodes" style="color:#7c3aed;"></i> Transfer / Share Support Ticket
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-ticket-transfer-modal" style="cursor:pointer; font-size:18px; color:var(--text-muted);"></i>
+    </div>
+    
+    <input type="hidden" id="transfer-ticket-id">
+    
+    <div style="background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.2); border-radius:10px; padding:12px; margin-bottom:16px;">
+      <div style="font-size:11px; font-weight:800; color:#7c3aed; text-transform:uppercase;">Selected Ticket</div>
+      <div id="transfer-ticket-banner-title" style="font-size:13.5px; font-weight:700; color:#1e1b4b; margin-top:2px;">SUP-000000 • Ticket Title</div>
+      <div id="transfer-ticket-banner-sub" style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">Customer &amp; Project</div>
+    </div>
+
+    <form id="form-ticket-transfer">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Transfer To (Colleague / Engineer) *</label>
+        <select id="transfer-ticket-target-emp" class="form-select-clean" required style="width:100%;">
+          <option value="">Select Team Member...</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Transfer Reason / Mode *</label>
+        <select id="transfer-ticket-reason-cat" class="form-select-clean" required style="width:100%;">
+          <option value="Domain Expertise">Domain / Technical Expertise Required</option>
+          <option value="Shift Handover">Shift Handover / Out of Office</option>
+          <option value="Workload Balancing">Workload Balancing / Queue Management</option>
+          <option value="Escalation">Senior Escalation / Tier-2 Support</option>
+          <option value="Collaborative Resolution">Collaborative Resolution / Pair Support</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px;">
+        <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Handover Notes &amp; Current Progress *</label>
+        <textarea id="transfer-ticket-notes" rows="3" class="form-textarea-clean" required placeholder="Explain what was investigated, current reproduction findings, and exact remaining steps..." style="width:100%; font-size:13px;"></textarea>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" class="btn-secondary" id="btn-cancel-ticket-transfer">Cancel</button>
+        <button type="submit" class="btn-primary" id="btn-submit-ticket-transfer" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; display:inline-flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-paper-plane"></i> Confirm &amp; Transfer Ticket
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================= MODAL: REOPEN SUPPORT TICKET ============================= -->
+<div class="modal-overlay" id="modal-ticket-reopen" style="display:none; z-index:9999999;">
+  <div class="modal-card" style="max-width:500px; width:95%; background:rgba(255,255,255,0.96); border-radius:18px; box-shadow:0 16px 48px rgba(0,0,0,0.25);">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid rgba(0,0,0,0.08);">
+      <h3 style="font-size:17px; font-weight:800; color:#ea580c; display:flex; align-items:center; gap:8px; margin:0;">
+        <i class="fa-solid fa-rotate-left"></i> Reopen Support Ticket
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-ticket-reopen-modal" style="cursor:pointer; font-size:18px; color:var(--text-muted);"></i>
+    </div>
+    
+    <input type="hidden" id="reopen-ticket-id">
+    
+    <div style="background:rgba(234,88,12,0.08); border:1px solid rgba(234,88,12,0.2); border-radius:10px; padding:12px; margin-bottom:16px;">
+      <div style="font-size:11px; font-weight:800; color:#ea580c; text-transform:uppercase;">Ticket to Reopen</div>
+      <div id="reopen-ticket-banner-title" style="font-size:13.5px; font-weight:700; color:#7c2d12; margin-top:2px;">SUP-000000 • Ticket Title</div>
+    </div>
+
+    <form id="form-ticket-reopen">
+      <div class="form-group" style="margin-bottom:18px;">
+        <label style="display:block; font-size:12.5px; font-weight:700; margin-bottom:4px; color:var(--text-dark);">Reopening Reason / Customer Feedback *</label>
+        <textarea id="reopen-ticket-reason" rows="3" class="form-textarea-clean" required placeholder="State why this ticket is being reopened (e.g. customer requested changes, additional bug identified, unfinished scope)..." style="width:100%; font-size:13px;"></textarea>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" class="btn-secondary" id="btn-cancel-ticket-reopen">Cancel</button>
+        <button type="submit" class="btn-primary" id="btn-submit-ticket-reopen" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; display:inline-flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-rotate-left"></i> Reopen &amp; Resume Work
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="script.js"></script>
 <script src="js/employee-tasks.js"></script>
 <script src="js/trackingService.js"></script>

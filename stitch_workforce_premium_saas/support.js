@@ -534,6 +534,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <button type="button" class="btn-primary" style="padding:5px 10px; font-size:12px; font-weight:800; background:#16a34a; border-color:#16a34a; display:inline-flex; align-items:center; gap:4px;" onclick="window.quickResolveTicket(${t.id})">
                                     <i class="fa-solid fa-circle-check"></i> Resolve
                                 </button>` : ''}
+                                ${t.status === 'Resolved' || t.status === 'Closed' ? `
+                                <button type="button" class="btn-secondary" onclick="window.reopenTicket(${t.id})" style="padding:5px 10px; font-size:12px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); display:inline-flex; align-items:center; gap:4px;" title="Reopen Support Ticket">
+                                    <i class="fa-solid fa-rotate-left"></i> Reopen
+                                </button>` : ''}
                                 <button type="button" class="btn-secondary" onclick="window.openEditTicketModal(${t.id})" style="padding:5px 10px; font-size:12px; font-weight:700; background:rgba(217,119,6,0.1); color:#d97706; border:1px solid rgba(217,119,6,0.3);" title="Edit Support Ticket">
                                     <i class="fa-solid fa-pen-to-square"></i> Edit
                                 </button>
@@ -940,6 +944,32 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error("Error resolving ticket:", err);
+        }
+    };
+
+    // Reopen Ticket from Admin Desk
+    window.reopenTicket = async function(ticketId) {
+        const reason = prompt("Enter reason for reopening ticket (or customer feedback):", "Further resolution work required.");
+        if (reason === null) return;
+
+        try {
+            const res = await fetch(`/api/v1/support/${ticketId}/reopen`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason || 'Reopened by Admin' })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (typeof showToast === 'function') showToast("Ticket reopened successfully!", "success");
+                if (currentActiveTicketId && String(currentActiveTicketId) === String(ticketId)) {
+                    window.openTicketWorkspace(ticketId);
+                }
+                loadTickets();
+            } else {
+                alert(data.message || "Failed to reopen ticket");
+            }
+        } catch (err) {
+            console.error("Error reopening ticket:", err);
         }
     };
 

@@ -57,9 +57,14 @@ export async function createTicketInboxNotifications({
             targetEmployeeIds.add(10);
         }
 
-        const notifTitle = actionType === 'resolved' 
-            ? `Support Ticket Resolved: ${ticketCode}` 
-            : `Assigned Support Ticket: ${ticketCode}`;
+        let notifTitle = `Assigned Support Ticket: ${ticketCode}`;
+        if (actionType === 'resolved') {
+            notifTitle = `Support Ticket Resolved: ${ticketCode}`;
+        } else if (actionType === 'transferred') {
+            notifTitle = `Support Ticket Transferred to You: ${ticketCode}`;
+        } else if (actionType === 'reopened') {
+            notifTitle = `Support Ticket Reopened: ${ticketCode}`;
+        }
         
         const notifMessage = `Customer: ${customerName}\nProject: ${projectName}\nPriority: ${priority}\n\n${description || title}`;
         const notifLink = `/admin-support.html?ticket_code=${ticketCode}`;
@@ -180,6 +185,12 @@ export async function notifyTicketWhatsApp({
                 if (actionType === 'resolved') {
                     const resolveMsg = `Support Ticket Resolved\n\nTicket: ${ticketCode}\nCustomer: ${customerName}\nProject: ${projectName}\nTurnaround: ${turnaroundTime || 'Completed'}\n\nTicket marked resolved and client notified.`;
                     await sendWhatsAppText(target.phone, resolveMsg);
+                } else if (actionType === 'transferred') {
+                    const transferMsg = `Support Ticket Transferred\n\nTicket: ${ticketCode}\nCustomer: ${customerName}\nProject: ${projectName}\nPriority: ${priority}\nIssue: ${title}\n\nA colleague has transferred this ticket to you for resolution.\nPortal: https://planex.pentasoftconsultancy.com/admin-support.html`;
+                    await sendWhatsAppText(target.phone, transferMsg);
+                } else if (actionType === 'reopened') {
+                    const reopenMsg = `Support Ticket Reopened\n\nTicket: ${ticketCode}\nCustomer: ${customerName}\nProject: ${projectName}\nPriority: ${priority}\nIssue: ${title}\n\nTicket has been reopened for additional resolution work.\nPortal: https://planex.pentasoftconsultancy.com/admin-support.html`;
+                    await sendWhatsAppText(target.phone, reopenMsg);
                 } else {
                     const alertMsg = `Support Ticket Assigned\n\nTicket: ${ticketCode}\nCustomer: ${customerName}\nProject: ${projectName}\nPriority: ${priority}\nIssue: ${title}${attachmentText}\n\nResolution Timer Started.\nPortal: https://planex.pentasoftconsultancy.com/admin-support.html`;
                     await sendWhatsAppText(target.phone, alertMsg);
@@ -936,5 +947,155 @@ export const convertToWorkflow = async (req, res) => {
     } catch (error) {
         console.error('Error converting ticket to workflow:', error);
         return res.status(500).json({ success: false, message: 'Server error converting ticket to workflow' });
+    }
+};
+
+// PUT /api/v1/support/:id/transfer - Transfer / Share Ticket to another employee
+export const transferTicket = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { target_employee_id, reason_category, notes } = req.body;
+
+        if (!target_employee_id) {
+            return res.status(400).json({ success: false, message: 'Target employee is required for handover' });
+        }
+
+        const ticketRes = await pool.query(`
+            SELECT t.*, c.name AS customer_name, e.full_name AS current_assignee_name
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            LEFT JOIN employees e ON t.assigned_to = e.id
+            WHERE t.id = $1
+        `, [id]);
+
+        if (ticketRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Ticket not found' });
+        }
+
+        const ticket = ticketRes.rows[0];
+        const oldAssigneeName = ticket.current_assignee_name || (req.user?.full_name || 'Staff');
+
+        const targetEmpRes = await pool.query(`SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = $1`, [target_employee_id]);
+        if (targetEmpRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Target employee not found' });
+        }
+        const targetEmp = targetEmpRes.rows[0];
+        const newAssigneeName = targetEmp.full_name;
+
+        const newStatus = ticket.status === 'Resolved' || ticket.status === 'Closed' ? 'Assigned' : (ticket.status || 'Assigned');
+
+        // Update ticket assignment and timestamp
+        await pool.query(`
+            UPDATE support_tickets
+            SET assigned_to = $1, status = $2, updated_at = NOW()
+            WHERE id = $3
+        `, [target_employee_id, newStatus, id]);
+
+        const senderName = req.user?.full_name || oldAssigneeName;
+        const reasonCat = reason_category || 'Handover';
+        const handoverNotes = notes || 'Transferred by colleague for resolution.';
+        const historyDetail = `Transferred from ${senderName} to ${newAssigneeName}. Reason: [${reasonCat}] ${handoverNotes}`;
+
+        // 1. Immutable Audit Timeline Entry
+        await pool.query(`
+            INSERT INTO support_ticket_history (ticket_id, performed_by, action, previous_status, new_status, details)
+            VALUES ($1, $2, 'Ticket Transferred', $3, $4, $5)
+        `, [id, senderName, ticket.status, newStatus, historyDetail]);
+
+        // 2. Add as work note comment
+        await pool.query(`
+            INSERT INTO support_ticket_comments (ticket_id, author_id, author_name, author_type, comment, created_at)
+            VALUES ($1, $2, $3, 'Staff', $4, NOW())
+        `, [id, req.user?.id || null, senderName, `🔄 [TICKET TRANSFER] Handover to ${newAssigneeName} (${reasonCat}): ${handoverNotes}`]);
+
+        // 3. Dispatch Notification to target employee
+        notifyTicketWhatsApp({
+            ticketCode: ticket.ticket_code,
+            title: ticket.title,
+            description: `Ticket transferred to you by ${senderName}.\nReason: [${reasonCat}] ${handoverNotes}\n\n${ticket.description || ''}`,
+            priority: ticket.priority || 'Medium',
+            assignedToId: parseInt(target_employee_id, 10),
+            assignedTeam: ticket.assigned_team || [],
+            customerName: ticket.customer_name || 'Valued Customer',
+            projectName: ticket.project_name || 'General Project',
+            actionType: 'transferred',
+            attachments: ticket.attachments || []
+        });
+
+        return res.json({
+            success: true,
+            message: `Ticket successfully transferred to ${newAssigneeName}!`,
+            data: { new_assignee: newAssigneeName }
+        });
+    } catch (error) {
+        console.error('Error transferring support ticket:', error);
+        return res.status(500).json({ success: false, message: 'Server error transferring support ticket' });
+    }
+};
+
+// PUT /api/v1/support/:id/reopen - Reopen a Resolved / Paused Ticket for Multi-Session Work
+export const reopenTicket = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason, notes } = req.body;
+
+        const ticketRes = await pool.query(`
+            SELECT t.*, c.name AS customer_name 
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            WHERE t.id = $1
+        `, [id]);
+
+        if (ticketRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Ticket not found' });
+        }
+
+        const ticket = ticketRes.rows[0];
+        const oldStatus = ticket.status;
+        const performer = req.user?.full_name || 'Staff';
+        const reopenReason = reason || notes || 'Further work required by team/customer.';
+
+        // Reopen ticket: set status to In Progress, clear resolved_at, keep or resume started_resolving_at
+        const updateRes = await pool.query(`
+            UPDATE support_tickets 
+            SET status = 'In Progress', resolved_at = NULL, started_resolving_at = COALESCE(started_resolving_at, NOW()), updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+        `, [id]);
+
+        // Insert into history
+        await pool.query(`
+            INSERT INTO support_ticket_history (ticket_id, performed_by, action, previous_status, new_status, details)
+            VALUES ($1, $2, 'Ticket Reopened', $3, 'In Progress', $4)
+        `, [id, performer, oldStatus, `Ticket reopened by ${performer}. Reason: ${reopenReason}`]);
+
+        // Add automated work comment
+        await pool.query(`
+            INSERT INTO support_ticket_comments (ticket_id, author_id, author_name, author_type, comment, created_at)
+            VALUES ($1, $2, $3, 'Staff', $4, NOW())
+        `, [id, req.user?.id || null, performer, `🔁 [TICKET REOPENED] Reason: ${reopenReason}`]);
+
+        // Notify engineers
+        notifyTicketWhatsApp({
+            ticketCode: ticket.ticket_code,
+            title: ticket.title,
+            description: `Ticket reopened for additional resolution.\nReason: ${reopenReason}`,
+            priority: ticket.priority || 'Medium',
+            assignedToId: ticket.assigned_to,
+            assignedTeam: ticket.assigned_team || [],
+            customerName: ticket.customer_name || 'Valued Customer',
+            projectName: ticket.project_name || 'General Project',
+            actionType: 'reopened',
+            attachments: ticket.attachments || []
+        });
+
+        return res.json({
+            success: true,
+            message: `Ticket ${ticket.ticket_code} reopened successfully!`,
+            data: updateRes.rows[0]
+        });
+    } catch (error) {
+        console.error('Error reopening ticket:', error);
+        return res.status(500).json({ success: false, message: 'Server error reopening ticket' });
     }
 };

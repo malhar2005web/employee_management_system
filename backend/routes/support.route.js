@@ -54,6 +54,8 @@ router.get('/:id', supportController.getTicketById);
 router.put('/:id', supportController.updateTicket);
 router.put('/:id/status', supportController.updateTicketStatus);
 router.put('/:id/assign', supportController.assignTicket);
+router.put('/:id/transfer', supportController.transferTicket);
+router.put('/:id/reopen', supportController.reopenTicket);
 router.post('/:id/comments', supportController.addComment);
 router.post('/:id/convert-to-task', supportController.convertToTask);
 router.post('/:id/convert-to-workflow', supportController.convertToWorkflow);

@@ -618,11 +618,23 @@
                     <button class="btn-primary" style="padding:5px 12px; font-size:12px; font-weight:800; background:#0d9488; border-color:#0d9488; display:inline-flex; align-items:center; gap:5px;" onclick="window.startResolvingTicket(${t.id})">
                         <i class="fa-solid fa-play"></i> Start Resolving
                     </button>
+                    <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:4px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                        <i class="fa-solid fa-share-nodes"></i> Transfer
+                    </button>
                 `;
             } else if (t.status === 'In Progress') {
                 actionButtons += `
                     <button class="btn-primary" style="padding:5px 12px; font-size:12px; font-weight:800; background:#16a34a; border-color:#16a34a; display:inline-flex; align-items:center; gap:5px;" onclick="window.quickResolveTicket(${t.id})">
                         <i class="fa-solid fa-circle-check"></i> Resolve
+                    </button>
+                    <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:4px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                        <i class="fa-solid fa-share-nodes"></i> Transfer
+                    </button>
+                `;
+            } else if (t.status === 'Resolved' || t.status === 'Closed') {
+                actionButtons += `
+                    <button class="btn-secondary" style="padding:5px 10px; font-size:12px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); display:inline-flex; align-items:center; gap:4px;" onclick="window.openReopenTicketModal(${t.id})" title="Reopen & Resume Ticket">
+                        <i class="fa-solid fa-rotate-left"></i> Reopen
                     </button>
                 `;
             }
@@ -935,30 +947,39 @@
                 const statusSelect = document.getElementById('view-ticket-status-select');
                 if (statusSelect) statusSelect.value = t.status || 'Open';
 
-                // Modal Quick Action Buttons (Start Resolving or Mark Resolved)
+                // Modal Quick Action Buttons (Start Resolving, Mark Resolved, Reopen, Transfer)
                 const quickActionContainer = document.getElementById('modal-quick-action-container');
                 if (quickActionContainer) {
+                    let actionsHtml = '';
                     if (t.status === 'Open' || t.status === 'Assigned') {
-                        quickActionContainer.innerHTML = `
+                        actionsHtml = `
                             <button type="button" class="btn-primary" style="padding:6px 14px; font-size:12.5px; font-weight:800; background:linear-gradient(135deg, #0d9488, #0f766e); border:none; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(13,148,136,0.3);" onclick="window.startResolvingTicket(${t.id})">
                                 <i class="fa-solid fa-play"></i> Start Resolving
                             </button>
+                            <button type="button" class="btn-secondary" style="padding:6px 12px; font-size:12.5px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                                <i class="fa-solid fa-share-nodes"></i> Transfer
+                            </button>
                         `;
                     } else if (t.status === 'In Progress') {
-                        quickActionContainer.innerHTML = `
+                        actionsHtml = `
                             <button type="button" class="btn-primary" style="padding:6px 14px; font-size:12.5px; font-weight:800; background:linear-gradient(135deg, #16a34a, #15803d); border:none; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(22,163,74,0.3);" onclick="window.quickResolveTicket(${t.id})">
                                 <i class="fa-solid fa-circle-check"></i> Mark Resolved
                             </button>
+                            <button type="button" class="btn-secondary" style="padding:6px 12px; font-size:12.5px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                                <i class="fa-solid fa-share-nodes"></i> Transfer
+                            </button>
                         `;
                     } else if (t.status === 'Resolved' || t.status === 'Closed') {
-                        quickActionContainer.innerHTML = `
-                            <span style="font-size:12px; font-weight:700; color:#16a34a; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); padding:4px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
-                                <i class="fa-solid fa-circle-check"></i> Resolved
-                            </span>
+                        actionsHtml = `
+                            <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12.5px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); display:inline-flex; align-items:center; gap:6px;" onclick="window.openReopenTicketModal(${t.id})" title="Reopen & Resume Resolution">
+                                <i class="fa-solid fa-rotate-left"></i> Reopen Ticket
+                            </button>
+                            <button type="button" class="btn-secondary" style="padding:6px 12px; font-size:12.5px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                                <i class="fa-solid fa-share-nodes"></i> Transfer
+                            </button>
                         `;
-                    } else {
-                        quickActionContainer.innerHTML = '';
                     }
+                    quickActionContainer.innerHTML = actionsHtml;
                 }
 
                 // Timer & Meta
@@ -1218,6 +1239,219 @@
             textEl.textContent = `${eH}:${eM}:${eS}`;
         });
     }, 1000);
+
+    // =========================================================================
+    // 7. MODAL: TRANSFER & REOPEN TICKET HANDLERS
+    // =========================================================================
+    let teamMembersList = [];
+
+    async function loadTeamMembers() {
+        if (teamMembersList.length > 0) return teamMembersList;
+        try {
+            let res = await fetch('/api/v1/admin/employees');
+            let data = await res.json();
+            if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                teamMembersList = data.data.map(e => ({
+                    id: e.id,
+                    full_name: e.full_name || `${e.first_name || ''} ${e.last_name || ''}`.trim(),
+                    designation: e.designation_name || e.designation || e.role || 'Team Member'
+                }));
+                return teamMembersList;
+            }
+
+            res = await fetch('/api/v1/employee/chat/contacts');
+            data = await res.json();
+            if (data.success && Array.isArray(data.data)) {
+                teamMembersList = data.data.map(e => ({
+                    id: e.id,
+                    full_name: e.full_name || e.name,
+                    designation: e.role || 'Colleague'
+                }));
+                return teamMembersList;
+            }
+        } catch (e) {
+            console.warn('Could not load team members for ticket transfer:', e);
+        }
+        return teamMembersList;
+    }
+
+    function populateTransferEmployeeDropdown(excludeEmpId = null) {
+        const select = document.getElementById('transfer-ticket-target-emp');
+        if (!select) return;
+        select.innerHTML = '<option value="">Select Team Member...</option>';
+        teamMembersList.forEach(m => {
+            if (excludeEmpId && String(m.id) === String(excludeEmpId)) return;
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${m.full_name} (${m.designation || 'Staff'})`;
+            select.appendChild(opt);
+        });
+    }
+
+    window.openTransferTicketModal = async function(ticketId) {
+        const ticket = supportTickets.find(t => String(t.id) === String(ticketId));
+        if (!ticket) return;
+
+        await loadTeamMembers();
+        populateTransferEmployeeDropdown(ticket.assigned_to);
+
+        const idEl = document.getElementById('transfer-ticket-id');
+        const titleEl = document.getElementById('transfer-ticket-banner-title');
+        const subEl = document.getElementById('transfer-ticket-banner-sub');
+        const notesEl = document.getElementById('transfer-ticket-notes');
+
+        if (idEl) idEl.value = ticket.id;
+        if (titleEl) titleEl.textContent = `${ticket.ticket_code} • ${ticket.title}`;
+        if (subEl) subEl.textContent = `${ticket.customer_name || 'Customer'} • Project: ${ticket.project_name || 'General'}`;
+        if (notesEl) notesEl.value = '';
+
+        const modal = document.getElementById('modal-ticket-transfer');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+            document.body.classList.add('modal-open');
+        }
+    };
+
+    window.openReopenTicketModal = function(ticketId) {
+        const ticket = supportTickets.find(t => String(t.id) === String(ticketId));
+        if (!ticket) return;
+
+        const idEl = document.getElementById('reopen-ticket-id');
+        const titleEl = document.getElementById('reopen-ticket-banner-title');
+        const reasonEl = document.getElementById('reopen-ticket-reason');
+
+        if (idEl) idEl.value = ticket.id;
+        if (titleEl) titleEl.textContent = `${ticket.ticket_code} • ${ticket.title}`;
+        if (reasonEl) reasonEl.value = '';
+
+        const modal = document.getElementById('modal-ticket-reopen');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+            document.body.classList.add('modal-open');
+        }
+    };
+
+    // Close buttons for Transfer & Reopen modals
+    const closeTransferModal = () => {
+        const modal = document.getElementById('modal-ticket-transfer');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+        document.body.classList.remove('modal-open');
+    };
+
+    const closeReopenModal = () => {
+        const modal = document.getElementById('modal-ticket-reopen');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+        document.body.classList.remove('modal-open');
+    };
+
+    const btnCloseTransfer = document.getElementById('close-ticket-transfer-modal');
+    const btnCancelTransfer = document.getElementById('btn-cancel-ticket-transfer');
+    if (btnCloseTransfer) btnCloseTransfer.addEventListener('click', closeTransferModal);
+    if (btnCancelTransfer) btnCancelTransfer.addEventListener('click', closeTransferModal);
+
+    const btnCloseReopen = document.getElementById('close-ticket-reopen-modal');
+    const btnCancelReopen = document.getElementById('btn-cancel-ticket-reopen');
+    if (btnCloseReopen) btnCloseReopen.addEventListener('click', closeReopenModal);
+    if (btnCancelReopen) btnCancelReopen.addEventListener('click', closeReopenModal);
+
+    // Form Submissions
+    const formTransfer = document.getElementById('form-ticket-transfer');
+    if (formTransfer) {
+        formTransfer.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const ticketId = document.getElementById('transfer-ticket-id').value;
+            const targetEmpId = document.getElementById('transfer-ticket-target-emp').value;
+            const reasonCat = document.getElementById('transfer-ticket-reason-cat').value;
+            const notes = document.getElementById('transfer-ticket-notes').value.trim();
+
+            if (!targetEmpId || !notes) {
+                showToast('Please select a colleague and enter handover notes.', 'warning');
+                return;
+            }
+
+            const submitBtn = document.getElementById('btn-submit-ticket-transfer');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const res = await fetch(`/api/v1/support/${ticketId}/transfer`, {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_employee_id: parseInt(targetEmpId, 10),
+                        reason_category: reasonCat,
+                        notes: notes
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message || 'Ticket transferred successfully!', 'success');
+                    closeTransferModal();
+
+                    if (activeDetailTicketId && String(activeDetailTicketId) === String(ticketId)) {
+                        await window.openTicketWorkspaceModal(ticketId);
+                    }
+                    await loadSupportTickets();
+                } else {
+                    showToast(data.message || 'Transfer failed', 'error');
+                }
+            } catch (err) {
+                showToast('Network error transferring ticket', 'error');
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+    }
+
+    const formReopen = document.getElementById('form-ticket-reopen');
+    if (formReopen) {
+        formReopen.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const ticketId = document.getElementById('reopen-ticket-id').value;
+            const reason = document.getElementById('reopen-ticket-reason').value.trim();
+
+            if (!reason) {
+                showToast('Please provide a reason for reopening.', 'warning');
+                return;
+            }
+
+            const submitBtn = document.getElementById('btn-submit-ticket-reopen');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const res = await fetch(`/api/v1/support/${ticketId}/reopen`, {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: reason })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message || 'Ticket reopened successfully!', 'success');
+                    closeReopenModal();
+
+                    if (activeDetailTicketId && String(activeDetailTicketId) === String(ticketId)) {
+                        await window.openTicketWorkspaceModal(ticketId);
+                    }
+                    await loadSupportTickets();
+                } else {
+                    showToast(data.message || 'Failed to reopen ticket', 'error');
+                }
+            } catch (err) {
+                showToast('Network error reopening ticket', 'error');
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+    }
 
     // =========================================================================
     // INITIAL EXECUTION
