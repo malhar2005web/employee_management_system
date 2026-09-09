@@ -112,7 +112,7 @@
             <button class="btn-primary" id="btn-clock-in" style="flex:1; padding: 10px 4px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:5px;"><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
             <button class="btn-primary" id="btn-clock-out" style="flex:1; padding: 10px 4px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:5px; background: linear-gradient(135deg, rgba(224,83,83,0.85), rgba(180,50,50,0.9)); border-color: rgba(224,83,83,0.3);"><i class="fa-solid fa-right-from-bracket"></i> Clock Out</button>
           </div>
-          <button class="btn-primary" id="btn-break" style="width:100%; padding: 8px 6px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:6px; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: rgba(245,158,11,0.3); color:#fff;"><i class="fa-solid fa-mug-hot" id="icon-break"></i> <span id="label-break">Take Break (1h max)</span></button>
+          <button class="btn-primary" id="btn-break" style="width:100%; padding: 8px 6px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:6px; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: rgba(245,158,11,0.3); color:#fff;"><i class="fa-solid fa-mug-hot" id="icon-break"></i> <span id="label-break">Take Break (30m max)</span></button>
         </div>
       </div>
 
@@ -459,7 +459,7 @@
         setBtnState(breakBtn, false);
         if (breakBtn) breakBtn.className = 'btn-primary';
         if (breakIcon) breakIcon.className = 'fa-solid fa-mug-hot';
-        if (breakLabel) breakLabel.textContent = 'Take Break (1h max)';
+        if (breakLabel) breakLabel.textContent = 'Take Break (30m max)';
         if (timeLabel) {
           timeLabel.style.color = 'var(--text-muted)';
           timeLabel.textContent = 'Not clocked in yet';
@@ -490,11 +490,11 @@
         } else {
           if (breakBtn) breakBtn.className = 'btn-primary';
           if (breakIcon) breakIcon.className = 'fa-solid fa-mug-hot';
-          const remainingMins = Math.max(0, Math.floor((3600 - baseBreakSec) / 60));
+          const remainingMins = Math.max(0, Math.floor((1800 - baseBreakSec) / 60));
           if (breakLabel) {
             breakLabel.textContent = remainingMins > 0 ? `Take Break (${remainingMins}m left)` : 'Break (Limit Reached)';
           }
-          if (baseBreakSec >= 3600) {
+          if (baseBreakSec >= 1800) {
             setBtnState(breakBtn, false);
           }
         }
@@ -512,21 +512,21 @@
 
             // Live break timer display
             const bDuration = formatDurationMS(activeBreakSec);
-            if (activeBreakSec >= 3600) {
+            if (activeBreakSec >= 1800) {
               timeLabel.style.color = '#ef4444';
-              timeLabel.innerHTML = `⚠️ <b style="color:#ef4444;">Break Exceeded (${bDuration} / 60:00 max)</b>`;
+              timeLabel.innerHTML = `⚠️ <b style="color:#ef4444;">Break Exceeded (${bDuration} / 30:00 max)</b>`;
               if (!breakLimitAlerted) {
-                showToast("⚠️ Daily 1-hour break limit exceeded! Please resume work.", "warning");
+                showToast("⚠️ Daily 30-minute break limit exceeded! Please resume work.", "warning");
                 breakLimitAlerted = true;
               }
             } else {
               timeLabel.style.color = '#d97706';
-              timeLabel.innerHTML = `☕ <b>On Break: ${bDuration} / 60:00 max</b>`;
+              timeLabel.innerHTML = `☕ <b>On Break: ${bDuration} / 30:00 max</b>`;
             }
           } else {
             timeLabel.style.color = 'var(--text-muted)';
             const usedBreakMin = Math.floor(baseBreakSec / 60);
-            const breakInfo = usedBreakMin > 0 ? ` • Break: ${usedBreakMin}m/60m` : '';
+            const breakInfo = usedBreakMin > 0 ? ` • Break: ${usedBreakMin}m/30m` : '';
             timeLabel.textContent = `Clocked in at ${loginLocal}${breakInfo}`;
           }
 

@@ -411,7 +411,78 @@ document.addEventListener('DOMContentLoaded', () => {
                     sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#b45309; background:#fef3c7; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-umbrella-beach"></i> Approved Leave</span></div>`;
                 }
 
-                const loginHours = (log.login_hours && parseFloat(log.login_hours) > 0) ? formatHoursMins(log.login_hours, true) : '—';
+                // Break column calculation (Start - End & Duration)
+                const getBreakHtml = (l) => {
+                    if (l.is_on_break) {
+                        let bStartStr = '';
+                        if (l.break_start) {
+                            try {
+                                const d = new Date(l.break_start);
+                                if (!isNaN(d.getTime())) bStartStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                            } catch (e) {}
+                        }
+                        return `
+                            <div>
+                                <span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800; font-size:10.5px; padding:2px 7px; border-radius:5px; display:inline-flex; align-items:center; gap:4px;">
+                                    <i class="fa-solid fa-mug-hot fa-bounce"></i> On Break
+                                </span>
+                                ${bStartStr ? `<div style="font-size:11px; color:#92400e; font-weight:700; margin-top:2px;">Since ${bStartStr}</div>` : ''}
+                            </div>
+                        `;
+                    }
+
+                    const totalSec = parseInt(l.total_break_seconds || 0, 10);
+                    const breakTimeNum = parseFloat(l.break_time || 0);
+
+                    let bHistory = [];
+                    if (l.break_history) {
+                        try {
+                            bHistory = typeof l.break_history === 'string' ? JSON.parse(l.break_history) : l.break_history;
+                        } catch (e) {
+                            bHistory = [];
+                        }
+                    }
+
+                    if (Array.isArray(bHistory) && bHistory.length > 0) {
+                        const firstBreak = bHistory[0];
+                        const lastBreak = bHistory[bHistory.length - 1];
+                        
+                        const formatBTime = (iso) => {
+                            if (!iso) return '';
+                            try {
+                                const d = new Date(iso);
+                                return !isNaN(d.getTime()) ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+                            } catch (e) { return ''; }
+                        };
+
+                        const startStr = formatBTime(firstBreak.start);
+                        const endStr = formatBTime(lastBreak.end || lastBreak.start);
+                        const totalMin = Math.round(totalSec / 60) || Math.round(breakTimeNum);
+
+                        return `
+                            <div>
+                                <div style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
+                                    <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${startStr && endStr ? `${startStr} - ${endStr}` : (startStr || 'Break')}
+                                </div>
+                                <div style="font-size:11px; color:#0f766e; font-weight:700; margin-top:1px;">${totalMin > 0 ? `${totalMin} mins` : '—'}</div>
+                            </div>
+                        `;
+                    }
+
+                    if (totalSec > 0 || breakTimeNum > 0) {
+                        const totalMin = Math.round(totalSec / 60) || Math.round(breakTimeNum);
+                        return `
+                            <div>
+                                <div style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
+                                    <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${totalMin} mins
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    return '<span style="color:#94a3b8; font-weight:600;">—</span>';
+                };
+
                 const ovtHours = (log.overtime_hours && parseFloat(log.overtime_hours) > 0) ? formatHoursMins(log.overtime_hours, true) : (log.overtime ? `${log.overtime} mins` : '—');
                 const workingHours = (log.total_working_hours && parseFloat(log.total_working_hours) > 0) ? formatHoursMins(log.total_working_hours, true) : '—';
 
@@ -424,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong style="color:#334155;">${log.date || today}</strong></td>
                     <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>
                     <td><strong style="color:${logoutStr !== '—' ? '#0f172a' : '#94a3b8'};">${logoutStr}</strong></td>
-                    <td><strong style="color:#334155;">${loginHours}</strong></td>
+                    <td>${getBreakHtml(log)}</td>
                     <td><strong style="color:${parseFloat(log.overtime_hours || log.overtime || 0) > 0 ? '#b45309' : '#64748b'};">${ovtHours}</strong></td>
                     <td><strong style="color:#0f172a;">${workingHours}</strong></td>
                     <td><span class="status-pill ${statusClass}" style="${statusBadgeStyle}">${log.status || 'Absent'}</span></td>
@@ -525,20 +596,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const sDate = filterStartDate ? filterStartDate.value : today;
             const eDate = filterEndDate ? filterEndDate.value : sDate;
 
-            const headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Total Login Time", "Overtime (OVT)", "Total Working Hours", "Status", "Source"];
-            const rows = currentDailyLogsCache.map(r => [
-                r.employee_code || '',
-                r.full_name || '',
-                r.workstation || '—',
-                r.date,
-                r.login_time ? (String(r.login_time).includes('T') ? String(r.login_time).split('T')[1].slice(0, 5) : r.login_time) : '—',
-                r.logout_time ? (String(r.logout_time).includes('T') ? String(r.logout_time).split('T')[1].slice(0, 5) : r.logout_time) : '—',
-                formatHoursMins(r.login_hours, true),
-                (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—'),
-                formatHoursMins(r.total_working_hours, true),
-                r.status || 'Absent',
-                r.punch_source || 'TERAMIND'
-            ]);
+            const headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Break (Start-End / Duration)", "Overtime (OVT)", "Total Working Hours", "Status", "Source"];
+            const rows = currentDailyLogsCache.map(r => {
+                let breakText = '—';
+                if (r.is_on_break) {
+                    breakText = 'On Break';
+                } else if (r.break_history && (Array.isArray(r.break_history) ? r.break_history.length > 0 : false)) {
+                    const bh = Array.isArray(r.break_history) ? r.break_history : (typeof r.break_history === 'string' ? JSON.parse(r.break_history) : []);
+                    if (bh.length > 0) {
+                        const s = bh[0].start ? new Date(bh[0].start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+                        const e = bh[bh.length - 1].end ? new Date(bh[bh.length - 1].end).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+                        const m = Math.round((r.total_break_seconds || 0) / 60) || Math.round(r.break_time || 0);
+                        breakText = `${s}-${e} (${m}m)`;
+                    }
+                } else if (r.total_break_seconds > 0 || r.break_time > 0) {
+                    const m = Math.round((r.total_break_seconds || 0) / 60) || Math.round(r.break_time || 0);
+                    breakText = `${m} mins`;
+                }
+
+                return [
+                    r.employee_code || '',
+                    r.full_name || '',
+                    r.workstation || '—',
+                    r.date,
+                    r.login_time ? (String(r.login_time).includes('T') ? String(r.login_time).split('T')[1].slice(0, 5) : r.login_time) : '—',
+                    r.logout_time ? (String(r.logout_time).includes('T') ? String(r.logout_time).split('T')[1].slice(0, 5) : r.logout_time) : '—',
+                    breakText,
+                    (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—'),
+                    formatHoursMins(r.total_working_hours, true),
+                    r.status || 'Absent',
+                    r.punch_source || 'TERAMIND'
+                ];
+            });
 
             const csvContent = "\uFEFF" + [
                 headers.map(h => `"${h}"`).join(','),
@@ -1589,7 +1678,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <th style="padding:12px 16px; white-space:nowrap; width:130px;">Date</th>
             <th style="padding:12px 16px; white-space:nowrap; width:120px;">Check-In</th>
             <th style="padding:12px 16px; white-space:nowrap; width:120px;">Check-Out</th>
-            <th style="padding:12px 16px; white-space:nowrap; width:130px;">Total Login Time</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Break (Start-End)</th>
             <th style="padding:12px 16px; white-space:nowrap; width:130px;">Overtime (OVT)</th>
             <th style="padding:12px 16px; white-space:nowrap; width:130px;">Working Hours</th>
             <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:110px;">Status</th>
@@ -1631,7 +1720,77 @@ document.addEventListener('DOMContentLoaded', () => {
                 srcBadge = '<span style="font-size:11px; background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-umbrella-beach"></i> Leave</span>';
             }
 
-            const loginHours = (r.login_hours && parseFloat(r.login_hours) > 0) ? formatHoursMins(r.login_hours, true) : '—';
+            const getModalBreakHtml = (l) => {
+                if (l.is_on_break) {
+                    let bStartStr = '';
+                    if (l.break_start) {
+                        try {
+                            const d = new Date(l.break_start);
+                            if (!isNaN(d.getTime())) bStartStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                        } catch (e) {}
+                    }
+                    return `
+                        <div>
+                            <span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800; font-size:10.5px; padding:2px 7px; border-radius:5px; display:inline-flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-mug-hot"></i> On Break
+                            </span>
+                            ${bStartStr ? `<div style="font-size:11px; color:#92400e; font-weight:700; margin-top:2px;">Since ${bStartStr}</div>` : ''}
+                        </div>
+                    `;
+                }
+
+                const totalSec = parseInt(l.total_break_seconds || 0, 10);
+                const breakTimeNum = parseFloat(l.break_time || 0);
+
+                let bHistory = [];
+                if (l.break_history) {
+                    try {
+                        bHistory = typeof l.break_history === 'string' ? JSON.parse(l.break_history) : l.break_history;
+                    } catch (e) {
+                        bHistory = [];
+                    }
+                }
+
+                if (Array.isArray(bHistory) && bHistory.length > 0) {
+                    const firstBreak = bHistory[0];
+                    const lastBreak = bHistory[bHistory.length - 1];
+                    
+                    const formatBTime = (iso) => {
+                        if (!iso) return '';
+                        try {
+                            const d = new Date(iso);
+                            return !isNaN(d.getTime()) ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+                        } catch (e) { return ''; }
+                    };
+
+                    const startStr = formatBTime(firstBreak.start);
+                    const endStr = formatBTime(lastBreak.end || lastBreak.start);
+                    const totalMin = Math.round(totalSec / 60) || Math.round(breakTimeNum);
+
+                    return `
+                        <div>
+                            <div style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${startStr && endStr ? `${startStr} - ${endStr}` : (startStr || 'Break')}
+                            </div>
+                            <div style="font-size:11px; color:#0f766e; font-weight:700; margin-top:1px;">${totalMin > 0 ? `${totalMin} mins` : '—'}</div>
+                        </div>
+                    `;
+                }
+
+                if (totalSec > 0 || breakTimeNum > 0) {
+                    const totalMin = Math.round(totalSec / 60) || Math.round(breakTimeNum);
+                    return `
+                        <div>
+                            <div style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${totalMin} mins
+                            </div>
+                        </div>
+                    `;
+                }
+
+                return '<span style="color:#94a3b8; font-weight:600;">—</span>';
+            };
+
             const ovtHours = (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—');
             const workingHours = (r.working_hours && parseFloat(r.working_hours) > 0) ? formatHoursMins(r.working_hours, true) : '—';
 
@@ -1639,7 +1798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding:12px 16px; font-weight:800; color:#334155;">${r.date}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_in !== '—' ? '#047857' : '#94a3b8'};">${r.check_in || '—'}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_out !== '—' ? '#0f172a' : '#94a3b8'};">${r.check_out || '—'}</td>
-                <td style="padding:12px 16px; font-weight:600; color:#334155;">${loginHours}</td>
+                <td style="padding:12px 16px;">${getModalBreakHtml(r)}</td>
                 <td style="padding:12px 16px; font-weight:700; color:${parseFloat(r.overtime_hours || r.overtime || 0) > 0 ? '#b45309' : '#64748b'};">${ovtHours}</td>
                 <td style="padding:12px 16px; font-weight:700; color:#0f172a;">${workingHours}</td>
                 <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
@@ -1769,20 +1928,40 @@ document.addEventListener('DOMContentLoaded', () => {
             let filename = '';
 
             if (currentModalType === 'attendance') {
-                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Total Login Time", "Overtime (OVT)", "Total Working Hours", "Status", "Punch Source"];
-                rows = currentHistoryData.map(r => [
-                    r.employee_code || currentEmpCode,
-                    r.full_name || currentEmpName,
-                    r.workstation || currentEmpWorkstation || '—',
-                    r.date,
-                    r.check_in || '—',
-                    r.check_out || '—',
-                    formatHoursMins(r.login_hours, true),
-                    (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—'),
-                    formatHoursMins(r.working_hours, true),
-                    r.status || 'Present',
-                    r.source || 'TERAMIND'
-                ]);
+                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Break (Start-End / Duration)", "Overtime (OVT)", "Total Working Hours", "Status", "Punch Source"];
+                rows = currentHistoryData.map(r => {
+                    let breakSummary = '—';
+                    if (r.is_on_break) {
+                        breakSummary = 'Currently on break';
+                    } else {
+                        let bHist = [];
+                        try {
+                            bHist = typeof r.break_history === 'string' ? JSON.parse(r.break_history) : (r.break_history || []);
+                        } catch(e) {}
+                        const bTotalMin = Math.round(parseInt(r.total_break_seconds || 0, 10) / 60) || Math.round(parseFloat(r.break_time || 0));
+                        if (Array.isArray(bHist) && bHist.length > 0) {
+                            const sTime = bHist[0].start ? new Date(bHist[0].start).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) : '';
+                            const eTime = bHist[bHist.length - 1].end ? new Date(bHist[bHist.length - 1].end).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) : '';
+                            breakSummary = `${sTime && eTime ? `${sTime} - ${eTime} ` : ''}(${bTotalMin} mins)`.trim();
+                        } else if (bTotalMin > 0) {
+                            breakSummary = `${bTotalMin} mins`;
+                        }
+                    }
+
+                    return [
+                        r.employee_code || currentEmpCode,
+                        r.full_name || currentEmpName,
+                        r.workstation || currentEmpWorkstation || '—',
+                        r.date,
+                        r.check_in || '—',
+                        r.check_out || '—',
+                        breakSummary,
+                        (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—'),
+                        formatHoursMins(r.working_hours, true),
+                        r.status || 'Present',
+                        r.source || 'TERAMIND'
+                    ];
+                });
                 const safeName = (currentEmpName || 'Employee').replace(/[^a-zA-Z0-9]/g, '_');
                 filename = `Attendance_History_${safeName}_${histRangeSelect ? histRangeSelect.value : '30days'}.csv`;
             } else if (currentModalType === 'leave') {

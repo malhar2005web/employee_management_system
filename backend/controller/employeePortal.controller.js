@@ -257,10 +257,10 @@ export async function startBreak(req, res) {
             return res.status(400).json({ success: false, message: "You are already on a break" });
         }
 
-        // 1-hour max break policy (3600 seconds)
+        // Half-hour (30 mins) max break policy (1800 seconds)
         const totalUsed = checkRes.rows[0].total_break_seconds || 0;
-        if (totalUsed >= 3600) {
-            return res.status(400).json({ success: false, message: "Daily 1-hour break limit (60 mins) already consumed" });
+        if (totalUsed >= 1800) {
+            return res.status(400).json({ success: false, message: "Daily 30-minute break limit (30 mins) already consumed" });
         }
 
         const result = await pool.query(`

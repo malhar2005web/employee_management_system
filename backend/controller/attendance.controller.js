@@ -361,6 +361,20 @@ export async function getAttendanceLogs(req, res) {
                     };
                 }
 
+                if (dbRecord) {
+                    finalRecord.is_on_break = dbRecord.is_on_break || false;
+                    finalRecord.break_start = dbRecord.break_start || null;
+                    finalRecord.total_break_seconds = dbRecord.total_break_seconds || 0;
+                    finalRecord.break_history = dbRecord.break_history || [];
+                    finalRecord.break_time = dbRecord.break_time || null;
+                } else {
+                    finalRecord.is_on_break = false;
+                    finalRecord.break_start = null;
+                    finalRecord.total_break_seconds = 0;
+                    finalRecord.break_history = [];
+                    finalRecord.break_time = null;
+                }
+
                 // Robust Calculation of Total Login Time (loginHr) & Overtime (OvTHrs)
                 const workingHoursNum = parseFloat(finalRecord.total_working_hours) || 0;
                 let loginHoursNum = 0;
@@ -767,7 +781,12 @@ export async function getEmployeeAttendanceHistory(req, res) {
                     working_hours: hrs,
                     overtime: r.overtime || null,
                     status: r.status || 'Present',
-                    source: r.punch_source || (r.approval_status === 'Approved' ? 'MANUAL_HR' : 'PORTAL')
+                    source: r.punch_source || (r.approval_status === 'Approved' ? 'MANUAL_HR' : 'PORTAL'),
+                    is_on_break: r.is_on_break || false,
+                    break_start: r.break_start || null,
+                    total_break_seconds: r.total_break_seconds || 0,
+                    break_history: r.break_history || [],
+                    break_time: r.break_time || null
                 });
             } else if (!historyMap.has(dStr)) {
                 // Fallback placeholder only if no Teramind record exists
@@ -778,7 +797,12 @@ export async function getEmployeeAttendanceHistory(req, res) {
                     working_hours: '0.00',
                     overtime: null,
                     status: r.status || 'Absent',
-                    source: 'PORTAL'
+                    source: 'PORTAL',
+                    is_on_break: r.is_on_break || false,
+                    break_start: r.break_start || null,
+                    total_break_seconds: r.total_break_seconds || 0,
+                    break_history: r.break_history || [],
+                    break_time: r.break_time || null
                 });
             }
         });
