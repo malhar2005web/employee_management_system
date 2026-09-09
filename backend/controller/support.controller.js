@@ -786,7 +786,7 @@ export const addComment = async (req, res) => {
         }
 
         const authorName = req.user?.full_name || 'Admin';
-        const authorId = req.user?.id || null;
+        const authorId = req.user?.employee_id || null;
         const attJson = JSON.stringify(attachments || []);
 
         const insertRes = await pool.query(`
@@ -1003,10 +1003,15 @@ export const transferTicket = async (req, res) => {
         `, [id, senderName, ticket.status, newStatus, historyDetail]);
 
         // 2. Add as work note comment
-        await pool.query(`
-            INSERT INTO support_ticket_comments (ticket_id, author_id, author_name, author_type, comment, created_at)
-            VALUES ($1, $2, $3, 'Staff', $4, NOW())
-        `, [id, req.user?.id || null, senderName, `🔄 [TICKET TRANSFER] Handover to ${newAssigneeName} (${reasonCat}): ${handoverNotes}`]);
+        const authorEmpId = req.user?.employee_id || null;
+        try {
+            await pool.query(`
+                INSERT INTO support_ticket_comments (ticket_id, author_id, author_name, comment_text, is_internal_note, attachments, created_at)
+                VALUES ($1, $2, $3, $4, false, '[]'::jsonb, NOW())
+            `, [id, authorEmpId, senderName, `🔄 [TICKET TRANSFER] Handover to ${newAssigneeName} (${reasonCat}): ${handoverNotes}`]);
+        } catch (cErr) {
+            console.warn("Transfer comment insert fallback:", cErr.message);
+        }
 
         // 3. Dispatch Notification to target employee
         notifyTicketWhatsApp({
@@ -1070,10 +1075,15 @@ export const reopenTicket = async (req, res) => {
         `, [id, performer, oldStatus, `Ticket reopened by ${performer}. Reason: ${reopenReason}`]);
 
         // Add automated work comment
-        await pool.query(`
-            INSERT INTO support_ticket_comments (ticket_id, author_id, author_name, author_type, comment, created_at)
-            VALUES ($1, $2, $3, 'Staff', $4, NOW())
-        `, [id, req.user?.id || null, performer, `🔁 [TICKET REOPENED] Reason: ${reopenReason}`]);
+        const authorEmpId = req.user?.employee_id || null;
+        try {
+            await pool.query(`
+                INSERT INTO support_ticket_comments (ticket_id, author_id, author_name, comment_text, is_internal_note, attachments, created_at)
+                VALUES ($1, $2, $3, $4, false, '[]'::jsonb, NOW())
+            `, [id, authorEmpId, performer, `🔁 [TICKET REOPENED] Reason: ${reopenReason}`]);
+        } catch (cErr) {
+            console.warn("Reopen comment insert fallback:", cErr.message);
+        }
 
         // Notify engineers
         notifyTicketWhatsApp({
