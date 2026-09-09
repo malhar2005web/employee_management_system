@@ -28,18 +28,24 @@ export async function getMonthlyPayroll(req, res) {
 
         // 1. Fetch active employees
         const empRes = await pool.query(`
-            SELECT id, full_name, employee_code, computer_name, department, designation,
-                   COALESCE(base_salary, 30000.00) as base_salary,
-                   COALESCE(hourly_rate, 1000.00) as hourly_rate,
-                   COALESCE(advance_amount, 0.00) as advance_amount,
-                   COALESCE(loan_amount, 0.00) as loan_amount,
-                   COALESCE(loan_balance, 0.00) as loan_balance,
-                   COALESCE(incentive_amount, 0.00) as incentive_amount,
-                   COALESCE(mobile_deduction, 0.00) as mobile_deduction,
-                   COALESCE(pt_misc_deduction, 200.00) as pt_misc_deduction
-            FROM employees
-            WHERE status != 'Terminated' OR status IS NULL
-            ORDER BY id ASC;
+            SELECT e.id, e.full_name, e.employee_code, 
+                   COALESCE(m.computer_name, '—') as computer_name,
+                   COALESCE(d.name, 'General') as department,
+                   COALESCE(des.title, 'Staff') as designation,
+                   COALESCE(e.base_salary, 30000.00) as base_salary,
+                   COALESCE(e.hourly_rate, 1000.00) as hourly_rate,
+                   COALESCE(e.advance_amount, 0.00) as advance_amount,
+                   COALESCE(e.loan_amount, 0.00) as loan_amount,
+                   COALESCE(e.loan_balance, 0.00) as loan_balance,
+                   COALESCE(e.incentive_amount, 0.00) as incentive_amount,
+                   COALESCE(e.mobile_deduction, 0.00) as mobile_deduction,
+                   COALESCE(e.pt_misc_deduction, 200.00) as pt_misc_deduction
+            FROM employees e
+            LEFT JOIN employee_teramind_mapping m ON e.id = m.employee_id
+            LEFT JOIN departments d ON e.department_id = d.id
+            LEFT JOIN designations des ON e.designation_id = des.id
+            WHERE e.status != 'Terminated' OR e.status IS NULL
+            ORDER BY e.id ASC;
         `);
         const employees = empRes.rows;
 
