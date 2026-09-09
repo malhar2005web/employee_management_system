@@ -660,11 +660,23 @@
                     <div style="font-weight:700; color:var(--text-dark); max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${t.title}">
                         ${t.title}
                     </div>
-                    <div style="display:flex; gap:6px; margin-top:2px;">
+                    <div style="display:flex; gap:6px; margin-top:2px; flex-wrap:wrap; align-items:center;">
                         <span style="font-size:11px; font-weight:700; background:rgba(14,165,233,0.12); color:#0284c7; padding:1px 6px; border-radius:4px;">
                             ${t.category || 'Bug'}
                         </span>
                         ${hasAtt ? `<span style="font-size:11px; color:var(--text-muted);"><i class="fa-solid fa-paperclip"></i></span>` : ''}
+                        ${(() => {
+                            const tot = parseInt(t.total_subtasks || 0, 10);
+                            const done = parseInt(t.completed_subtasks || 0, 10);
+                            if (tot > 0) {
+                                const isAll = tot === done;
+                                const bg = isAll ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.15)';
+                                const col = isAll ? '#16a34a' : '#4f46e5';
+                                const bdr = isAll ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.3)';
+                                return `<span style="font-size:10px; font-weight:700; background:${bg}; color:${col}; border:1px solid ${bdr}; padding:1px 5px; border-radius:4px;"><i class="fa-solid fa-layer-group"></i> ${done}/${tot} Chunks</span>`;
+                            }
+                            return '';
+                        })()}
                     </div>
                 </td>
                 <td>
@@ -1054,6 +1066,9 @@
                 // Render Comments & History
                 renderModalComments(t.comments || data.comments || []);
                 renderModalHistory(t.history || data.history || []);
+                
+                // Render Sub-tasks & Handover Chunks
+                renderEmployeeTicketSubtasks(t.subtasks || []);
 
                 const modalTarget = document.getElementById('ticket-workspace-modal');
                 if (modalTarget) {
@@ -1067,6 +1082,213 @@
         } catch (e) {
             console.error('Failed to load ticket details:', e);
             showToast('Failed to load ticket details: ' + e.message, 'error');
+        }
+    };
+
+    // =========================================================================
+    // SUB-TASKS & MULTI-EMPLOYEE HANDOVER IN EMPLOYEE PORTAL
+    // =========================================================================
+    let currentEmployeeSubtasksCache = [];
+
+    function renderEmployeeTicketSubtasks(subtasks = []) {
+        currentEmployeeSubtasksCache = subtasks || [];
+        const container = document.getElementById('workspace-subtasks-list');
+        const progressLabel = document.getElementById('subtask-progress-label');
+        const totalHoursLabel = document.getElementById('subtask-total-hours');
+        const progressBar = document.getElementById('subtask-progress-bar');
+
+        const totalCount = subtasks.length;
+        const doneCount = subtasks.filter(s => s.status === 'Completed').length;
+        const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+        const totalHours = subtasks.reduce((sum, s) => sum + (parseFloat(s.time_spent_hours) || 0), 0).toFixed(1);
+
+        if (progressLabel) progressLabel.textContent = `${doneCount} of ${totalCount} Chunks Done (${percent}%)`;
+        if (totalHoursLabel) totalHoursLabel.textContent = `Total Time: ${totalHours} hrs`;
+        if (progressBar) progressBar.style.width = `${percent}%`;
+
+        if (!container) return;
+
+        if (totalCount === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:12px; color:var(--text-muted); font-size:11.5px; background:rgba(0,0,0,0.02); border-radius:6px; border:1px dashed rgba(0,0,0,0.1);">
+                    <i class="fa-solid fa-layer-group" style="color:var(--teal-600); margin-bottom:3px; display:block;"></i>
+                    No sub-tasks assigned for this ticket.
+                </div>
+            `;
+            return;
+        }
+
+        const safeStr = (str) => (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+        let html = '';
+        subtasks.forEach((s, idx) => {
+            const isDone = s.status === 'Completed';
+            const isWaiting = s.status === 'Waiting';
+            const isInProgress = s.status === 'In Progress';
+
+            let statusBadge = '';
+            let cardBg = '#ffffff';
+            let cardBorder = 'rgba(0,0,0,0.08)';
+
+            if (isDone) {
+                statusBadge = '<span class="badge" style="background:rgba(34,197,94,0.15); color:#16a34a; border:1px solid rgba(34,197,94,0.3); font-size:10.5px; font-weight:700;"><i class="fa-solid fa-circle-check"></i> Completed</span>';
+                cardBg = 'rgba(240,253,244,0.7)';
+                cardBorder = 'rgba(34,197,94,0.3)';
+            } else if (isInProgress) {
+                statusBadge = '<span class="badge" style="background:rgba(168,85,247,0.15); color:#9333ea; border:1px solid rgba(168,85,247,0.3); font-size:10.5px; font-weight:700;"><i class="fa-solid fa-gears fa-spin" style="--fa-animation-duration:4s;"></i> In Progress</span>';
+                cardBg = 'rgba(250,245,255,0.85)';
+                cardBorder = 'rgba(168,85,247,0.35)';
+            } else if (isWaiting) {
+                statusBadge = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#d97706; border:1px solid rgba(245,158,11,0.3); font-size:10.5px; font-weight:700;"><i class="fa-solid fa-hourglass-half"></i> Waiting for Dependency</span>`;
+                cardBg = 'rgba(255,251,235,0.7)';
+                cardBorder = 'rgba(245,158,11,0.3)';
+            } else {
+                statusBadge = '<span class="badge" style="background:rgba(100,116,139,0.12); color:#475569; border:1px solid rgba(100,116,139,0.25); font-size:10.5px; font-weight:700;"><i class="fa-solid fa-clock"></i> Ready / Pending</span>';
+            }
+
+            const assigneeName = s.assigned_to_name ? s.assigned_to_name : 'Unassigned';
+            const hoursLogged = parseFloat(s.time_spent_hours || 0).toFixed(1);
+
+            let depHtml = '';
+            if (s.depends_on_subtask_id) {
+                if (s.depends_on_status === 'Completed') {
+                    depHtml = `<div style="font-size:11px; color:#059669; margin-top:3px; font-weight:600;"><i class="fa-solid fa-unlock"></i> Prerequisite done: <strong>${s.depends_on_title || 'Previous Chunk'}</strong></div>`;
+                } else {
+                    depHtml = `<div style="font-size:11px; color:#d97706; margin-top:3px; font-weight:600;"><i class="fa-solid fa-lock"></i> Locked until: <strong>${s.depends_on_title || 'Previous Chunk'}</strong> finishes</div>`;
+                }
+            }
+
+            let handoverHtml = '';
+            if (s.handover_notes) {
+                handoverHtml = `
+                    <div style="margin-top:6px; padding:6px 10px; background:#f0fdfa; border-left:3px solid #0d9488; border-radius:4px; font-size:11.5px; color:#134e4a; line-height:1.4;">
+                        <strong style="display:flex; align-items:center; gap:5px; color:#0f766e; margin-bottom:2px;">
+                            <i class="fa-solid fa-handshake-simple"></i> Handover Notes by ${s.completed_by_name || assigneeName}:
+                        </strong>
+                        <div style="white-space:pre-wrap;">${safeStr(s.handover_notes)}</div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="subtask-card" style="background:${cardBg}; border:1px solid ${cardBorder}; border-radius:8px; padding:9px 12px; transition:all 0.2s ease;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                        <div style="flex:1;">
+                            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                <span style="background:var(--teal-700); color:#fff; font-size:10px; font-weight:800; padding:2px 5px; border-radius:4px;">#${s.sequence_order || (idx + 1)}</span>
+                                <strong style="font-size:12.5px; color:var(--teal-950);">${s.title}</strong>
+                                ${statusBadge}
+                            </div>
+                            ${s.description ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px; line-height:1.35;">${s.description}</div>` : ''}
+                            <div style="display:flex; align-items:center; gap:10px; margin-top:4px; font-size:11px; color:var(--text-dark); flex-wrap:wrap;">
+                                <span><i class="fa-solid fa-user-gear" style="color:var(--teal-600); margin-right:3px;"></i> <strong>${assigneeName}</strong></span>
+                                <span style="color:#0f766e; font-weight:700;"><i class="fa-solid fa-stopwatch" style="margin-right:3px;"></i> ${hoursLogged} hrs</span>
+                            </div>
+                            ${depHtml}
+                            ${handoverHtml}
+                        </div>
+                        <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                            ${!isDone ? `
+                                <button type="button" class="btn-primary" onclick="window.openEmployeeSubtaskHandoverModal(${s.id})" style="padding:4px 8px; font-size:11px; font-weight:800; background:linear-gradient(135deg, #059669, #047857); border:none; border-radius:5px; display:inline-flex; align-items:center; gap:4px;" title="Complete Chunk & Handover Notes">
+                                    <i class="fa-solid fa-handshake-simple"></i> Handover
+                                </button>
+                            ` : ''}
+                            ${!isDone && s.status !== 'In Progress' ? `
+                                <button type="button" class="btn-secondary" onclick="window.startEmployeeSubtaskAction(${s.id})" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(14,165,233,0.12); color:#0284c7; border:1px solid rgba(14,165,233,0.3); border-radius:5px; display:inline-flex; align-items:center; gap:3px;" title="Start Working on Chunk">
+                                    <i class="fa-solid fa-play" style="font-size:10px;"></i> Start
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    // Modal Handover Handlers for Employees
+    const modalSubtaskHandover = document.getElementById('modal-subtask-handover');
+    const formSubtaskHandover = document.getElementById('form-subtask-handover');
+    const modalSubtaskHandoverClose = document.getElementById('modal-subtask-handover-close');
+    const modalSubtaskHandoverCancel = document.getElementById('modal-subtask-handover-cancel');
+
+    const closeSubtaskHandoverModal = () => {
+        if (modalSubtaskHandover) modalSubtaskHandover.style.display = 'none';
+        if (formSubtaskHandover) formSubtaskHandover.reset();
+        const hidEl = document.getElementById('handover-subtask-id');
+        if (hidEl) hidEl.value = '';
+    };
+
+    if (modalSubtaskHandoverClose) modalSubtaskHandoverClose.addEventListener('click', closeSubtaskHandoverModal);
+    if (modalSubtaskHandoverCancel) modalSubtaskHandoverCancel.addEventListener('click', closeSubtaskHandoverModal);
+
+    window.openEmployeeSubtaskHandoverModal = (subtaskId) => {
+        const st = currentEmployeeSubtasksCache.find(s => String(s.id) === String(subtaskId));
+        if (!st) return;
+
+        document.getElementById('handover-subtask-id').value = st.id;
+        document.getElementById('handover-subtask-title').textContent = `#${st.sequence_order || ''} - ${st.title}`;
+        document.getElementById('handover-hours-input').value = st.time_spent_hours || '1.0';
+        document.getElementById('handover-notes-input').value = st.handover_notes || '';
+
+        if (modalSubtaskHandover) modalSubtaskHandover.style.display = 'flex';
+    };
+
+    if (formSubtaskHandover) {
+        formSubtaskHandover.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!activeDetailTicketId) return;
+
+            const subtaskId = document.getElementById('handover-subtask-id').value;
+            const hours = parseFloat(document.getElementById('handover-hours-input').value) || 0;
+            const notes = document.getElementById('handover-notes-input').value.trim();
+
+            try {
+                const res = await fetch(`/api/v1/support/${activeDetailTicketId}/subtasks/${subtaskId}/handover`, {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        time_spent_hours: hours,
+                        handover_notes: notes
+                    })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    showToast(data.message || "Chunk completed & handover logged for next colleague!", "success");
+                    closeSubtaskHandoverModal();
+                    await window.openTicketWorkspaceModal(activeDetailTicketId);
+                    await loadSupportTickets();
+                } else {
+                    showToast(data.message || "Failed to complete handover", "error");
+                }
+            } catch (err) {
+                console.error("Error completing handover:", err);
+                showToast("Error submitting handover", "error");
+            }
+        });
+    }
+
+    window.startEmployeeSubtaskAction = async (subtaskId) => {
+        if (!activeDetailTicketId) return;
+        try {
+            const res = await fetch(`/api/v1/support/${activeDetailTicketId}/subtasks/${subtaskId}`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'In Progress' })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                showToast("Work chunk started!", "success");
+                await window.openTicketWorkspaceModal(activeDetailTicketId);
+            } else {
+                showToast(data.message || "Failed to start subtask", "error");
+            }
+        } catch (err) {
+            console.error("Error starting subtask:", err);
         }
     };
 

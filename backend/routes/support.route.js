@@ -60,4 +60,12 @@ router.post('/:id/comments', supportController.addComment);
 router.post('/:id/convert-to-task', supportController.convertToTask);
 router.post('/:id/convert-to-workflow', supportController.convertToWorkflow);
 
+// Sub-Tasks & Multi-Employee Handover Routes
+router.get('/:id/subtasks', supportController.getSubtasksByTicketId);
+router.post('/:id/subtasks', supportController.createSubtask);
+router.put('/:id/subtasks/:subtaskId', supportController.updateSubtask);
+router.put('/:id/subtasks/:subtaskId/handover', supportController.completeSubtaskWithHandover);
+router.delete('/:id/subtasks/:subtaskId', supportController.deleteSubtask);
+
 export default router;
+

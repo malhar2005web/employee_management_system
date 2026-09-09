@@ -305,13 +305,23 @@ export const getTickets = async (req, res) => {
                 COALESCE(t.project_name, p.name, 'General') AS project_name,
                 w.name AS workflow_title,
                 wt.title AS task_name,
-                e.full_name AS assigned_to_name
+                e.full_name AS assigned_to_name,
+                COALESCE(st_agg.total_subtasks, 0)::int AS total_subtasks,
+                COALESCE(st_agg.completed_subtasks, 0)::int AS completed_subtasks
             FROM support_tickets t
             LEFT JOIN customers c ON t.customer_id = c.id
             LEFT JOIN projects p ON t.project_id = p.id
             LEFT JOIN workflows w ON t.workflow_id = w.id
             LEFT JOIN tasks wt ON t.task_id = wt.id
             LEFT JOIN employees e ON t.assigned_to = e.id
+            LEFT JOIN (
+                SELECT 
+                    ticket_id,
+                    COUNT(*) AS total_subtasks,
+                    COUNT(CASE WHEN status = 'Completed' THEN 1 END) AS completed_subtasks
+                FROM ticket_subtasks
+                GROUP BY ticket_id
+            ) st_agg ON t.id = st_agg.ticket_id
             ${whereClause}
             ORDER BY 
                 CASE 
@@ -347,7 +357,7 @@ export const getTickets = async (req, res) => {
     }
 };
 
-// GET /api/v1/support/:id - Single ticket details, comments, history
+// GET /api/v1/support/:id - Single ticket details, comments, history, subtasks
 export const getTicketById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -380,6 +390,23 @@ export const getTicketById = async (req, res) => {
 
         const ticket = ticketRes.rows[0];
 
+        // Fetch subtasks
+        const subtasksRes = await pool.query(`
+            SELECT 
+                st.*,
+                e.full_name AS assigned_to_name,
+                e.role AS assigned_to_role,
+                cb.full_name AS completed_by_name,
+                dep.title AS depends_on_title,
+                dep.status AS depends_on_status
+            FROM ticket_subtasks st
+            LEFT JOIN employees e ON st.assigned_to = e.id
+            LEFT JOIN employees cb ON st.completed_by = cb.id
+            LEFT JOIN ticket_subtasks dep ON st.depends_on_subtask_id = dep.id
+            WHERE st.ticket_id = $1
+            ORDER BY st.sequence_order ASC, st.created_at ASC
+        `, [ticket.id]);
+
         // Fetch comments
         const commentsRes = await pool.query(`
             SELECT * FROM support_ticket_comments 
@@ -398,6 +425,7 @@ export const getTicketById = async (req, res) => {
             success: true,
             data: {
                 ...ticket,
+                subtasks: subtasksRes.rows,
                 comments: commentsRes.rows,
                 history: historyRes.rows
             }
@@ -407,6 +435,7 @@ export const getTicketById = async (req, res) => {
         return res.status(500).json({ success: false, message: 'Server error fetching ticket details' });
     }
 };
+
 
 // POST /api/v1/support - Create ticket
 export const createTicket = async (req, res) => {
@@ -1109,3 +1138,415 @@ export const reopenTicket = async (req, res) => {
         return res.status(500).json({ success: false, message: 'Server error reopening ticket' });
     }
 };
+
+// =========================================================================
+// ============ SUB-TASKS, WORK CHUNKS & MULTI-EMPLOYEE HANDOVER ============
+// =========================================================================
+
+// GET /api/v1/support/:id/subtasks - List subtasks for a ticket
+export const getSubtasksByTicketId = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const isNumeric = /^\d+$/.test(id);
+        
+        let ticketId = id;
+        if (!isNumeric) {
+            const tRes = await pool.query(`SELECT id FROM support_tickets WHERE ticket_code = $1`, [id]);
+            if (tRes.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Ticket not found' });
+            }
+            ticketId = tRes.rows[0].id;
+        }
+
+        const query = `
+            SELECT 
+                st.*,
+                e.full_name AS assigned_to_name,
+                e.role AS assigned_to_role,
+                cb.full_name AS completed_by_name,
+                dep.title AS depends_on_title,
+                dep.status AS depends_on_status
+            FROM ticket_subtasks st
+            LEFT JOIN employees e ON st.assigned_to = e.id
+            LEFT JOIN employees cb ON st.completed_by = cb.id
+            LEFT JOIN ticket_subtasks dep ON st.depends_on_subtask_id = dep.id
+            WHERE st.ticket_id = $1
+            ORDER BY st.sequence_order ASC, st.created_at ASC
+        `;
+
+        const result = await pool.query(query, [ticketId]);
+
+        return res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('Error fetching ticket subtasks:', error);
+        return res.status(500).json({ success: false, message: 'Server error fetching ticket subtasks' });
+    }
+};
+
+// POST /api/v1/support/:id/subtasks - Add new subtask/chunk to ticket
+export const createSubtask = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            title,
+            description,
+            assigned_to,
+            sequence_order,
+            depends_on_subtask_id,
+            status,
+            time_spent_hours
+        } = req.body;
+
+        if (!title || !title.trim()) {
+            return res.status(400).json({ success: false, message: 'Sub-task title is required' });
+        }
+
+        const isNumeric = /^\d+$/.test(id);
+        let ticketId = id;
+        let ticketCode = '';
+        let ticketTitle = '';
+        let customerName = 'Valued Customer';
+        let projectName = 'General Project';
+
+        const tRes = await pool.query(`
+            SELECT t.id, t.ticket_code, t.title, c.name AS customer_name, COALESCE(t.project_name, p.name, 'General') AS project_name
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            LEFT JOIN projects p ON t.project_id = p.id
+            WHERE ${isNumeric ? 't.id = $1' : 't.ticket_code = $1'}
+        `, [id]);
+
+        if (tRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Support ticket not found' });
+        }
+
+        ticketId = tRes.rows[0].id;
+        ticketCode = tRes.rows[0].ticket_code;
+        ticketTitle = tRes.rows[0].title;
+        customerName = tRes.rows[0].customer_name;
+        projectName = tRes.rows[0].project_name;
+
+        // Determine default sequence order if not specified
+        let seq = sequence_order;
+        if (!seq) {
+            const maxSeqRes = await pool.query(`SELECT COALESCE(MAX(sequence_order), 0) + 1 AS next_seq FROM ticket_subtasks WHERE ticket_id = $1`, [ticketId]);
+            seq = maxSeqRes.rows[0].next_seq;
+        }
+
+        // Determine initial status based on dependency
+        let initialStatus = status || 'Pending';
+        if (depends_on_subtask_id && !status) {
+            const depRes = await pool.query(`SELECT status FROM ticket_subtasks WHERE id = $1`, [depends_on_subtask_id]);
+            if (depRes.rows.length > 0 && depRes.rows[0].status !== 'Completed') {
+                initialStatus = 'Waiting';
+            }
+        }
+
+        const insertRes = await pool.query(`
+            INSERT INTO ticket_subtasks (
+                ticket_id, title, description, assigned_to, sequence_order,
+                status, depends_on_subtask_id, time_spent_hours, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+            RETURNING *
+        `, [
+            ticketId,
+            title.trim(),
+            description || '',
+            assigned_to ? parseInt(assigned_to, 10) : null,
+            parseInt(seq, 10) || 1,
+            initialStatus,
+            depends_on_subtask_id ? parseInt(depends_on_subtask_id, 10) : null,
+            parseFloat(time_spent_hours) || 0.00
+        ]);
+
+        const newSubtask = insertRes.rows[0];
+
+        // Also ensure ticket status is 'In Progress' or 'Assigned'
+        await pool.query(`
+            UPDATE support_tickets
+            SET status = CASE WHEN status = 'Open' THEN 'In Progress' ELSE status END,
+                started_resolving_at = COALESCE(started_resolving_at, NOW()),
+                updated_at = NOW()
+            WHERE id = $1
+        `, [ticketId]);
+
+        // Insert timeline history
+        const performer = req.user?.full_name || 'Staff';
+        await pool.query(`
+            INSERT INTO support_ticket_history (ticket_id, performed_by, action, details)
+            VALUES ($1, $2, 'Subtask Added', $3)
+        `, [
+            ticketId,
+            performer,
+            `Sub-task "${newSubtask.title}" added (#${newSubtask.sequence_order})`
+        ]);
+
+        // Send inbox notification to assigned employee
+        if (newSubtask.assigned_to) {
+            try {
+                await pool.query(`
+                    INSERT INTO notifications (
+                        recipient_id, type, title, message, link, is_read, created_at, metadata
+                    ) VALUES ($1, 'Support Ticket Subtask', $2, $3, $4, false, NOW(), $5)
+                `, [
+                    newSubtask.assigned_to,
+                    `Assigned Chunk: ${newSubtask.title} (${ticketCode})`,
+                    `You have been assigned chunk #${newSubtask.sequence_order} on Ticket ${ticketCode} (${ticketTitle}):\n${newSubtask.title}\nCustomer: ${customerName}`,
+                    `/employee-tasks.html?ticket_code=${ticketCode}`,
+                    JSON.stringify({
+                        ticket_id: ticketId,
+                        ticket_code: ticketCode,
+                        subtask_id: newSubtask.id,
+                        subtask_title: newSubtask.title,
+                        customer_name: customerName,
+                        project_name: projectName
+                    })
+                ]);
+            } catch (nErr) {
+                console.warn("Subtask notification error:", nErr.message);
+            }
+        }
+
+        return res.json({
+            success: true,
+            message: `Sub-task "${newSubtask.title}" created successfully!`,
+            data: newSubtask
+        });
+    } catch (error) {
+        console.error('Error creating subtask:', error);
+        return res.status(500).json({ success: false, message: 'Server error creating subtask' });
+    }
+};
+
+// PUT /api/v1/support/:id/subtasks/:subtaskId - Update subtask
+export const updateSubtask = async (req, res) => {
+    try {
+        const { id, subtaskId } = req.params;
+        const {
+            title,
+            description,
+            assigned_to,
+            sequence_order,
+            status,
+            depends_on_subtask_id,
+            handover_notes,
+            time_spent_hours
+        } = req.body;
+
+        const updateRes = await pool.query(`
+            UPDATE ticket_subtasks
+            SET 
+                title = COALESCE($1, title),
+                description = COALESCE($2, description),
+                assigned_to = CASE WHEN $3::int IS NOT NULL THEN $3::int ELSE assigned_to END,
+                sequence_order = COALESCE($4, sequence_order),
+                status = COALESCE($5, status),
+                depends_on_subtask_id = $6,
+                handover_notes = COALESCE($7, handover_notes),
+                time_spent_hours = COALESCE($8, time_spent_hours),
+                updated_at = NOW()
+            WHERE id = $9
+            RETURNING *
+        `, [
+            title ? title.trim() : null,
+            description !== undefined ? description : null,
+            assigned_to !== undefined ? (assigned_to ? parseInt(assigned_to, 10) : null) : null,
+            sequence_order ? parseInt(sequence_order, 10) : null,
+            status || null,
+            depends_on_subtask_id ? parseInt(depends_on_subtask_id, 10) : null,
+            handover_notes !== undefined ? handover_notes : null,
+            time_spent_hours !== undefined ? parseFloat(time_spent_hours) : null,
+            subtaskId
+        ]);
+
+        if (updateRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Sub-task not found' });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Sub-task updated successfully!',
+            data: updateRes.rows[0]
+        });
+    } catch (error) {
+        console.error('Error updating subtask:', error);
+        return res.status(500).json({ success: false, message: 'Server error updating subtask' });
+    }
+};
+
+// PUT /api/v1/support/:id/subtasks/:subtaskId/handover - Mark completed & trigger handover
+export const completeSubtaskWithHandover = async (req, res) => {
+    try {
+        const { id, subtaskId } = req.params;
+        const { handover_notes, time_spent_hours } = req.body;
+        const completedByEmpId = req.user?.employee_id || (req.user?.id && req.user.role !== 'admin' ? req.user.id : null);
+        const performer = req.user?.full_name || 'Staff';
+
+        // 1. Fetch current subtask and parent ticket
+        const stRes = await pool.query(`
+            SELECT 
+                st.*,
+                t.ticket_code,
+                t.title AS ticket_title,
+                c.name AS customer_name,
+                COALESCE(t.project_name, p.name, 'General') AS project_name,
+                e.full_name AS current_assignee_name
+            FROM ticket_subtasks st
+            JOIN support_tickets t ON st.ticket_id = t.id
+            LEFT JOIN customers c ON t.customer_id = c.id
+            LEFT JOIN projects p ON t.project_id = p.id
+            LEFT JOIN employees e ON st.assigned_to = e.id
+            WHERE st.id = $1
+        `, [subtaskId]);
+
+        if (stRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Sub-task not found' });
+        }
+
+        const currentSubtask = stRes.rows[0];
+        const ticketId = currentSubtask.ticket_id;
+        const ticketCode = currentSubtask.ticket_code;
+
+        // 2. Mark this subtask Completed
+        const hoursToAdd = parseFloat(time_spent_hours) || 0;
+        const totalHours = (parseFloat(currentSubtask.time_spent_hours) || 0) + hoursToAdd;
+
+        const updateRes = await pool.query(`
+            UPDATE ticket_subtasks
+            SET 
+                status = 'Completed',
+                handover_notes = $1,
+                time_spent_hours = $2,
+                completed_by = $3,
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $4
+            RETURNING *
+        `, [
+            handover_notes || currentSubtask.handover_notes || 'Chunk completed.',
+            totalHours,
+            completedByEmpId,
+            subtaskId
+        ]);
+
+        const completedSubtask = updateRes.rows[0];
+
+        // 3. Insert into Ticket Comments as a prominent Handover Note
+        try {
+            const handoverComment = `📦 **[SUB-TASK HANDOVER] Chunk #${completedSubtask.sequence_order}: ${completedSubtask.title}**\n` +
+                `✅ Completed by: ${performer} (${totalHours.toFixed(1)} hrs logged)\n` +
+                `📝 **Handover Notes for Next Assignee:**\n${handover_notes || 'No specific notes. Ready for next stage.'}`;
+
+            await pool.query(`
+                INSERT INTO support_ticket_comments (ticket_id, author_id, author_name, comment_text, is_internal_note, attachments, created_at)
+                VALUES ($1, $2, $3, $4, false, '[]'::jsonb, NOW())
+            `, [ticketId, completedByEmpId, performer, handoverComment]);
+        } catch (cErr) {
+            console.warn("Handover comment insert fallback:", cErr.message);
+        }
+
+        // 4. Insert timeline history
+        await pool.query(`
+            INSERT INTO support_ticket_history (ticket_id, performed_by, action, details)
+            VALUES ($1, $2, 'Subtask Completed & Handed Over', $3)
+        `, [
+            ticketId,
+            performer,
+            `Chunk "${completedSubtask.title}" marked completed by ${performer}. Handover notes shared.`
+        ]);
+
+        // 5. Unlock any dependent subtasks & notify their assignees!
+        const depSubtasksRes = await pool.query(`
+            SELECT st.*, e.full_name AS next_emp_name
+            FROM ticket_subtasks st
+            LEFT JOIN employees e ON st.assigned_to = e.id
+            WHERE st.depends_on_subtask_id = $1 AND st.status IN ('Waiting', 'Pending')
+        `, [subtaskId]);
+
+        for (const nextSubtask of depSubtasksRes.rows) {
+            // Update next subtask status to 'Pending' (or keep in progress)
+            await pool.query(`
+                UPDATE ticket_subtasks
+                SET status = 'Pending', updated_at = NOW()
+                WHERE id = $1
+            `, [nextSubtask.id]);
+
+            // Notify next assignee (e.g., Malhar)
+            if (nextSubtask.assigned_to) {
+                try {
+                    const notifTitle = `🚀 Handover Ready: ${nextSubtask.title} (${ticketCode})`;
+                    const notifMsg = `${performer} has completed "${completedSubtask.title}".\n\n` +
+                        `📝 Handover Note: "${handover_notes || 'Ready to start'}"\n\n` +
+                        `You can now start working on your assigned chunk: "${nextSubtask.title}".`;
+
+                    await pool.query(`
+                        INSERT INTO notifications (
+                            recipient_id, type, title, message, link, is_read, created_at, metadata
+                        ) VALUES ($1, 'Handover Ready', $2, $3, $4, false, NOW(), $5)
+                    `, [
+                        nextSubtask.assigned_to,
+                        notifTitle,
+                        notifMsg,
+                        `/employee-tasks.html?ticket_code=${ticketCode}`,
+                        JSON.stringify({
+                            ticket_id: ticketId,
+                            ticket_code: ticketCode,
+                            completed_chunk: completedSubtask.title,
+                            next_chunk_id: nextSubtask.id,
+                            next_chunk_title: nextSubtask.title,
+                            handover_notes: handover_notes
+                        })
+                    ]);
+                } catch (nErr) {
+                    console.warn("Handover notification error:", nErr.message);
+                }
+            }
+        }
+
+        // 6. Check if ALL subtasks for this ticket are now complete
+        const allStRes = await pool.query(`
+            SELECT 
+                COUNT(*)::int AS total,
+                COUNT(CASE WHEN status = 'Completed' THEN 1 END)::int AS completed_count
+            FROM ticket_subtasks
+            WHERE ticket_id = $1
+        `, [ticketId]);
+
+        const totalChunks = allStRes.rows[0].total;
+        const completedChunks = allStRes.rows[0].completed_count;
+        const allChunksDone = totalChunks > 0 && totalChunks === completedChunks;
+
+        return res.json({
+            success: true,
+            message: `Chunk "${completedSubtask.title}" completed and handed over successfully!`,
+            data: {
+                completedSubtask,
+                allChunksDone,
+                totalChunks,
+                completedChunks
+            }
+        });
+    } catch (error) {
+        console.error('Error completing subtask with handover:', error);
+        return res.status(500).json({ success: false, message: 'Server error completing subtask' });
+    }
+};
+
+// DELETE /api/v1/support/:id/subtasks/:subtaskId - Delete subtask
+export const deleteSubtask = async (req, res) => {
+    try {
+        const { subtaskId } = req.params;
+        const delRes = await pool.query(`DELETE FROM ticket_subtasks WHERE id = $1 RETURNING *`, [subtaskId]);
+        if (delRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Sub-task not found' });
+        }
+        return res.json({ success: true, message: 'Sub-task deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting subtask:', error);
+        return res.status(500).json({ success: false, message: 'Server error deleting subtask' });
+    }
+};
+

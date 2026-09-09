@@ -500,6 +500,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const attList = Array.isArray(t.attachments) ? t.attachments : (t.attachments ? [t.attachments] : []);
                 const attBadge = attList.length > 0 ? `<span class="badge" style="background:rgba(14,165,233,0.12); color:#0284c7; font-size:10.5px; border:1px solid rgba(14,165,233,0.25); margin-left:4px;"><i class="fa-solid fa-paperclip"></i> ${attList.length} attachment${attList.length > 1 ? 's' : ''}</span>` : '';
 
+                const totalChunks = parseInt(t.total_subtasks || 0, 10);
+                const doneChunks = parseInt(t.completed_subtasks || 0, 10);
+                let chunkBadge = '';
+                if (totalChunks > 0) {
+                    const isAllDone = totalChunks === doneChunks;
+                    const badgeBg = isAllDone ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.15)';
+                    const badgeColor = isAllDone ? '#16a34a' : '#4f46e5';
+                    const badgeBorder = isAllDone ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.3)';
+                    chunkBadge = `<span class="badge" style="background:${badgeBg}; color:${badgeColor}; font-size:10.5px; border:1px solid ${badgeBorder}; margin-left:4px; font-weight:700;"><i class="fa-solid fa-layer-group"></i> ${doneChunks}/${totalChunks} Chunks</span>`;
+                }
+
                 html += `
                     <tr>
                         <td>
@@ -514,6 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="font-weight:700; color:var(--teal-950); font-size:13px; margin-bottom:3px;">${t.title}</div>
                             <span class="badge" style="background:rgba(6,182,212,0.12); color:#0891b2; font-size:10.5px; border:1px solid rgba(6,182,212,0.25);">${t.category || 'Bug'}</span>
                             ${attBadge}
+                            ${chunkBadge}
                         </td>
                         <td>
                             <div style="margin-bottom:4px;">${getPriorityBadge(t.priority)}</div>
@@ -545,6 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </td>
                     </tr>
                 `;
+
             });
 
             ticketsList.innerHTML = html;
@@ -846,6 +859,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Subtasks rendering
+            renderTicketSubtasks(t.subtasks || []);
+
             const modalTarget = document.getElementById('ticket-workspace-modal');
             if (modalTarget) {
                 modalTarget.style.display = 'flex';
@@ -871,8 +887,377 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.remove('modal-open');
             if (typeof window.closeModal === 'function') window.closeModal('ticket-workspace-modal');
             currentActiveTicketId = null;
+            currentTicketSubtasksCache = [];
         });
     }
+
+    // =========================================================================
+    // SUB-TASKS & WORK CHUNKING LOGIC
+    // =========================================================================
+    let currentTicketSubtasksCache = [];
+
+    // Helper: Render Sub-tasks in Workspace
+    const renderTicketSubtasks = (subtasks = []) => {
+        currentTicketSubtasksCache = subtasks || [];
+        const container = document.getElementById('workspace-subtasks-list');
+        const progressLabel = document.getElementById('subtask-progress-label');
+        const totalHoursLabel = document.getElementById('subtask-total-hours');
+        const progressBar = document.getElementById('subtask-progress-bar');
+
+        const totalCount = subtasks.length;
+        const doneCount = subtasks.filter(s => s.status === 'Completed').length;
+        const percent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+        const totalHours = subtasks.reduce((sum, s) => sum + (parseFloat(s.time_spent_hours) || 0), 0).toFixed(1);
+
+        if (progressLabel) progressLabel.textContent = `${doneCount} of ${totalCount} Chunks Done (${percent}%)`;
+        if (totalHoursLabel) totalHoursLabel.textContent = `Total Time: ${totalHours} hrs`;
+        if (progressBar) progressBar.style.width = `${percent}%`;
+
+        if (!container) return;
+
+        if (totalCount === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:15px; color:var(--text-muted); font-size:12px; background:rgba(0,0,0,0.02); border-radius:8px; border:1px dashed rgba(0,0,0,0.1);">
+                    <i class="fa-solid fa-layer-group" style="font-size:18px; color:var(--teal-600); margin-bottom:4px; display:block;"></i>
+                    No work chunks yet. Click "<strong>+ Add Sub-Task / Chunk</strong>" above to divide this ticket among team members.
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        subtasks.forEach((s, idx) => {
+            const isDone = s.status === 'Completed';
+            const isWaiting = s.status === 'Waiting';
+            const isInProgress = s.status === 'In Progress';
+
+            let statusBadge = '';
+            let cardBg = '#ffffff';
+            let cardBorder = '#e2e8f0';
+
+            if (isDone) {
+                statusBadge = '<span class="badge" style="background:rgba(34,197,94,0.15); color:#16a34a; border:1px solid rgba(34,197,94,0.3); font-size:11px; font-weight:700;"><i class="fa-solid fa-circle-check"></i> Completed</span>';
+                cardBg = 'rgba(240,253,244,0.7)';
+                cardBorder = 'rgba(34,197,94,0.3)';
+            } else if (isInProgress) {
+                statusBadge = '<span class="badge" style="background:rgba(168,85,247,0.15); color:#9333ea; border:1px solid rgba(168,85,247,0.3); font-size:11px; font-weight:700;"><i class="fa-solid fa-gears fa-spin" style="--fa-animation-duration:4s;"></i> In Progress</span>';
+                cardBg = 'rgba(250,245,255,0.85)';
+                cardBorder = 'rgba(168,85,247,0.35)';
+            } else if (isWaiting) {
+                statusBadge = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#d97706; border:1px solid rgba(245,158,11,0.3); font-size:11px; font-weight:700;"><i class="fa-solid fa-hourglass-half"></i> Waiting for Dependency</span>`;
+                cardBg = 'rgba(255,251,235,0.7)';
+                cardBorder = 'rgba(245,158,11,0.3)';
+            } else {
+                statusBadge = '<span class="badge" style="background:rgba(100,116,139,0.12); color:#475569; border:1px solid rgba(100,116,139,0.25); font-size:11px; font-weight:700;"><i class="fa-solid fa-clock"></i> Ready / Pending</span>';
+            }
+
+            const assigneeName = s.assigned_to_name ? s.assigned_to_name : 'Unassigned';
+            const hoursLogged = parseFloat(s.time_spent_hours || 0).toFixed(1);
+
+            let depHtml = '';
+            if (s.depends_on_subtask_id) {
+                if (s.depends_on_status === 'Completed') {
+                    depHtml = `<div style="font-size:11px; color:#059669; margin-top:4px; font-weight:600;"><i class="fa-solid fa-unlock"></i> Prerequisite done: <strong>${s.depends_on_title || 'Previous Chunk'}</strong></div>`;
+                } else {
+                    depHtml = `<div style="font-size:11px; color:#d97706; margin-top:4px; font-weight:600;"><i class="fa-solid fa-lock"></i> Locked until: <strong>${s.depends_on_title || 'Previous Chunk'}</strong> is completed & handed over</div>`;
+                }
+            }
+
+            let handoverHtml = '';
+            if (s.handover_notes) {
+                handoverHtml = `
+                    <div style="margin-top:8px; padding:8px 12px; background:#f0fdfa; border-left:3px solid #0d9488; border-radius:4px; font-size:11.5px; color:#134e4a; line-height:1.45;">
+                        <strong style="display:flex; align-items:center; gap:5px; color:#0f766e; margin-bottom:2px;">
+                            <i class="fa-solid fa-handshake-simple"></i> Handover Notes by ${s.completed_by_name || assigneeName}:
+                        </strong>
+                        <div style="white-space:pre-wrap;">${esc(s.handover_notes)}</div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="subtask-card" style="background:${cardBg}; border:1px solid ${cardBorder}; border-radius:8px; padding:10px 12px; transition:all 0.2s ease;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                        <div style="flex:1;">
+                            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                <span style="background:var(--teal-700); color:#fff; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px;">#${s.sequence_order || (idx + 1)}</span>
+                                <strong style="font-size:13px; color:var(--teal-950);">${s.title}</strong>
+                                ${statusBadge}
+                            </div>
+                            ${s.description ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:3px; line-height:1.35;">${s.description}</div>` : ''}
+                            <div style="display:flex; align-items:center; gap:12px; margin-top:5px; font-size:11.5px; color:var(--text-dark); flex-wrap:wrap;">
+                                <span><i class="fa-solid fa-user-gear" style="color:var(--teal-600); margin-right:3px;"></i> <strong>${assigneeName}</strong></span>
+                                <span style="color:#0f766e; font-weight:700;"><i class="fa-solid fa-stopwatch" style="margin-right:3px;"></i> ${hoursLogged} hrs</span>
+                            </div>
+                            ${depHtml}
+                            ${handoverHtml}
+                        </div>
+                        <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                            ${!isDone ? `
+                                <button type="button" class="btn-primary" onclick="window.openSubtaskHandoverModal(${s.id})" style="padding:4px 8px; font-size:11px; font-weight:800; background:linear-gradient(135deg, #059669, #047857); border:none; border-radius:5px; display:inline-flex; align-items:center; gap:4px;" title="Complete Chunk & Provide Handover Notes">
+                                    <i class="fa-solid fa-handshake-simple"></i> Handover
+                                </button>
+                            ` : ''}
+                            ${!isDone && s.status !== 'In Progress' ? `
+                                <button type="button" class="btn-secondary" onclick="window.startSubtaskAction(${s.id})" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(14,165,233,0.12); color:#0284c7; border:1px solid rgba(14,165,233,0.3); border-radius:5px; display:inline-flex; align-items:center; gap:3px;" title="Start Working on this Chunk">
+                                    <i class="fa-solid fa-play" style="font-size:10px;"></i> Start
+                                </button>
+                            ` : ''}
+                            <button type="button" class="btn-secondary" onclick="window.openEditSubtaskModal(${s.id})" style="padding:4px 7px; font-size:11px; font-weight:700; background:rgba(217,119,6,0.1); color:#d97706; border:1px solid rgba(217,119,6,0.3); border-radius:5px;" title="Edit Chunk">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button type="button" class="btn-secondary" onclick="window.deleteSubtaskAction(${s.id})" style="padding:4px 7px; font-size:11px; font-weight:700; background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:5px;" title="Delete Chunk">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    };
+
+    // Sub-task Modals & Handlers
+    const modalAddSubtask = document.getElementById('modal-add-subtask');
+    const formAddSubtask = document.getElementById('form-add-subtask');
+    const btnAddSubtask = document.getElementById('btn-add-subtask');
+    const modalAddSubtaskClose = document.getElementById('modal-add-subtask-close');
+    const modalAddSubtaskCancel = document.getElementById('modal-add-subtask-cancel');
+
+    const modalSubtaskHandover = document.getElementById('modal-subtask-handover');
+    const formSubtaskHandover = document.getElementById('form-subtask-handover');
+    const modalSubtaskHandoverClose = document.getElementById('modal-subtask-handover-close');
+    const modalSubtaskHandoverCancel = document.getElementById('modal-subtask-handover-cancel');
+
+    const closeAddSubtaskModal = () => {
+        if (modalAddSubtask) modalAddSubtask.style.display = 'none';
+        if (formAddSubtask) formAddSubtask.reset();
+        const editIdEl = document.getElementById('subtask-edit-id');
+        if (editIdEl) editIdEl.value = '';
+    };
+
+    const closeSubtaskHandoverModal = () => {
+        if (modalSubtaskHandover) modalSubtaskHandover.style.display = 'none';
+        if (formSubtaskHandover) formSubtaskHandover.reset();
+        const hidEl = document.getElementById('handover-subtask-id');
+        if (hidEl) hidEl.value = '';
+    };
+
+    if (modalAddSubtaskClose) modalAddSubtaskClose.addEventListener('click', closeAddSubtaskModal);
+    if (modalAddSubtaskCancel) modalAddSubtaskCancel.addEventListener('click', closeAddSubtaskModal);
+    if (modalSubtaskHandoverClose) modalSubtaskHandoverClose.addEventListener('click', closeSubtaskHandoverModal);
+    if (modalSubtaskHandoverCancel) modalSubtaskHandoverCancel.addEventListener('click', closeSubtaskHandoverModal);
+
+    window.openAddSubtaskModal = (editId = null) => {
+        if (!currentActiveTicketId) return;
+
+        const titleEl = document.getElementById('subtask-modal-title');
+        const editIdInput = document.getElementById('subtask-edit-id');
+        const titleInput = document.getElementById('subtask-title-input');
+        const descInput = document.getElementById('subtask-desc-input');
+        const assigneeSelect = document.getElementById('subtask-assignee-select');
+        const depSelect = document.getElementById('subtask-dependency-select');
+        const seqInput = document.getElementById('subtask-seq-input');
+        const hoursInput = document.getElementById('subtask-hours-input');
+
+        // Populate Assignees
+        if (assigneeSelect) {
+            assigneeSelect.innerHTML = '<option value="">Select Employee...</option>';
+            employeesCache.forEach(e => {
+                assigneeSelect.innerHTML += `<option value="${e.id}">${e.full_name} (${e.role || 'Staff'})</option>`;
+            });
+        }
+
+        // Populate Dependencies (exclude self if editing)
+        if (depSelect) {
+            depSelect.innerHTML = '<option value="">None (Can start immediately)</option>';
+            currentTicketSubtasksCache.forEach(s => {
+                if (!editId || String(s.id) !== String(editId)) {
+                    depSelect.innerHTML += `<option value="${s.id}">#${s.sequence_order} - ${s.title} (${s.assigned_to_name || 'Staff'})</option>`;
+                }
+            });
+        }
+
+        if (editId) {
+            const st = currentTicketSubtasksCache.find(s => String(s.id) === String(editId));
+            if (!st) return;
+            if (titleEl) titleEl.textContent = "Edit Work Chunk / Sub-Task";
+            if (editIdInput) editIdInput.value = st.id;
+            if (titleInput) titleInput.value = st.title || '';
+            if (descInput) descInput.value = st.description || '';
+            if (assigneeSelect) assigneeSelect.value = st.assigned_to || '';
+            if (depSelect) depSelect.value = st.depends_on_subtask_id || '';
+            if (seqInput) seqInput.value = st.sequence_order || 1;
+            if (hoursInput) hoursInput.value = st.time_spent_hours || 0;
+        } else {
+            if (titleEl) titleEl.textContent = "Add Work Chunk / Sub-Task";
+            if (editIdInput) editIdInput.value = '';
+            if (titleInput) titleInput.value = '';
+            if (descInput) descInput.value = '';
+            if (assigneeSelect) assigneeSelect.value = '';
+            if (depSelect) depSelect.value = '';
+            if (seqInput) seqInput.value = currentTicketSubtasksCache.length + 1;
+            if (hoursInput) hoursInput.value = '0.0';
+        }
+
+        if (modalAddSubtask) modalAddSubtask.style.display = 'flex';
+    };
+
+    window.openEditSubtaskModal = (subtaskId) => {
+        window.openAddSubtaskModal(subtaskId);
+    };
+
+    if (btnAddSubtask) {
+        btnAddSubtask.addEventListener('click', () => window.openAddSubtaskModal());
+    }
+
+    if (formAddSubtask) {
+        formAddSubtask.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentActiveTicketId) return;
+
+            const editId = document.getElementById('subtask-edit-id').value;
+            const payload = {
+                title: document.getElementById('subtask-title-input').value.trim(),
+                description: document.getElementById('subtask-desc-input').value.trim(),
+                assigned_to: document.getElementById('subtask-assignee-select').value ? parseInt(document.getElementById('subtask-assignee-select').value, 10) : null,
+                depends_on_subtask_id: document.getElementById('subtask-dependency-select').value ? parseInt(document.getElementById('subtask-dependency-select').value, 10) : null,
+                sequence_order: parseInt(document.getElementById('subtask-seq-input').value, 10) || 1,
+                time_spent_hours: parseFloat(document.getElementById('subtask-hours-input').value) || 0
+            };
+
+            try {
+                const url = editId
+                    ? `/api/v1/support/${currentActiveTicketId}/subtasks/${editId}`
+                    : `/api/v1/support/${currentActiveTicketId}/subtasks`;
+                const method = editId ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    if (typeof showToast === 'function') showToast(data.message || "Subtask saved successfully!", "success");
+                    closeAddSubtaskModal();
+                    // Refresh subtasks and main list
+                    await refreshActiveTicketSubtasks();
+                    loadTickets();
+                } else {
+                    alert(data.message || "Failed to save subtask");
+                }
+            } catch (err) {
+                console.error("Error saving subtask:", err);
+                alert("Error saving subtask");
+            }
+        });
+    }
+
+    window.openSubtaskHandoverModal = (subtaskId) => {
+        const st = currentTicketSubtasksCache.find(s => String(s.id) === String(subtaskId));
+        if (!st) return;
+
+        document.getElementById('handover-subtask-id').value = st.id;
+        document.getElementById('handover-subtask-title').textContent = `#${st.sequence_order || ''} - ${st.title}`;
+        document.getElementById('handover-hours-input').value = st.time_spent_hours || '1.0';
+        document.getElementById('handover-notes-input').value = st.handover_notes || '';
+
+        if (modalSubtaskHandover) modalSubtaskHandover.style.display = 'flex';
+    };
+
+    if (formSubtaskHandover) {
+        formSubtaskHandover.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentActiveTicketId) return;
+
+            const subtaskId = document.getElementById('handover-subtask-id').value;
+            const hours = parseFloat(document.getElementById('handover-hours-input').value) || 0;
+            const notes = document.getElementById('handover-notes-input').value.trim();
+
+            try {
+                const res = await fetch(`/api/v1/support/${currentActiveTicketId}/subtasks/${subtaskId}/handover`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        time_spent_hours: hours,
+                        handover_notes: notes
+                    })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    if (typeof showToast === 'function') showToast(data.message || "Chunk completed and handover logged!", "success");
+                    closeSubtaskHandoverModal();
+                    await refreshActiveTicketSubtasks();
+                    // Also reload workspace conversation & tickets list
+                    window.openTicketWorkspace(currentActiveTicketId);
+                    loadTickets();
+                } else {
+                    alert(data.message || "Failed to complete handover");
+                }
+            } catch (err) {
+                console.error("Error completing handover:", err);
+                alert("Error submitting handover");
+            }
+        });
+    }
+
+    window.startSubtaskAction = async (subtaskId) => {
+        if (!currentActiveTicketId) return;
+        try {
+            const res = await fetch(`/api/v1/support/${currentActiveTicketId}/subtasks/${subtaskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'In Progress' })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (typeof showToast === 'function') showToast("Work chunk started!", "success");
+                await refreshActiveTicketSubtasks();
+            } else {
+                alert(data.message || "Failed to start subtask");
+            }
+        } catch (err) {
+            console.error("Error starting subtask:", err);
+        }
+    };
+
+    window.deleteSubtaskAction = async (subtaskId) => {
+        if (!currentActiveTicketId) return;
+        if (!confirm("Are you sure you want to delete this work chunk?")) return;
+
+        try {
+            const res = await fetch(`/api/v1/support/${currentActiveTicketId}/subtasks/${subtaskId}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (typeof showToast === 'function') showToast("Subtask deleted", "success");
+                await refreshActiveTicketSubtasks();
+                loadTickets();
+            } else {
+                alert(data.message || "Failed to delete subtask");
+            }
+        } catch (err) {
+            console.error("Error deleting subtask:", err);
+        }
+    };
+
+    const refreshActiveTicketSubtasks = async () => {
+        if (!currentActiveTicketId) return;
+        try {
+            const res = await fetch(`/api/v1/support/${currentActiveTicketId}/subtasks`);
+            const data = await res.json();
+            if (data.success) {
+                renderTicketSubtasks(data.data || []);
+            }
+        } catch (err) {
+            console.error("Error refreshing subtasks:", err);
+        }
+    };
 
     // Status Change Listener in Workspace
     if (workspaceStatusSelect) {

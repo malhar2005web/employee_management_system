@@ -1665,7 +1665,7 @@ export async function getEmployeeSupportTickets(req, res) {
         const employeeId = await getEmployeeId(req.user.id);
         const { status, priority, search } = req.query;
 
-        let conditions = [`(t.assigned_to = $1 OR t.assigned_team::text ILIKE $2 OR t.reported_by ILIKE $3)`];
+        let conditions = [`(t.assigned_to = $1 OR t.assigned_team::text ILIKE $2 OR t.reported_by ILIKE $3 OR EXISTS (SELECT 1 FROM ticket_subtasks ts_sub WHERE ts_sub.ticket_id = t.id AND ts_sub.assigned_to = $1))`];
         let params = [employeeId, `%"id":${employeeId}%`, `%${req.user.full_name || ''}%`];
         let idx = 4;
 
@@ -1687,12 +1687,16 @@ export async function getEmployeeSupportTickets(req, res) {
             SELECT t.*,
                    c.name as customer_name,
                    COALESCE(t.project_name, p.name, 'General') as project_name,
-                   e.full_name as assigned_to_name
+                   e.full_name as assigned_to_name,
+                   COUNT(DISTINCT ts.id) as total_subtasks,
+                   COUNT(DISTINCT CASE WHEN ts.status = 'Completed' THEN ts.id END) as completed_subtasks
             FROM support_tickets t
             LEFT JOIN customers c ON t.customer_id = c.id
             LEFT JOIN projects p ON t.project_id = p.id
             LEFT JOIN employees e ON t.assigned_to = e.id
+            LEFT JOIN ticket_subtasks ts ON t.id = ts.ticket_id
             WHERE ${conditions.join(' AND ')}
+            GROUP BY t.id, c.name, p.name, e.full_name
             ORDER BY 
                 CASE 
                     WHEN t.priority = 'Critical' THEN 1

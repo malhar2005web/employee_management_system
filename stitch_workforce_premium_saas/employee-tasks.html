@@ -533,6 +533,36 @@
           </div>
         </div>
 
+        <!-- ============================= SUB-TASKS & MULTI-EMPLOYEE HANDOVER ============================= -->
+        <div style="margin-bottom:16px; background:rgba(255,255,255,0.65); border:1.5px solid rgba(13,148,136,0.25); border-radius:12px; padding:14px; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+            <div>
+              <h4 style="font-size:13.5px; font-weight:800; color:var(--teal-900); margin:0; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-layer-group" style="color:var(--teal-600);"></i> Work Breakdown &amp; Handover Chunks
+              </h4>
+              <p style="margin:2px 0 0 0; font-size:11px; color:var(--text-muted);">View individual work stages, dependencies, and previous employee handovers.</p>
+            </div>
+            <span id="subtask-total-hours" style="font-size:11.5px; font-weight:700; color:#0f766e;">Total Time: 0.0 hrs</span>
+          </div>
+
+          <!-- Progress Bar -->
+          <div style="margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700; color:var(--teal-900); margin-bottom:3px;">
+              <span id="subtask-progress-label">0 of 0 Chunks Done (0%)</span>
+            </div>
+            <div style="width:100%; height:7px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+              <div id="subtask-progress-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #0d9488, #10b981); transition:width 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <!-- Subtask List Container -->
+          <div id="workspace-subtasks-list" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto; padding-right:4px;">
+            <div style="text-align:center; padding:12px; color:var(--text-muted); font-size:11.5px;">
+              No sub-tasks assigned for this ticket.
+            </div>
+          </div>
+        </div>
+
         <!-- Comments Section -->
         <div>
           <h4 style="font-size:13.5px; font-weight:800; color:var(--teal-900); margin:0 0 10px 0;">Work Notes &amp; Comments</h4>
@@ -690,6 +720,42 @@
         <button type="submit" class="btn-primary" id="btn-submit-ticket-reopen" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; display:inline-flex; align-items:center; gap:6px;">
           <i class="fa-solid fa-rotate-left"></i> Reopen &amp; Resume Work
         </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================= MODAL: SUB-TASK HANDOVER NOTES ============================= -->
+<div class="modal-overlay" id="modal-subtask-handover" style="display:none; z-index:9999999; align-items:center; justify-content:center; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px);">
+  <div class="modal-box" style="max-width:520px; width:92%; background:rgba(255,255,255,0.98); border-radius:14px; padding:22px; box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f766e; display:flex; align-items:center; gap:8px;">
+        <i class="fa-solid fa-handshake-simple" style="color:#0f766e;"></i> Complete &amp; Handover Work Chunk
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" id="modal-subtask-handover-close" style="font-size:18px; cursor:pointer;"></i>
+    </div>
+    <form id="form-subtask-handover">
+      <input type="hidden" id="handover-subtask-id">
+
+      <div style="background:#f0fdfa; border:1px solid #99f6e4; border-radius:8px; padding:10px 14px; margin-bottom:14px;">
+        <div style="font-size:11px; font-weight:800; color:#0f766e; text-transform:uppercase;">Completing Chunk</div>
+        <div id="handover-subtask-title" style="font-size:13.5px; font-weight:800; color:#0f172a; margin-top:2px;">Chunk Title</div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label style="font-size:12.5px; font-weight:700; color:#334155;">Time Spent on this Chunk (Hours) *</label>
+        <input type="number" step="0.25" min="0" id="handover-hours-input" class="form-input-clean" required placeholder="e.g. 2.5" style="font-weight:700; color:#0f766e; font-size:15px;">
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px;">
+        <label style="font-size:12.5px; font-weight:700; color:#334155;">Handover Notes for Next Assignee / Team *</label>
+        <textarea id="handover-notes-input" class="form-textarea-clean" rows="3" required placeholder="Explain what was implemented, endpoints ready, swagger link, DB schema, or instructions for the next dev..."></textarea>
+        <span style="font-size:11px; color:#64748b; margin-top:4px;">These notes will be delivered directly to the next assignee's inbox &amp; dashboard.</span>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" class="btn-secondary" id="modal-subtask-handover-cancel" style="padding:8px 16px;">Cancel</button>
+        <button type="submit" class="btn-primary" style="padding:8px 20px; font-weight:800; background:linear-gradient(135deg, #059669, #047857);"><i class="fa-solid fa-paper-plane"></i> Complete &amp; Notify Next Dev</button>
       </div>
     </form>
   </div>

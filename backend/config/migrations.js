@@ -954,8 +954,38 @@ export async function runMigrations() {
         console.error('❌ Phase 16 Migration Error:', e.message);
     }
 
+    // Phase 17: Support Ticket Sub-Tasks, Chunks & Multi-Employee Handover
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS ticket_subtasks (
+                id SERIAL PRIMARY KEY,
+                ticket_id INT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                assigned_to INT REFERENCES employees(id) ON DELETE SET NULL,
+                sequence_order INT DEFAULT 1,
+                status VARCHAR(50) DEFAULT 'Pending',
+                depends_on_subtask_id INT REFERENCES ticket_subtasks(id) ON DELETE SET NULL,
+                handover_notes TEXT,
+                time_spent_hours NUMERIC(6, 2) DEFAULT 0.00,
+                completed_by INT REFERENCES employees(id) ON DELETE SET NULL,
+                completed_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ticket_subtasks_ticket_id ON ticket_subtasks(ticket_id);
+            CREATE INDEX IF NOT EXISTS idx_ticket_subtasks_assigned_to ON ticket_subtasks(assigned_to);
+            CREATE INDEX IF NOT EXISTS idx_ticket_subtasks_status ON ticket_subtasks(status);
+        `);
+        console.log('✅ Phase 17 Support Ticket Sub-Tasks & Handover tables ensured.');
+    } catch (e) {
+        console.error('❌ Phase 17 Migration Error:', e.message);
+    }
+
     client.release();
     console.log('🎉 All migrations complete.');
 }
+
 
 
