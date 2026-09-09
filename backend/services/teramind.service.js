@@ -591,7 +591,95 @@ export async function syncTeramindDataToCache() {
             `, [emp.id, compId, new Date()]);
         }
 
-        // 3. Seed alerts via UPSERT if missing
+        // 3. Sync Recent Daily Workstation Activity into attendance table
+        try {
+            const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+            const d7 = new Date();
+            d7.setDate(d7.getDate() - 7);
+            const startDStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d7);
+            const tmStart = Math.floor(new Date(`${startDStr}T00:00:00+05:30`).getTime() / 1000);
+            const tmEnd = Math.floor(new Date(`${todayIST}T23:59:59+05:30`).getTime() / 1000);
+
+            for (const emp of employees.rows) {
+                const mapRes = await pool.query("SELECT computer_id FROM employee_teramind_mapping WHERE employee_id = $1", [emp.id]);
+                if (mapRes.rows.length === 0 || !mapRes.rows[0].computer_id) continue;
+                const compId = parseInt(mapRes.rows[0].computer_id, 10);
+
+                try {
+                    const gridRes = await getWebPagesApplicationsGrid({
+                        computers: [compId],
+                        periodStart: String(tmStart),
+                        periodEnd: String(tmEnd),
+                        pageSize: 10000
+                    });
+                    const rows = gridRes?.rows || [];
+                    const dateMap = new Map();
+                    rows.forEach(r => {
+                        const ts = r.time || (r.timestamp?.timestamp ? r.timestamp.timestamp : null);
+                        const dur = r.duration || 0;
+                        if (!ts) return;
+                        const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(ts * 1000));
+                        if (!dateMap.has(dStr)) dateMap.set(dStr, []);
+                        dateMap.get(dStr).push({ ts, dur });
+                    });
+
+                    for (const [dStr, pList] of dateMap.entries()) {
+                        let minTs = Infinity;
+                        let maxTs = 0;
+                        let totalSecs = 0;
+                        pList.forEach(p => {
+                            if (p.ts < minTs) minTs = p.ts;
+                            const end = p.ts + p.dur;
+                            if (end > maxTs) maxTs = end;
+                            totalSecs += p.dur;
+                        });
+
+                        const inD = new Date(minTs * 1000);
+                        const outD = new Date(maxTs * 1000);
+                        const inStr = inD.toISOString();
+                        const outStr = outD.toISOString();
+                        const hrs = (totalSecs / 3600).toFixed(2);
+
+                        const inParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(inD);
+                        const ip = {};
+                        inParts.forEach(({ type, value }) => { ip[type] = value; });
+                        const hh = parseInt(ip.hour, 10);
+                        const mm = parseInt(ip.minute, 10);
+                        const isLate = (hh > 10 || (hh === 10 && mm > 15));
+                        const status = isLate ? 'Late' : 'Present';
+
+                        const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
+                        if (checkRes.rows.length > 0) {
+                            const row = checkRes.rows[0];
+                            if (row.approval_status !== 'Approved' && !row.manual_check_in && row.punch_source !== 'MANUAL_HR') {
+                                await pool.query(`
+                                    UPDATE attendance
+                                    SET status = $1, login_time = $2, logout_time = $3, total_working_hours = $4,
+                                        punch_source = 'TERAMIND', approval_status = 'Auto-Synced', updated_at = NOW()
+                                    WHERE id = $5;
+                                `, [status, inStr, outStr, hrs, row.id]);
+                            }
+                        } else {
+                            await pool.query(`
+                                INSERT INTO attendance (employee_id, date, status, login_time, logout_time, total_working_hours, punch_source, approval_status, created_at, updated_at)
+                                VALUES ($1, $2, $3, $4, $5, $6, 'TERAMIND', 'Auto-Synced', NOW(), NOW());
+                            `, [emp.id, dStr, status, inStr, outStr, hrs]);
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // Clean up any future placeholder records
+            await pool.query(`
+                DELETE FROM attendance 
+                WHERE date > $1 AND (punch_source = 'TERAMIND' OR punch_source = 'AUTO' OR status = 'Absent') AND approval_status != 'Approved';
+            `, [todayIST]);
+
+        } catch (syncAttErr) {
+            console.warn("Attendance auto-sync worker warning:", syncAttErr.message);
+        }
+
+        // 4. Seed alerts via UPSERT if missing
         try {
             const alertCheck = await pool.query("SELECT COUNT(*) FROM teramind_alerts");
             if (parseInt(alertCheck.rows[0].count, 10) === 0) {

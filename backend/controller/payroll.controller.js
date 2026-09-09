@@ -296,41 +296,41 @@ export async function getMonthlyPayroll(req, res) {
                         countL++;
                     }
                 }
-                // 4. Manual HR / Admin Approved Override
-                else if (dbAtt && (dbAtt.manual_check_in || dbAtt.approval_status === 'Approved')) {
-                    if (dbAtt.status === 'Half Day') {
+                // 4. Real Attendance from DB
+                else if (dbAtt) {
+                    if (dbAtt.status === 'Present' || dbAtt.status === 'Late' || dbAtt.status === 'Auto-Synced') {
+                        code = 'P';
+                        countP++;
+                    } else if (dbAtt.status === 'Half Day') {
                         code = 'H';
                         countH++;
-                    } else if (dbAtt.status === 'Absent') {
-                        code = 'A';
-                        countA++;
+                    } else if (dbAtt.status === 'WeekOff' || dbAtt.status === 'Weekly Off') {
+                        code = 'W';
+                        countW++;
                     } else if (dbAtt.status === 'On Leave' || dbAtt.status === 'Leave') {
                         code = 'L';
                         countL++;
+                    } else if (dbAtt.status === 'Absent') {
+                        if (isFuture) {
+                            code = '—';
+                        } else {
+                            code = 'A';
+                            countA++;
+                        }
                     } else {
-                        code = 'P';
-                        countP++;
+                        if (isFuture) {
+                            code = '—';
+                        } else {
+                            code = 'A';
+                            countA++;
+                        }
                     }
 
                     if (dbAtt.total_working_hours) {
                         totalWorkedHours += parseFloat(dbAtt.total_working_hours) || 0;
                     }
                 }
-                // 5. Employee Portal Punch (Web portal login)
-                else if (dbAtt && (dbAtt.portal_check_in || dbAtt.punch_source === 'PORTAL' || (dbAtt.login_time && dbAtt.punch_source !== 'TERAMIND' && dbAtt.punch_source !== 'AUTO'))) {
-                    if (dbAtt.status === 'Half Day') {
-                        code = 'H';
-                        countH++;
-                    } else {
-                        code = 'P';
-                        countP++;
-                    }
-
-                    if (dbAtt.total_working_hours) {
-                        totalWorkedHours += parseFloat(dbAtt.total_working_hours) || 0;
-                    }
-                }
-                // 6. Workstation Telemetry Activity (Live Teramind / SQL Server / RTP)
+                // 5. Workstation Telemetry Activity Fallback (if any)
                 else if (hasTelemetry || hasRtpPresent) {
                     code = 'P';
                     countP++;
@@ -339,15 +339,13 @@ export async function getMonthlyPayroll(req, res) {
                         totalWorkedHours += (actData.totalSecs / 3600);
                     } else if (rtp && rtp.total_seconds > 0) {
                         totalWorkedHours += (rtp.total_seconds / 3600);
-                    } else if (dbAtt && dbAtt.total_working_hours) {
-                        totalWorkedHours += parseFloat(dbAtt.total_working_hours) || 0;
                     }
                 }
-                // 7. Future Date (Not yet reached) -> Dash (—) (Zero deduction, not absent)
+                // 6. Future Date (Not yet reached) -> Dash (—) (Zero deduction, not absent)
                 else if (isFuture) {
                     code = '—';
                 }
-                // 8. Past Weekday with zero activity -> Absent
+                // 7. Past Weekday with zero activity -> Absent
                 else {
                     code = 'A';
                     countA++;
