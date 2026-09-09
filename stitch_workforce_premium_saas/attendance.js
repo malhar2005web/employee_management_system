@@ -2107,32 +2107,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const selYear = parseInt(yStr, 10);
         const selMonth = parseInt(mStr, 10);
 
-        // Build thead with modern gradient and categorized columns
+        // Build thead with modern light aesthetic matching the dashboard
         let thHtml = `
-            <th style="padding:12px 16px; position:sticky; left:0; background:#0f172a; z-index:6; min-width:200px; text-align:left; border-right:1.5px solid #334155;">Employee</th>
-            <th style="padding:12px 10px; min-width:110px; background:#1e293b; color:#94a3b8; border-right:1px solid #334155;">Salary (AO)</th>
+            <th style="padding:12px 16px; position:sticky; left:0; background:#f1f5f9; z-index:6; min-width:200px; text-align:left; color:#0f172a; border-right:1.5px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">Employee</th>
+            <th style="padding:12px 10px; min-width:110px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Salary (AO)</th>
         `;
         for (let d = 1; d <= daysInMonth; d++) {
             const dateObj = new Date(selYear, selMonth - 1, d);
             const isSunday = dateObj.getDay() === 0;
-            thHtml += `<th style="padding:10px 2px; min-width:32px; width:32px; font-weight:800; text-align:center; color:${isSunday ? '#fbbf24' : '#e2e8f0'}; background:${isSunday ? '#172554' : '#0f172a'}; border-right:1px solid #1e293b;" title="${isSunday ? 'Sunday / Week Off' : `Day ${d}`}">${d}</th>`;
+            const bgCol = isSunday ? '#fef3c7' : '#f8fafc';
+            const textCol = isSunday ? '#b45309' : '#334155';
+            const borderR = isSunday ? '#fde68a' : '#e2e8f0';
+            thHtml += `<th style="padding:10px 2px; min-width:32px; width:32px; font-weight:800; text-align:center; color:${textCol}; background:${bgCol}; border-right:1px solid ${borderR}; border-bottom:2px solid #cbd5e1;" title="${isSunday ? 'Sunday / Week Off' : `Day ${d}`}">${d}</th>`;
         }
         thHtml += `
-            <th style="padding:12px 8px; min-width:68px; background:#064e3b; color:#6ee7b7; border-left:1.5px solid #047857;">Present (AI)</th>
-            <th style="padding:12px 8px; min-width:68px; background:#7f1d1d; color:#fca5a5;">Absent (AK)</th>
-            <th style="padding:12px 8px; min-width:68px; background:#0c4a6e; color:#7dd3fc;">Leave (AL)</th>
-            <th style="padding:12px 8px; min-width:85px; background:#1e293b; color:#94a3b8;">Advance (AP)</th>
-            <th style="padding:12px 8px; min-width:85px; background:#1e293b; color:#94a3b8;">Loan (AR)</th>
-            <th style="padding:12px 8px; min-width:85px; background:#1e293b; color:#94a3b8;">Loan Bal (AS)</th>
-            <th style="padding:12px 8px; min-width:90px; background:#064e3b; color:#6ee7b7;">Incentive (AT)</th>
-            <th style="padding:12px 8px; min-width:80px; background:#1e293b; color:#cbd5e1;">Late (AU)</th>
-            <th style="padding:12px 8px; min-width:90px; background:#7f1d1d; color:#fca5a5;">AbsAmt (AW)</th>
-            <th style="padding:12px 8px; min-width:80px; background:#1e293b; color:#94a3b8;">Mobile (AX)</th>
-            <th style="padding:12px 10px; min-width:115px; background:#1e293b; font-weight:800; color:#fcd34d;">Gross Sal (AY)</th>
-            <th style="padding:12px 8px; min-width:80px; background:#1e293b; color:#94a3b8;">PT/Misc (AZ)</th>
-            <th style="padding:12px 14px; min-width:130px; background:linear-gradient(135deg, #065f46, #047857); color:#a7f3d0; font-weight:900; box-shadow:inset 0 0 10px rgba(0,0,0,0.2);">Net Salary (BA)</th>
-            <th style="padding:12px 10px; min-width:115px; background:linear-gradient(135deg, #312e81, #1e3a8a); color:#c7d2fe; font-weight:900;">Rate (₹/hr)</th>
-            <th style="padding:12px 10px; min-width:75px; background:#1e293b; color:#cbd5e1;">Action</th>
+            <th style="padding:12px 8px; min-width:68px; background:#dcfce7; color:#15803d; border-left:1.5px solid #bbf7d0; border-right:1px solid #bbf7d0; border-bottom:2px solid #22c55e;">Present (AI)</th>
+            <th style="padding:12px 8px; min-width:68px; background:#fee2e2; color:#b91c1c; border-right:1px solid #fecaca; border-bottom:2px solid #ef4444;">Absent (AK)</th>
+            <th style="padding:12px 8px; min-width:68px; background:#e0f2fe; color:#0369a1; border-right:1px solid #bae6fd; border-bottom:2px solid #0ea5e9;">Leave (AL)</th>
+            <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Advance (AP)</th>
+            <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Loan (AR)</th>
+            <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Loan Bal (AS)</th>
+            <th style="padding:12px 8px; min-width:90px; background:#ecfdf5; color:#047857; border-right:1px solid #a7f3d0; border-bottom:2px solid #10b981;">Incentive (AT)</th>
+            <th style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Late (AU)</th>
+            <th style="padding:12px 8px; min-width:90px; background:#fee2e2; color:#dc2626; border-right:1px solid #fecaca; border-bottom:2px solid #ef4444;">AbsAmt (AW)</th>
+            <th style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Mobile (AX)</th>
+            <th style="padding:12px 10px; min-width:115px; background:#fefce8; font-weight:800; color:#854d0e; border-right:1px solid #fef08a; border-bottom:2px solid #eab308;">Gross Sal (AY)</th>
+            <th style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">PT/Misc (AZ)</th>
+            <th style="padding:12px 14px; min-width:130px; background:#dcfce7; color:#166534; font-weight:900; border-right:1px solid #bbf7d0; border-bottom:2px solid #16a34a;">Net Salary (BA)</th>
+            <th style="padding:12px 10px; min-width:115px; background:#eff6ff; color:#1e40af; font-weight:900; border-right:1px solid #bfdbfe; border-bottom:2px solid #3b82f6;">Rate (₹/hr)</th>
+            <th style="padding:12px 10px; min-width:75px; background:#f8fafc; color:#475569; border-bottom:2px solid #cbd5e1;">Action</th>
         `;
         payrollMatrixThead.innerHTML = thHtml;
 
