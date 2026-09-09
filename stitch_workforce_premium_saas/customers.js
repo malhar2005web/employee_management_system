@@ -849,4 +849,799 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial load
     loadCustomers();
+
+    // =========================================================================
+    // ============ CUSTOMER & PLANT BILLING & COSTING REPORT LOGIC ============
+    // =========================================================================
+
+    const tabBtnMaster = document.getElementById('tab-btn-master');
+    const tabBtnBillingReport = document.getElementById('tab-btn-billing-report');
+    const tabContentMaster = document.getElementById('tab-content-master');
+    const tabContentBillingReport = document.getElementById('tab-content-billing-report');
+
+    const reportFilterStart = document.getElementById('report-filter-start');
+    const reportFilterEnd = document.getElementById('report-filter-end');
+    const btnQuickThisMonth = document.getElementById('btn-quick-report-this-month');
+    const btnQuickLastMonth = document.getElementById('btn-quick-report-last-month');
+    const btnQuick2026 = document.getElementById('btn-quick-report-2026');
+    const btnQuickAll = document.getElementById('btn-quick-report-all');
+    const reportSearch = document.getElementById('report-search');
+    const btnRefreshReport = document.getElementById('btn-refresh-report');
+    const btnToggleExpandAll = document.getElementById('btn-toggle-expand-all');
+    const btnExportBillingCSV = document.getElementById('btn-export-billing-csv');
+
+    // Rate modal elements
+    const rateModal = document.getElementById('rate-modal');
+    const rateModalClose = document.getElementById('rate-modal-close');
+    const rateModalCancel = document.getElementById('rate-modal-cancel');
+    const rateEditForm = document.getElementById('rate-edit-form');
+
+    let isAllExpanded = false;
+    let cachedBillingReportData = [];
+
+    function escapeHtml(str) {
+        if (!str && str !== 0) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function getInitials(name) {
+        if (!name) return '??';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    // Tab Switching
+    if (tabBtnMaster && tabBtnBillingReport) {
+        tabBtnMaster.addEventListener('click', () => {
+            tabBtnMaster.classList.add('active');
+            tabBtnBillingReport.classList.remove('active');
+            if (tabContentMaster) tabContentMaster.style.display = 'block';
+            if (tabContentBillingReport) tabContentBillingReport.style.display = 'none';
+        });
+
+        tabBtnBillingReport.addEventListener('click', () => {
+            tabBtnBillingReport.classList.add('active');
+            tabBtnMaster.classList.remove('active');
+            if (tabContentMaster) tabContentMaster.style.display = 'none';
+            if (tabContentBillingReport) tabContentBillingReport.style.display = 'block';
+            loadCustomerBillingReport();
+        });
+    }
+
+    // Quick Date Filters
+    function setQuickFilterActive(activeBtn) {
+        [btnQuickThisMonth, btnQuickLastMonth, btnQuick2026, btnQuickAll].forEach(btn => {
+            if (!btn) return;
+            if (btn === activeBtn) {
+                btn.style.background = 'var(--teal-900)';
+                btn.style.color = '#ffffff';
+                btn.style.border = 'none';
+            } else {
+                btn.style.background = '#f1f5f9';
+                btn.style.color = '#334155';
+                btn.style.border = '1px solid #e2e8f0';
+            }
+        });
+    }
+
+    if (btnQuickThisMonth) {
+        btnQuickThisMonth.addEventListener('click', () => {
+            setQuickFilterActive(btnQuickThisMonth);
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            if (reportFilterStart) reportFilterStart.value = `${year}-${month}-01`;
+            if (reportFilterEnd) reportFilterEnd.value = `${year}-${month}-${day}`;
+            loadCustomerBillingReport();
+        });
+    }
+
+    if (btnQuickLastMonth) {
+        btnQuickLastMonth.addEventListener('click', () => {
+            setQuickFilterActive(btnQuickLastMonth);
+            const now = new Date();
+            const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+            const formatD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (reportFilterStart) reportFilterStart.value = formatD(firstDayLastMonth);
+            if (reportFilterEnd) reportFilterEnd.value = formatD(lastDayLastMonth);
+            loadCustomerBillingReport();
+        });
+    }
+
+    if (btnQuick2026) {
+        btnQuick2026.addEventListener('click', () => {
+            setQuickFilterActive(btnQuick2026);
+            if (reportFilterStart) reportFilterStart.value = '2026-01-01';
+            if (reportFilterEnd) reportFilterEnd.value = '2026-12-31';
+            loadCustomerBillingReport();
+        });
+    }
+
+    if (btnQuickAll) {
+        btnQuickAll.addEventListener('click', () => {
+            setQuickFilterActive(btnQuickAll);
+            if (reportFilterStart) reportFilterStart.value = '';
+            if (reportFilterEnd) reportFilterEnd.value = '';
+            loadCustomerBillingReport();
+        });
+    }
+
+    if (reportSearch) {
+        reportSearch.addEventListener('input', debounce(() => {
+            loadCustomerBillingReport();
+        }, 300));
+    }
+
+    if (reportFilterStart) {
+        reportFilterStart.addEventListener('change', () => {
+            loadCustomerBillingReport();
+        });
+    }
+
+    if (reportFilterEnd) {
+        reportFilterEnd.addEventListener('change', () => {
+            loadCustomerBillingReport();
+        });
+    }
+
+    if (btnRefreshReport) {
+        btnRefreshReport.addEventListener('click', () => {
+            loadCustomerBillingReport();
+        });
+    }
+
+    // Load Billing Report Data
+    async function loadCustomerBillingReport() {
+        const tbody = document.getElementById('billing-report-tbody');
+        if (!tbody) return;
+
+        const startDate = reportFilterStart ? reportFilterStart.value : '';
+        const endDate = reportFilterEnd ? reportFilterEnd.value : '';
+        const search = reportSearch ? reportSearch.value.trim() : '';
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted); font-size:14px;">
+                    <i class="fa-solid fa-spinner fa-spin" style="font-size:22px; display:block; margin-bottom:10px; color:var(--teal-600);"></i>
+                    Calculating Customer &amp; Plant Billing, Time, Tickets &amp; Costing rollups...
+                </td>
+            </tr>
+        `;
+
+        try {
+            const params = new URLSearchParams();
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+            if (search) params.append('search', search);
+
+            const res = await fetch(`/api/v1/customers/billing-report?${params.toString()}`);
+            const result = await res.json();
+
+            if (!res.ok || !result.success) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align:center; padding:30px; color:#ef4444; font-weight:700;">
+                            <i class="fa-solid fa-circle-exclamation" style="font-size:20px; display:block; margin-bottom:8px;"></i>
+                            Failed to load billing report: ${result.message || 'Unknown error'}
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const data = result.data || [];
+            cachedBillingReportData = data;
+
+            // Update KPI Metric Cards
+            updateBillingReportKPIs(data);
+
+            // Render Table Rows
+            renderBillingReportTable(data);
+        } catch (err) {
+            console.error('Error loading billing report:', err);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align:center; padding:30px; color:#ef4444; font-weight:700;">
+                        <i class="fa-solid fa-circle-exclamation" style="font-size:20px; display:block; margin-bottom:8px;"></i>
+                        Error connecting to server. Please try again.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    function updateBillingReportKPIs(data) {
+        let totalClients = data.length;
+        let totalPlants = 0;
+        let totalTickets = 0;
+        let totalHours = 0;
+        let totalPayable = 0;
+
+        data.forEach(cust => {
+            totalPlants += (cust.plants || []).length;
+            totalTickets += cust.totalTickets || 0;
+            totalHours += cust.totalHours || 0;
+            totalPayable += cust.totalPayable || 0;
+        });
+
+        const kpiClients = document.getElementById('kpi-report-clients');
+        const kpiPlants = document.getElementById('kpi-report-plants');
+        const kpiTickets = document.getElementById('kpi-report-tickets');
+        const kpiHours = document.getElementById('kpi-report-hours');
+        const kpiPayable = document.getElementById('kpi-report-payable');
+
+        if (kpiClients) kpiClients.textContent = totalClients.toLocaleString('en-IN');
+        if (kpiPlants) kpiPlants.textContent = totalPlants.toLocaleString('en-IN');
+        if (kpiTickets) kpiTickets.textContent = totalTickets.toLocaleString('en-IN');
+        if (kpiHours) kpiHours.textContent = `${totalHours.toFixed(2)} hrs`;
+        if (kpiPayable) kpiPayable.textContent = `₹${Math.round(totalPayable).toLocaleString('en-IN')}`;
+    }
+
+    // Render Table Rows with 4 Tiers
+    function renderBillingReportTable(data) {
+        const tbody = document.getElementById('billing-report-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted); font-size:14px;">
+                        <i class="fa-solid fa-folder-open" style="font-size:24px; display:block; margin-bottom:8px;"></i>
+                        No customer or plant records found for selected filters.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        data.forEach((cust) => {
+            // Status Dot logic
+            let statusClass = 'both-inactive';
+            let statusTooltip = 'Both Inactive';
+            const statusLower = (cust.status || '').toLowerCase();
+            const isPlantActive = cust.plant_active || statusLower.includes('plant');
+            const isBillingActive = cust.billing_active || statusLower.includes('billing');
+
+            if (statusLower.includes('both') || (isPlantActive && isBillingActive)) {
+                statusClass = 'both-active';
+                statusTooltip = 'Plant + Billing Active';
+            } else if (isBillingActive) {
+                statusClass = 'billing-active';
+                statusTooltip = 'Billing Active';
+            } else if (isPlantActive) {
+                statusClass = 'plant-active';
+                statusTooltip = 'Plant Active';
+            }
+
+            const plantCount = (cust.plants || []).length;
+
+            // Level 1: Customer Row
+            const custTr = document.createElement('tr');
+            custTr.className = 'report-row-cust';
+            custTr.dataset.custId = cust.id;
+            custTr.style.cursor = 'pointer';
+            custTr.style.background = 'rgba(248, 250, 252, 0.9)';
+            custTr.style.borderBottom = '1.5px solid #e2e8f0';
+            custTr.style.fontWeight = '700';
+
+            custTr.innerHTML = `
+                <td style="padding:14px 16px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <i class="fa-solid fa-chevron-right cust-chevron" id="cust-chevron-${cust.id}" style="color:var(--teal-600); width:14px; font-size:13px; transition:transform 0.2s;"></i>
+                        <span class="cust-status-dot ${statusClass}" style="animation:none;" title="${statusTooltip}"></span>
+                        <span style="font-size:14.5px; font-weight:800; color:#0f172a;">${escapeHtml(cust.name)}</span>
+                    </div>
+                </td>
+                <td style="padding:14px 12px;">
+                    <span class="badge" style="background:#e0f2fe; color:#0284c7; font-weight:700; font-size:11.5px; padding:3px 8px; border-radius:6px;">${plantCount} ${plantCount === 1 ? 'Plant' : 'Plants'}</span>
+                    ${cust.industry ? `<span style="font-size:11.5px; color:#64748b; margin-left:6px; font-weight:600;">${escapeHtml(cust.industry)}</span>` : ''}
+                </td>
+                <td style="padding:14px 12px; text-align:center;">
+                    <span class="badge" style="background:#fef3c7; color:#b45309; font-weight:800; padding:3px 10px; border-radius:12px; font-size:12px;">${cust.totalTickets || 0}</span>
+                </td>
+                <td style="padding:14px 12px;">
+                    <span style="font-weight:700; color:#0f172a; font-size:13px;"><i class="fa-regular fa-clock" style="color:#0f766e; margin-right:4px;"></i>${(cust.totalHours || 0).toFixed(2)} hrs</span>
+                </td>
+                <td style="padding:14px 12px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="color:#0f766e; font-weight:800; font-size:13px;">₹${Number(cust.billingRate || 1000).toLocaleString('en-IN')}/hr</span>
+                        <span style="font-size:10px; color:#64748b; background:#f1f5f9; padding:1px 5px; border-radius:4px; font-weight:600;">Default</span>
+                    </div>
+                </td>
+                <td style="padding:14px 16px; text-align:right;">
+                    <span style="font-weight:900; font-size:14px; color:#047857; background:rgba(16,185,129,0.15); padding:4px 10px; border-radius:6px; border:1px solid rgba(16,185,129,0.3); display:inline-block;">₹${Math.round(cust.totalPayable || 0).toLocaleString('en-IN')}</span>
+                </td>
+                <td style="padding:14px 16px; text-align:center;">
+                    <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('customer', ${cust.id}, '', '${escapeHtml(cust.name)}', ${cust.billingRate || 1000})" title="Edit Default Billing Rate" style="color:#0f766e; background:#f0fdfa; border:1px solid #99f6e4; padding:5px 9px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:700;">
+                        <i class="fa-solid fa-pen-to-square"></i> Rate
+                    </button>
+                </td>
+            `;
+
+            custTr.addEventListener('click', () => {
+                window.toggleCustomerRow(cust.id);
+            });
+
+            tbody.appendChild(custTr);
+
+            // Level 2: Plant / Branch Rows
+            (cust.plants || []).forEach((plant, plantIdx) => {
+                const plantKey = `${cust.id}_${plantIdx}`;
+                const projCount = (plant.projects || []).length;
+
+                const plantTr = document.createElement('tr');
+                plantTr.className = `report-row-plant cust-child-${cust.id}`;
+                plantTr.dataset.plantKey = plantKey;
+                plantTr.style.display = 'none';
+                plantTr.style.cursor = 'pointer';
+                plantTr.style.background = '#ffffff';
+                plantTr.style.borderBottom = '1px solid #f1f5f9';
+
+                plantTr.innerHTML = `
+                    <td style="padding:12px 16px;">
+                        <div style="display:flex; align-items:center; gap:8px; padding-left:26px;">
+                            <i class="fa-solid fa-chevron-right plant-chevron" id="plant-chevron-${plantKey}" style="color:#0284c7; width:12px; font-size:11px; transition:transform 0.2s;"></i>
+                            <i class="fa-solid fa-industry" style="color:#0284c7; font-size:13px;"></i>
+                            <span style="font-size:13.5px; font-weight:700; color:#1e293b;">${escapeHtml(plant.branchName || 'General Plant')}</span>
+                            ${plant.isActivePlant ? '<span style="width:7px; height:7px; border-radius:50%; background:#22c55e; display:inline-block;" title="Active Plant"></span>' : ''}
+                        </div>
+                    </td>
+                    <td style="padding:12px 12px;">
+                        <span style="font-family:monospace; font-size:11.5px; font-weight:600; color:#475569; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #e2e8f0;">${escapeHtml(plant.gstNo || 'No GST')}</span>
+                        <span style="font-size:11px; color:#64748b; margin-left:4px;">(${projCount} ${projCount === 1 ? 'proj' : 'projs'})</span>
+                    </td>
+                    <td style="padding:12px 12px; text-align:center;">
+                        <span style="font-weight:700; color:#475569; font-size:12px;">${plant.totalTickets || 0}</span>
+                    </td>
+                    <td style="padding:12px 12px;">
+                        <span style="font-weight:700; color:#334155; font-size:12.5px;">${(plant.totalHours || 0).toFixed(2)} hrs</span>
+                    </td>
+                    <td style="padding:12px 12px;">
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <span style="color:#0284c7; font-weight:800; font-size:12.5px;">₹${Number(plant.billingRate || cust.billingRate || 1000).toLocaleString('en-IN')}/hr</span>
+                            <span style="font-size:9.5px; color:#64748b; background:#f0f9ff; padding:1px 4px; border-radius:3px; font-weight:600;">Plant</span>
+                        </div>
+                    </td>
+                    <td style="padding:12px 16px; text-align:right;">
+                        <span style="font-weight:800; font-size:13px; color:#0f766e;">₹${Math.round(plant.totalPayable || 0).toLocaleString('en-IN')}</span>
+                    </td>
+                    <td style="padding:12px 16px; text-align:center;">
+                        <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('plant', ${cust.id}, '${escapeHtml(plant.branchName)}', '${escapeHtml(cust.name + ' - ' + plant.branchName)}', ${plant.billingRate || cust.billingRate || 1000})" title="Edit Plant Rate" style="color:#0284c7; background:#f0f9ff; border:1px solid #bae6fd; padding:3px 7px; border-radius:5px; font-size:11.5px; cursor:pointer;">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                    </td>
+                `;
+
+                plantTr.addEventListener('click', () => {
+                    window.togglePlantRow(plantKey);
+                });
+
+                tbody.appendChild(plantTr);
+
+                // Level 3: Project Rows
+                (plant.projects || []).forEach(proj => {
+                    const projKey = `${plantKey}_${proj.projectId || 'gen'}`;
+                    const empCount = (proj.employees || []).length;
+
+                    const projTr = document.createElement('tr');
+                    projTr.className = `report-row-project plant-child-${plantKey}`;
+                    projTr.dataset.projKey = projKey;
+                    projTr.style.display = 'none';
+                    projTr.style.cursor = 'pointer';
+                    projTr.style.background = '#f8fafc';
+                    projTr.style.borderBottom = '1px solid #e2e8f0';
+
+                    projTr.innerHTML = `
+                        <td style="padding:10px 16px;">
+                            <div style="display:flex; align-items:center; gap:8px; padding-left:52px;">
+                                <i class="fa-solid fa-chevron-right proj-chevron" id="proj-chevron-${projKey}" style="color:#6366f1; width:11px; font-size:10.5px; transition:transform 0.2s;"></i>
+                                <i class="fa-solid fa-folder-tree" style="color:#6366f1; font-size:12px;"></i>
+                                <span style="font-size:13px; font-weight:700; color:#334155;">${escapeHtml(proj.projectName || 'General Support')}</span>
+                                <span class="badge" style="background:${proj.status === 'Completed' ? '#dcfce7' : '#e0e7ff'}; color:${proj.status === 'Completed' ? '#15803d' : '#4338ca'}; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700;">${escapeHtml(proj.status || 'Active')}</span>
+                            </div>
+                        </td>
+                        <td style="padding:10px 12px;">
+                            <span style="font-size:11px; color:#64748b; font-weight:600;">${escapeHtml(proj.projectCode || '-')}</span>
+                            <span style="font-size:11px; color:#64748b; margin-left:4px;">(${empCount} ${empCount === 1 ? 'emp' : 'emps'})</span>
+                        </td>
+                        <td style="padding:10px 12px; text-align:center;">
+                            <span style="font-weight:600; color:#64748b; font-size:11.5px;">${proj.totalTickets || 0}</span>
+                        </td>
+                        <td style="padding:10px 12px;">
+                            <span style="font-weight:600; color:#334155; font-size:12px;">${(proj.totalHours || 0).toFixed(2)} hrs</span>
+                        </td>
+                        <td style="padding:10px 12px;">
+                            <div style="display:flex; align-items:center; gap:5px;">
+                                <span style="color:#6366f1; font-weight:800; font-size:12px;">₹${Number(proj.billingRate || plant.billingRate || 1000).toLocaleString('en-IN')}/hr</span>
+                                <span style="font-size:9px; color:#64748b; background:#eef2ff; padding:1px 4px; border-radius:3px; font-weight:600;">Proj</span>
+                            </div>
+                        </td>
+                        <td style="padding:10px 16px; text-align:right;">
+                            <span style="font-weight:800; font-size:12.5px; color:#334155;">₹${Math.round(proj.totalCost || 0).toLocaleString('en-IN')}</span>
+                        </td>
+                        <td style="padding:10px 16px; text-align:center;">
+                            ${proj.projectId ? `
+                                <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('project', ${proj.projectId}, '', '${escapeHtml(proj.projectName)}', ${proj.billingRate || plant.billingRate || 1000})" title="Edit Project Rate" style="color:#6366f1; background:#eef2ff; border:1px solid #c7d2fe; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                            ` : ''}
+                        </td>
+                    `;
+
+                    projTr.addEventListener('click', () => {
+                        window.toggleProjectRow(projKey);
+                    });
+
+                    tbody.appendChild(projTr);
+
+                    // Level 4: Employee Rows
+                    (proj.employees || []).forEach(emp => {
+                        const empTr = document.createElement('tr');
+                        empTr.className = `report-row-emp proj-child-${projKey}`;
+                        empTr.style.display = 'none';
+                        empTr.style.background = '#ffffff';
+                        empTr.style.borderBottom = '1px solid #f1f5f9';
+
+                        const initials = getInitials(emp.employeeName);
+                        const ticketCount = (emp.tickets || []).length;
+
+                        empTr.innerHTML = `
+                            <td style="padding:9px 16px;">
+                                <div style="padding-left:78px; display:flex; align-items:center; gap:8px;">
+                                    <div style="width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg, #0d9488, #0f766e); color:white; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; flex-shrink:0;">${initials}</div>
+                                    <div>
+                                        <div style="font-size:12.5px; font-weight:800; color:#0f172a;">${escapeHtml(emp.employeeName)}</div>
+                                        <div style="font-size:10.5px; color:#64748b; font-weight:600;">${escapeHtml(emp.role || 'Staff')}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="padding:9px 12px;">
+                                <span style="font-size:11px; color:#64748b;">${ticketCount} ${ticketCount === 1 ? 'task/ticket' : 'tasks/tickets'}</span>
+                            </td>
+                            <td style="padding:9px 12px; text-align:center;">
+                                <span style="font-weight:600; font-size:11.5px; color:#475569;">${ticketCount}</span>
+                            </td>
+                            <td style="padding:9px 12px;">
+                                <span style="font-weight:700; color:#0f172a; font-size:12px;">${(emp.totalHours || 0).toFixed(2)} hrs</span>
+                            </td>
+                            <td style="padding:9px 12px;">
+                                <div style="display:flex; align-items:center; gap:5px;">
+                                    <span style="color:#0d9488; font-weight:800; font-size:12px;">₹${Number(emp.hourlyRate || 1000).toLocaleString('en-IN')}/hr</span>
+                                    <span style="font-size:9px; color:#64748b; background:#f0fdfa; padding:1px 4px; border-radius:3px; font-weight:600;">Emp</span>
+                                </div>
+                            </td>
+                            <td style="padding:9px 16px; text-align:right;">
+                                <div style="font-weight:800; font-size:12.5px; color:#047857;">₹${Math.round(emp.totalCost || 0).toLocaleString('en-IN')}</div>
+                                <div style="font-size:10px; color:#64748b;">${(emp.totalHours || 0).toFixed(1)}h × ₹${Number(emp.hourlyRate || 1000).toLocaleString('en-IN')}</div>
+                            </td>
+                            <td style="padding:9px 16px; text-align:center;">
+                                ${emp.employeeId ? `
+                                    <button type="button" class="icon-btn btn-edit-rate" onclick="event.stopPropagation(); window.openRateModal('employee', ${emp.employeeId}, '', '${escapeHtml(emp.employeeName)}', ${emp.hourlyRate || 1000})" title="Edit Employee Rate" style="color:#0d9488; background:#f0fdfa; border:1px solid #99f6e4; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                ` : ''}
+                            </td>
+                        `;
+
+                        tbody.appendChild(empTr);
+
+                        // If employee has specific tickets, render task item rows
+                        if (ticketCount > 0) {
+                            (emp.tickets || []).forEach(ticket => {
+                                const taskTr = document.createElement('tr');
+                                taskTr.className = `report-row-emp proj-child-${projKey}`;
+                                taskTr.style.display = 'none';
+                                taskTr.style.background = '#fcfdfe';
+                                taskTr.style.borderBottom = '1px dashed #e2e8f0';
+
+                                const durHours = parseFloat(ticket.duration_hours || 0);
+                                const tRate = parseFloat(emp.hourlyRate || 1000);
+                                const tCost = durHours * tRate;
+
+                                taskTr.innerHTML = `
+                                    <td style="padding:6px 16px;">
+                                        <div style="padding-left:106px; display:flex; align-items:center; gap:6px;">
+                                            <i class="fa-solid fa-circle-check" style="color:#10b981; font-size:10px;"></i>
+                                            <span style="font-family:monospace; font-size:11px; font-weight:700; color:#0284c7;">${escapeHtml(ticket.ticket_number || '-')}</span>
+                                            <span style="font-size:11.5px; color:#475569; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(ticket.title || '')}">${escapeHtml(ticket.title || 'Support Task')}</span>
+                                        </div>
+                                    </td>
+                                    <td style="padding:6px 12px;">
+                                        <span style="font-size:10.5px; color:#64748b;">${escapeHtml(ticket.status || 'Resolved')}</span>
+                                    </td>
+                                    <td style="padding:6px 12px; text-align:center;">
+                                        <span style="font-size:10.5px; color:#94a3b8;">1</span>
+                                    </td>
+                                    <td style="padding:6px 12px;">
+                                        <span style="font-size:11.5px; color:#475569; font-weight:600;">${durHours.toFixed(2)} hrs</span>
+                                    </td>
+                                    <td style="padding:6px 12px;">
+                                        <span style="font-size:11px; color:#64748b;">₹${tRate.toLocaleString('en-IN')}/hr</span>
+                                    </td>
+                                    <td style="padding:6px 16px; text-align:right;">
+                                        <span style="font-size:11.5px; color:#059669; font-weight:700;">₹${Math.round(tCost).toLocaleString('en-IN')}</span>
+                                    </td>
+                                    <td style="padding:6px 16px; text-align:center;">
+                                        <span style="font-size:10px; color:#94a3b8;"><i class="fa-solid fa-lock" title="Calculated from employee rate"></i></span>
+                                    </td>
+                                `;
+                                tbody.appendChild(taskTr);
+                            });
+                        }
+                    });
+                });
+            });
+        });
+    }
+
+    // Drill-Down Toggle Functions
+    window.toggleCustomerRow = function(custId) {
+        const custChevron = document.getElementById(`cust-chevron-${custId}`);
+        const plantRows = document.querySelectorAll(`.cust-child-${custId}`);
+        
+        const isExpanded = custChevron && custChevron.style.transform === 'rotate(90deg)';
+
+        if (isExpanded) {
+            if (custChevron) custChevron.style.transform = 'rotate(0deg)';
+            plantRows.forEach(row => {
+                row.style.display = 'none';
+                const plantKey = row.dataset.plantKey;
+                if (plantKey) {
+                    const plantChevron = document.getElementById(`plant-chevron-${plantKey}`);
+                    if (plantChevron) plantChevron.style.transform = 'rotate(0deg)';
+                    const projRows = document.querySelectorAll(`.plant-child-${plantKey}`);
+                    projRows.forEach(pRow => {
+                        pRow.style.display = 'none';
+                        const projKey = pRow.dataset.projKey;
+                        if (projKey) {
+                            const projChevron = document.getElementById(`proj-chevron-${projKey}`);
+                            if (projChevron) projChevron.style.transform = 'rotate(0deg)';
+                            const empRows = document.querySelectorAll(`.proj-child-${projKey}`);
+                            empRows.forEach(eRow => eRow.style.display = 'none');
+                        }
+                    });
+                }
+            });
+        } else {
+            if (custChevron) custChevron.style.transform = 'rotate(90deg)';
+            plantRows.forEach(row => {
+                row.style.display = 'table-row';
+            });
+        }
+    };
+
+    window.togglePlantRow = function(plantKey) {
+        const plantChevron = document.getElementById(`plant-chevron-${plantKey}`);
+        const projRows = document.querySelectorAll(`.plant-child-${plantKey}`);
+        
+        const isExpanded = plantChevron && plantChevron.style.transform === 'rotate(90deg)';
+
+        if (isExpanded) {
+            if (plantChevron) plantChevron.style.transform = 'rotate(0deg)';
+            projRows.forEach(pRow => {
+                pRow.style.display = 'none';
+                const projKey = pRow.dataset.projKey;
+                if (projKey) {
+                    const projChevron = document.getElementById(`proj-chevron-${projKey}`);
+                    if (projChevron) projChevron.style.transform = 'rotate(0deg)';
+                    const empRows = document.querySelectorAll(`.proj-child-${projKey}`);
+                    empRows.forEach(eRow => eRow.style.display = 'none');
+                }
+            });
+        } else {
+            if (plantChevron) plantChevron.style.transform = 'rotate(90deg)';
+            projRows.forEach(pRow => {
+                pRow.style.display = 'table-row';
+            });
+        }
+    };
+
+    window.toggleProjectRow = function(projKey) {
+        const projChevron = document.getElementById(`proj-chevron-${projKey}`);
+        const empRows = document.querySelectorAll(`.proj-child-${projKey}`);
+        
+        const isExpanded = projChevron && projChevron.style.transform === 'rotate(90deg)';
+
+        if (isExpanded) {
+            if (projChevron) projChevron.style.transform = 'rotate(0deg)';
+            empRows.forEach(eRow => {
+                eRow.style.display = 'none';
+            });
+        } else {
+            if (projChevron) projChevron.style.transform = 'rotate(90deg)';
+            empRows.forEach(eRow => {
+                eRow.style.display = 'table-row';
+            });
+        }
+    };
+
+    // Expand All / Collapse All Toggle
+    if (btnToggleExpandAll) {
+        btnToggleExpandAll.addEventListener('click', () => {
+            isAllExpanded = !isAllExpanded;
+            const allPlantRows = document.querySelectorAll('.report-row-plant');
+            const allProjRows = document.querySelectorAll('.report-row-project');
+            const allEmpRows = document.querySelectorAll('.report-row-emp');
+            const allChevrons = document.querySelectorAll('.cust-chevron, .plant-chevron, .proj-chevron');
+
+            const displayStyle = isAllExpanded ? 'table-row' : 'none';
+            const rotateStyle = isAllExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+
+            allPlantRows.forEach(r => r.style.display = displayStyle);
+            allProjRows.forEach(r => r.style.display = displayStyle);
+            allEmpRows.forEach(r => r.style.display = displayStyle);
+            allChevrons.forEach(c => c.style.transform = rotateStyle);
+
+            btnToggleExpandAll.innerHTML = isAllExpanded
+                ? '<i class="fa-solid fa-compress"></i> Collapse All'
+                : '<i class="fa-solid fa-up-down-left-right"></i> Expand All';
+        });
+    }
+
+    // Rate Modal Logic
+    window.openRateModal = function(entityType, entityId, branchName, entityLabel, currentRate) {
+        if (!rateModal) return;
+
+        const entityTypeInput = document.getElementById('rate-entity-type');
+        const entityIdInput = document.getElementById('rate-entity-id');
+        const branchNameInput = document.getElementById('rate-branch-name');
+        const entityLabelInput = document.getElementById('rate-entity-label');
+        const inputValue = document.getElementById('rate-input-value');
+
+        if (entityTypeInput) entityTypeInput.value = entityType || '';
+        if (entityIdInput) entityIdInput.value = entityId || '';
+        if (branchNameInput) branchNameInput.value = branchName || '';
+        if (entityLabelInput) entityLabelInput.value = entityLabel || '';
+        if (inputValue) inputValue.value = currentRate || 1000;
+
+        rateModal.style.display = 'flex';
+    };
+
+    window.closeRateModal = function() {
+        if (rateModal) rateModal.style.display = 'none';
+    };
+
+    if (rateModalClose) rateModalClose.addEventListener('click', closeRateModal);
+    if (rateModalCancel) rateModalCancel.addEventListener('click', closeRateModal);
+
+    if (rateEditForm) {
+        rateEditForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const entityType = document.getElementById('rate-entity-type').value;
+            const entityId = document.getElementById('rate-entity-id').value;
+            const branchName = document.getElementById('rate-branch-name').value;
+            const hourlyRate = parseFloat(document.getElementById('rate-input-value').value);
+
+            if (isNaN(hourlyRate) || hourlyRate < 0) {
+                alert('Please enter a valid hourly rate.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/v1/customers/billing-rate', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        entityType,
+                        entityId: entityId ? parseInt(entityId, 10) : null,
+                        branchName,
+                        hourlyRate
+                    })
+                });
+
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    closeRateModal();
+                    loadCustomerBillingReport();
+                    if (typeof showToast === 'function') {
+                        showToast('Hourly billing rate updated & payable amounts recalculated!', 'success');
+                    }
+                } else {
+                    alert(result.message || 'Failed to update billing rate.');
+                }
+            } catch (err) {
+                console.error('Error updating billing rate:', err);
+                alert('Network error updating billing rate.');
+            }
+        });
+    }
+
+    // CSV / Excel Export
+    if (btnExportBillingCSV) {
+        btnExportBillingCSV.addEventListener('click', () => {
+            if (!cachedBillingReportData || cachedBillingReportData.length === 0) {
+                alert('No billing report data available to export.');
+                return;
+            }
+
+            const rows = [
+                [
+                    'Customer Name',
+                    'Customer Hourly Rate (INR)',
+                    'Customer Total Hours',
+                    'Customer Total Tickets',
+                    'Customer Total Payable (INR)',
+                    'Plant / Branch Name',
+                    'Plant GST',
+                    'Plant Hourly Rate (INR)',
+                    'Plant Total Hours',
+                    'Plant Total Tickets',
+                    'Plant Total Payable (INR)',
+                    'Project Name',
+                    'Project Status',
+                    'Project Hourly Rate (INR)',
+                    'Project Total Hours',
+                    'Project Total Cost (INR)',
+                    'Employee Name',
+                    'Employee Role',
+                    'Employee Hourly Rate (INR)',
+                    'Employee Hours Logged',
+                    'Employee Total Cost (INR)',
+                    'Tickets / Tasks Handled'
+                ]
+            ];
+
+            cachedBillingReportData.forEach(cust => {
+                const plants = cust.plants && cust.plants.length > 0 ? cust.plants : [{ branchName: 'General', gstNo: '', billingRate: cust.billingRate, projects: [] }];
+                
+                plants.forEach(plant => {
+                    const projects = plant.projects && plant.projects.length > 0 ? plant.projects : [{ projectName: 'Support & General Maintenance', status: 'Active', billingRate: plant.billingRate, employees: [] }];
+
+                    projects.forEach(proj => {
+                        const employees = proj.employees && proj.employees.length > 0 ? proj.employees : [{ employeeName: 'Unassigned / Team', role: 'Support', hourlyRate: proj.billingRate, totalHours: proj.totalHours || 0, totalCost: proj.totalCost || 0, tickets: [] }];
+
+                        employees.forEach(emp => {
+                            const ticketSummary = (emp.tickets || []).map(t => `${t.ticket_number || ''}: ${t.title || ''} (${t.duration_hours || 0}h)`).join('; ');
+
+                            rows.push([
+                                `"${(cust.name || '').replace(/"/g, '""')}"`,
+                                cust.billingRate || 1000,
+                                cust.totalHours ? cust.totalHours.toFixed(2) : '0.00',
+                                cust.totalTickets || 0,
+                                Math.round(cust.totalPayable || 0),
+                                `"${(plant.branchName || '').replace(/"/g, '""')}"`,
+                                `"${(plant.gstNo || '').replace(/"/g, '""')}"`,
+                                plant.billingRate || 1000,
+                                plant.totalHours ? plant.totalHours.toFixed(2) : '0.00',
+                                plant.totalTickets || 0,
+                                Math.round(plant.totalPayable || 0),
+                                `"${(proj.projectName || '').replace(/"/g, '""')}"`,
+                                `"${(proj.status || '').replace(/"/g, '""')}"`,
+                                proj.billingRate || 1000,
+                                proj.totalHours ? proj.totalHours.toFixed(2) : '0.00',
+                                Math.round(proj.totalCost || 0),
+                                `"${(emp.employeeName || '').replace(/"/g, '""')}"`,
+                                `"${(emp.role || '').replace(/"/g, '""')}"`,
+                                emp.hourlyRate || 1000,
+                                emp.totalHours ? emp.totalHours.toFixed(2) : '0.00',
+                                Math.round(emp.totalCost || 0),
+                                `"${ticketSummary.replace(/"/g, '""')}"`
+                            ]);
+                        });
+                    });
+                });
+            });
+
+            const csvContent = '\uFEFF' + rows.map(e => e.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const dateStr = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', url);
+            link.setAttribute('download', `Customer_Plant_Billing_Report_${dateStr}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    }
 });
+

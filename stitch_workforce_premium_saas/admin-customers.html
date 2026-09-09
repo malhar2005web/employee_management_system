@@ -326,71 +326,247 @@
       </div>
     </div>
 
-    <!-- Filters and Table Card -->
-    <div class="card table-card">
-      <div class="card-head">
-        <h3>Customer Master</h3>
-        <div style="display:flex;gap:12px;align-items:center;">
-          <div class="search-box" style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.45);padding:6px 12px;border-radius:var(--radius-sm);display:flex;align-items:center;">
-            <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:13px;"></i>
-            <input type="text" id="cust-search" placeholder="Search by name, branch..." style="background:transparent;border:none;outline:none;color:var(--text-dark);width:160px;font-family:inherit;font-size:13px;margin-left:6px;">
+    <!-- Main Tab Group -->
+    <div class="tab-group" id="customer-main-tabs" style="margin-bottom: 22px;">
+      <button class="active" id="tab-btn-master"><i class="fa-solid fa-address-card"></i> Customer Master</button>
+      <button id="tab-btn-billing-report"><i class="fa-solid fa-chart-line"></i> Customer &amp; Plant Billing &amp; Costing Report</button>
+    </div>
+
+    <!-- ==================== TAB 1: CUSTOMER MASTER ==================== -->
+    <div id="tab-content-master">
+      <!-- Filters and Table Card -->
+      <div class="card table-card">
+        <div class="card-head">
+          <h3>Customer Master Directory</h3>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <div class="search-box" style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.45);padding:6px 12px;border-radius:var(--radius-sm);display:flex;align-items:center;">
+              <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:13px;"></i>
+              <input type="text" id="cust-search" placeholder="Search by name, branch..." style="background:transparent;border:none;outline:none;color:var(--text-dark);width:160px;font-family:inherit;font-size:13px;margin-left:6px;">
+            </div>
+            <select id="cust-industry-filter" class="glass" style="padding:6px 12px;border-radius:var(--radius-sm);border:1px solid rgba(255,255,255,0.55);background:rgba(255,255,255,0.35);color:var(--text-dark);font-family:inherit;font-weight:600;font-size:12.5px;outline:none;cursor:pointer;">
+              <option value="">All Industries</option>
+              <option value="Pharma">Pharma</option>
+              <option value="Manufacturing">Manufacturing</option>
+              <option value="IT Services">IT Services</option>
+              <option value="Logistics">Logistics</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Consulting">Consulting</option>
+              <option value="Retail">Retail</option>
+              <option value="Others">Others</option>
+            </select>
           </div>
-          <select id="cust-industry-filter" class="glass" style="padding:6px 12px;border-radius:var(--radius-sm);border:1px solid rgba(255,255,255,0.55);background:rgba(255,255,255,0.35);color:var(--text-dark);font-family:inherit;font-weight:600;font-size:12.5px;outline:none;cursor:pointer;">
-            <option value="">All Industries</option>
-            <option value="Pharma">Pharma</option>
-            <option value="Manufacturing">Manufacturing</option>
-            <option value="IT Services">IT Services</option>
-            <option value="Logistics">Logistics</option>
-            <option value="Healthcare">Healthcare</option>
-            <option value="Consulting">Consulting</option>
-            <option value="Retail">Retail</option>
-            <option value="Others">Others</option>
-          </select>
         </div>
-      </div>
 
-      <div class="table-responsive" style="width: 100%; overflow-x: auto;">
-        <table id="table-customers" style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.08); font-size:13.5px; color:#475569;">
-              <th style="padding:14px 12px; font-weight:800; min-width:180px;">COMPANY &amp; STATUS</th>
-              <th style="padding:14px 12px; font-weight:800; min-width:140px;">BRANCHES / GST</th>
-              <th style="padding:14px 12px; font-weight:800; min-width:150px;">PROJECTS / MODULES</th>
-              <th style="padding:14px 12px; font-weight:800; min-width:240px;">CONTACT PERSONS</th>
-              <th style="padding:14px 12px; font-weight:800; min-width:160px;">SLA &amp; CONTRACT</th>
-              <th style="padding:14px 12px; font-weight:800; min-width:120px;">INDUSTRY</th>
-              <th style="padding:14px 12px; font-weight:800; min-width:150px;">ASSIGNED TEAM</th>
-              <th style="padding:14px 12px; text-align:right; font-weight:800; min-width:100px;">ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody id="customers-list">
-            <!-- Dynamic rows -->
-          </tbody>
-        </table>
-      </div>
+        <div class="table-responsive" style="width: 100%; overflow-x: auto;">
+          <table id="table-customers" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="text-align:left; border-bottom:2px solid rgba(0,0,0,0.08); font-size:13.5px; color:#475569;">
+                <th style="padding:14px 12px; font-weight:800; min-width:180px;">COMPANY &amp; STATUS</th>
+                <th style="padding:14px 12px; font-weight:800; min-width:140px;">BRANCHES / GST</th>
+                <th style="padding:14px 12px; font-weight:800; min-width:150px;">PROJECTS / MODULES</th>
+                <th style="padding:14px 12px; font-weight:800; min-width:240px;">CONTACT PERSONS</th>
+                <th style="padding:14px 12px; font-weight:800; min-width:160px;">SLA &amp; CONTRACT</th>
+                <th style="padding:14px 12px; font-weight:800; min-width:120px;">INDUSTRY</th>
+                <th style="padding:14px 12px; font-weight:800; min-width:150px;">ASSIGNED TEAM</th>
+                <th style="padding:14px 12px; text-align:right; font-weight:800; min-width:100px;">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="customers-list">
+              <!-- Dynamic rows -->
+            </tbody>
+          </table>
+        </div>
 
-      <!-- Legend Footer -->
-      <div class="cust-legend-container">
-        <div class="cust-legend-item">
-          <span class="cust-status-dot plant-active" style="animation:none;" title="Plant Active"></span>
-          <span>Plant Active</span>
-        </div>
-        <div class="cust-legend-item">
-          <span class="cust-status-dot billing-active" style="animation:none;" title="Billing Active"></span>
-          <span>Billing Active</span>
-        </div>
-        <div class="cust-legend-item">
-          <span class="cust-status-dot both-active" style="animation:none;" title="Plant + Billing Active"></span>
-          <span>Plant + Billing Active</span>
-        </div>
-        <div class="cust-legend-item">
-          <span class="cust-status-dot both-inactive" style="animation:none;" title="Both Inactive"></span>
-          <span>Both Inactive</span>
+        <!-- Legend Footer -->
+        <div class="cust-legend-container">
+          <div class="cust-legend-item">
+            <span class="cust-status-dot plant-active" style="animation:none;" title="Plant Active"></span>
+            <span>Plant Active</span>
+          </div>
+          <div class="cust-legend-item">
+            <span class="cust-status-dot billing-active" style="animation:none;" title="Billing Active"></span>
+            <span>Billing Active</span>
+          </div>
+          <div class="cust-legend-item">
+            <span class="cust-status-dot both-active" style="animation:none;" title="Plant + Billing Active"></span>
+            <span>Plant + Billing Active</span>
+          </div>
+          <div class="cust-legend-item">
+            <span class="cust-status-dot both-inactive" style="animation:none;" title="Both Inactive"></span>
+            <span>Both Inactive</span>
+          </div>
         </div>
       </div>
     </div>
 
+    <!-- ==================== TAB 2: CUSTOMER & PLANT BILLING REPORT ==================== -->
+    <div id="tab-content-billing-report" style="display:none;">
+      <!-- KPI Metric Summary Cards -->
+      <div class="stat-grid" style="grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 22px;">
+        <div class="card stat-card" style="padding:16px 20px;">
+          <div class="stat-card-top">
+            <span class="label" style="font-size:12px;">Total Clients</span>
+            <div class="stat-icon teal" style="width:34px; height:34px; font-size:14px;"><i class="fa-solid fa-building"></i></div>
+          </div>
+          <div class="stat-value" id="kpi-report-clients" style="font-size:24px; font-weight:800;">0</div>
+          <div class="stat-sub flat" style="font-size:11px;">Active client accounts</div>
+        </div>
+
+        <div class="card stat-card" style="padding:16px 20px;">
+          <div class="stat-card-top">
+            <span class="label" style="font-size:12px;">Total Plants / Branches</span>
+            <div class="stat-icon" style="width:34px; height:34px; font-size:14px; background:rgba(96,165,250,0.2); color:#2563eb;"><i class="fa-solid fa-industry"></i></div>
+          </div>
+          <div class="stat-value" id="kpi-report-plants" style="font-size:24px; font-weight:800;">0</div>
+          <div class="stat-sub flat" style="font-size:11px;">Plant locations operational</div>
+        </div>
+
+        <div class="card stat-card" style="padding:16px 20px;">
+          <div class="stat-card-top">
+            <span class="label" style="font-size:12px;">Total Support Tickets</span>
+            <div class="stat-icon" style="width:34px; height:34px; font-size:14px; background:rgba(245,158,11,0.2); color:#d97706;"><i class="fa-solid fa-ticket"></i></div>
+          </div>
+          <div class="stat-value" id="kpi-report-tickets" style="font-size:24px; font-weight:800;">0</div>
+          <div class="stat-sub flat" style="font-size:11px;">Tickets handled &amp; resolved</div>
+        </div>
+
+        <div class="card stat-card" style="padding:16px 20px;">
+          <div class="stat-card-top">
+            <span class="label" style="font-size:12px;">Total Billable Hours</span>
+            <div class="stat-icon" style="width:34px; height:34px; font-size:14px; background:rgba(168,85,247,0.2); color:#9333ea;"><i class="fa-solid fa-clock"></i></div>
+          </div>
+          <div class="stat-value" id="kpi-report-hours" style="font-size:24px; font-weight:800;">0.00 hrs</div>
+          <div class="stat-sub flat" style="font-size:11px;">Productive work logged</div>
+        </div>
+
+        <div class="card stat-card" style="padding:16px 20px; background:linear-gradient(135deg, rgba(16,185,129,0.18), rgba(5,150,105,0.28)); border:1.5px solid rgba(16,185,129,0.4);">
+          <div class="stat-card-top">
+            <span class="label" style="font-size:12px; color:#065f46; font-weight:800;">TOTAL PAYABLE</span>
+            <div class="stat-icon" style="width:34px; height:34px; font-size:14px; background:#059669; color:#fff;"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+          </div>
+          <div class="stat-value" id="kpi-report-payable" style="font-size:24px; font-weight:900; color:#047857;">₹0</div>
+          <div class="stat-sub flat" style="font-size:11px; color:#065f46; font-weight:700;">Client billable sum</div>
+        </div>
+      </div>
+
+      <!-- Report Card & Toolbar -->
+      <div class="card table-card" style="margin-bottom:30px;">
+        <div class="card-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
+          <div>
+            <h3 style="margin:0; font-size:16px; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-layer-group" style="color:var(--teal-600);"></i>
+              Customer &amp; Plant Profitability &amp; Costing Drill-Down Matrix
+            </h3>
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600;">Expand any Customer or Plant row to inspect Project, Task &amp; Per-Employee Costing breakdown.</span>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn" id="btn-toggle-expand-all" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:7px 12px; border-radius:6px; border:1px solid #cbd5e1; cursor:pointer;">
+              <i class="fa-solid fa-up-down-left-right"></i> Expand All
+            </button>
+            <button type="button" class="btn" id="btn-export-billing-csv" style="background:linear-gradient(135deg, #059669, #047857); color:white; font-weight:700; font-size:12.5px; padding:7px 14px; border-radius:6px; border:none; display:flex; align-items:center; gap:6px; cursor:pointer; box-shadow:0 2px 6px rgba(5,150,105,0.25);">
+              <i class="fa-solid fa-file-excel"></i> 📥 Export Report (Excel/CSV)
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding:12px 16px; background:rgba(255,255,255,0.45); border-radius:12px; border:1px solid rgba(255,255,255,0.6); flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <label for="report-filter-start" style="font-size:12px; font-weight:800; color:var(--teal-900); display:flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-calendar-days"></i> From:
+              </label>
+              <input type="date" id="report-filter-start" style="padding:6px 10px; height:34px; font-size:12.5px; font-weight:700; border-radius:6px; border:1.5px solid #cbd5e1; background:white; color:#0f172a; outline:none;">
+            </div>
+
+            <div style="display:flex; align-items:center; gap:6px;">
+              <label for="report-filter-end" style="font-size:12px; font-weight:800; color:var(--teal-900);">To:</label>
+              <input type="date" id="report-filter-end" style="padding:6px 10px; height:34px; font-size:12.5px; font-weight:700; border-radius:6px; border:1.5px solid #cbd5e1; background:white; color:#0f172a; outline:none;">
+            </div>
+
+            <div style="display:inline-flex; gap:6px; flex-wrap:wrap;">
+              <button type="button" class="btn" id="btn-quick-report-this-month" style="background:var(--teal-900); color:white; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;">This Month</button>
+              <button type="button" class="btn" id="btn-quick-report-last-month" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;">Last Month</button>
+              <button type="button" class="btn" id="btn-quick-report-2026" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;">Year 2026</button>
+              <button type="button" class="btn" id="btn-quick-report-all" style="background:#f1f5f9; color:#334155; font-weight:700; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer;">All Time</button>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="search-box" style="background:rgba(255,255,255,0.7); border:1.5px solid #cbd5e1; padding:4px 10px; border-radius:6px; display:flex; align-items:center;">
+              <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted); font-size:12px;"></i>
+              <input type="text" id="report-search" placeholder="Filter customer / plant / emp..." style="background:transparent; border:none; outline:none; color:var(--text-dark); width:180px; font-family:inherit; font-size:12.5px; margin-left:6px; font-weight:600;">
+            </div>
+            <button type="button" class="btn" id="btn-refresh-report" style="background:linear-gradient(135deg, #0284c7, #0369a1); color:white; font-weight:700; font-size:12px; padding:7px 12px; border-radius:6px; border:none; display:flex; align-items:center; gap:5px; cursor:pointer;">
+              <i class="fa-solid fa-arrows-rotate"></i> Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Drill-Down Tree Table Container -->
+        <div style="overflow-x:auto; width:100%;">
+          <table style="min-width:1150px; border-collapse:collapse;" id="table-billing-report">
+            <thead>
+              <tr style="text-align:left; background:rgba(15,118,110,0.08); border-bottom:2px solid rgba(15,118,110,0.2); font-size:13px; color:#0f766e;">
+                <th style="padding:14px 16px; font-weight:800; width:340px;">CUSTOMER / PLANT / PROJECT / EMPLOYEE</th>
+                <th style="padding:14px 12px; font-weight:800; width:170px;">LOCATION / GST / CODE</th>
+                <th style="padding:14px 12px; font-weight:800; width:120px; text-align:center;">TICKETS</th>
+                <th style="padding:14px 12px; font-weight:800; width:140px;">TIME SPENT</th>
+                <th style="padding:14px 12px; font-weight:800; width:170px;">HOURLY RATE (₹)</th>
+                <th style="padding:14px 16px; font-weight:800; width:180px; text-align:right;">PAYABLE / COST (₹)</th>
+                <th style="padding:14px 16px; font-weight:800; width:100px; text-align:center;">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="billing-report-tbody">
+              <tr>
+                <td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted); font-size:14px;">
+                  <i class="fa-solid fa-spinner fa-spin" style="font-size:20px; display:block; margin-bottom:10px; color:var(--teal-600);"></i>
+                  Loading customer &amp; plant billing data...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </main>
+</div>
+
+<!-- ================= MODAL: EDIT HOURLY BILLING RATE ================= -->
+<div class="modal-overlay" id="rate-modal" style="display:none; align-items:center; justify-content:center; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:99999; backdrop-filter:blur(4px);">
+  <div class="modal-box" style="max-width:440px; width:90%; background:rgba(255,255,255,0.95); backdrop-filter:blur(16px); border-radius:14px; padding:24px; box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+      <h3 style="margin:0; font-size:17px; font-weight:800; color:var(--teal-900); display:flex; align-items:center; gap:8px;">
+        <i class="fa-solid fa-pen-to-square" style="color:var(--teal-600);"></i> Edit Billing Rate
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" id="rate-modal-close" style="font-size:18px; cursor:pointer;"></i>
+    </div>
+    <form id="rate-edit-form">
+      <input type="hidden" id="rate-entity-type">
+      <input type="hidden" id="rate-entity-id">
+      <input type="hidden" id="rate-branch-name">
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label style="font-size:12px; font-weight:700; color:#334155;">Entity / Account Name</label>
+        <input type="text" id="rate-entity-label" readonly style="background:#f1f5f9; font-weight:700; color:#0f172a; border:1px solid #cbd5e1;">
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px;">
+        <label for="rate-input-value" style="font-size:12px; font-weight:800; color:#0f766e;">Hourly Billing Rate (₹ / hour)</label>
+        <div style="display:flex; align-items:center; position:relative;">
+          <span style="position:absolute; left:12px; font-weight:800; color:#0f766e; font-size:15px;">₹</span>
+          <input type="number" step="50" min="0" id="rate-input-value" required placeholder="e.g. 1000" style="padding-left:28px; font-size:16px; font-weight:800; color:#0f766e; border:2px solid var(--teal-600); border-radius:8px; width:100%;">
+        </div>
+        <span style="font-size:11px; color:#64748b; margin-top:4px;">Setting this rate will automatically recalculate total payable amount across all drill-down levels.</span>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" class="btn-secondary" id="rate-modal-cancel" style="padding:8px 16px;">Cancel</button>
+        <button type="submit" class="btn-primary" style="padding:8px 20px; font-weight:800;"><i class="fa-solid fa-check"></i> Save &amp; Recalculate</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- ================= ADD / EDIT CUSTOMER MODAL ================= -->

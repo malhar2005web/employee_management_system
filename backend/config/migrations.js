@@ -933,6 +933,27 @@ export async function runMigrations() {
         console.error('❌ Phase 15 Migration Error:', e.message);
     }
 
+    // Phase 16: Customer & Plant Billing & Employee Costing Rates
+    try {
+        await client.query(`
+            ALTER TABLE customers ADD COLUMN IF NOT EXISTS billing_rate NUMERIC(10,2) DEFAULT 1000.00;
+            ALTER TABLE projects ADD COLUMN IF NOT EXISTS billing_rate NUMERIC(10,2) DEFAULT 1000.00;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC(10,2) DEFAULT 1000.00;
+
+            CREATE TABLE IF NOT EXISTS customer_plant_billing_rates (
+                id SERIAL PRIMARY KEY,
+                customer_id INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                branch_name VARCHAR(150) NOT NULL,
+                hourly_rate NUMERIC(10,2) DEFAULT 1000.00,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(customer_id, branch_name)
+            );
+        `);
+        console.log('✅ Phase 16 Customer Plant Billing & Costing Rates ensured.');
+    } catch (e) {
+        console.error('❌ Phase 16 Migration Error:', e.message);
+    }
+
     client.release();
     console.log('🎉 All migrations complete.');
 }
