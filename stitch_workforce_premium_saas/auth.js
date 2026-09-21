@@ -111,16 +111,18 @@ document.addEventListener('DOMContentLoaded', () => {
         codeManuallyEdited = false;
         regModal.style.display = 'flex';
         requestAnimationFrame(() => {
+            regModal.classList.add('active');
             regModal.style.opacity = '1';
         });
     };
 
     const closeRegisterModal = () => {
         if (!regModal) return;
+        regModal.classList.remove('active');
         regModal.style.opacity = '0';
         setTimeout(() => {
             regModal.style.display = 'none';
-        }, 150);
+        }, 220);
     };
 
     if (btnOpenReg) {
@@ -138,6 +140,11 @@ document.addEventListener('DOMContentLoaded', () => {
         regModal.addEventListener('click', (e) => {
             if (e.target === regModal) closeRegisterModal();
         });
+    }
+
+    // Auto-open on #register hash or action query
+    if (window.location.hash === '#register' || new URLSearchParams(window.location.search).get('action') === 'register') {
+        openRegisterModal();
     }
 
     document.addEventListener('keydown', (e) => {

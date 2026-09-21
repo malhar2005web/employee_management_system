@@ -141,6 +141,13 @@ body.modal-open {
   box-sizing: border-box !important;
 }
 
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+}
+
 *{box-sizing:border-box; margin:0; padding:0;}
 html, body{ height:100%; }
 
