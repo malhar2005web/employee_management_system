@@ -224,29 +224,30 @@
     .timeline-stream::before {
       content: '';
       position: absolute;
-      top: 6px;
-      bottom: 6px;
+      top: 10px;
+      bottom: 10px;
       left: 11px;
-      width: 2px;
-      background: rgba(0, 0, 0, 0.1);
+      width: 2.5px;
+      background: #cbd5e1;
     }
 
     .timeline-item {
       position: relative;
-      padding-left: 28px;
-      margin-bottom: 12px;
-      font-size: 12px;
+      padding-left: 32px;
+      margin-bottom: 14px;
+      font-size: 13px;
     }
 
     .timeline-dot {
       position: absolute;
-      left: 6px;
-      top: 4px;
-      width: 12px;
-      height: 12px;
+      left: 4px;
+      top: 8px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
-      background: var(--teal-600);
-      border: 2px solid #fff;
+      background: #0d9488;
+      border: 2.5px solid #ffffff;
+      box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.4);
     }
 
     /* Priority & Status Badges */
@@ -433,6 +434,17 @@
       padding: 32px !important;
       position: relative;
       box-sizing: border-box;
+    }
+
+    #ticket-workspace-modal .modal-box {
+      max-width: 1320px !important;
+      width: 96vw !important;
+      max-height: 92vh !important;
+      background: rgba(255, 255, 255, 0.97) !important;
+      padding: 28px 34px !important;
+      border-radius: 20px !important;
+      border: 1.5px solid #e2e8f0 !important;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.25) !important;
     }
 
     .modal-header {
@@ -1096,31 +1108,29 @@
 
   <!-- ============================= MODAL 2: TICKET WORKSPACE & CONVERSATION ============================= -->
   <div class="modal-overlay" id="ticket-workspace-modal">
-    <div class="modal-box" style="max-width: 1180px;">
-      <div class="modal-header">
-        <div style="display:flex; align-items:center; gap:12px;">
+    <div class="modal-box" style="max-width: 1320px; width: 96vw; max-height: 92vh;">
+      <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:14px; border-bottom:1.5px solid #e2e8f0;">
+        <div style="display:flex; align-items:center; gap:14px;">
           <span id="view-ticket-code" class="badge"
-            style="background:rgba(13,148,136,0.2); color:var(--teal-900); font-weight:800; font-size:13.5px; padding:4px 10px; border-radius:6px; border:1px solid rgba(13,148,136,0.3);">SUP-000000</span>
+            style="background:#f0fdfa; color:#0f766e; font-weight:800; font-size:14px; padding:6px 12px; border-radius:8px; border:1.5px solid #99f6e4;">SUP-000000</span>
           <div>
-            <h3 id="view-ticket-title" style="margin:0; font-size:18px; font-weight:800; color:var(--teal-900);">Ticket
-              Summary Title</h3>
-            <p id="view-ticket-sub" style="margin-top:2px; font-size:12px; color:var(--text-muted);">Reported by
-              Customer</p>
+            <h3 id="view-ticket-title" style="margin:0; font-size:20px; font-weight:800; color:#0f172a;">Ticket Summary Title</h3>
+            <p id="view-ticket-sub" style="margin-top:3px; font-size:13px; color:#475569; font-weight:500;">Reported by Customer</p>
           </div>
         </div>
-        <i class="fa-solid fa-xmark modal-close" id="ticket-workspace-close"></i>
+        <i class="fa-solid fa-xmark modal-close" id="ticket-workspace-close" style="font-size:20px; cursor:pointer; color:#64748b; padding:4px;"></i>
       </div>
 
-      <div class="ticket-detail-grid" style="display:grid; grid-template-columns: 1fr 320px; gap:20px;">
+      <div class="ticket-detail-grid" style="display:grid; grid-template-columns: 1fr 380px; gap:26px;">
         <!-- Left Column -->
         <div>
-          <!-- Status Bar -->
+          <!-- Status & Action Bar -->
           <div
-            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <label style="font-weight:700; font-size:12.5px; color:var(--text-dark);">Status:</label>
+            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px; background:#f8fafc; padding:12px 16px; border-radius:12px; border:1.5px solid #e2e8f0;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <label style="font-weight:700; font-size:13.5px; color:#1e293b;">Status:</label>
               <select id="workspace-status-select" class="form-select-clean"
-                style="padding:6px 12px; font-weight:700; font-size:12.5px; width:auto;">
+                style="padding:7px 14px; font-weight:700; font-size:13px; width:auto; border-radius:8px; border:1.5px solid #cbd5e1; background:#fff;">
                 <option value="Open">Open</option>
                 <option value="Assigned">Assigned</option>
                 <option value="In Progress">In Progress</option>
@@ -1129,49 +1139,54 @@
                 <option value="Closed">Closed</option>
               </select>
             </div>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <button type="button" id="btn-transfer-ticket-admin" class="btn-primary"
+                style="padding:7px 15px; font-size:12.5px; font-weight:800; background:linear-gradient(135deg, #0d9488, #0f766e); color:#fff; border:none; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; box-shadow:0 2px 8px rgba(13,148,136,0.3); transition:all 0.2s;"
+                title="Transfer / Handover Ticket to another team member">
+                <i class="fa-solid fa-share-nodes"></i> Transfer Ticket
+              </button>
               <button type="button" id="btn-convert-task" class="btn-secondary"
-                style="padding:6px 12px; font-size:12px; font-weight:700; background:rgba(14,165,233,0.15); color:#0284c7; border:1px solid rgba(14,165,233,0.35);">
+                style="padding:7px 14px; font-size:12.5px; font-weight:700; background:#f0f9ff; color:#0369a1; border:1.5px solid #bae6fd; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
                 <i class="fa-solid fa-list-check"></i> Convert to Task
               </button>
               <button type="button" id="btn-convert-workflow" class="btn-secondary"
-                style="padding:6px 12px; font-size:12px; font-weight:700; background:rgba(168,85,247,0.15); color:#9333ea; border:1px solid rgba(168,85,247,0.35);">
-                <i class="fa-solid fa-diagram-project"></i> Convert to Workflow
+                style="padding:7px 14px; font-size:12.5px; font-weight:700; background:#ffffff; color:#334155; border:1.5px solid #cbd5e1; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+                <i class="fa-solid fa-diagram-project" style="color:#0f766e;"></i> Convert to Workflow
               </button>
             </div>
           </div>
 
           <!-- Issue Details -->
-          <div style="margin-bottom:16px;">
+          <div style="margin-bottom:20px; background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:16px;">
             <h5
-              style="font-size:12px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin-bottom:6px;">
-              Issue Details</h5>
+              style="font-size:12px; font-weight:800; color:#0f766e; text-transform:uppercase; letter-spacing:0.5px; margin:0 0 8px 0; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-circle-info"></i> Issue Details
+            </h5>
             <p id="view-ticket-description"
-              style="font-size:13.5px; color:var(--text-dark); line-height:1.5; white-space:pre-wrap; margin:0;">No
-              details provided.</p>
-            <div id="view-ticket-attachments-area" style="margin-top:10px; display:none;">
-              <span style="font-size:12px; font-weight:700; color:var(--text-muted);">Attachments:</span>
-              <div id="view-ticket-attachments-list" style="margin-top:4px; display:flex; gap:8px; flex-wrap:wrap;">
+              style="font-size:14.5px; color:#1e293b; line-height:1.6; white-space:pre-wrap; margin:0;">No details provided.</p>
+            <div id="view-ticket-attachments-area" style="margin-top:12px; display:none;">
+              <span style="font-size:12px; font-weight:700; color:#475569;">Attachments:</span>
+              <div id="view-ticket-attachments-list" style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
               </div>
             </div>
           </div>
 
           <!-- ============================= SUB-TASKS & MULTI-EMPLOYEE HANDOVER ============================= -->
           <div
-            style="margin-bottom:20px; background:rgba(255,255,255,0.65); border:1.5px solid rgba(13,148,136,0.25); border-radius:12px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,0.03);">
+            style="margin-bottom:20px; background:#ffffff; border:1.5px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
             <div
               style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
               <div>
                 <h4
-                  style="font-size:14px; font-weight:800; color:var(--teal-900); margin:0; display:flex; align-items:center; gap:8px;">
-                  <i class="fa-solid fa-layer-group" style="color:var(--teal-600);"></i> Work Breakdown &amp;
+                  style="font-size:14px; font-weight:800; color:#0f172a; margin:0; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-layer-group" style="color:#0d9488;"></i> Work Breakdown &amp;
                   Multi-Employee Handover Chunks
                 </h4>
-                <p style="margin:2px 0 0 0; font-size:11.5px; color:var(--text-muted);">Split ticket into executable
+                <p style="margin:2px 0 0 0; font-size:12px; color:#64748b;">Split ticket into executable
                   stages with handover notes and dependency alerts.</p>
               </div>
               <button type="button" class="btn-primary" id="btn-add-subtask" onclick="window.openAddSubtaskModal()"
-                style="padding:5px 12px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:5px; border-radius:6px; cursor:pointer;">
+                style="padding:6px 14px; font-size:12.5px; font-weight:700; display:inline-flex; align-items:center; gap:5px; border-radius:8px; cursor:pointer; background:linear-gradient(135deg, #0d9488, #0f766e);">
                 <i class="fa-solid fa-plus"></i> Add Sub-Task / Chunk
               </button>
             </div>
@@ -1179,7 +1194,7 @@
             <!-- Progress Bar -->
             <div style="margin-bottom:12px;">
               <div
-                style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--teal-900); margin-bottom:4px;">
+                style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; color:#0f172a; margin-bottom:4px;">
                 <span id="subtask-progress-label">0 of 0 Chunks Done (0%)</span>
                 <span id="subtask-total-hours" style="color:#0f766e;">Total Time: 0.0 hrs</span>
               </div>
@@ -1193,102 +1208,166 @@
             <!-- Subtask List Container -->
             <div id="workspace-subtasks-list"
               style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; padding-right:4px;">
-              <div style="text-align:center; padding:15px; color:var(--text-muted); font-size:12px;">
+              <div style="text-align:center; padding:15px; color:#64748b; font-size:12.5px;">
                 No sub-tasks yet. Click "+ Add Sub-Task / Chunk" to divide this ticket.
               </div>
             </div>
           </div>
 
           <!-- Comments -->
-          <h4 style="font-size:14px; font-weight:800; color:var(--teal-900); margin-bottom:10px;">
-            <i class="fa-regular fa-comments" style="color:var(--teal-600);"></i> Activity &amp; Conversation Thread
-          </h4>
-          <div class="conversation-box" id="workspace-comments-list"
-            style="margin-bottom:14px; background:rgba(255,255,255,0.25); border:1px solid rgba(255,255,255,0.45); border-radius:var(--radius-sm); padding:14px; max-height:260px; overflow-y:auto;">
-            <div style="text-align:center; padding:15px; color:var(--text-muted); font-size:12.5px;">No comments yet.
+          <div style="background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:18px;">
+            <h4 style="font-size:14px; font-weight:800; color:#0f172a; margin:0 0 12px 0; display:flex; align-items:center; gap:8px;">
+              <i class="fa-regular fa-comments" style="color:#0d9488;"></i> Activity &amp; Conversation Thread
+            </h4>
+            <div class="conversation-box" id="workspace-comments-list"
+              style="margin-bottom:14px; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:10px; padding:14px; max-height:260px; overflow-y:auto;">
+              <div style="text-align:center; padding:15px; color:#64748b; font-size:12.5px;">No comments yet.</div>
             </div>
-          </div>
 
-          <div style="display:flex; flex-direction:column; gap:10px;">
-            <textarea id="new-comment-text" class="form-textarea-clean" rows="2"
-              placeholder="Type public response or internal note..."></textarea>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <label
-                style="font-size:12px; font-weight:700; color:var(--text-dark); display:flex; align-items:center; gap:6px; cursor:pointer;">
-                <input type="checkbox" id="chk-internal-note" style="accent-color:var(--teal-600);">
-                <span style="color:#d97706;"><i class="fa-solid fa-lock" style="font-size:11px;"></i> Internal Note
-                  (Private to Staff)</span>
-              </label>
-              <button type="button" id="btn-post-comment" class="btn-primary"
-                style="padding:8px 18px; font-size:12.5px;">
-                <i class="fa-solid fa-paper-plane"></i> Post Comment
-              </button>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <textarea id="new-comment-text" class="form-textarea-clean" rows="2"
+                placeholder="Type public response or internal note..." style="font-size:13.5px; border:1.5px solid #cbd5e1; border-radius:8px;"></textarea>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label
+                  style="font-size:12.5px; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="chk-internal-note" style="accent-color:#0d9488; width:15px; height:15px;">
+                  <span style="color:#d97706;"><i class="fa-solid fa-lock" style="font-size:11px;"></i> Internal Note
+                    (Private to Staff)</span>
+                </label>
+                <button type="button" id="btn-post-comment" class="btn-primary"
+                  style="padding:8px 18px; font-size:13px; font-weight:700; border-radius:8px; background:linear-gradient(135deg, #0d9488, #0f766e);">
+                  <i class="fa-solid fa-paper-plane"></i> Post Comment
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Right Column -->
-        <div style="display:flex; flex-direction:column; gap:14px;">
-          <div>
-            <h4 style="font-size:13px; font-weight:800; color:var(--teal-900); margin-bottom:10px;">Ticket Parameters
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <!-- Ticket Parameters Card -->
+          <div style="background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:16px;">
+            <h4 style="font-size:13px; font-weight:800; color:#0f172a; margin:0 0 12px 0; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-sliders" style="color:#0f766e;"></i> Ticket Parameters
             </h4>
-            <div style="font-size:12.5px; margin-bottom:6px;">
-              <span style="color:var(--text-muted); font-weight:600;">Customer:</span>
-              <div id="meta-customer-name" style="font-weight:700; color:var(--text-dark);">Customer Name</div>
+            <div style="font-size:13px; margin-bottom:8px; display:flex; flex-direction:column; gap:2px;">
+              <span style="color:#64748b; font-weight:600; font-size:12px;">Customer:</span>
+              <div id="meta-customer-name" style="font-weight:700; color:#0f172a; font-size:14px;">Customer Name</div>
             </div>
-            <div style="font-size:12.5px; margin-bottom:6px;">
-              <span style="color:var(--text-muted); font-weight:600;">Project:</span>
-              <div id="meta-project-name" style="font-weight:600;">-</div>
+            <div style="font-size:13px; margin-bottom:8px; display:flex; flex-direction:column; gap:2px;">
+              <span style="color:#64748b; font-weight:600; font-size:12px;">Project:</span>
+              <div id="meta-project-name" style="font-weight:700; color:#0f172a; font-size:13.5px;">-</div>
             </div>
-            <div style="font-size:12.5px; margin-bottom:6px;">
-              <span style="color:var(--text-muted); font-weight:600;">Category:</span>
+            <div style="font-size:13px; margin-bottom:8px; display:flex; flex-direction:column; gap:4px;">
+              <span style="color:#64748b; font-weight:600; font-size:12px;">Category:</span>
               <div id="meta-category-badge"><span class="badge"
-                  style="background:rgba(13,148,136,0.15); color:#0d9488;">Bug</span></div>
+                  style="background:#f0fdfa; color:#0f766e; border:1.5px solid #99f6e4; font-weight:700; font-size:12px; padding:3px 8px; border-radius:6px;">Bug</span></div>
             </div>
-            <div style="font-size:12.5px; margin-bottom:6px;">
-              <span style="color:var(--text-muted); font-weight:600;">Priority:</span>
+            <div style="font-size:13px; margin-bottom:12px; display:flex; flex-direction:column; gap:4px;">
+              <span style="color:#64748b; font-weight:600; font-size:12px;">Priority:</span>
               <div id="meta-priority-badge"><span class="badge badge-medium">Medium</span></div>
             </div>
-            <div style="font-size:12.5px; margin-bottom:10px;">
-              <span style="color:var(--text-muted); font-weight:600;">Assigned Staff:</span>
+            <div style="font-size:13px; margin-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span style="color:#64748b; font-weight:600; font-size:12px;">Assigned Staff:</span>
+                <button type="button" id="btn-meta-transfer-link" style="background:none; border:none; color:#0d9488; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:0;" title="Transfer Ticket">
+                  <i class="fa-solid fa-share-nodes"></i> Transfer
+                </button>
+              </div>
               <select id="meta-assignee-select" class="form-select-clean"
-                style="width:100%; margin-top:4px; padding:6px 10px; font-size:12px; font-weight:600;">
+                style="width:100%; padding:7px 10px; font-size:13px; font-weight:600; border-radius:8px; border:1.5px solid #cbd5e1; background:#fff; color:#0f172a;">
                 <option value="">Unassigned</option>
               </select>
             </div>
             <div id="meta-linked-task"
-              style="display:none; font-size:12px; margin-bottom:6px; padding:6px 8px; background:rgba(14,165,233,0.1); border:1px solid rgba(14,165,233,0.25); border-radius:6px; color:#0284c7; font-weight:700;">
+              style="display:none; font-size:12px; margin-bottom:6px; padding:6px 10px; background:rgba(14,165,233,0.1); border:1px solid rgba(14,165,233,0.25); border-radius:6px; color:#0284c7; font-weight:700;">
               <i class="fa-solid fa-link"></i> Linked Task: <span id="meta-linked-task-id"></span>
             </div>
             <div id="meta-linked-workflow"
-              style="display:none; font-size:12px; margin-bottom:6px; padding:6px 8px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.25); border-radius:6px; color:#9333ea; font-weight:700;">
+              style="display:none; font-size:12px; margin-bottom:6px; padding:6px 10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; color:#15803d; font-weight:700;">
               <i class="fa-solid fa-diagram-project"></i> Linked Workflow: <span id="meta-linked-workflow-id"></span>
             </div>
           </div>
 
-          <div>
+          <!-- Time Elapsed Card -->
+          <div style="background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:16px;">
             <h4
-              style="font-size:13px; font-weight:800; color:var(--teal-900); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-              <i class="fa-solid fa-stopwatch" style="color:var(--teal-600);"></i> Time Elapsed &amp; Resolution
+              style="font-size:13px; font-weight:800; color:#0f172a; margin:0 0 10px 0; display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:0.5px;">
+              <i class="fa-solid fa-stopwatch" style="color:#0f766e;"></i> Time Elapsed &amp; Resolution
             </h4>
-            <div id="meta-sla-countdown" style="font-size:13px; font-weight:700; color:var(--text-dark);">
+            <div id="meta-sla-countdown" style="font-size:13px; font-weight:700; color:#0f172a;">
               Calculating...
             </div>
           </div>
 
-          <div>
-            <h4 style="font-size:13px; font-weight:800; color:var(--teal-900); margin-bottom:10px;">Timeline Audit
-              Stream</h4>
-            <ul class="timeline-stream" id="workspace-history-list">
+          <!-- Timeline Audit Stream Card -->
+          <div style="background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:16px;">
+            <h4 style="font-size:13px; font-weight:800; color:#0f172a; margin:0 0 12px 0; display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:0.5px;">
+              <i class="fa-solid fa-timeline" style="color:#0f766e;"></i> Timeline Audit Stream
+            </h4>
+            <ul class="timeline-stream" id="workspace-history-list" style="max-height:320px; overflow-y:auto; padding-right:4px;">
               <li class="timeline-item">
                 <div class="timeline-dot"></div>
-                <div style="font-weight:700; color:var(--text-dark);">Ticket Created</div>
-                <div style="font-size:11px; color:var(--text-muted);">Just now</div>
+                <div style="font-weight:700; color:#0f172a;">Ticket Created</div>
+                <div style="font-size:11px; color:#64748b;">Just now</div>
               </li>
             </ul>
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ============================= MODAL: TRANSFER SUPPORT TICKET (ADMIN) ============================= -->
+  <div class="modal-overlay" id="modal-ticket-transfer" style="display:none; z-index:9999999; align-items:center; justify-content:center; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); backdrop-filter:blur(6px);">
+    <div class="modal-box" style="max-width:560px; width:92%; background:#ffffff; border-radius:16px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.3); border:1.5px solid #e2e8f0;">
+      <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1.5px solid #e2e8f0;">
+        <h3 style="font-size:18px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px; margin:0;">
+          <i class="fa-solid fa-share-nodes" style="color:#0d9488;"></i> Transfer / Handover Ticket
+        </h3>
+        <i class="fa-solid fa-xmark modal-close" id="close-ticket-transfer-modal" style="cursor:pointer; font-size:18px; color:#64748b;"></i>
+      </div>
+      
+      <input type="hidden" id="transfer-ticket-id">
+      
+      <div style="background:#f0fdfa; border:1.5px solid #99f6e4; border-radius:10px; padding:12px 14px; margin-bottom:18px;">
+        <div style="font-size:11px; font-weight:800; color:#0f766e; text-transform:uppercase; letter-spacing:0.5px;">Selected Ticket</div>
+        <div id="transfer-ticket-banner-title" style="font-size:14px; font-weight:700; color:#0f172a; margin-top:3px;">SUP-000000 • Ticket Title</div>
+        <div id="transfer-ticket-banner-sub" style="font-size:12.5px; color:#475569; margin-top:2px;">Customer &amp; Project</div>
+      </div>
+
+      <form id="form-ticket-transfer">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label style="display:block; font-size:13px; font-weight:700; margin-bottom:5px; color:#1e293b;">Assign / Transfer To *</label>
+          <select id="transfer-ticket-target-emp" class="form-select-clean" required style="width:100%; padding:8px 12px; font-size:13.5px; border-radius:8px; border:1.5px solid #cbd5e1; background:#fff;">
+            <option value="">Select Team Member...</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px;">
+          <label style="display:block; font-size:13px; font-weight:700; margin-bottom:5px; color:#1e293b;">Transfer Reason / Category *</label>
+          <select id="transfer-ticket-reason-cat" class="form-select-clean" required style="width:100%; padding:8px 12px; font-size:13.5px; border-radius:8px; border:1.5px solid #cbd5e1; background:#fff;">
+            <option value="Domain Expertise">Domain / Technical Expertise Required</option>
+            <option value="Workload Balancing">Workload Balancing / Queue Reallocation</option>
+            <option value="Shift Handover">Shift Handover / Out of Office</option>
+            <option value="Escalation">Senior Escalation / Tier-2 Support</option>
+            <option value="Admin Reassignment">Admin Directive / Team Reassignment</option>
+            <option value="Collaborative Resolution">Collaborative Resolution / Pair Support</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:18px;">
+          <label style="display:block; font-size:13px; font-weight:700; margin-bottom:5px; color:#1e293b;">Handover Notes &amp; Instructions *</label>
+          <textarea id="transfer-ticket-notes" rows="3" class="form-textarea-clean" required placeholder="State why this ticket is being transferred, what has been checked, and priority action items..." style="width:100%; font-size:13.5px; border-radius:8px; border:1.5px solid #cbd5e1; padding:8px 12px;"></textarea>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn-secondary" id="btn-cancel-ticket-transfer" style="padding:9px 18px; font-size:13px; font-weight:700; border-radius:8px;">Cancel</button>
+          <button type="submit" class="btn-primary" id="btn-submit-ticket-transfer" style="padding:9px 20px; font-size:13px; font-weight:800; background:linear-gradient(135deg, #0d9488, #0f766e); border:none; border-radius:8px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+            <i class="fa-solid fa-share-nodes"></i> Confirm Transfer
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 

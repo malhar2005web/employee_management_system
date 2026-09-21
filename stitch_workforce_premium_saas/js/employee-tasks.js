@@ -618,7 +618,7 @@
                     <button class="btn-primary" style="padding:4px 7px; font-size:11px; font-weight:800; background:#0d9488; border-color:#0d9488; height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.startResolvingTicket(${t.id})">
                         <i class="fa-solid fa-play" style="font-size:9.5px;"></i> Start
                     </button>
-                    <button class="btn-secondary" style="padding:4px 7px; font-size:11px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                    <button class="btn-secondary" style="padding:4px 7px; font-size:11px; font-weight:700; background:rgba(13,148,136,0.1); color:#0f766e; border:1px solid rgba(13,148,136,0.3); height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
                         <i class="fa-solid fa-share-nodes" style="font-size:10px;"></i> Transfer
                     </button>
                 `;
@@ -627,7 +627,7 @@
                     <button class="btn-primary" style="padding:4px 7px; font-size:11px; font-weight:800; background:#16a34a; border-color:#16a34a; height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.quickResolveTicket(${t.id})">
                         <i class="fa-solid fa-circle-check" style="font-size:10.5px;"></i> Resolve
                     </button>
-                    <button class="btn-secondary" style="padding:4px 7px; font-size:11px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                    <button class="btn-secondary" style="padding:4px 7px; font-size:11px; font-weight:700; background:rgba(13,148,136,0.1); color:#0f766e; border:1px solid rgba(13,148,136,0.3); height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
                         <i class="fa-solid fa-share-nodes" style="font-size:10px;"></i> Transfer
                     </button>
                 `;
@@ -970,7 +970,7 @@
                             <button type="button" class="btn-primary" style="padding:6px 14px; font-size:12.5px; font-weight:800; background:linear-gradient(135deg, #0d9488, #0f766e); border:none; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(13,148,136,0.3);" onclick="window.startResolvingTicket(${t.id})">
                                 <i class="fa-solid fa-play"></i> Start Resolving
                             </button>
-                            <button type="button" class="btn-secondary" style="padding:6px 12px; font-size:12.5px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                            <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12.5px; font-weight:700; background:rgba(13,148,136,0.1); color:#0f766e; border:1px solid rgba(13,148,136,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
                                 <i class="fa-solid fa-share-nodes"></i> Transfer
                             </button>
                         `;
@@ -979,7 +979,7 @@
                             <button type="button" class="btn-primary" style="padding:6px 14px; font-size:12.5px; font-weight:800; background:linear-gradient(135deg, #16a34a, #15803d); border:none; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(22,163,74,0.3);" onclick="window.quickResolveTicket(${t.id})">
                                 <i class="fa-solid fa-circle-check"></i> Mark Resolved
                             </button>
-                            <button type="button" class="btn-secondary" style="padding:6px 12px; font-size:12.5px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                            <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12.5px; font-weight:700; background:rgba(13,148,136,0.1); color:#0f766e; border:1px solid rgba(13,148,136,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
                                 <i class="fa-solid fa-share-nodes"></i> Transfer
                             </button>
                         `;
@@ -988,7 +988,7 @@
                             <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12.5px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); display:inline-flex; align-items:center; gap:6px;" onclick="window.openReopenTicketModal(${t.id})" title="Reopen & Resume Resolution">
                                 <i class="fa-solid fa-rotate-left"></i> Reopen Ticket
                             </button>
-                            <button type="button" class="btn-secondary" style="padding:6px 12px; font-size:12.5px; font-weight:700; background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid rgba(124,58,237,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                            <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12.5px; font-weight:700; background:rgba(13,148,136,0.1); color:#0f766e; border:1px solid rgba(13,148,136,0.3); display:inline-flex; align-items:center; gap:5px;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
                                 <i class="fa-solid fa-share-nodes"></i> Transfer
                             </button>
                         `;
@@ -1316,17 +1316,42 @@
         const list = document.getElementById('modal-ticket-history');
         if (!list) return;
         if (!history.length) {
-            list.innerHTML = '<li class="timeline-item"><div class="timeline-dot"></div><div style="font-size:12px; font-weight:700;">Ticket Created</div></li>';
+            list.innerHTML = '<li class="timeline-item"><div class="timeline-dot"></div><div style="font-weight:700; color:#0f172a;">Ticket Created</div></li>';
             return;
         }
-        list.innerHTML = history.map(h => `
-            <li class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div style="font-size:12px; font-weight:700; color:var(--text-dark);">${h.action || 'Status Changed'}</div>
-                <div style="font-size:11px; color:var(--text-muted);">${h.details || ''}</div>
-                <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">${new Date(h.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}</div>
-            </li>
-        `).join('');
+        list.innerHTML = history.map(h => {
+            const hDate = new Date(h.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
+            const act = (h.action || '').toLowerCase();
+            let actionIcon = '<i class="fa-solid fa-circle-dot" style="color:#0d9488;"></i>';
+            if (act.includes('transfer')) actionIcon = '<i class="fa-solid fa-share-nodes" style="color:#0d9488;"></i>';
+            else if (act.includes('assign')) actionIcon = '<i class="fa-solid fa-user-check" style="color:#0284c7;"></i>';
+            else if (act.includes('resolv') || act.includes('close')) actionIcon = '<i class="fa-solid fa-circle-check" style="color:#16a34a;"></i>';
+            else if (act.includes('reopen')) actionIcon = '<i class="fa-solid fa-rotate-left" style="color:#ea580c;"></i>';
+            else if (act.includes('creat') || act.includes('register')) actionIcon = '<i class="fa-solid fa-circle-plus" style="color:#0f766e;"></i>';
+
+            return `
+                <li class="timeline-item" style="position:relative; padding-left:32px; margin-bottom:12px;">
+                    <div class="timeline-dot"></div>
+                    <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+                        <div style="font-size:13.5px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                            ${actionIcon} <span>${h.action || 'Status Changed'}</span>
+                        </div>
+                        ${h.details ? `<div style="font-size:13px; font-weight:500; color:#334155; line-height:1.5; margin-bottom:6px; word-break:break-word;">${h.details}</div>` : ''}
+                        <div style="font-size:12px; font-weight:700; color:#475569; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            <span style="display:inline-flex; align-items:center; gap:4px; color:#1e293b;">
+                                <i class="fa-regular fa-user" style="font-size:11px; color:#64748b;"></i>
+                                ${h.performed_by || 'System'}
+                            </span>
+                            <span style="color:#cbd5e1;">•</span>
+                            <span style="display:inline-flex; align-items:center; gap:4px; color:#64748b;">
+                                <i class="fa-regular fa-clock" style="font-size:11px;"></i>
+                                ${hDate}
+                            </span>
+                        </div>
+                    </div>
+                </li>
+            `;
+        }).join('');
     }
 
     // Start Resolving Ticket (Live Timer Begins)

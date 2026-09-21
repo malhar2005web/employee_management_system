@@ -546,6 +546,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <button type="button" class="btn-secondary" onclick="window.openTicketWorkspace(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Open Ticket Workspace">
                                     <i class="fa-solid fa-folder-open" style="color:var(--teal-600); font-size:11px;"></i> Open
                                 </button>
+                                <button type="button" class="btn-secondary" onclick="window.openTransferTicketModal(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(13,148,136,0.1); color:#0f766e; border:1px solid rgba(13,148,136,0.3); height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1;" title="Transfer / Handover Ticket">
+                                    <i class="fa-solid fa-share-nodes" style="font-size:10px;"></i> Transfer
+                                </button>
                                 ${t.status === 'Open' || t.status === 'Assigned' ? `
                                 <button type="button" class="btn-primary" style="padding:4px 8px; font-size:11px; font-weight:800; background:#0d9488; border-color:#0d9488; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.startResolvingTicket(${t.id})">
                                     <i class="fa-solid fa-play" style="font-size:10px;"></i> Start
@@ -1085,8 +1088,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const metaPri = document.getElementById('meta-priority-badge');
             if (metaCust) metaCust.textContent = t.customer_name || 'Customer';
             if (metaProj) metaProj.textContent = t.project_name || 'None / General';
-            if (metaCat) metaCat.innerHTML = `<span class="badge" style="background:rgba(6,182,212,0.15); color:#0891b2;">${t.category || 'Bug'}</span>`;
+            if (metaCat) metaCat.innerHTML = `<span class="badge" style="background:#f0fdfa; color:#0f766e; border:1.5px solid #99f6e4; font-weight:700; font-size:12px; padding:3px 8px; border-radius:6px;">${t.category || 'Bug'}</span>`;
             if (metaPri) metaPri.innerHTML = getPriorityBadge(t.priority);
+
+            // Wire up Admin Transfer Ticket buttons
+            const btnTransferAdmin = document.getElementById('btn-transfer-ticket-admin');
+            if (btnTransferAdmin) {
+                btnTransferAdmin.onclick = () => window.openTransferTicketModal(t.id);
+            }
+            const btnMetaTransfer = document.getElementById('btn-meta-transfer-link');
+            if (btnMetaTransfer) {
+                btnMetaTransfer.onclick = () => window.openTransferTicketModal(t.id);
+            }
 
             // Linked Task / Workflow Badges
             const linkedTaskEl = document.getElementById('meta-linked-task');
@@ -1129,22 +1142,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         const noteBadge = isInternal ? '<span class="badge" style="background:#fef3c7; color:#d97706; border:1px solid rgba(245,158,11,0.3); font-size:10px; margin-left:6px;"><i class="fa-solid fa-lock"></i> Internal Note</span>' : '';
 
                         commHtml += `
-                            <div class="chat-msg-item ${internalClass}">
-                                <div class="chat-msg-header">
-                                    <span class="chat-msg-author">${c.author_name || 'Staff'} ${noteBadge}</span>
-                                    <span style="color:var(--text-muted); font-size:11px;">${cDate}</span>
+                            <div class="chat-msg-item ${internalClass}" style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+                                <div class="chat-msg-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                    <span class="chat-msg-author" style="font-weight:800; font-size:13px; color:#0f172a;">${c.author_name || 'Staff'} ${noteBadge}</span>
+                                    <span style="color:#64748b; font-size:11.5px; font-weight:600;"><i class="fa-regular fa-clock" style="font-size:10.5px;"></i> ${cDate}</span>
                                 </div>
-                                <div style="font-size:13px; color:var(--teal-950); line-height:1.4; white-space:pre-wrap;">${c.comment_text || c.comment || ''}</div>
+                                <div style="font-size:13.5px; color:#1e293b; line-height:1.5; white-space:pre-wrap; word-break:break-word;">${c.comment_text || c.comment || ''}</div>
                             </div>
                         `;
                     });
                     commentsContainer.innerHTML = commHtml;
                 } else {
-                    commentsContainer.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:12.5px;">No comments yet. Start the conversation below.</div>';
+                    commentsContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b; font-size:13px;">No comments yet. Start the conversation below.</div>';
                 }
             }
 
-            // Render Timeline Audit Stream
+            // Render Timeline Audit Stream (High Contrast, Bold, Ultra-Readable)
             const historyContainer = document.getElementById('workspace-history-list');
             const historyList = t.history || data.history || [];
             if (historyContainer) {
@@ -1152,18 +1165,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     let histHtml = '';
                     historyList.forEach(h => {
                         const hDate = new Date(h.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        
+                        // Action Icon determination
+                        const act = (h.action || '').toLowerCase();
+                        let actionIcon = '<i class="fa-solid fa-circle-dot" style="color:#0d9488;"></i>';
+                        if (act.includes('transfer')) {
+                            actionIcon = '<i class="fa-solid fa-share-nodes" style="color:#0d9488;"></i>';
+                        } else if (act.includes('assign')) {
+                            actionIcon = '<i class="fa-solid fa-user-check" style="color:#0284c7;"></i>';
+                        } else if (act.includes('resolv') || act.includes('close')) {
+                            actionIcon = '<i class="fa-solid fa-circle-check" style="color:#16a34a;"></i>';
+                        } else if (act.includes('reopen')) {
+                            actionIcon = '<i class="fa-solid fa-rotate-left" style="color:#ea580c;"></i>';
+                        } else if (act.includes('creat') || act.includes('register')) {
+                            actionIcon = '<i class="fa-solid fa-circle-plus" style="color:#0f766e;"></i>';
+                        } else if (act.includes('subtask') || act.includes('chunk')) {
+                            actionIcon = '<i class="fa-solid fa-layer-group" style="color:#0d9488;"></i>';
+                        }
+
                         histHtml += `
                             <li class="timeline-item">
                                 <div class="timeline-dot"></div>
-                                <div style="font-weight:700; color:var(--teal-950);">${h.action || 'Status Changed'}</div>
-                                <div style="color:var(--text-dark); font-size:11.5px;">${h.details || ''}</div>
-                                <div style="font-size:10.5px; color:var(--text-muted);">${h.performed_by || 'System'} • ${hDate}</div>
+                                <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+                                    <div style="font-weight:800; font-size:13.5px; color:#0f172a; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                                        ${actionIcon} <span>${h.action || 'Activity Logged'}</span>
+                                    </div>
+                                    ${h.details ? `<div style="color:#334155; font-size:13px; font-weight:500; line-height:1.5; margin-bottom:6px; word-break:break-word;">${h.details}</div>` : ''}
+                                    <div style="font-size:12px; font-weight:700; color:#475569; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                        <span style="display:inline-flex; align-items:center; gap:4px; color:#1e293b;">
+                                            <i class="fa-regular fa-user" style="font-size:11px; color:#64748b;"></i>
+                                            ${h.performed_by || 'System'}
+                                        </span>
+                                        <span style="color:#cbd5e1;">•</span>
+                                        <span style="display:inline-flex; align-items:center; gap:4px; color:#64748b;">
+                                            <i class="fa-regular fa-clock" style="font-size:11px;"></i>
+                                            ${hDate}
+                                        </span>
+                                    </div>
+                                </div>
                             </li>
                         `;
                     });
                     historyContainer.innerHTML = histHtml;
                 } else {
-                    historyContainer.innerHTML = '<li class="timeline-item"><div class="timeline-dot"></div><div>Ticket Created</div></li>';
+                    historyContainer.innerHTML = '<li class="timeline-item"><div class="timeline-dot"></div><div style="font-weight:700; color:#0f172a;">Ticket Created</div></li>';
                 }
             }
 
@@ -1929,6 +1974,126 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 console.error("Error updating ticket:", err);
                 alert("Error saving ticket changes");
+            }
+        });
+    }
+
+    // =========================================================================
+    // ADMIN TICKET TRANSFER MODAL HANDLERS
+    // =========================================================================
+    function populateTransferEmployeeDropdown(currentAssigneeId) {
+        const select = document.getElementById('transfer-ticket-target-emp');
+        if (!select) return;
+        select.innerHTML = '<option value="">Select Team Member...</option>';
+        employeesCache.forEach(m => {
+            if (currentAssigneeId && String(m.id) === String(currentAssigneeId)) return;
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${m.full_name} (${m.role || m.designation || 'Staff'})`;
+            select.appendChild(opt);
+        });
+    }
+
+    const closeTransferModal = () => {
+        const modal = document.getElementById('modal-ticket-transfer');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.opacity = '0';
+            setTimeout(() => { modal.style.display = 'none'; }, 200);
+        }
+        document.body.classList.remove('modal-open');
+    };
+
+    window.openTransferTicketModal = async function(ticketId) {
+        if (!ticketId) ticketId = currentActiveTicketId;
+        if (!ticketId) return;
+
+        let ticket = null;
+        try {
+            const res = await fetch(`/api/v1/support/${ticketId}`);
+            const json = await res.json();
+            if (json.success && json.data) ticket = json.data;
+        } catch (e) {
+            console.warn("Could not fetch ticket for transfer:", e);
+        }
+
+        if (!ticket) {
+            alert("Could not load ticket details for transfer.");
+            return;
+        }
+
+        populateTransferEmployeeDropdown(ticket.assigned_to);
+
+        const idEl = document.getElementById('transfer-ticket-id');
+        const titleEl = document.getElementById('transfer-ticket-banner-title');
+        const subEl = document.getElementById('transfer-ticket-banner-sub');
+        const notesEl = document.getElementById('transfer-ticket-notes');
+
+        if (idEl) idEl.value = ticket.id;
+        if (titleEl) titleEl.textContent = `${ticket.ticket_code} • ${ticket.title}`;
+        if (subEl) subEl.textContent = `${ticket.customer_name || 'Customer'} • Project: ${ticket.project_name || 'General'}`;
+        if (notesEl) notesEl.value = '';
+
+        const modal = document.getElementById('modal-ticket-transfer');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+            modal.style.opacity = '1';
+            document.body.classList.add('modal-open');
+        }
+    };
+
+    const closeTransferBtn = document.getElementById('close-ticket-transfer-modal');
+    const cancelTransferBtn = document.getElementById('btn-cancel-ticket-transfer');
+    if (closeTransferBtn) closeTransferBtn.addEventListener('click', closeTransferModal);
+    if (cancelTransferBtn) cancelTransferBtn.addEventListener('click', closeTransferModal);
+
+    const formTransfer = document.getElementById('form-ticket-transfer');
+    if (formTransfer) {
+        formTransfer.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const ticketId = document.getElementById('transfer-ticket-id').value;
+            const targetEmpId = document.getElementById('transfer-ticket-target-emp').value;
+            const reasonCat = document.getElementById('transfer-ticket-reason-cat').value;
+            const notes = document.getElementById('transfer-ticket-notes').value.trim();
+
+            if (!targetEmpId || !notes) {
+                alert('Please select an employee and enter handover notes.');
+                return;
+            }
+
+            const submitBtn = document.getElementById('btn-submit-ticket-transfer');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const res = await fetch(`/api/v1/support/${ticketId}/transfer`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_employee_id: parseInt(targetEmpId, 10),
+                        reason_category: reasonCat,
+                        notes: notes
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof showToast === 'function') showToast(data.message || 'Ticket transferred successfully!', 'success');
+                    else alert(data.message || 'Ticket transferred successfully!');
+                    closeTransferModal();
+
+                    // If workspace modal is open with this ticket, refresh workspace details
+                    if (currentActiveTicketId && String(currentActiveTicketId) === String(ticketId)) {
+                        await window.openTicketWorkspace(ticketId);
+                    }
+                    await loadTickets();
+                } else {
+                    alert(data.message || 'Transfer failed');
+                }
+            } catch (err) {
+                console.error("Transfer ticket error:", err);
+                alert('Network error transferring ticket');
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
             }
         });
     }
