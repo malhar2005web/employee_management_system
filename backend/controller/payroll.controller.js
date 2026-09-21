@@ -252,8 +252,7 @@ export async function getMonthlyPayroll(req, res) {
             for (let d = 1; d <= daysInMonth; d++) {
                 const dayStr = String(d).padStart(2, '0');
                 const dateStr = `${yearMonth}-${dayStr}`;
-                const curDateObj = new Date(year, month - 1, d);
-                const dayOfWeek = curDateObj.getDay(); // 0 = Sunday
+                const dayOfWeek = new Date(Date.UTC(year, month - 1, d)).getUTCDay(); // 0 = Sunday (timezone independent)
                 const isFuture = dateStr > todayIST;
 
                 const dbAtt = attendanceMap.get(`${emp.id}_${dateStr}`);
@@ -362,8 +361,8 @@ export async function getMonthlyPayroll(req, res) {
             // Column AK: Total Absent = COUNTIF(A) + COUNTIF(H)*0.5
             const absentDays = parseFloat((countA + (countH * 0.5)).toFixed(1));
 
-            // Column AL: Total Leaves = COUNTIF(L) + COUNTIF(LH)*0.5 - COUNTIF(LP)
-            const leaveDays = parseFloat((countL + (countLH * 0.5) - countLP).toFixed(1));
+            // Column AL: Total Leaves = COUNTIF(L) + COUNTIF(LH)*0.5 + COUNTIF(LP)
+            const leaveDays = parseFloat((countL + (countLH * 0.5) + countLP).toFixed(1));
 
             // Column AV: Month Divisor (30 days standard from Book1.xlsx $AV$1)
             const monthDays = 30;
