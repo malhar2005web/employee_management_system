@@ -52,3 +52,8 @@ backend/scratch_poll.js
 backend/uploads/*
 !backend/uploads/**/.gitkeep
 
+# Publish Output Binaries
+publish/Android/
+*.apk
+*.aab
+

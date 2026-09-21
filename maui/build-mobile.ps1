@@ -15,6 +15,24 @@ $publishPath = Join-Path $rootPath "publish"
 $androidPublishPath = Join-Path $publishPath "Android"
 $projectPath = Join-Path $rootPath "maui\EMS.Mobile\EMS.Mobile.csproj"
 
+# Ensure JAVA_HOME and ANDROID_HOME are set
+if (-not $env:JAVA_HOME -or -not (Test-Path $env:JAVA_HOME)) {
+    if (Test-Path "D:\Desktop1\jbr") {
+        $env:JAVA_HOME = "D:\Desktop1\jbr"
+        $env:PATH = "D:\Desktop1\jbr\bin;" + $env:PATH
+        Write-Host "Set JAVA_HOME to D:\Desktop1\jbr" -ForegroundColor DarkCyan
+    }
+}
+if (-not $env:ANDROID_HOME -or -not (Test-Path $env:ANDROID_HOME)) {
+    $defaultSdk = Join-Path $env:LOCALAPPDATA "Android\Sdk"
+    if (Test-Path $defaultSdk) {
+        $env:ANDROID_HOME = $defaultSdk
+        Write-Host "Set ANDROID_HOME to $defaultSdk" -ForegroundColor DarkCyan
+    }
+}
+
+$defaultDebugKeystore = Join-Path $env:USERPROFILE ".android\debug.keystore"
+
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host "STARTING ANDROID APK & AAB COMPILATION PIPELINE" -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
@@ -31,19 +49,29 @@ Write-Host "[2/4] Restoring & compiling solution in Release Configuration..." -F
 dotnet clean $projectPath -c Release
 dotnet restore $projectPath
 
-# 3. Publish Android Package
-Write-Host "[3/4] Running MSBuild publishing..." -ForegroundColor Green
+# 3. Publish Android Package (both APK and AAB)
+Write-Host "[3/4] Running MSBuild publishing for Android APK..." -ForegroundColor Green
 if ($KeystorePath -ne "") {
-    Write-Host "Compiling Signed Production Android App Bundle..." -ForegroundColor Yellow
+    Write-Host "Compiling Signed Production Android APK..." -ForegroundColor Yellow
     dotnet publish $projectPath -c Release -f net10.0-android `
+        /p:AndroidPackageFormat=apk `
         /p:AndroidKeyStore=true `
         /p:AndroidSigningKeyStore=$KeystorePath `
         /p:AndroidSigningStorePass=$KeystorePassword `
         /p:AndroidSigningKeyAlias=$KeyAlias `
         /p:AndroidSigningKeyPass=$KeyPassword
+} elseif (Test-Path $defaultDebugKeystore) {
+    Write-Host "Compiling Signed Device-Installable Android APK (using debug keystore)..." -ForegroundColor Yellow
+    dotnet publish $projectPath -c Release -f net10.0-android `
+        /p:AndroidPackageFormat=apk `
+        /p:AndroidKeyStore=true `
+        /p:AndroidSigningKeyStore=$defaultDebugKeystore `
+        /p:AndroidSigningStorePass=android `
+        /p:AndroidSigningKeyAlias=androiddebugkey `
+        /p:AndroidSigningKeyPass=android
 } else {
-    Write-Host "Compiling Unsigned Internal Testing Android Packages..." -ForegroundColor Yellow
-    dotnet publish $projectPath -c Release -f net10.0-android
+    Write-Host "Compiling Android Package..." -ForegroundColor Yellow
+    dotnet publish $projectPath -c Release -f net10.0-android /p:AndroidPackageFormat=apk
 }
 
 # 4. Extract generated APK & AAB to publish/Android/
