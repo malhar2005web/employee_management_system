@@ -32,7 +32,7 @@ export async function createEmployee(req, res) {
     const client = await pool.connect();
     try {
         const { 
-            fullName, email, employeeCode, departmentId, designationId, reportingManagerId, joiningDate, salaryGrade,
+            fullName, email, employeeCode, password, departmentId, designationId, reportingManagerId, joiningDate, salaryGrade,
             gender, phone, dob, citizenship, address, permAddress, bankName, bankAccNo, bankIfsc,
             docCv, docOfferLetter, docAdharCard, docPanCard,
             anydeskId, whatsappNo
@@ -57,14 +57,16 @@ export async function createEmployee(req, res) {
         await client.query("BEGIN");
 
         const salt = await bcryptjs.genSalt(10);
-        const hashedPassword = await bcryptjs.hash("Welcome@123", salt);
+        const passToHash = (password && password.trim().length >= 6) ? password.trim() : "Welcome@123";
+        const hashedPassword = await bcryptjs.hash(passToHash, salt);
         const username = email.split('@')[0];
+        const companyId = req.user?.company_id || null;
 
         // Insert into users
         const userRes = await client.query(
-            `INSERT INTO users (username, email, password, role, is_active)
-             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-            [username, email, hashedPassword, 'Employee', true]
+            `INSERT INTO users (username, email, password, role, is_active, company_id)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [username, email, hashedPassword, 'Employee', true, companyId]
         );
         const userId = userRes.rows[0].id;
 
@@ -74,9 +76,9 @@ export async function createEmployee(req, res) {
                 user_id, full_name, employee_code, department_id, designation_id, reporting_manager_id, joining_date, salary_grade, status,
                 gender, phone, dob, citizenship, address, perm_address, bank_name, bank_acc_no, bank_ifsc,
                 doc_cv, doc_offer_letter, doc_adhar_card, doc_pan_card,
-                anydesk_id, whatsapp_no
+                anydesk_id, whatsapp_no, company_id
              )
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
             [
                 userId, 
                 fullName, 
@@ -101,12 +103,13 @@ export async function createEmployee(req, res) {
                 docAdharCard ? (typeof docAdharCard === 'object' ? JSON.stringify(docAdharCard) : docAdharCard) : '{}',
                 docPanCard ? (typeof docPanCard === 'object' ? JSON.stringify(docPanCard) : docPanCard) : '{}',
                 anydeskId || req.body.anydesk_id || null,
-                whatsappNo || req.body.whatsapp_no || null
+                whatsappNo || req.body.whatsapp_no || null,
+                companyId
             ]
         );
 
         await client.query("COMMIT");
-        res.status(201).json({ success: true, message: "Employee created successfully with default password: Welcome@123" });
+        res.status(201).json({ success: true, message: "Employee account created successfully" });
     } catch (error) {
         await client.query("ROLLBACK");
         console.log("Error in createEmployee:", error.message);
@@ -124,7 +127,7 @@ export async function updateEmployee(req, res) {
             fullName, email, employeeCode, departmentId, designationId, reportingManagerId, joiningDate, salaryGrade,
             gender, phone, dob, citizenship, address, permAddress, bankName, bankAccNo, bankIfsc,
             docCv, docOfferLetter, docAdharCard, docPanCard,
-            anydeskId, whatsappNo
+            anydeskId, whatsappNo, password
         } = req.body;
 
         const empQuery = await client.query("SELECT * FROM employees WHERE id = $1", [id]);
@@ -139,6 +142,13 @@ export async function updateEmployee(req, res) {
         // Update user email if provided
         if (email && userId) {
             await client.query("UPDATE users SET email = $1 WHERE id = $2", [email, userId]);
+        }
+
+        // Update user password if provided
+        if (password && password.trim().length >= 6 && userId) {
+            const salt = await bcryptjs.genSalt(10);
+            const hashedPassword = await bcryptjs.hash(password.trim(), salt);
+            await client.query("UPDATE users SET password = $1 WHERE id = $2", [hashedPassword, userId]);
         }
 
         // Preserve documents if not uploaded anew

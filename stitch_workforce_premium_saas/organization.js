@@ -33,6 +33,33 @@ window.openEmployeeModal = function() {
         window.updateDesignationOptions('', '');
     }
 
+    // Reset password fields for new employee
+    const empPwd = document.getElementById('emp-password');
+    const empConfPwd = document.getElementById('emp-confirm-password');
+    const empPwdReq = document.getElementById('emp-pwd-req');
+    const empConfPwdReq = document.getElementById('emp-conf-pwd-req');
+    const empPwdHint = document.getElementById('emp-pwd-hint');
+    const empPwdMatchError = document.getElementById('emp-pwd-match-error');
+    const toggleEmpPwd = document.getElementById('toggle-emp-pwd');
+    const toggleEmpConfPwd = document.getElementById('toggle-emp-conf-pwd');
+
+    if (empPwd) {
+        empPwd.value = '';
+        empPwd.type = 'password';
+        empPwd.required = true;
+    }
+    if (empConfPwd) {
+        empConfPwd.value = '';
+        empConfPwd.type = 'password';
+        empConfPwd.required = true;
+    }
+    if (empPwdReq) empPwdReq.style.display = 'inline';
+    if (empConfPwdReq) empConfPwdReq.style.display = 'inline';
+    if (empPwdHint) empPwdHint.textContent = 'Admin-assigned password for employee portal login (min 6 chars).';
+    if (empPwdMatchError) empPwdMatchError.style.display = 'none';
+    if (toggleEmpPwd) toggleEmpPwd.className = 'fa-solid fa-eye';
+    if (toggleEmpConfPwd) toggleEmpConfPwd.className = 'fa-solid fa-eye';
+
     if (empModal) {
         empModal.style.display = 'flex';
         document.body.classList.add('modal-open');
@@ -310,6 +337,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (btnAddEmpModal) {
             btnAddEmpModal.addEventListener('click', window.openEmployeeModal);
+        }
+
+        // Password visibility toggles
+        const toggleEmpPwd = document.getElementById('toggle-emp-pwd');
+        const empPwdInput = document.getElementById('emp-password');
+        if (toggleEmpPwd && empPwdInput) {
+            toggleEmpPwd.addEventListener('click', () => {
+                const isPwd = empPwdInput.type === 'password';
+                empPwdInput.type = isPwd ? 'text' : 'password';
+                toggleEmpPwd.className = isPwd ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            });
+        }
+        const toggleEmpConfPwd = document.getElementById('toggle-emp-conf-pwd');
+        const empConfPwdInput = document.getElementById('emp-confirm-password');
+        if (toggleEmpConfPwd && empConfPwdInput) {
+            toggleEmpConfPwd.addEventListener('click', () => {
+                const isPwd = empConfPwdInput.type === 'password';
+                empConfPwdInput.type = isPwd ? 'text' : 'password';
+                toggleEmpConfPwd.className = isPwd ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            });
         }
 
         // Document Upload Handlers
@@ -771,6 +818,33 @@ document.addEventListener('DOMContentLoaded', () => {
             if (modalTitleText) modalTitleText.textContent = `Edit Employee: ${emp.full_name}`;
             if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
 
+            // Password fields in edit mode (optional)
+            const empPwdEdit = document.getElementById('emp-password');
+            const empConfPwdEdit = document.getElementById('emp-confirm-password');
+            const empPwdReq = document.getElementById('emp-pwd-req');
+            const empConfPwdReq = document.getElementById('emp-conf-pwd-req');
+            const empPwdHint = document.getElementById('emp-pwd-hint');
+            const empPwdMatchError = document.getElementById('emp-pwd-match-error');
+            const toggleEmpPwd = document.getElementById('toggle-emp-pwd');
+            const toggleEmpConfPwd = document.getElementById('toggle-emp-conf-pwd');
+
+            if (empPwdEdit) {
+                empPwdEdit.value = '';
+                empPwdEdit.type = 'password';
+                empPwdEdit.required = false;
+            }
+            if (empConfPwdEdit) {
+                empConfPwdEdit.value = '';
+                empConfPwdEdit.type = 'password';
+                empConfPwdEdit.required = false;
+            }
+            if (empPwdReq) empPwdReq.style.display = 'none';
+            if (empConfPwdReq) empConfPwdReq.style.display = 'none';
+            if (empPwdHint) empPwdHint.textContent = 'Leave blank to keep existing password, or enter new password to reset credentials.';
+            if (empPwdMatchError) empPwdMatchError.style.display = 'none';
+            if (toggleEmpPwd) toggleEmpPwd.className = 'fa-solid fa-eye';
+            if (toggleEmpConfPwd) toggleEmpConfPwd.className = 'fa-solid fa-eye';
+
             // Show modal
             if (empModal) {
                 empModal.style.display = 'flex';
@@ -818,6 +892,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!payload.fullName || !payload.email || !payload.employeeCode) {
                     alert("Please fill in Full Name, Email Address, and Employee Code.");
                     return;
+                }
+
+                // Validate Password
+                const empPwdEl = document.getElementById('emp-password');
+                const empConfPwdEl = document.getElementById('emp-confirm-password');
+                const empPwdMatchErr = document.getElementById('emp-pwd-match-error');
+                const pwdVal = empPwdEl ? empPwdEl.value.trim() : '';
+                const confPwdVal = empConfPwdEl ? empConfPwdEl.value.trim() : '';
+
+                if (!isEdit) {
+                    if (!pwdVal || pwdVal.length < 6) {
+                        alert("Please enter a secure login password (minimum 6 characters) for this employee.");
+                        if (empPwdEl) empPwdEl.focus();
+                        return;
+                    }
+                    if (pwdVal !== confPwdVal) {
+                        if (empPwdMatchErr) empPwdMatchErr.style.display = 'block';
+                        alert("Password and Confirm Password do not match.");
+                        if (empConfPwdEl) empConfPwdEl.focus();
+                        return;
+                    }
+                    payload.password = pwdVal;
+                } else {
+                    if (pwdVal) {
+                        if (pwdVal.length < 6) {
+                            alert("New password must be at least 6 characters long.");
+                            if (empPwdEl) empPwdEl.focus();
+                            return;
+                        }
+                        if (pwdVal !== confPwdVal) {
+                            if (empPwdMatchErr) empPwdMatchErr.style.display = 'block';
+                            alert("Password and Confirm Password do not match.");
+                            if (empConfPwdEl) empConfPwdEl.focus();
+                            return;
+                        }
+                        payload.password = pwdVal;
+                    }
                 }
 
                 if (submitBtn) {

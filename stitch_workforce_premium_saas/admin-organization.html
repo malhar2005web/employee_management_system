@@ -408,6 +408,29 @@
             <input type="text" id="emp-grade" placeholder="e.g. GR-04" style="padding:10px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#0f172a; font-family:inherit; font-size:13.5px; outline:none;">
           </div>
           
+          <!-- Password & Confirm Password Setup -->
+          <div class="form-group" id="group-emp-password" style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:12px; font-weight:700; color:#334155;">
+              Login Password <span id="emp-pwd-req" style="color:#ef4444;">*</span>
+            </label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="emp-password" placeholder="Create password for employee (min 6 chars)" style="width:100%; padding:10px 38px 10px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#0f172a; font-family:inherit; font-size:13.5px; outline:none; box-sizing:border-box;">
+              <i class="fa-solid fa-eye" id="toggle-emp-pwd" style="position:absolute; right:12px; color:#64748b; cursor:pointer; font-size:14px;" title="Show/Hide Password"></i>
+            </div>
+            <span id="emp-pwd-hint" style="font-size:11px; color:#64748b;">Credentials shared directly with employee for portal login.</span>
+          </div>
+
+          <div class="form-group" id="group-emp-confirm-password" style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:12px; font-weight:700; color:#334155;">
+              Confirm Password <span id="emp-conf-pwd-req" style="color:#ef4444;">*</span>
+            </label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="emp-confirm-password" placeholder="Re-type password" style="width:100%; padding:10px 38px 10px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#0f172a; font-family:inherit; font-size:13.5px; outline:none; box-sizing:border-box;">
+              <i class="fa-solid fa-eye" id="toggle-emp-conf-pwd" style="position:absolute; right:12px; color:#64748b; cursor:pointer; font-size:14px;" title="Show/Hide Password"></i>
+            </div>
+            <span id="emp-pwd-match-error" style="font-size:11px; color:#ef4444; display:none;">Passwords do not match</span>
+          </div>
+          
           <!-- Department with Quick Add -->
           <div class="form-group" style="display:flex; flex-direction:column; gap:6px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">

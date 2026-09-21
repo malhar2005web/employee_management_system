@@ -209,3 +209,110 @@ export async function refresh(req, res) {
         res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
+
+/**
+ * SaaS Company & Initial Admin Registration
+ * POST /api/v1/auth/register-company
+ */
+export async function registerCompany(req, res) {
+    const client = await pool.connect();
+    try {
+        const { companyName, companyCode, adminFullName, email, password } = req.body;
+
+        if (!companyName || !adminFullName || !email || !password) {
+            return res.status(400).json({ success: false, message: "Company name, admin full name, email, and password are required" });
+        }
+
+        const trimmedEmail = email.trim().toLowerCase();
+        const trimmedCode = (companyCode || companyName)
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+
+        if (!trimmedCode) {
+            return res.status(400).json({ success: false, message: "Please provide a valid company name or identifier code" });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ success: false, message: "Password must be at least 6 characters long" });
+        }
+
+        // 1. Check if user email already exists
+        const userCheck = await client.query("SELECT id FROM users WHERE email = $1", [trimmedEmail]);
+        if (userCheck.rows.length > 0) {
+            return res.status(400).json({ success: false, message: "A user account with this email address already exists. Please sign in instead." });
+        }
+
+        // 2. Check if company code already exists
+        const codeCheck = await client.query("SELECT id FROM companies WHERE LOWER(code) = $1", [trimmedCode]);
+        if (codeCheck.rows.length > 0) {
+            return res.status(400).json({ success: false, message: `Company identifier '${trimmedCode}' is already registered. Please choose another identifier.` });
+        }
+
+        await client.query("BEGIN");
+
+        // 3. Create company row
+        const compRes = await client.query(
+            `INSERT INTO companies (name, code, contact_email, status, created_at, updated_at)
+             VALUES ($1, $2, $3, 'Active', NOW(), NOW())
+             RETURNING id, name, code`,
+            [companyName.trim(), trimmedCode, trimmedEmail]
+        );
+        const companyId = compRes.rows[0].id;
+
+        // 4. Hash password
+        const salt = await bcryptjs.genSalt(10);
+        const hashedPassword = await bcryptjs.hash(password.trim(), salt);
+        const username = trimmedEmail.split('@')[0];
+
+        // 5. Create Admin User
+        const userRes = await client.query(
+            `INSERT INTO users (username, email, password, role, is_active, company_id, created_at, updated_at)
+             VALUES ($1, $2, $3, 'Admin', true, $4, NOW(), NOW())
+             RETURNING id, username, email, role, is_active, company_id`,
+            [username, trimmedEmail, hashedPassword, companyId]
+        );
+        const newAdmin = userRes.rows[0];
+
+        // 6. Link admin_user_id in companies
+        await client.query("UPDATE companies SET admin_user_id = $1 WHERE id = $2", [newAdmin.id, companyId]);
+
+        // 7. Create Employee Profile for this Admin (visible in organizational directory)
+        const empCode = `ADM-${trimmedCode.toUpperCase().slice(0, 4)}-${String(newAdmin.id).padStart(3, '0')}`;
+        await client.query(
+            `INSERT INTO employees (
+                user_id, full_name, employee_code, status, company_id, joining_date, created_at, updated_at
+             ) VALUES ($1, $2, $3, 'Active', $4, CURRENT_DATE, NOW(), NOW())`,
+            [newAdmin.id, adminFullName.trim(), empCode, companyId]
+        );
+
+        await client.query("COMMIT");
+
+        // 8. Generate session token & set cookie
+        const token = generateTokenAndSetCookie(newAdmin.id, res);
+
+        res.status(201).json({
+            success: true,
+            message: "Company and Admin account registered successfully!",
+            token,
+            user: {
+                id: newAdmin.id,
+                username: newAdmin.username,
+                email: newAdmin.email,
+                role: newAdmin.role,
+                company_id: companyId,
+                company_name: compRes.rows[0].name,
+                company_code: compRes.rows[0].code
+            }
+        });
+    } catch (error) {
+        await client.query("ROLLBACK");
+        console.error("Error in registerCompany:", error.message);
+        res.status(500).json({ success: false, message: "Failed to register company: " + error.message });
+    } finally {
+        client.release();
+    }
+}
+
