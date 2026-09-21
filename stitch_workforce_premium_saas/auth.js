@@ -1,12 +1,36 @@
+// Multi-Tenant Global Fetch Interceptor: Automatically attaches X-Company-Code header
+(function() {
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options = {}) {
+        options = options || {};
+        options.headers = options.headers || {};
+        const companyCode = localStorage.getItem('company_code');
+        if (companyCode) {
+            if (options.headers instanceof Headers) {
+                if (!options.headers.has('x-company-code')) options.headers.set('x-company-code', companyCode);
+            } else if (Array.isArray(options.headers)) {
+                options.headers.push(['x-company-code', companyCode]);
+            } else {
+                if (!options.headers['x-company-code']) options.headers['x-company-code'] = companyCode;
+            }
+        }
+        return originalFetch.call(this, url, options);
+    };
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('login-form');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
+    const companyCodeInput = document.getElementById('company-code-input');
     const errorAlert = document.getElementById('error-alert');
     const successAlert = document.getElementById('success-alert');
     const forgotLink = document.getElementById('forgot-link');
+    const brandTitle = document.getElementById('login-brand-title');
+    const brandSubtitle = document.getElementById('login-brand-subtitle');
 
     const showAlert = (alertEl, message, isSuccess = false) => {
+        if (!alertEl) return;
         alertEl.textContent = message;
         alertEl.style.display = 'block';
         setTimeout(() => {
@@ -14,20 +38,85 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 6000);
     };
 
+    // Auto-detect company from Subdomain or URL query param (?org=tata or ?company=tata)
+    const detectCompanyContext = async () => {
+        let detectedCode = '';
+
+        // 1. Check Subdomain (e.g. tata.domain.com)
+        const host = window.location.hostname;
+        if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(host) && host !== 'localhost') {
+            const parts = host.split('.');
+            if (parts.length > 2 && parts[0] !== 'www' && parts[0] !== 'app' && parts[0] !== 'api') {
+                detectedCode = parts[0].toLowerCase();
+            }
+        }
+
+        // 2. Check URL search param (?org=tata or ?company=tata)
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryOrg = urlParams.get('org') || urlParams.get('company');
+        if (queryOrg) {
+            detectedCode = queryOrg.trim().toLowerCase();
+        }
+
+        // 3. Fallback to localStorage if previously set
+        if (!detectedCode) {
+            detectedCode = localStorage.getItem('company_code') || '';
+        }
+
+        if (detectedCode && detectedCode !== 'pcs') {
+            if (companyCodeInput) companyCodeInput.value = detectedCode;
+            localStorage.setItem('company_code', detectedCode);
+            await fetchAndApplyBranding(detectedCode);
+        }
+    };
+
+    const fetchAndApplyBranding = async (code) => {
+        if (!code || code === 'pcs') {
+            if (brandTitle) brandTitle.textContent = 'PCS Enterprise';
+            if (brandSubtitle) brandSubtitle.textContent = 'Sign in to access the portal';
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/v1/auth/company-info/${encodeURIComponent(code)}`);
+            const data = await res.json();
+            if (res.ok && data.success && data.company) {
+                if (brandTitle) brandTitle.textContent = data.company.company_name;
+                if (brandSubtitle) brandSubtitle.textContent = `Sign in to access ${data.company.company_name} Portal`;
+            }
+        } catch (e) {
+            console.warn('[Branding] Could not load company info:', e.message);
+        }
+    };
+
+    if (companyCodeInput) {
+        companyCodeInput.addEventListener('blur', () => {
+            const code = companyCodeInput.value.trim().toLowerCase();
+            if (code) {
+                localStorage.setItem('company_code', code);
+                fetchAndApplyBranding(code);
+            }
+        });
+    }
+
+    detectCompanyContext();
+
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            errorAlert.style.display = 'none';
-            successAlert.style.display = 'none';
+            if (errorAlert) errorAlert.style.display = 'none';
+            if (successAlert) successAlert.style.display = 'none';
 
             const email = emailInput.value.trim();
             const password = passwordInput.value;
+            const companyCode = (companyCodeInput?.value || localStorage.getItem('company_code') || 'pcs').trim().toLowerCase();
 
             try {
                 const response = await fetch('/api/v1/auth/login', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-Company-Code': companyCode
                     },
                     body: JSON.stringify({ email, password })
                 });
@@ -35,6 +124,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
 
                 if (response.ok && data.success) {
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                    }
+                    const activeCode = data.user?.company_code || companyCode;
+                    localStorage.setItem('company_code', activeCode);
+
                     // Redirect based on user role
                     const role = data.user.role;
                     if (role === 'Admin') {
@@ -57,8 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (forgotLink) {
         forgotLink.addEventListener('click', async (e) => {
             e.preventDefault();
-            errorAlert.style.display = 'none';
-            successAlert.style.display = 'none';
+            if (errorAlert) errorAlert.style.display = 'none';
+            if (successAlert) successAlert.style.display = 'none';
 
             const email = prompt('Enter your registered email address:');
             if (!email) return;
@@ -166,9 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const slug = regCompanyName.value
                     .trim()
                     .toLowerCase()
-                    .replace(/[^a-z0-9]/g, '-')
-                    .replace(/-+/g, '-')
-                    .replace(/^-|-$/g, '')
+                    .replace(/[^a-z0-9]/g, '')
                     .slice(0, 16);
                 regCompanyCode.value = slug;
             }
@@ -202,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (regSuccessAlert) regSuccessAlert.style.display = 'none';
 
             const companyName = regCompanyName ? regCompanyName.value.trim() : '';
-            const companyCode = regCompanyCode ? regCompanyCode.value.trim() : '';
+            const companyCode = regCompanyCode ? regCompanyCode.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
             const adminFullName = regAdminName ? regAdminName.value.trim() : '';
             const email = regAdminEmail ? regAdminEmail.value.trim() : '';
             const password = regPassword ? regPassword.value : '';
@@ -210,6 +303,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!companyName || !companyCode || !adminFullName || !email || !password) {
                 showAlert(regErrorAlert, 'Please fill in all required fields.');
+                return;
+            }
+
+            if (companyCode.length < 2) {
+                showAlert(regErrorAlert, 'Company Code must be at least 2 alphanumeric characters.');
+                if (regCompanyCode) regCompanyCode.focus();
                 return;
             }
 
@@ -227,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (btnSubmitCompany) {
                 btnSubmitCompany.disabled = true;
-                btnSubmitCompany.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Setting up Organization...';
+                btnSubmitCompany.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Provisioning Dedicated Enterprise Database...';
             }
 
             try {
@@ -243,10 +342,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.token) {
                         localStorage.setItem('token', data.token);
                     }
-                    showAlert(regSuccessAlert, 'Company registered successfully! Redirecting to Dashboard...', true);
+                    if (data.company_code) {
+                        localStorage.setItem('company_code', data.company_code);
+                    }
+                    showAlert(regSuccessAlert, `Company & Dedicated Database provisioned successfully! Redirecting to Dashboard...`, true);
                     setTimeout(() => {
                         window.location.href = '/admin-dashboard.html';
-                    }, 900);
+                    }, 1100);
                 } else {
                     showAlert(regErrorAlert, data.message || 'Registration failed. Please check your details.');
                 }
@@ -256,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
                 if (btnSubmitCompany) {
                     btnSubmitCompany.disabled = false;
-                    btnSubmitCompany.innerHTML = '<i class="fa-solid fa-rocket"></i> Register & Launch Dashboard';
+                    btnSubmitCompany.innerHTML = '<i class="fa-solid fa-rocket"></i> Register &amp; Launch Dashboard';
                 }
             }
         });

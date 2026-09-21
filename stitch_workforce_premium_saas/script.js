@@ -1,3 +1,25 @@
+// Multi-Tenant Global Fetch Interceptor: Automatically attaches X-Company-Code header
+(function() {
+    if (window._emsFetchIntercepted) return;
+    window._emsFetchIntercepted = true;
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options = {}) {
+        options = options || {};
+        options.headers = options.headers || {};
+        const companyCode = localStorage.getItem('company_code');
+        if (companyCode) {
+            if (options.headers instanceof Headers) {
+                if (!options.headers.has('x-company-code')) options.headers.set('x-company-code', companyCode);
+            } else if (Array.isArray(options.headers)) {
+                options.headers.push(['x-company-code', companyCode]);
+            } else {
+                if (!options.headers['x-company-code']) options.headers['x-company-code'] = companyCode;
+            }
+        }
+        return originalFetch.call(this, url, options);
+    };
+})();
+
 // Renders the productivity bar+line combo chart used on both dashboards,
 // styled so the bars read as translucent glass columns rather than flat fills.
 function renderProductivityChart(canvasId, dataValues, lineValues){

@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { ENV_VARS } from './envVars.js';
+import { tenantStorage } from './tenantManager.js';
 
 const { Pool } = pg;
 
@@ -18,22 +19,40 @@ pg.types.setTypeParser(1082, function(stringValue) {
     return stringValue;
 });
 
-export const pool = new Pool({
+export const defaultPool = new Pool({
     user: ENV_VARS.PGUSER,
     host: ENV_VARS.PGHOST,
-    database: ENV_VARS.PGDATABASE,
+    database: ENV_VARS.PGDATABASE || 'ems',
     password: ENV_VARS.PGPASSWORD,
     port: ENV_VARS.PGPORT,
     options: '-c timezone=Asia/Kolkata',
-    ssl: {
-        rejectUnauthorized: false
+    ssl: false
+});
+
+/**
+ * Smart Dynamic Pool Proxy:
+ * Whenever ANY controller or service calls pool.query(...), pool.connect(...), etc.,
+ * this proxy automatically forwards the call to the current tenant's database connection pool
+ * resolved by tenantMiddleware via AsyncLocalStorage.
+ * If called outside of an active HTTP request (e.g. background crons or initialization),
+ * it seamlessly falls back to defaultPool (the default 'ems' database).
+ */
+export const pool = new Proxy(defaultPool, {
+    get(target, prop) {
+        const store = tenantStorage.getStore();
+        const activePool = store?.pool || target;
+        const value = activePool[prop];
+        if (typeof value === 'function') {
+            return value.bind(activePool);
+        }
+        return value;
     }
 });
 
 export const connectDB = async () => {
     try {
-        const client = await pool.connect();
-        console.log(`🚀 PostgreSQL connected successfully to host: ${ENV_VARS.PGHOST}`);
+        const client = await defaultPool.connect();
+        console.log(`🚀 PostgreSQL connected successfully to host: ${ENV_VARS.PGHOST} (Default DB: ${ENV_VARS.PGDATABASE || 'ems'})`);
         client.release();
     } catch (error) {
         console.error("❌ PostgreSQL connection failed:", error.message);

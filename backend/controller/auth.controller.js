@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { generateTokenAndSetCookie } from '../utils/generate.Token.js';
 import { ENV_VARS } from '../config/envVars.js';
+import { provisionNewCompanyDatabase, masterPool } from '../config/tenantManager.js';
 
 export async function login(req, res) {
     try {
@@ -27,7 +28,13 @@ export async function login(req, res) {
             return res.status(403).json({ success: false, message: "User account is suspended" });
         }
 
-        const token = generateTokenAndSetCookie(user.id, res);
+        const companyCode = req.tenant?.companyCode || 'pcs';
+        const dbName = req.tenant?.dbName || 'ems';
+
+        const token = generateTokenAndSetCookie(user.id, res, {
+            companyCode,
+            dbName
+        });
 
         const client = req.headers['x-ems-client'];
         const platform = req.headers['x-ems-platform'];
@@ -47,7 +54,9 @@ export async function login(req, res) {
                 username: user.username,
                 email: user.email,
                 role: user.role,
-                is_active: user.is_active
+                is_active: user.is_active,
+                company_code: companyCode,
+                db_name: dbName
             }
         });
     } catch (error) {
@@ -214,8 +223,12 @@ export async function refresh(req, res) {
  * SaaS Company & Initial Admin Registration
  * POST /api/v1/auth/register-company
  */
+/**
+ * SaaS Company & Initial Admin Registration
+ * Automatically provisions a dedicated PostgreSQL database cloned from ems_template
+ * POST /api/v1/auth/register-company
+ */
 export async function registerCompany(req, res) {
-    const client = await pool.connect();
     try {
         const { companyName, companyCode, adminFullName, email, password } = req.body;
 
@@ -223,96 +236,71 @@ export async function registerCompany(req, res) {
             return res.status(400).json({ success: false, message: "Company name, admin full name, email, and password are required" });
         }
 
-        const trimmedEmail = email.trim().toLowerCase();
         const trimmedCode = (companyCode || companyName)
             .trim()
             .toLowerCase()
-            .replace(/[^a-z0-9]/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '');
+            .replace(/[^a-z0-9]/g, '');
 
-        if (!trimmedCode) {
-            return res.status(400).json({ success: false, message: "Please provide a valid company name or identifier code" });
+        if (!trimmedCode || trimmedCode.length < 2) {
+            return res.status(400).json({ success: false, message: "Company code must be at least 2 alphanumeric characters" });
         }
 
         if (password.length < 6) {
             return res.status(400).json({ success: false, message: "Password must be at least 6 characters long" });
         }
 
-        // 1. Check if user email already exists
-        const userCheck = await client.query("SELECT id FROM users WHERE email = $1", [trimmedEmail]);
-        if (userCheck.rows.length > 0) {
-            return res.status(400).json({ success: false, message: "A user account with this email address already exists. Please sign in instead." });
-        }
+        // Provision dedicated company database (all 95 tables & 21 functions cloned)
+        const provisionResult = await provisionNewCompanyDatabase({
+            companyName: companyName.trim(),
+            companyCode: trimmedCode,
+            adminFullName: adminFullName.trim(),
+            email: email.trim().toLowerCase(),
+            password: password.trim()
+        });
 
-        // 2. Check if company code already exists
-        const codeCheck = await client.query("SELECT id FROM companies WHERE LOWER(code) = $1", [trimmedCode]);
-        if (codeCheck.rows.length > 0) {
-            return res.status(400).json({ success: false, message: `Company identifier '${trimmedCode}' is already registered. Please choose another identifier.` });
-        }
+        const { company, adminUser, dbName } = provisionResult;
 
-        await client.query("BEGIN");
-
-        // 3. Create company row
-        const compRes = await client.query(
-            `INSERT INTO companies (name, code, contact_email, status, created_at, updated_at)
-             VALUES ($1, $2, $3, 'Active', NOW(), NOW())
-             RETURNING id, name, code`,
-            [companyName.trim(), trimmedCode, trimmedEmail]
-        );
-        const companyId = compRes.rows[0].id;
-
-        // 4. Hash password
-        const salt = await bcryptjs.genSalt(10);
-        const hashedPassword = await bcryptjs.hash(password.trim(), salt);
-        const username = trimmedEmail.split('@')[0];
-
-        // 5. Create Admin User
-        const userRes = await client.query(
-            `INSERT INTO users (username, email, password, role, is_active, company_id, created_at, updated_at)
-             VALUES ($1, $2, $3, 'Admin', true, $4, NOW(), NOW())
-             RETURNING id, username, email, role, is_active, company_id`,
-            [username, trimmedEmail, hashedPassword, companyId]
-        );
-        const newAdmin = userRes.rows[0];
-
-        // 6. Link admin_user_id in companies
-        await client.query("UPDATE companies SET admin_user_id = $1 WHERE id = $2", [newAdmin.id, companyId]);
-
-        // 7. Create Employee Profile for this Admin (visible in organizational directory)
-        const empCode = `ADM-${trimmedCode.toUpperCase().slice(0, 4)}-${String(newAdmin.id).padStart(3, '0')}`;
-        await client.query(
-            `INSERT INTO employees (
-                user_id, full_name, employee_code, status, company_id, joining_date, created_at, updated_at
-             ) VALUES ($1, $2, $3, 'Active', $4, CURRENT_DATE, NOW(), NOW())`,
-            [newAdmin.id, adminFullName.trim(), empCode, companyId]
-        );
-
-        await client.query("COMMIT");
-
-        // 8. Generate session token & set cookie
-        const token = generateTokenAndSetCookie(newAdmin.id, res);
+        // Generate session token with tenant context
+        const token = generateTokenAndSetCookie(adminUser.id, res, {
+            companyCode: trimmedCode,
+            dbName
+        });
 
         res.status(201).json({
             success: true,
-            message: "Company and Admin account registered successfully!",
+            message: `Company '${company.company_name}' registered successfully with its own dedicated database!`,
             token,
+            company_code: trimmedCode,
+            db_name: dbName,
             user: {
-                id: newAdmin.id,
-                username: newAdmin.username,
-                email: newAdmin.email,
-                role: newAdmin.role,
-                company_id: companyId,
-                company_name: compRes.rows[0].name,
-                company_code: compRes.rows[0].code
+                id: adminUser.id,
+                username: adminUser.username,
+                email: adminUser.email,
+                role: adminUser.role,
+                company_code: trimmedCode
             }
         });
     } catch (error) {
-        await client.query("ROLLBACK");
         console.error("Error in registerCompany:", error.message);
-        res.status(500).json({ success: false, message: "Failed to register company: " + error.message });
-    } finally {
-        client.release();
+        res.status(400).json({ success: false, message: error.message });
+    }
+}
+
+export async function getCompanyInfo(req, res) {
+    try {
+        const { code } = req.params;
+        if (!code) return res.status(400).json({ success: false, message: "Company code required" });
+
+        const resDb = await masterPool.query(
+            "SELECT company_name, company_code, subdomain, status FROM companies WHERE LOWER(company_code) = $1 OR LOWER(subdomain) = $1 LIMIT 1",
+            [code.toLowerCase().trim()]
+        );
+        if (resDb.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Company not found" });
+        }
+        res.status(200).json({ success: true, company: resDb.rows[0] });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
     }
 }
 

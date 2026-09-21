@@ -13,6 +13,7 @@ import jwt from 'jsonwebtoken';
 import { ENV_VARS } from "./config/envVars.js";
 import { connectDB, pool } from "./config/db.js";
 import { runMigrations } from "./config/migrations.js";
+import { tenantMiddleware } from "./config/tenantManager.js";
 
 // Routes
 import authRoutes from "./routes/auth.route.js";
@@ -63,6 +64,7 @@ app.use(
     credentials: true,
   })
 );
+app.use(tenantMiddleware);
 
 // HTML Protection Middleware for direct file requests
 const protectHtml = (requiredRole) => {
