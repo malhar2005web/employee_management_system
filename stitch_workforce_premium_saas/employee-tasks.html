@@ -348,7 +348,7 @@
       </div>
 
       <!-- Support Table Card -->
-      <div class="card table-card">
+      <div class="card table-card" style="overflow: hidden; border-radius: 16px;">
         <div class="card-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <h3 style="margin:0; font-size:16px; font-weight:800; color:var(--teal-900);">My Support Tickets</h3>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -370,22 +370,24 @@
           </div>
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Ticket Code</th>
-              <th>Customer &amp; Project</th>
-              <th>Issue Title &amp; Category</th>
-              <th>Priority &amp; Time Elapsed</th>
-              <th>Status</th>
-              <th>Reported By</th>
-              <th style="white-space:nowrap; min-width:170px;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="support-tbody">
-            <tr><td colspan="7" style="text-align:center;color:var(--teal-700);padding:32px;font-size:13.5px;font-weight:600;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;margin-bottom:8px;color:var(--teal-600);display:block;"></i> Loading support tickets...</td></tr>
-          </tbody>
-        </table>
+        <div class="table-responsive" style="overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch;">
+          <table style="width: 100%; min-width: 940px;">
+            <thead>
+              <tr>
+                <th style="min-width: 90px;">Ticket Code</th>
+                <th style="min-width: 130px;">Customer &amp; Project</th>
+                <th style="min-width: 180px;">Issue Title &amp; Category</th>
+                <th style="min-width: 160px;">Priority &amp; Time Elapsed</th>
+                <th style="min-width: 95px;">Status</th>
+                <th style="min-width: 130px; max-width: 160px;">Reported By</th>
+                <th style="white-space:nowrap; min-width:180px; text-align:right; padding-right:16px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="support-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--teal-700);padding:32px;font-size:13.5px;font-weight:600;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;margin-bottom:8px;color:var(--teal-600);display:block;"></i> Loading support tickets...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
