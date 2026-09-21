@@ -1716,10 +1716,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (histRangeSelect) {
             histRangeSelect.style.display = 'inline-block';
-            histRangeSelect.value = '30days';
+            histRangeSelect.value = 'this_month';
         }
         if (histCustomDates) histCustomDates.style.display = 'none';
-        if (histStartDate) histStartDate.value = today;
+
+        // Default custom start date to 1st of month, end date to today
+        const [curY, curM] = today.split('-');
+        if (histStartDate) histStartDate.value = `${curY}-${curM}-01`;
         if (histEndDate) histEndDate.value = today;
         if (histSearchInput) histSearchInput.value = '';
         if (histKpiBar) histKpiBar.style.display = 'grid';
@@ -1784,7 +1787,7 @@ document.addEventListener('DOMContentLoaded', () => {
         histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:20px; display:block; margin-bottom:10px; color:var(--teal-900);"></i>Fetching telemetry attendance logs...</td></tr>';
 
         try {
-            const range = histRangeSelect ? histRangeSelect.value : '30days';
+            const range = histRangeSelect ? histRangeSelect.value : 'this_month';
             let url = `/api/v1/admin/attendance/employee/${currentEmpId}/history?range=${range}`;
             if (range === 'custom') {
                 const s = histStartDate && histStartDate.value ? histStartDate.value : today;

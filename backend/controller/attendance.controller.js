@@ -584,11 +584,32 @@ export async function getEmployeeAttendanceHistory(req, res) {
             y.setDate(y.getDate() - 1);
             startDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(y);
             endDateStr = startDateStr;
+        } else if (range === 'last_week' || range === 'lastweek') {
+            const d = new Date(now);
+            const dayOfWeek = d.getDay(); // 0 is Sun, 1 is Mon, 6 is Sat
+            const distToPrevMon = (dayOfWeek === 0 ? 6 : dayOfWeek - 1) + 7;
+            const prevMon = new Date(d);
+            prevMon.setDate(d.getDate() - distToPrevMon);
+            const prevSun = new Date(prevMon);
+            prevSun.setDate(prevMon.getDate() + 6);
+            startDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(prevMon);
+            endDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(prevSun);
         } else if (range === '7days') {
             const d7 = new Date();
             d7.setDate(d7.getDate() - 7);
             startDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d7);
             endDateStr = todayIST;
+        } else if (range === 'this_month' || range === 'thismonth') {
+            const [curY, curM] = todayIST.split('-').map(Number);
+            startDateStr = `${curY}-${String(curM).padStart(2, '0')}-01`;
+            endDateStr = todayIST;
+        } else if (range === 'last_month' || range === 'lastmonth') {
+            const [curY, curM] = todayIST.split('-').map(Number);
+            const prevY = curM === 1 ? curY - 1 : curY;
+            const prevM = curM === 1 ? 12 : curM - 1;
+            const lastDay = new Date(curY, curM - 1, 0).getDate();
+            startDateStr = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
+            endDateStr = `${prevY}-${String(prevM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
         } else if (range === '30days') {
             const d30 = new Date();
             d30.setDate(d30.getDate() - 30);
