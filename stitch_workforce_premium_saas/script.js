@@ -648,12 +648,19 @@ document.addEventListener('click', (e) => {
 })();
 
 // =========================================================================
-// UNIVERSAL HAMBURGER NAVIGATION DRAWER FOR SIDEBAR MODULES
+// UNIVERSAL HAMBURGER NAVIGATION DRAWER FOR SIDEBAR MODULES (MOBILE ONLY)
 // =========================================================================
 (function initHamburgerSidebar() {
   function setup() {
     const sidebar = document.querySelector('.sidebar');
     if (!sidebar) return;
+
+    function isMobileMode() {
+      return window.innerWidth <= 860 || 
+             document.body.classList.contains('is-mobile-app') ||
+             window.location.search.includes('mobile=1') ||
+             window.location.search.includes('app=1');
+    }
 
     // 1. Ensure Backdrop element exists
     let backdrop = document.getElementById('sidebar-backdrop');
@@ -703,6 +710,8 @@ document.addEventListener('click', (e) => {
     }
 
     function openSidebar() {
+      // NEVER open as off-canvas drawer on desktop website
+      if (!isMobileMode()) return;
       sidebar.classList.add('open');
       backdrop.classList.add('active');
       document.body.classList.add('sidebar-drawer-open');
@@ -719,6 +728,7 @@ document.addEventListener('click', (e) => {
 
     hamburgerBtn.onclick = (e) => {
       e.stopPropagation();
+      if (!isMobileMode()) return;
       if (sidebar.classList.contains('open')) {
         closeSidebar();
       } else {
@@ -728,16 +738,30 @@ document.addEventListener('click', (e) => {
 
     backdrop.onclick = closeSidebar;
 
-    // Close drawer when clicking any nav item
+    // Close drawer when clicking any nav item on mobile
     sidebar.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
-        closeSidebar();
+        if (isMobileMode()) {
+          closeSidebar();
+        }
       });
     });
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeSidebar();
     });
+
+    // Auto-close on resize back to desktop
+    window.addEventListener('resize', () => {
+      if (!isMobileMode()) {
+        closeSidebar();
+      }
+    });
+
+    // Clean initial state for desktop
+    if (!isMobileMode()) {
+      closeSidebar();
+    }
   }
 
   if (document.readyState === 'loading') {
