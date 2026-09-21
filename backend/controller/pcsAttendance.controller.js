@@ -62,6 +62,10 @@ export async function getMonthlySummary(req, res) {
         const daysInMonth = new Date(y, m, 0).getDate();
         const endOfMonth = `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`;
 
+        const dateDisplay = (targetMonth === currentYYYYMM)
+            ? `${todayIST.split('-')[2]}-${todayIST.split('-')[1]}-${todayIST.split('-')[0]}`
+            : `${String(daysInMonth).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+
         // 1. Fetch Employees
         const empRes = await pool.query(`
             SELECT e.id, e.full_name, e.employee_code, e.phone, m.computer_name, m.computer_id
@@ -333,6 +337,8 @@ export async function getMonthlySummary(req, res) {
             summaryRows.push({
                 USERNAME: emp.computer_name || emp.full_name,
                 YYYYMM: targetMonth,
+                DATE: dateDisplay,
+                summaryDate: dateDisplay,
                 EMPLOYEE_ID: emp.id,
                 employee_id: emp.id,
                 full_name: emp.full_name,

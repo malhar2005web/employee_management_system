@@ -1565,12 +1565,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const empSub = row.employee_code ? `${row.employee_code} • ${row.USERNAME}` : row.USERNAME;
                 const empId = row.employee_id || row.EMPLOYEE_ID;
 
+                // Format date as DD-MM-YYYY (e.g. 21-09-2026)
+                let dateDisplay = row.DATE || row.summaryDate;
+                if (!dateDisplay) {
+                    if (row.YYYYMM && String(row.YYYYMM).length === 6) {
+                        const yr = String(row.YYYYMM).slice(0, 4);
+                        const mo = String(row.YYYYMM).slice(4, 6);
+                        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+                        const [curYr, curMo, curDay] = todayStr.split('-');
+                        if (yr === curYr && mo === curMo) {
+                            dateDisplay = `${curDay}-${mo}-${yr}`;
+                        } else {
+                            const lastDay = new Date(parseInt(yr, 10), parseInt(mo, 10), 0).getDate();
+                            dateDisplay = `${String(lastDay).padStart(2, '0')}-${mo}-${yr}`;
+                        }
+                    } else {
+                        dateDisplay = row.YYYYMM || '—';
+                    }
+                }
+
                 tr.innerHTML = `
                     <td>
                         <div style="font-weight:700; color:var(--text-dark);">${empDisplayName}</div>
                         <div style="font-size:11px; color:var(--text-muted);">${empSub}</div>
                     </td>
-                    <td><strong style="color:#334155;">${row.YYYYMM}</strong></td>
+                    <td><strong style="color:#334155; font-size:12.5px;">${dateDisplay}</strong></td>
                     <td>${row.TOTALDAYS}</td>
                     <td><span class="badge" style="background:rgba(16,185,129,0.15); color:#059669; font-weight:700; padding:3px 8px; border-radius:6px;">${row.PRESENT || 0}</span></td>
                     <td><span class="badge" style="background:rgba(239,68,68,0.15); color:#dc2626; font-weight:700; padding:3px 8px; border-radius:6px;">${row.ABSENT || 0}</span></td>
