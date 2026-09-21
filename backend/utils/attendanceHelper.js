@@ -100,7 +100,21 @@ export function formatISTIso(d, withTz = false) {
 
 export function formatISTTime(d) {
     if (!d) return '—';
-    return d.toLocaleTimeString('en-GB', {
+    if (typeof d === 'string') {
+        const trimmed = d.trim();
+        if (/^\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+            return trimmed.slice(0, 5);
+        }
+    }
+    const dateObj = (d instanceof Date) ? d : new Date(d);
+    if (isNaN(dateObj.getTime())) {
+        if (typeof d === 'string' && d.includes(' ')) {
+            const timePart = d.split(' ')[1];
+            if (timePart) return timePart.slice(0, 5);
+        }
+        return '—';
+    }
+    return dateObj.toLocaleTimeString('en-GB', {
         timeZone: 'Asia/Kolkata',
         hour: '2-digit',
         minute: '2-digit',

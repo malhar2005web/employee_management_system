@@ -6,7 +6,8 @@ const { Pool } = pg;
 // Parse timestamp without timezone (OID 1114) with Asia/Kolkata timezone (+05:30)
 pg.types.setTypeParser(1114, function(stringValue) {
     if (!stringValue) return null;
-    if (!stringValue.includes('Z') && !stringValue.includes('+') && !stringValue.includes('-') && stringValue.length >= 10) {
+    const hasTzOffset = stringValue.endsWith('Z') || /[+-]\d{2}(:\d{2})?$/.test(stringValue);
+    if (!hasTzOffset && stringValue.length >= 10) {
         return new Date(stringValue.replace(' ', 'T') + '+05:30');
     }
     return new Date(stringValue);

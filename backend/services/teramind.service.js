@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-import { calculateShiftAttendanceTimes } from '../utils/attendanceHelper.js';
+import { calculateShiftAttendanceTimes, formatISTIso } from '../utils/attendanceHelper.js';
 
 // ── STRICT PRIVACY WHITELIST ──────────────────────────────────────────────────
 // Allowed BI Cubes and Endpoints only.
@@ -628,8 +628,8 @@ export async function syncTeramindDataToCache() {
                         const shiftRes = calculateShiftAttendanceTimes(pList, dStr);
                         if (!shiftRes.checkInDate) continue;
 
-                        const inStr = shiftRes.checkInDate.toISOString();
-                        const outStr = shiftRes.checkOutDate ? shiftRes.checkOutDate.toISOString() : null;
+                        const inStr = formatISTIso(shiftRes.checkInDate);
+                        const outStr = shiftRes.checkOutDate ? formatISTIso(shiftRes.checkOutDate) : null;
                         const hrs = (shiftRes.totalActiveSecs / 3600).toFixed(2);
                         const status = shiftRes.isLate ? 'Late' : 'Present';
 

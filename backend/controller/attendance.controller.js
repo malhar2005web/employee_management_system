@@ -702,8 +702,8 @@ export async function getEmployeeAttendanceHistory(req, res) {
                     const inD = shiftResult.checkInDate;
                     const outD = shiftResult.checkOutDate;
 
-                    const inStr = inD ? inD.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : '—';
-                    let outStr = outD ? outD.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : '—';
+                    const inStr = inD ? formatISTTime(inD) : '—';
+                    let outStr = outD ? formatISTTime(outD) : '—';
 
                     if (dStr === todayIST && curH < 19) {
                         outStr = '—';
@@ -738,8 +738,8 @@ export async function getEmployeeAttendanceHistory(req, res) {
 
             // Only overwrite if actual login time exists or manual HR approved
             if (r.login_time || r.approval_status === 'Approved' || r.punch_source === 'MANUAL_HR') {
-                const inStr = r.login_time ? new Date(r.login_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
-                const outStr = r.logout_time ? new Date(r.logout_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+                const inStr = r.login_time ? formatISTTime(r.login_time) : '—';
+                const outStr = r.logout_time ? formatISTTime(r.logout_time) : '—';
                 const hrs = r.total_working_hours ? parseFloat(r.total_working_hours).toFixed(2) : '0.00';
                 
                 historyMap.set(dStr, {
