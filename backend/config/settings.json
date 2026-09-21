@@ -1,26 +1,45 @@
 {
   "company": {
     "name": "PCS Corporation",
-    "email": "admin@pcscorp.com",
+    "email": "planexsoftware@gmail.com",
     "address": "100 Innovation Way, Tech District",
-    "timezone": "UTC",
-    "currency": "USD"
+    "timezone": "Asia/Kolkata",
+    "currency": "INR"
   },
   "smtp": {
-    "host": "smtp.mailtrap.io",
-    "port": 2525,
-    "user": "smtpuser",
-    "pass": "",
-    "sender": ""
+    "host": "smtp.gmail.com",
+    "port": 465,
+    "user": "planexsoftware@gmail.com",
+    "pass": "ohzeoixdzmfvwniq",
+    "sender": "planexsoftware@gmail.com"
+  },
+  "emailTicketing": {
+    "enabled": true,
+    "email": "planexsoftware@gmail.com",
+    "password": "ohzeoixdzmfvwniq",
+    "imapHost": "imap.gmail.com",
+    "imapPort": 993,
+    "imapSecure": true,
+    "smtpHost": "smtp.gmail.com",
+    "smtpPort": 465,
+    "smtpSecure": true,
+    "autoReply": true,
+    "pollIntervalSeconds": 30
   },
   "preferences": {
     "standardHours": 8,
     "gracePeriod": 15,
-    "workingDays": []
+    "workingDays": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
   },
-  "ipWhitelist": "",
+  "ipWhitelist": "127.0.0.1, ::1, 173.249.59.181",
   "whatsappTemplate": {
-    "message": "",
+    "message": "Hello {customer_name},\n\nThis is an official communication from PCS Enterprise Suite regarding {company_name}.\n\nPlease find the requested information attached.\n\nBest regards,\nPCS Admin Team",
     "attachmentUrl": "",
     "attachmentName": ""
   }

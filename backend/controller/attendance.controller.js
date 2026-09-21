@@ -1,5 +1,6 @@
 import { pool } from '../config/db.js';
 import { getWebPagesApplicationsGrid } from '../services/teramind.service.js';
+import { calculateShiftAttendanceTimes, formatISTIso, formatISTTime } from '../utils/attendanceHelper.js';
 
 export async function getAttendanceLogs(req, res) {
     try {
@@ -246,51 +247,14 @@ export async function getAttendanceLogs(req, res) {
                 }
                 // Tier 3: Workstation Telemetry Automatic Fallback (Teramind / SQL Server)
                 else if (empRows.length > 0) {
-                    let minTs = Infinity;
-                    let maxTs = 0;
-                    let totalActiveSecs = 0;
-
-                    empRows.forEach(r => {
-                        if (r.ts && r.ts > 0) {
-                            if (r.ts < minTs) minTs = r.ts;
-                            const end = r.ts + (r.dur || 0);
-                            if (end > maxTs) maxTs = end;
-                        }
-                        totalActiveSecs += (r.dur || 0);
-                    });
-
-                    const checkInDate = minTs !== Infinity ? new Date(minTs * 1000) : null;
-                    const checkOutDate = maxTs > 0 ? new Date(maxTs * 1000) : null;
-
-                    const formatISTIso = (d) => {
-                        if (!d) return null;
-                        const parts = new Intl.DateTimeFormat('en-GB', {
-                            timeZone: 'Asia/Kolkata',
-                            year: 'numeric', month: '2-digit', day: '2-digit',
-                            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-                        }).formatToParts(d);
-                        const p = {};
-                        parts.forEach(({ type, value }) => { p[type] = value; });
-                        return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
-                    };
+                    const shiftResult = calculateShiftAttendanceTimes(empRows, targetDateStr);
+                    const checkInDate = shiftResult.checkInDate;
+                    const checkOutDate = shiftResult.checkOutDate;
 
                     const loginTimeStr = formatISTIso(checkInDate);
                     const logoutTimeStr = formatISTIso(checkOutDate);
-                    const totalHoursNum = (totalActiveSecs / 3600).toFixed(2);
-
-                    let isLate = false;
-                    if (checkInDate) {
-                        const checkInParts = new Intl.DateTimeFormat('en-GB', {
-                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).formatToParts(checkInDate);
-                        const p = {};
-                        checkInParts.forEach(({ type, value }) => { p[type] = value; });
-                        const hh = parseInt(p.hour, 10);
-                        const mm = parseInt(p.minute, 10);
-                        if (hh > 10 || (hh === 10 && mm > 15)) {
-                            isLate = true;
-                        }
-                    }
+                    const totalHoursNum = (shiftResult.totalActiveSecs / 3600).toFixed(2);
+                    const isLate = shiftResult.isLate;
 
                     let finalLogoutTimeStr = logoutTimeStr;
                     if (isToday) {
@@ -713,41 +677,24 @@ export async function getEmployeeAttendanceHistory(req, res) {
                 const curH = parseInt(nowP.hour, 10);
 
                 tmDateMap.forEach((pList, dStr) => {
-                    let minTs = Infinity;
-                    let maxTs = 0;
-                    let totalSecs = 0;
-                    pList.forEach(p => {
-                        if (p.ts < minTs) minTs = p.ts;
-                        const end = p.ts + p.dur;
-                        if (end > maxTs) maxTs = end;
-                        totalSecs += p.dur;
-                    });
+                    const shiftResult = calculateShiftAttendanceTimes(pList, dStr);
+                    const inD = shiftResult.checkInDate;
+                    const outD = shiftResult.checkOutDate;
 
-                    const inD = new Date(minTs * 1000);
-                    const outD = new Date(maxTs * 1000);
-
-                    const inStr = inD.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
-                    let outStr = outD.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
+                    const inStr = inD ? inD.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : '—';
+                    let outStr = outD ? outD.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : '—';
 
                     if (dStr === todayIST && curH < 19) {
                         outStr = '—';
                     }
 
-                    let isLate = false;
-                    const inParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(inD);
-                    const ip = {};
-                    inParts.forEach(({ type, value }) => { ip[type] = value; });
-                    const hh = parseInt(ip.hour, 10);
-                    const mm = parseInt(ip.minute, 10);
-                    if (hh > 10 || (hh === 10 && mm > 15)) isLate = true;
-
                     historyMap.set(dStr, {
                         date: dStr,
                         check_in: inStr,
                         check_out: outStr,
-                        working_hours: (totalSecs / 3600).toFixed(2),
+                        working_hours: (shiftResult.totalActiveSecs / 3600).toFixed(2),
                         overtime: null,
-                        status: isLate ? 'Late' : 'Present',
+                        status: shiftResult.isLate ? 'Late' : 'Present',
                         source: 'TERAMIND'
                     });
                 });

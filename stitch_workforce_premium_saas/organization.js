@@ -1,48 +1,201 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // Tabs Toggles
-    const btnDirectory = document.getElementById('btn-directory');
-    const btnChat = document.getElementById('btn-chat');
-    const directoryView = document.getElementById('directory-view');
-    const chatView = document.getElementById('chat-view');
-    const viewTitle = document.getElementById('view-title');
+/**
+ * PCS Enterprise Suite — Organization Module (Admin & Employee)
+ * Comprehensive directory, org chart, departments, designations, modal handlers & team chat.
+ */
 
-    // Filters & Tables
-    const dirSearch = document.getElementById('dir-search');
-    const dirDeptFilter = document.getElementById('dir-dept-filter');
-    const directoryList = document.getElementById('directory-list');
+// ================= GLOBAL MODAL HELPERS =================
+window.openEmployeeModal = function() {
+    const empModal = document.getElementById('emp-modal');
+    const empForm = document.getElementById('emp-form');
+    const empEditId = document.getElementById('emp-edit-id');
+    const modalTitleText = document.getElementById('modal-title-text');
+    const submitBtn = document.getElementById('emp-modal-submit');
 
-    // Logout
-    const logoutBtn = document.getElementById('logout-btn');
-
-    if (btnDirectory && btnChat) {
-        btnDirectory.addEventListener('click', () => {
-            btnDirectory.classList.add('active');
-            btnChat.classList.remove('active');
-            directoryView.style.display = 'block';
-            chatView.style.display = 'none';
-            viewTitle.textContent = 'Employee Directory';
-            stopMessagePolling();
+    if (empForm) {
+        empForm.reset();
+        // Ensure all fields are fully editable
+        empForm.querySelectorAll('input, select, textarea').forEach(el => {
+            el.disabled = false;
+            el.readOnly = false;
         });
+    }
+    if (empEditId) empEditId.value = '';
+    if (modalTitleText) modalTitleText.textContent = 'Add New Employee';
+    if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Employee';
 
-        btnChat.addEventListener('click', () => {
-            btnChat.classList.add('active');
-            btnDirectory.classList.remove('active');
-            directoryView.style.display = 'none';
-            chatView.style.display = 'block';
-            viewTitle.textContent = 'Chat Room';
-            loadChatContacts();
+    if (typeof window.resetEmpDocumentViews === 'function') {
+        window.resetEmpDocumentViews();
+    }
+    const empGenderInit = document.getElementById('emp-gender');
+    if (empGenderInit) empGenderInit.value = 'Male';
 
-            // Mark chat notifications read & update badge
-            fetch('/api/v1/employee/inbox/mark-read', { method: 'POST', credentials: 'include' })
-                .then(() => { if (typeof window.checkChatUnreadBadge === 'function') window.checkChatUnreadBadge(); })
-                .catch(() => {});
+    if (typeof window.updateDesignationOptions === 'function') {
+        window.updateDesignationOptions('', '');
+    }
+
+    if (empModal) {
+        empModal.style.display = 'flex';
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => {
+            empModal.classList.add('active');
+            empModal.style.opacity = '1';
+        });
+    }
+};
+
+window.closeEmployeeModal = function() {
+    const empModal = document.getElementById('emp-modal');
+    if (empModal) {
+        empModal.style.opacity = '0';
+        empModal.classList.remove('active');
+        setTimeout(() => {
+            empModal.style.display = 'none';
+            if (!document.querySelector('.modal-overlay.active')) {
+                document.body.classList.remove('modal-open');
+            }
+        }, 150);
+    }
+    const empForm = document.getElementById('emp-form');
+    if (empForm) empForm.reset();
+    const empEditId = document.getElementById('emp-edit-id');
+    if (empEditId) empEditId.value = '';
+    if (typeof window.resetEmpDocumentViews === 'function') {
+        window.resetEmpDocumentViews();
+    }
+};
+
+window.openQuickAddDeptModal = function() {
+    const form = document.getElementById('quick-dept-form');
+    const modal = document.getElementById('quick-dept-modal');
+    if (form) form.reset();
+    if (modal) {
+        modal.style.display = 'flex';
+        requestAnimationFrame(() => {
+            modal.classList.add('active');
+            modal.style.opacity = '1';
+            const nameInp = document.getElementById('quick-dept-name');
+            if (nameInp) nameInp.focus();
+        });
+    }
+};
+
+window.closeQuickAddDeptModal = function() {
+    const modal = document.getElementById('quick-dept-modal');
+    if (modal) {
+        modal.style.opacity = '0';
+        modal.classList.remove('active');
+        setTimeout(() => { modal.style.display = 'none'; }, 150);
+    }
+    const form = document.getElementById('quick-dept-form');
+    if (form) form.reset();
+};
+
+window.openQuickAddDesigModal = function() {
+    const form = document.getElementById('quick-desig-form');
+    const modal = document.getElementById('quick-desig-modal');
+    const quickDesigDept = document.getElementById('quick-desig-dept');
+    const empDept = document.getElementById('emp-dept');
+    if (form) form.reset();
+    if (quickDesigDept && empDept && empDept.value) {
+        quickDesigDept.value = empDept.value;
+    }
+    if (modal) {
+        modal.style.display = 'flex';
+        requestAnimationFrame(() => {
+            modal.classList.add('active');
+            modal.style.opacity = '1';
+            const titleInp = document.getElementById('quick-desig-title');
+            if (titleInp) titleInp.focus();
+        });
+    }
+};
+
+window.closeQuickAddDesigModal = function() {
+    const modal = document.getElementById('quick-desig-modal');
+    if (modal) {
+        modal.style.opacity = '0';
+        modal.classList.remove('active');
+        setTimeout(() => { modal.style.display = 'none'; }, 150);
+    }
+    const form = document.getElementById('quick-desig-form');
+    if (form) form.reset();
+};
+
+// ================= DOM CONTENT LOADED =================
+document.addEventListener('DOMContentLoaded', () => {
+    // Logout Handler
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/v1/auth/logout', { method: 'POST' });
+                if (response.ok) {
+                    window.location.href = '/login.html';
+                }
+            } catch (error) {
+                console.error("Logout failed:", error);
+            }
         });
     }
 
-    const isAdmin = window.location.pathname.includes('admin-');
+    // Identify if Admin or Employee view
+    const isAdmin = !!document.getElementById('table-employees') || window.location.pathname.includes('admin-');
 
+    // Shared filter elements
+    const dirSearch = document.getElementById('dir-search');
+    const dirDeptFilter = document.getElementById('dir-dept-filter');
+
+    function debounce(func, delay) {
+        let timer;
+        return function(...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => func.apply(this, args), delay);
+        };
+    }
+
+    // Wire global close buttons on modal elements
+    document.querySelectorAll('#emp-modal-close, #emp-modal-cancel, .emp-modal-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.closeEmployeeModal();
+        });
+    });
+
+    const empModalEl = document.getElementById('emp-modal');
+    const quickDeptModalEl = document.getElementById('quick-dept-modal');
+    const quickDesigModalEl = document.getElementById('quick-desig-modal');
+
+    // Backdrop click to close modals
+    [empModalEl, quickDeptModalEl, quickDesigModalEl].forEach(modalEl => {
+        if (modalEl) {
+            modalEl.addEventListener('click', (e) => {
+                if (e.target === modalEl) {
+                    if (modalEl === empModalEl) window.closeEmployeeModal();
+                    else if (modalEl === quickDeptModalEl) window.closeQuickAddDeptModal();
+                    else if (modalEl === quickDesigModalEl) window.closeQuickAddDesigModal();
+                }
+            });
+        }
+    });
+
+    // Escape key listener
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (quickDesigModalEl && quickDesigModalEl.style.display === 'flex') {
+                window.closeQuickAddDesigModal();
+            } else if (quickDeptModalEl && quickDeptModalEl.style.display === 'flex') {
+                window.closeQuickAddDeptModal();
+            } else if (empModalEl && empModalEl.style.display === 'flex') {
+                window.closeEmployeeModal();
+            }
+        }
+    });
+
+    // =========================================================================
+    // ADMIN SECTION
+    // =========================================================================
     if (isAdmin) {
-        // Admin tab switches
+        // Tab elements
         const tabEmployees = document.getElementById('tab-employees');
         const btnChart = document.getElementById('btn-chart');
         const tabDepts = document.getElementById('tab-depts');
@@ -52,43 +205,100 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartView = document.getElementById('chart-view');
         const viewDepts = document.getElementById('view-depts');
         const viewDesigs = document.getElementById('view-desigs');
-
-        const btnAddEmpModal = document.getElementById('btn-add-emp-modal');
         const viewTitle = document.getElementById('view-title');
 
-        const switchTab = (tabName) => {
-            tabEmployees.classList.remove('active');
-            btnChart.classList.remove('active');
-            tabDepts.classList.remove('active');
-            tabDesigs.classList.remove('active');
+        const btnAddEmpModal = document.getElementById('btn-add-emp-modal');
 
-            viewEmployees.style.display = 'none';
-            chartView.style.display = 'none';
-            viewDepts.style.display = 'none';
-            viewDesigs.style.display = 'none';
+        // Form elements
+        const empModal = document.getElementById('emp-modal');
+        const empForm = document.getElementById('emp-form');
+        const empEditId = document.getElementById('emp-edit-id');
+        const modalTitleText = document.getElementById('modal-title-text');
+        const submitBtn = document.getElementById('emp-modal-submit');
+
+        const empFullName = document.getElementById('emp-fullname');
+        const empEmail = document.getElementById('emp-email');
+        const empCode = document.getElementById('emp-code');
+        const empGrade = document.getElementById('emp-grade');
+        const empDept = document.getElementById('emp-dept');
+        const empDesig = document.getElementById('emp-desig');
+        const empManager = document.getElementById('emp-manager');
+        const empJoinDate = document.getElementById('emp-join-date');
+
+        const empGender = document.getElementById('emp-gender');
+        const empPhone = document.getElementById('emp-phone');
+        const empDob = document.getElementById('emp-dob');
+        const empWhatsappNo = document.getElementById('emp-whatsapp-no');
+        const empAnydeskId = document.getElementById('emp-anydesk-id');
+        const empCitizenship = document.getElementById('emp-citizenship');
+        const empAddress = document.getElementById('emp-address');
+        const empPermAddress = document.getElementById('emp-perm-address');
+        const empBankName = document.getElementById('emp-bank-name');
+        const empBankAccNo = document.getElementById('emp-bank-acc-no');
+        const empBankIfsc = document.getElementById('emp-bank-ifsc');
+
+        const quickDeptForm = document.getElementById('quick-dept-form');
+        const quickDesigForm = document.getElementById('quick-desig-form');
+        const quickDesigDept = document.getElementById('quick-desig-dept');
+
+        const deptForm = document.getElementById('dept-form');
+        const deptEditId = document.getElementById('dept-edit-id');
+        const deptFormTitle = document.getElementById('dept-form-title');
+        const deptSubmitText = document.getElementById('dept-submit-text');
+        const deptCancelEditBtn = document.getElementById('dept-cancel-edit-btn');
+
+        const desigForm = document.getElementById('desig-form');
+        const desigEditId = document.getElementById('desig-edit-id');
+        const desigDept = document.getElementById('desig-dept');
+        const desigFormTitle = document.getElementById('desig-form-title');
+        const desigSubmitText = document.getElementById('desig-submit-text');
+        const desigCancelEditBtn = document.getElementById('desig-cancel-edit-btn');
+
+        const employeesList = document.getElementById('employees-list');
+        const deptsList = document.getElementById('depts-list');
+        const desigsList = document.getElementById('desigs-list');
+
+        let docCv = null;
+        let docOffer = null;
+        let docAdhar = null;
+        let docPan = null;
+        let cachedMetadata = { departments: [], designations: [] };
+        let activeEmployeesList = [];
+
+        // Tab Switching
+        const switchTab = (tabName) => {
+            if (tabEmployees) tabEmployees.classList.remove('active');
+            if (btnChart) btnChart.classList.remove('active');
+            if (tabDepts) tabDepts.classList.remove('active');
+            if (tabDesigs) tabDesigs.classList.remove('active');
+
+            if (viewEmployees) viewEmployees.style.display = 'none';
+            if (chartView) chartView.style.display = 'none';
+            if (viewDepts) viewDepts.style.display = 'none';
+            if (viewDesigs) viewDesigs.style.display = 'none';
 
             if (btnAddEmpModal) btnAddEmpModal.style.display = 'none';
 
             if (tabName === 'employees') {
-                tabEmployees.classList.add('active');
-                viewEmployees.style.display = 'block';
-                viewTitle.textContent = 'Active Directory';
+                if (tabEmployees) tabEmployees.classList.add('active');
+                if (viewEmployees) viewEmployees.style.display = 'block';
+                if (viewTitle) viewTitle.textContent = 'Active Directory';
                 if (btnAddEmpModal) btnAddEmpModal.style.display = 'inline-flex';
                 loadAdminEmployees();
             } else if (tabName === 'chart') {
-                btnChart.classList.add('active');
-                chartView.style.display = 'block';
-                viewTitle.textContent = 'Organization Chart';
+                if (btnChart) btnChart.classList.add('active');
+                if (chartView) chartView.style.display = 'block';
+                if (viewTitle) viewTitle.textContent = 'Organization Chart';
                 loadOrgChart();
             } else if (tabName === 'depts') {
-                tabDepts.classList.add('active');
-                viewDepts.style.display = 'block';
-                viewTitle.textContent = 'Departments Board';
+                if (tabDepts) tabDepts.classList.add('active');
+                if (viewDepts) viewDepts.style.display = 'block';
+                if (viewTitle) viewTitle.textContent = 'Departments Board';
                 loadMetadata();
             } else if (tabName === 'desigs') {
-                tabDesigs.classList.add('active');
-                viewDesigs.style.display = 'block';
-                viewTitle.textContent = 'Designation Matrices';
+                if (tabDesigs) tabDesigs.classList.add('active');
+                if (viewDesigs) viewDesigs.style.display = 'block';
+                if (viewTitle) viewTitle.textContent = 'Designation Matrices';
                 loadMetadata();
             }
         };
@@ -98,19 +308,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabDepts) tabDepts.addEventListener('click', () => switchTab('depts'));
         if (tabDesigs) tabDesigs.addEventListener('click', () => switchTab('desigs'));
 
-        // Modals & form elements
-        const empModal = document.getElementById('emp-modal');
-        const empModalClose = document.getElementById('emp-modal-close');
-        const empModalCancel = document.getElementById('emp-modal-cancel');
-        const empForm = document.getElementById('emp-form');
-        const empEditId = document.getElementById('emp-edit-id');
-        const modalTitle = document.getElementById('modal-title');
+        if (btnAddEmpModal) {
+            btnAddEmpModal.addEventListener('click', window.openEmployeeModal);
+        }
 
-        let docCv = null;
-        let docOffer = null;
-        let docAdhar = null;
-        let docPan = null;
-
+        // Document Upload Handlers
         function handleDocUpload(inputId, filenameId, linkId, onLoaded) {
             const inputEl = document.getElementById(inputId);
             if (!inputEl) return;
@@ -123,10 +325,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             fileName: file.name,
                             fileData: reader.result
                         };
-                        document.getElementById(filenameId).textContent = file.name;
+                        const fnEl = document.getElementById(filenameId);
+                        if (fnEl) fnEl.textContent = file.name;
                         const link = document.getElementById(linkId);
-                        link.href = reader.result;
-                        link.style.display = 'inline-flex';
+                        if (link) {
+                            link.href = reader.result;
+                            link.style.display = 'inline-flex';
+                        }
                         onLoaded(docObj);
                     };
                     reader.readAsDataURL(file);
@@ -139,64 +344,249 @@ document.addEventListener('DOMContentLoaded', () => {
         handleDocUpload('emp-doc-adhar', 'adhar-filename', 'adhar-download-link', (obj) => { docAdhar = obj; });
         handleDocUpload('emp-doc-pan', 'pan-filename', 'pan-download-link', (obj) => { docPan = obj; });
 
-        function resetDocumentViews() {
+        window.resetEmpDocumentViews = function() {
             docCv = null;
             docOffer = null;
             docAdhar = null;
             docPan = null;
-            document.getElementById('cv-filename').textContent = 'No file';
-            document.getElementById('cv-download-link').style.display = 'none';
-            document.getElementById('offer-filename').textContent = 'No file';
-            document.getElementById('offer-download-link').style.display = 'none';
-            document.getElementById('adhar-filename').textContent = 'No file';
-            document.getElementById('adhar-download-link').style.display = 'none';
-            document.getElementById('pan-filename').textContent = 'No file';
-            document.getElementById('pan-download-link').style.display = 'none';
+            const cvFn = document.getElementById('cv-filename'); if (cvFn) cvFn.textContent = 'No file';
+            const cvLnk = document.getElementById('cv-download-link'); if (cvLnk) cvLnk.style.display = 'none';
+            const ofFn = document.getElementById('offer-filename'); if (ofFn) ofFn.textContent = 'No file';
+            const ofLnk = document.getElementById('offer-download-link'); if (ofLnk) ofLnk.style.display = 'none';
+            const adFn = document.getElementById('adhar-filename'); if (adFn) adFn.textContent = 'No file';
+            const adLnk = document.getElementById('adhar-download-link'); if (adLnk) adLnk.style.display = 'none';
+            const pnFn = document.getElementById('pan-filename'); if (pnFn) pnFn.textContent = 'No file';
+            const pnLnk = document.getElementById('pan-download-link'); if (pnLnk) pnLnk.style.display = 'none';
+            
+            ['emp-doc-cv', 'emp-doc-offer', 'emp-doc-adhar', 'emp-doc-pan'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+        };
+
+        // ================= METADATA (DEPTS & DESIGS) =================
+        const loadMetadata = async () => {
+            try {
+                const response = await fetch('/api/v1/admin/employees/metadata');
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    cachedMetadata = data.data;
+                    renderMetadata(data.data);
+                }
+            } catch (error) {
+                console.error("Error loading metadata:", error);
+            }
+        };
+
+        // Dynamic helper to populate designation options based on selected department
+        window.updateDesignationOptions = function(selectedDeptId, selectedDesigId) {
+            if (!empDesig) return;
+            const targetDesigVal = selectedDesigId !== undefined ? String(selectedDesigId) : String(empDesig.value || '');
+            empDesig.innerHTML = '<option value="">Select Designation</option>';
+
+            const allDesigs = cachedMetadata.designations || [];
+            const depts = cachedMetadata.departments || [];
+
+            if (!selectedDeptId) {
+                // Show all designations with department tag
+                allDesigs.forEach(d => {
+                    const dept = depts.find(deptObj => deptObj.id === d.department_id);
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = dept ? `${d.title} — [${dept.name}]` : d.title;
+                    empDesig.appendChild(opt);
+                });
+            } else {
+                const deptIdNum = parseInt(selectedDeptId, 10);
+                const matchingDesigs = allDesigs.filter(d => d.department_id === deptIdNum);
+                const otherDesigs = allDesigs.filter(d => d.department_id !== deptIdNum);
+
+                if (matchingDesigs.length > 0) {
+                    const groupMatch = document.createElement('optgroup');
+                    const deptObj = depts.find(d => d.id === deptIdNum);
+                    groupMatch.label = deptObj ? `${deptObj.name} Designations` : 'Department Designations';
+                    matchingDesigs.forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d.id;
+                        opt.textContent = d.title;
+                        groupMatch.appendChild(opt);
+                    });
+                    empDesig.appendChild(groupMatch);
+                }
+
+                if (otherDesigs.length > 0) {
+                    const groupOther = document.createElement('optgroup');
+                    groupOther.label = 'Other Designations';
+                    otherDesigs.forEach(d => {
+                        const dept = depts.find(deptObj => deptObj.id === d.department_id);
+                        const opt = document.createElement('option');
+                        opt.value = d.id;
+                        opt.textContent = dept ? `${d.title} — [${dept.name}]` : d.title;
+                        groupOther.appendChild(opt);
+                    });
+                    empDesig.appendChild(groupOther);
+                }
+            }
+
+            if (targetDesigVal) {
+                empDesig.value = targetDesigVal;
+            }
+        };
+
+        const renderMetadata = (meta) => {
+            // 1. Populate Employee Modal Department Select
+            if (empDept) {
+                const curVal = empDept.value;
+                empDept.innerHTML = '<option value="">Select Department</option>';
+                meta.departments.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = `${d.name} (${d.code})`;
+                    empDept.appendChild(opt);
+                });
+                if (curVal) empDept.value = curVal;
+            }
+
+            // 2. Populate Employee Modal Designation Select
+            window.updateDesignationOptions(empDept ? empDept.value : '', empDesig ? empDesig.value : '');
+
+            // 3. Populate Designation Tab Dept Select
+            if (desigDept) {
+                const curVal = desigDept.value;
+                desigDept.innerHTML = '<option value="">Select Department</option>';
+                meta.departments.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = `${d.name} (${d.code})`;
+                    desigDept.appendChild(opt);
+                });
+                if (curVal) desigDept.value = curVal;
+            }
+
+            // 4. Populate Quick Desig Modal Dept Select
+            if (quickDesigDept) {
+                const curVal = quickDesigDept.value;
+                quickDesigDept.innerHTML = '<option value="">Select Department</option>';
+                meta.departments.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = `${d.name} (${d.code})`;
+                    quickDesigDept.appendChild(opt);
+                });
+                if (curVal) quickDesigDept.value = curVal;
+            }
+
+            // 5. Populate Directory Filter Dropdown
+            populateDepartments(meta.departments);
+
+            // 6. Render Departments Table
+            if (deptsList) {
+                deptsList.innerHTML = '';
+                if (meta.departments.length === 0) {
+                    deptsList.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">No departments configured.</td></tr>`;
+                } else {
+                    meta.departments.forEach(d => {
+                        const tr = document.createElement('tr');
+                        const safeDeptJson = JSON.stringify(d).replace(/"/g, '&quot;');
+                        tr.innerHTML = `
+                            <td class="task-name" style="font-weight:700;color:var(--teal-900);">${d.name}</td>
+                            <td style="font-weight:700;color:var(--teal-600);">${d.code}</td>
+                            <td style="color:#64748b;font-size:12.5px;">${d.description || '—'}</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <div style="display:inline-flex;gap:6px;">
+                                    <button type="button" class="action-pill edit btn-edit-dept" data-dept="${safeDeptJson}"><i class="fa-solid fa-pen"></i> Edit</button>
+                                    <button type="button" class="action-pill delete btn-del-dept" data-id="${d.id}" data-name="${(d.name || '').replace(/"/g, '&quot;')}"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </td>
+                        `;
+                        tr.querySelector('.btn-edit-dept').addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const deptData = JSON.parse(e.currentTarget.getAttribute('data-dept'));
+                            window.editDepartment(deptData);
+                        });
+                        tr.querySelector('.btn-del-dept').addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const id = e.currentTarget.dataset.id;
+                            const name = e.currentTarget.dataset.name;
+                            window.deleteDepartment(id, name);
+                        });
+                        deptsList.appendChild(tr);
+                    });
+                }
+            }
+
+            // 7. Render Designations Table
+            if (desigsList) {
+                desigsList.innerHTML = '';
+                if (meta.designations.length === 0) {
+                    desigsList.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">No designations configured.</td></tr>`;
+                } else {
+                    meta.designations.forEach(d => {
+                        const tr = document.createElement('tr');
+                        const dept = meta.departments.find(deptObj => deptObj.id === d.department_id);
+                        const safeDesigJson = JSON.stringify(d).replace(/"/g, '&quot;');
+                        tr.innerHTML = `
+                            <td class="task-name" style="font-weight:700;color:var(--teal-900);">${d.title}</td>
+                            <td><span style="background:rgba(15,118,110,0.08);color:var(--teal-800);padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">${dept ? dept.name : 'Unassigned'}</span></td>
+                            <td style="font-weight:600;color:#64748b;">${d.level || '—'}</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <div style="display:inline-flex;gap:6px;">
+                                    <button type="button" class="action-pill edit btn-edit-desig" data-desig="${safeDesigJson}"><i class="fa-solid fa-pen"></i> Edit</button>
+                                    <button type="button" class="action-pill delete btn-del-desig" data-id="${d.id}" data-title="${(d.title || '').replace(/"/g, '&quot;')}"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </td>
+                        `;
+                        tr.querySelector('.btn-edit-desig').addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const desigData = JSON.parse(e.currentTarget.getAttribute('data-desig'));
+                            window.editDesignation(desigData);
+                        });
+                        tr.querySelector('.btn-del-desig').addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const id = e.currentTarget.dataset.id;
+                            const title = e.currentTarget.dataset.title;
+                            window.deleteDesignation(id, title);
+                        });
+                        desigsList.appendChild(tr);
+                    });
+                }
+            }
+        };
+
+        const populateDepartments = (departments) => {
+            if (!dirDeptFilter) return;
+            const curVal = dirDeptFilter.value;
+            dirDeptFilter.innerHTML = '<option value="">All Departments</option>';
+            departments.forEach(dept => {
+                const opt = document.createElement('option');
+                opt.value = dept.id;
+                opt.textContent = dept.name;
+                dirDeptFilter.appendChild(opt);
+            });
+            if (curVal) dirDeptFilter.value = curVal;
+        };
+
+        // When Department changes in Employee modal, dynamically adjust designations
+        if (empDept) {
+            empDept.addEventListener('change', () => {
+                window.updateDesignationOptions(empDept.value, empDesig ? empDesig.value : '');
+            });
         }
 
-        const employeesList = document.getElementById('employees-list');
-        const deptsList = document.getElementById('depts-list');
-        const desigsList = document.getElementById('desigs-list');
-
-        const empDept = document.getElementById('emp-dept');
-        const empDesig = document.getElementById('emp-desig');
-        const empManager = document.getElementById('emp-manager');
-        const desigDept = document.getElementById('desig-dept');
-
-        const deptForm = document.getElementById('dept-form');
-        const desigForm = document.getElementById('desig-form');
-
-        if (btnAddEmpModal) {
-            btnAddEmpModal.addEventListener('click', () => {
-                empForm.reset();
-                empEditId.value = '';
-                resetDocumentViews();
-                modalTitle.textContent = 'Add New Employee';
-                if (typeof window.openModal === 'function') {
-                    window.openModal(empModal);
-                } else {
-                    empModal.style.display = 'flex';
-                    setTimeout(() => { empModal.style.opacity = '1'; }, 10);
+        // When Designation changes in Employee modal, if that designation belongs to a department, auto-select it if empty
+        if (empDesig) {
+            empDesig.addEventListener('change', () => {
+                const selectedDesigId = parseInt(empDesig.value, 10);
+                if (selectedDesigId && cachedMetadata.designations) {
+                    const match = cachedMetadata.designations.find(d => d.id === selectedDesigId);
+                    if (match && match.department_id && (!empDept.value || empDept.value != match.department_id)) {
+                        empDept.value = match.department_id;
+                    }
                 }
             });
         }
 
-        const closeModal = () => {
-            if (typeof window.closeModal === 'function') {
-                window.closeModal(empModal);
-            } else {
-                empModal.style.opacity = '0';
-                setTimeout(() => { empModal.style.display = 'none'; }, 250);
-            }
-            empForm.reset();
-            empEditId.value = '';
-            resetDocumentViews();
-        };
-
-        if (empModalClose) empModalClose.addEventListener('click', closeModal);
-        if (empModalCancel) empModalCancel.addEventListener('click', closeModal);
-
-        // Fetch employee data (Admin view with Actions)
+        // ================= LOAD & RENDER DIRECTORY EMPLOYEES =================
         const loadAdminEmployees = async () => {
             const search = dirSearch ? dirSearch.value.trim() : '';
             const deptId = dirDeptFilter ? dirDeptFilter.value : '';
@@ -204,8 +594,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(`/api/v1/organization/directory?search=${encodeURIComponent(search)}&departmentId=${deptId}`);
                 const resData = await response.json();
                 if (response.ok && resData.success) {
-                    renderAdminEmployees(resData.data.employees);
-                    if (dirDeptFilter && dirDeptFilter.options.length === 1) {
+                    activeEmployeesList = resData.data.employees || [];
+                    renderAdminEmployees(activeEmployeesList);
+                    if (dirDeptFilter && dirDeptFilter.options.length <= 1 && resData.data.departments) {
                         populateDepartments(resData.data.departments);
                     }
                 }
@@ -219,12 +610,13 @@ document.addEventListener('DOMContentLoaded', () => {
             employeesList.innerHTML = '';
 
             if (employees.length === 0) {
-                employeesList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted);">No employees registered yet.</td></tr>`;
+                employeesList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted);">No employees registered yet.</td></tr>`;
                 return;
             }
 
-            // Populate manager dropdown inside employee form using active employees
+            // Populate Reporting Manager select
             if (empManager) {
+                const curVal = empManager.value;
                 empManager.innerHTML = '<option value="">None</option>';
                 employees.forEach(e => {
                     const opt = document.createElement('option');
@@ -232,40 +624,52 @@ document.addEventListener('DOMContentLoaded', () => {
                     opt.textContent = e.full_name;
                     empManager.appendChild(opt);
                 });
+                if (curVal) empManager.value = curVal;
             }
 
             employees.forEach(emp => {
                 const tr = document.createElement('tr');
-                const avatarId = emp.id + 10;
+                const avatarId = (emp.id % 70) + 1;
                 const statusClass = emp.status === 'Active' || emp.status === 'active' ? 'progress' : 'todo';
                 const statusLabel = emp.status || 'Active';
 
                 const whatsapp = emp.whatsapp_no || '';
                 const anydesk = emp.anydesk_id || '';
-                const waLink = whatsapp ? `<a href="https://wa.me/${whatsapp.replace(/[^0-9]/g, '')}" target="_blank" style="color:var(--teal-600);font-weight:600;text-decoration:none;display:flex;align-items:center;gap:6px;"><i class="fa-brands fa-whatsapp" style="font-size:16px;color:#25D366;"></i>${whatsapp}</a>` : '<span style="color:var(--text-muted);">—</span>';
+                const waLink = whatsapp ? `<a href="https://wa.me/${whatsapp.replace(/[^0-9]/g, '')}" target="_blank" style="color:#059669;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:6px;"><i class="fa-brands fa-whatsapp" style="font-size:16px;color:#25D366;"></i>${whatsapp}</a>` : '<span style="color:var(--text-muted);">—</span>';
                 const adDisplay = anydesk ? `<span style="font-weight:600;color:var(--text-dark);"><i class="fa-solid fa-desktop" style="margin-right:5px;color:var(--teal-600);"></i>${anydesk}</span>` : '<span style="color:var(--text-muted);">—</span>';
+
+                const safeEmpJson = JSON.stringify(emp).replace(/"/g, '&quot;');
 
                 tr.innerHTML = `
                     <td class="task-name" style="display:flex;align-items:center;gap:12px;">
-                        <img src="https://i.pravatar.cc/80?img=${avatarId}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #fff;">
-                        <span>${emp.full_name}</span>
+                        <img src="https://i.pravatar.cc/80?img=${avatarId}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                        <span style="font-weight:700;color:var(--teal-900);">${emp.full_name}</span>
                     </td>
                     <td style="font-weight:600;color:var(--teal-700);">${emp.employee_code || '-'}</td>
                     <td>${emp.email || '-'}</td>
-                    <td>${emp.department_name || '-'}</td>
-                    <td>${emp.designation_name || '-'}</td>
+                    <td><span style="background:rgba(15,118,110,0.08);color:var(--teal-800);padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;">${emp.department_name || '-'}</span></td>
+                    <td style="font-weight:600;">${emp.designation_name || '-'}</td>
                     <td>${emp.manager_name || 'None'}</td>
                     <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
                     <td>${waLink}</td>
                     <td>${adDisplay}</td>
-                    <td>
-                        <div style="display:flex;gap:8px;">
-                            <button class="action-pill edit" onclick="editEmployee(${JSON.stringify(emp).replace(/"/g, '&quot;')})"><i class="fa-solid fa-pen"></i> Edit</button>
-                            <button type="button" class="action-pill delete btn-offboard-emp" data-id="${emp.id}" data-name="${(emp.full_name || '').replace(/"/g, '&quot;')}" style="background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); font-weight:700; border-radius:12px; padding:4px 10px; cursor:pointer;"><i class="fa-solid fa-user-xmark"></i> Offboard</button>
+                    <td style="text-align:right; white-space:nowrap; padding-right:16px;">
+                        <div style="display:inline-flex;gap:6px;">
+                            <button type="button" class="action-pill edit btn-edit-emp" data-emp="${safeEmpJson}"><i class="fa-solid fa-pen"></i> Edit</button>
+                            <button type="button" class="action-pill delete btn-offboard-emp" data-id="${emp.id}" data-name="${(emp.full_name || '').replace(/"/g, '&quot;')}"><i class="fa-solid fa-user-xmark"></i> Offboard</button>
                         </div>
                     </td>
                 `;
 
+                // Wire up edit button
+                tr.querySelector('.btn-edit-emp').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const empData = JSON.parse(e.currentTarget.getAttribute('data-emp'));
+                    window.editEmployee(empData);
+                });
+
+                // Wire up offboard button
                 tr.querySelector('.btn-offboard-emp').addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -273,6 +677,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const name = e.currentTarget.dataset.name;
                     if (typeof window.openDeletionWizard === 'function') {
                         window.openDeletionWizard('employee', id, name);
+                    } else if (confirm(`Are you sure you want to offboard ${name}?`)) {
+                        window.toggleStatus(id, false);
                     }
                 });
 
@@ -280,18 +686,405 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
 
-        // Org Chart loading & rendering
+        // ================= EDIT EMPLOYEE ACTION =================
+        window.editEmployee = async (emp) => {
+            if (!emp) return;
+
+            // Ensure metadata is loaded
+            if (!cachedMetadata.departments || cachedMetadata.departments.length === 0) {
+                await loadMetadata();
+            }
+
+            // Populate all manager options
+            if (empManager && activeEmployeesList.length > 0) {
+                empManager.innerHTML = '<option value="">None</option>';
+                activeEmployeesList.forEach(e => {
+                    if (e.id !== emp.id) { // Don't allow reporting to oneself
+                        const opt = document.createElement('option');
+                        opt.value = e.id;
+                        opt.textContent = e.full_name;
+                        empManager.appendChild(opt);
+                    }
+                });
+            }
+
+            // Unlock and reset form
+            if (empForm) {
+                empForm.reset();
+                empForm.querySelectorAll('input, select, textarea').forEach(el => {
+                    el.disabled = false;
+                    el.readOnly = false;
+                });
+            }
+
+            // Populate Work Profile
+            if (empEditId) empEditId.value = emp.id;
+            if (empFullName) empFullName.value = emp.full_name || '';
+            if (empEmail) empEmail.value = emp.email || '';
+            if (empCode) empCode.value = emp.employee_code || '';
+            if (empGrade) empGrade.value = emp.salary_grade || '';
+            if (empDept) empDept.value = emp.department_id || '';
+            
+            // Populate and link designation dropdown
+            window.updateDesignationOptions(emp.department_id || '', emp.designation_id || '');
+
+            if (empManager) empManager.value = emp.reporting_manager_id || '';
+            if (empJoinDate) empJoinDate.value = emp.joining_date ? emp.joining_date.split('T')[0] : '';
+
+            // Populate Personal & Contact Details
+            if (empGender) empGender.value = emp.gender || 'Male';
+            if (empPhone) empPhone.value = emp.phone || '';
+            if (empDob) empDob.value = emp.dob ? emp.dob.split('T')[0] : '';
+            if (empWhatsappNo) empWhatsappNo.value = emp.whatsapp_no || '';
+            if (empAnydeskId) empAnydeskId.value = emp.anydesk_id || '';
+            if (empCitizenship) empCitizenship.value = emp.citizenship || '';
+            if (empAddress) empAddress.value = emp.address || '';
+            if (empPermAddress) empPermAddress.value = emp.perm_address || '';
+            if (empBankName) empBankName.value = emp.bank_name || '';
+            if (empBankAccNo) empBankAccNo.value = emp.bank_acc_no || '';
+            if (empBankIfsc) empBankIfsc.value = emp.bank_ifsc || '';
+
+            // Render existing documents
+            window.resetEmpDocumentViews();
+            const setDoc = (docField, filenameId, linkId) => {
+                if (!docField) return;
+                try {
+                    const docObj = typeof docField === 'string' ? JSON.parse(docField) : docField;
+                    if (docObj && docObj.fileName) {
+                        const fnEl = document.getElementById(filenameId);
+                        if (fnEl) fnEl.textContent = docObj.fileName;
+                        const linkEl = document.getElementById(linkId);
+                        if (linkEl && docObj.fileData) {
+                            linkEl.href = docObj.fileData;
+                            linkEl.style.display = 'inline-flex';
+                        }
+                    }
+                } catch (e) {}
+            };
+
+            setDoc(emp.doc_cv, 'cv-filename', 'cv-download-link');
+            setDoc(emp.doc_offer_letter, 'offer-filename', 'offer-download-link');
+            setDoc(emp.doc_adhar_card, 'adhar-filename', 'adhar-download-link');
+            setDoc(emp.doc_pan_card, 'pan-filename', 'pan-download-link');
+
+            // Update modal headers & button text
+            if (modalTitleText) modalTitleText.textContent = `Edit Employee: ${emp.full_name}`;
+            if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+
+            // Show modal
+            if (empModal) {
+                empModal.style.display = 'flex';
+                document.body.classList.add('modal-open');
+                requestAnimationFrame(() => {
+                    empModal.classList.add('active');
+                    empModal.style.opacity = '1';
+                });
+            }
+        };
+
+        // ================= EMPLOYEE FORM SUBMIT =================
+        if (empForm) {
+            empForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const isEdit = empEditId && empEditId.value.trim() !== '';
+                const employeeId = isEdit ? empEditId.value.trim() : null;
+
+                const payload = {
+                    fullName: empFullName ? empFullName.value.trim() : '',
+                    email: empEmail ? empEmail.value.trim() : '',
+                    employeeCode: empCode ? empCode.value.trim() : '',
+                    salaryGrade: empGrade ? empGrade.value.trim() : null,
+                    departmentId: empDept && empDept.value ? parseInt(empDept.value, 10) : null,
+                    designationId: empDesig && empDesig.value ? parseInt(empDesig.value, 10) : null,
+                    reportingManagerId: empManager && empManager.value ? parseInt(empManager.value, 10) : null,
+                    joiningDate: empJoinDate && empJoinDate.value ? empJoinDate.value : null,
+                    gender: empGender ? empGender.value : null,
+                    phone: empPhone ? empPhone.value.trim() : null,
+                    dob: empDob && empDob.value ? empDob.value : null,
+                    whatsappNo: empWhatsappNo ? empWhatsappNo.value.trim() : null,
+                    anydeskId: empAnydeskId ? empAnydeskId.value.trim() : null,
+                    citizenship: empCitizenship ? empCitizenship.value.trim() : null,
+                    address: empAddress ? empAddress.value.trim() : null,
+                    permAddress: empPermAddress ? empPermAddress.value.trim() : null,
+                    bankName: empBankName ? empBankName.value.trim() : null,
+                    bankAccNo: empBankAccNo ? empBankAccNo.value.trim() : null,
+                    bankIfsc: empBankIfsc ? empBankIfsc.value.trim() : null,
+                    docCv: docCv,
+                    docOfferLetter: docOffer,
+                    docAdharCard: docAdhar,
+                    docPanCard: docPan
+                };
+
+                if (!payload.fullName || !payload.email || !payload.employeeCode) {
+                    alert("Please fill in Full Name, Email Address, and Employee Code.");
+                    return;
+                }
+
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+                }
+
+                try {
+                    const url = isEdit ? `/api/v1/admin/employees/${employeeId}` : '/api/v1/admin/employees';
+                    const method = isEdit ? 'PUT' : 'POST';
+
+                    const response = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const resData = await response.json();
+                    if (response.ok && resData.success) {
+                        window.closeEmployeeModal();
+                        loadAdminEmployees();
+                        loadMetadata();
+                    } else {
+                        alert(resData.message || "Failed to save employee");
+                    }
+                } catch (error) {
+                    console.error("Error saving employee:", error);
+                    alert("Network or server error occurred while saving employee.");
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = isEdit ? '<i class="fa-solid fa-floppy-disk"></i> Save Changes' : '<i class="fa-solid fa-floppy-disk"></i> Save Employee';
+                    }
+                }
+            });
+        }
+
+        // ================= STATUS TOGGLE (OFFBOARD) =================
+        window.toggleStatus = async (id, isActive) => {
+            try {
+                const response = await fetch(`/api/v1/admin/employees/${id}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: isActive })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    loadAdminEmployees();
+                } else {
+                    alert(data.message || "Failed to update employee status");
+                }
+            } catch (e) {
+                console.error("Error toggling employee status:", e);
+            }
+        };
+
+        // ================= DEPARTMENT CRUD =================
+        window.editDepartment = (dept) => {
+            if (deptEditId) deptEditId.value = dept.id;
+            const nameInp = document.getElementById('dept-name'); if (nameInp) nameInp.value = dept.name || '';
+            const codeInp = document.getElementById('dept-code'); if (codeInp) codeInp.value = dept.code || '';
+            const descInp = document.getElementById('dept-desc'); if (descInp) descInp.value = dept.description || '';
+            if (deptFormTitle) deptFormTitle.innerHTML = '<i class="fa-solid fa-pen" style="color:var(--teal-600);"></i> Edit Department';
+            if (deptSubmitText) deptSubmitText.textContent = 'Update Department';
+            if (deptCancelEditBtn) deptCancelEditBtn.style.display = 'inline-block';
+        };
+
+        const resetDeptForm = () => {
+            if (deptForm) deptForm.reset();
+            if (deptEditId) deptEditId.value = '';
+            if (deptFormTitle) deptFormTitle.innerHTML = '<i class="fa-solid fa-building" style="color:var(--teal-600);"></i> Add Department';
+            if (deptSubmitText) deptSubmitText.textContent = 'Create Department';
+            if (deptCancelEditBtn) deptCancelEditBtn.style.display = 'none';
+        };
+
+        if (deptCancelEditBtn) deptCancelEditBtn.addEventListener('click', resetDeptForm);
+
+        if (deptForm) {
+            deptForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const isEdit = deptEditId && deptEditId.value.trim() !== '';
+                const id = isEdit ? deptEditId.value.trim() : null;
+                const name = document.getElementById('dept-name').value.trim();
+                const code = document.getElementById('dept-code').value.trim().toUpperCase();
+                const description = document.getElementById('dept-desc').value.trim();
+
+                try {
+                    const url = isEdit ? `/api/v1/admin/employees/departments/${id}` : '/api/v1/admin/employees/departments';
+                    const method = isEdit ? 'PUT' : 'POST';
+                    const res = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, code, description })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        resetDeptForm();
+                        loadMetadata();
+                    } else {
+                        alert(data.message || "Failed to save department");
+                    }
+                } catch (err) {
+                    console.error("Error saving department:", err);
+                }
+            });
+        }
+
+        window.deleteDepartment = async (id, name) => {
+            if (confirm(`Are you sure you want to delete department "${name}"? Any linked designations will be deleted, and employees will be unassigned.`)) {
+                try {
+                    const res = await fetch(`/api/v1/admin/employees/departments/${id}`, { method: 'DELETE' });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        loadMetadata();
+                    } else {
+                        alert(data.message || "Failed to delete department");
+                    }
+                } catch (err) {
+                    console.error("Error deleting department:", err);
+                }
+            }
+        };
+
+        // Quick Add Department Form
+        if (quickDeptForm) {
+            quickDeptForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('quick-dept-name').value.trim();
+                const code = document.getElementById('quick-dept-code').value.trim().toUpperCase();
+                const description = document.getElementById('quick-dept-desc').value.trim();
+
+                try {
+                    const res = await fetch('/api/v1/admin/employees/departments', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, code, description })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        await loadMetadata();
+                        if (empDept && data.data && data.data.id) {
+                            empDept.value = data.data.id;
+                            window.updateDesignationOptions(data.data.id, empDesig ? empDesig.value : '');
+                        }
+                        window.closeQuickAddDeptModal();
+                    } else {
+                        alert(data.message || "Failed to create department");
+                    }
+                } catch (err) {
+                    console.error("Error creating quick department:", err);
+                }
+            });
+        }
+
+        // ================= DESIGNATION CRUD =================
+        window.editDesignation = (desig) => {
+            if (desigEditId) desigEditId.value = desig.id;
+            const titleInp = document.getElementById('desig-title'); if (titleInp) titleInp.value = desig.title || '';
+            if (desigDept) desigDept.value = desig.department_id || '';
+            const levelInp = document.getElementById('desig-level'); if (levelInp) levelInp.value = desig.level || '';
+            if (desigFormTitle) desigFormTitle.innerHTML = '<i class="fa-solid fa-pen" style="color:var(--teal-600);"></i> Edit Designation';
+            if (desigSubmitText) desigSubmitText.textContent = 'Update Designation';
+            if (desigCancelEditBtn) desigCancelEditBtn.style.display = 'inline-block';
+        };
+
+        const resetDesigForm = () => {
+            if (desigForm) desigForm.reset();
+            if (desigEditId) desigEditId.value = '';
+            if (desigFormTitle) desigFormTitle.innerHTML = '<i class="fa-solid fa-id-badge" style="color:var(--teal-600);"></i> Add Designation';
+            if (desigSubmitText) desigSubmitText.textContent = 'Create Designation';
+            if (desigCancelEditBtn) desigCancelEditBtn.style.display = 'none';
+        };
+
+        if (desigCancelEditBtn) desigCancelEditBtn.addEventListener('click', resetDesigForm);
+
+        if (desigForm) {
+            desigForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const isEdit = desigEditId && desigEditId.value.trim() !== '';
+                const id = isEdit ? desigEditId.value.trim() : null;
+                const title = document.getElementById('desig-title').value.trim();
+                const departmentId = desigDept ? desigDept.value : '';
+                const level = document.getElementById('desig-level').value.trim();
+
+                try {
+                    const url = isEdit ? `/api/v1/admin/employees/designations/${id}` : '/api/v1/admin/employees/designations';
+                    const method = isEdit ? 'PUT' : 'POST';
+                    const res = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, departmentId, level: level ? parseInt(level, 10) : null })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        resetDesigForm();
+                        loadMetadata();
+                    } else {
+                        alert(data.message || "Failed to save designation");
+                    }
+                } catch (err) {
+                    console.error("Error saving designation:", err);
+                }
+            });
+        }
+
+        window.deleteDesignation = async (id, title) => {
+            if (confirm(`Are you sure you want to delete designation "${title}"?`)) {
+                try {
+                    const res = await fetch(`/api/v1/admin/employees/designations/${id}`, { method: 'DELETE' });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        loadMetadata();
+                    } else {
+                        alert(data.message || "Failed to delete designation");
+                    }
+                } catch (err) {
+                    console.error("Error deleting designation:", err);
+                }
+            }
+        };
+
+        // Quick Add Designation Form
+        if (quickDesigForm) {
+            quickDesigForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const title = document.getElementById('quick-desig-title').value.trim();
+                const departmentId = quickDesigDept ? quickDesigDept.value : '';
+                const level = document.getElementById('quick-desig-level').value.trim();
+
+                if (!departmentId) {
+                    alert("Please select a department for this designation.");
+                    return;
+                }
+
+                try {
+                    const res = await fetch('/api/v1/admin/employees/designations', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, departmentId, level: level ? parseInt(level, 10) : null })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        await loadMetadata();
+                        if (empDesig && data.data && data.data.id) {
+                            window.updateDesignationOptions(departmentId, data.data.id);
+                        }
+                        window.closeQuickAddDesigModal();
+                    } else {
+                        alert(data.message || "Failed to create designation");
+                    }
+                } catch (err) {
+                    console.error("Error creating quick designation:", err);
+                }
+            });
+        }
+
+        // ================= ORG CHART LOADING =================
         const loadOrgChart = async () => {
             const orgChartTree = document.getElementById('org-chart-tree');
             if (!orgChartTree) return;
-            orgChartTree.innerHTML = '<div style="color:var(--text-muted);padding:10px;">Loading tree hierarchy...</div>';
+            orgChartTree.innerHTML = '<div style="color:var(--text-muted);padding:10px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading hierarchy...</div>';
 
             try {
                 const response = await fetch('/api/v1/organization/directory');
                 const resData = await response.json();
                 if (response.ok && resData.success) {
-                    const employees = resData.data.employees;
-                    renderOrgChartTree(employees);
+                    renderOrgChartTree(resData.data.employees);
                 } else {
                     orgChartTree.innerHTML = '<div style="color:var(--red);padding:10px;">Failed to load structure</div>';
                 }
@@ -310,42 +1103,40 @@ document.addEventListener('DOMContentLoaded', () => {
             const roots = [];
 
             employees.forEach(emp => {
-                map[emp.id] = {
-                    ...emp,
-                    children: []
-                };
+                map[emp.id] = { ...emp, children: [] };
             });
 
             employees.forEach(emp => {
-                const node = map[emp.id];
-                const managerId = emp.reporting_manager_id || emp.manager_id;
-                if (managerId && map[managerId]) {
-                    map[managerId].children.push(node);
+                if (emp.reporting_manager_id && map[emp.reporting_manager_id]) {
+                    map[emp.reporting_manager_id].children.push(map[emp.id]);
                 } else {
-                    roots.push(node);
+                    roots.push(map[emp.id]);
                 }
             });
 
-            if (roots.length === 0 && employees.length > 0) {
-                roots.push(map[employees[0].id]);
+            if (roots.length === 0) {
+                orgChartTree.innerHTML = '<div style="color:var(--text-muted);padding:10px;">No organization records found.</div>';
+                return;
             }
 
             const buildHTML = (node) => {
-                const avatarId = node.id + 10;
-                const childHTMLs = node.children.map(buildHTML).join('');
-                
+                const avatarId = (node.id % 70) + 1;
                 let childrenContainer = '';
-                if (node.children.length > 0) {
-                    childrenContainer = `<div class="org-tree">${childHTMLs}</div>`;
+                if (node.children && node.children.length > 0) {
+                    childrenContainer = `
+                        <div class="org-tree">
+                            ${node.children.map(buildHTML).join('')}
+                        </div>
+                    `;
                 }
 
                 return `
                     <div class="org-tree-item">
                         <div class="org-node">
-                            <img class="org-node-avatar" src="https://i.pravatar.cc/80?img=${avatarId}" alt="${node.full_name}">
+                            <img src="https://i.pravatar.cc/80?img=${avatarId}" alt="" class="org-node-avatar">
                             <div class="org-node-info">
                                 <div class="name">${node.full_name}</div>
-                                <div class="role">${node.designation_name || 'Staff'}</div>
+                                <div class="role">${node.designation_name || 'Team Member'}</div>
                                 <div class="dept">${node.department_name || 'General'}</div>
                             </div>
                         </div>
@@ -358,297 +1149,7 @@ document.addEventListener('DOMContentLoaded', () => {
             orgChartTree.innerHTML = html;
         };
 
-        // Load departments & designations metadata
-        const loadMetadata = async () => {
-            try {
-                const response = await fetch('/api/v1/admin/employees/metadata');
-                const data = await response.json();
-                if (response.ok && data.success) {
-                    renderMetadata(data.data);
-                }
-            } catch (error) {
-                console.error("Error loading metadata:", error);
-            }
-        };
-
-        const renderMetadata = (meta) => {
-            if (empDept) {
-                empDept.innerHTML = '<option value="">Select Department</option>';
-                meta.departments.forEach(d => {
-                    const opt = document.createElement('option');
-                    opt.value = d.id;
-                    opt.textContent = d.name;
-                    empDept.appendChild(opt);
-                });
-            }
-            if (desigDept) {
-                desigDept.innerHTML = '<option value="">Select Department</option>';
-                meta.departments.forEach(d => {
-                    const opt = document.createElement('option');
-                    opt.value = d.id;
-                    opt.textContent = d.name;
-                    desigDept.appendChild(opt);
-                });
-            }
-            if (empDesig) {
-                empDesig.innerHTML = '<option value="">Select Designation</option>';
-                meta.designations.forEach(d => {
-                    const opt = document.createElement('option');
-                    opt.value = d.id;
-                    opt.textContent = d.title;
-                    empDesig.appendChild(opt);
-                });
-            }
-
-            // Render departments table
-            if (deptsList) {
-                deptsList.innerHTML = '';
-                meta.departments.forEach(d => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td class="task-name">${d.name}</td>
-                        <td style="font-weight:700;color:var(--teal-600);">${d.code}</td>
-                    `;
-                    deptsList.appendChild(tr);
-                });
-            }
-
-            // Render designations table
-            if (desigsList) {
-                desigsList.innerHTML = '';
-                meta.designations.forEach(d => {
-                    const tr = document.createElement('tr');
-                    const dept = meta.departments.find(deptObj => deptObj.id === d.department_id);
-                    tr.innerHTML = `
-                        <td class="task-name">${d.title}</td>
-                        <td>${dept ? dept.name : 'Unknown'}</td>
-                    `;
-                    desigsList.appendChild(tr);
-                });
-            }
-        };
-
-        const populateDepartments = (departments) => {
-            if (!dirDeptFilter) return;
-            departments.forEach(dept => {
-                const opt = document.createElement('option');
-                opt.value = dept.id;
-                opt.textContent = dept.name;
-                dirDeptFilter.appendChild(opt);
-            });
-        };
-
-        // Form submits
-        if (empForm) {
-            empForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const id = empEditId.value;
-                const payload = {
-                    fullName: document.getElementById('emp-fullname').value.trim(),
-                    email: document.getElementById('emp-email').value.trim(),
-                    employeeCode: document.getElementById('emp-code').value.trim(),
-                    salaryGrade: document.getElementById('emp-grade').value.trim(),
-                    departmentId: empDept.value || null,
-                    designationId: empDesig.value || null,
-                    reportingManagerId: empManager.value || null,
-                    joiningDate: document.getElementById('emp-join-date').value || null,
-                    phone: document.getElementById('emp-phone').value.trim(),
-                    dob: document.getElementById('emp-dob').value || null,
-                    citizenship: document.getElementById('emp-citizenship').value.trim(),
-                    address: document.getElementById('emp-address').value.trim(),
-                    permAddress: document.getElementById('emp-perm-address').value.trim(),
-                    anydeskId: document.getElementById('emp-anydesk-id').value.trim(),
-                    whatsappNo: document.getElementById('emp-whatsapp-no').value.trim(),
-                    bankName: document.getElementById('emp-bank-name').value.trim(),
-                    bankAccNo: document.getElementById('emp-bank-acc-no').value.trim(),
-                    bankIfsc: document.getElementById('emp-bank-ifsc').value.trim(),
-                    docCv,
-                    docOfferLetter: docOffer,
-                    docAdharCard: docAdhar,
-                    docPanCard: docPan
-                };
-
-                const method = id ? 'PUT' : 'POST';
-                const url = id ? `/api/v1/admin/employees/${id}` : '/api/v1/admin/employees';
-
-                try {
-                    const response = await fetch(url, {
-                        method,
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await response.json();
-                    if (response.ok && data.success) {
-                        closeModal();
-                        loadAdminEmployees();
-                    } else {
-                        alert(data.message || 'Error occurred');
-                    }
-                } catch (error) {
-                    console.error("Error saving employee:", error);
-                }
-            });
-        }
-
-        if (deptForm) {
-            deptForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const payload = {
-                    name: document.getElementById('dept-name').value.trim(),
-                    code: document.getElementById('dept-code').value.trim().toUpperCase(),
-                    description: document.getElementById('dept-desc').value.trim()
-                };
-
-                try {
-                    const response = await fetch('/api/v1/admin/employees/departments', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await response.json();
-                    if (response.ok && data.success) {
-                        deptForm.reset();
-                        loadMetadata();
-                    } else {
-                        alert(data.message || 'Error occurred');
-                    }
-                } catch (error) {
-                    console.error("Error creating department:", error);
-                }
-            });
-        }
-
-        if (desigForm) {
-            desigForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const payload = {
-                    title: document.getElementById('desig-title').value.trim(),
-                    departmentId: desigDept.value,
-                    level: document.getElementById('desig-level').value || null
-                };
-
-                try {
-                    const response = await fetch('/api/v1/admin/employees/designations', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await response.json();
-                    if (response.ok && data.success) {
-                        desigForm.reset();
-                        loadMetadata();
-                    } else {
-                        alert(data.message || 'Error occurred');
-                    }
-                } catch (error) {
-                    console.error("Error creating designation:", error);
-                }
-            });
-        }
-
-        window.editEmployee = (emp) => {
-            empForm.reset();
-            empEditId.value = emp.id;
-            modalTitle.textContent = 'Edit Employee';
-            
-            document.getElementById('emp-fullname').value = emp.full_name;
-            document.getElementById('emp-email').value = emp.email;
-            document.getElementById('emp-code').value = emp.employee_code;
-            document.getElementById('emp-grade').value = emp.salary_grade || '';
-            
-            empDept.value = emp.department_id || '';
-            empDesig.value = emp.designation_id || '';
-            empManager.value = emp.reporting_manager_id || emp.manager_id || '';
-
-            document.getElementById('emp-phone').value = emp.phone || '';
-            document.getElementById('emp-whatsapp-no').value = emp.whatsapp_no || '';
-            document.getElementById('emp-anydesk-id').value = emp.anydesk_id || '';
-            document.getElementById('emp-dob').value = emp.dob ? new Date(emp.dob).toISOString().split('T')[0] : '';
-            document.getElementById('emp-citizenship').value = emp.citizenship || '';
-            document.getElementById('emp-address').value = emp.address || '';
-            document.getElementById('emp-perm-address').value = emp.perm_address || '';
-            document.getElementById('emp-bank-name').value = emp.bank_name || '';
-            document.getElementById('emp-bank-acc-no').value = emp.bank_acc_no || '';
-            document.getElementById('emp-bank-ifsc').value = emp.bank_ifsc || '';
-
-            // Handle documents
-            if (emp.doc_cv && emp.doc_cv.fileName) {
-                docCv = emp.doc_cv;
-                document.getElementById('cv-filename').textContent = emp.doc_cv.fileName;
-                const link = document.getElementById('cv-download-link');
-                link.href = emp.doc_cv.fileData;
-                link.style.display = 'inline-flex';
-            } else {
-                docCv = null;
-                document.getElementById('cv-filename').textContent = 'No file';
-                document.getElementById('cv-download-link').style.display = 'none';
-            }
-
-            if (emp.doc_offer_letter && emp.doc_offer_letter.fileName) {
-                docOffer = emp.doc_offer_letter;
-                document.getElementById('offer-filename').textContent = emp.doc_offer_letter.fileName;
-                const link = document.getElementById('offer-download-link');
-                link.href = emp.doc_offer_letter.fileData;
-                link.style.display = 'inline-flex';
-            } else {
-                docOffer = null;
-                document.getElementById('offer-filename').textContent = 'No file';
-                document.getElementById('offer-download-link').style.display = 'none';
-            }
-
-            if (emp.doc_adhar_card && emp.doc_adhar_card.fileName) {
-                docAdhar = emp.doc_adhar_card;
-                document.getElementById('adhar-filename').textContent = emp.doc_adhar_card.fileName;
-                const link = document.getElementById('adhar-download-link');
-                link.href = emp.doc_adhar_card.fileData;
-                link.style.display = 'inline-flex';
-            } else {
-                docAdhar = null;
-                document.getElementById('adhar-filename').textContent = 'No file';
-                document.getElementById('adhar-download-link').style.display = 'none';
-            }
-
-            if (emp.doc_pan_card && emp.doc_pan_card.fileName) {
-                docPan = emp.doc_pan_card;
-                document.getElementById('pan-filename').textContent = emp.doc_pan_card.fileName;
-                const link = document.getElementById('pan-download-link');
-                link.href = emp.doc_pan_card.fileData;
-                link.style.display = 'inline-flex';
-            } else {
-                docPan = null;
-                document.getElementById('pan-filename').textContent = 'No file';
-                document.getElementById('pan-download-link').style.display = 'none';
-            }
-
-            if (emp.joining_date) {
-                const d = new Date(emp.joining_date);
-                const dateStr = d.toISOString().split('T')[0];
-                document.getElementById('emp-join-date').value = dateStr;
-            }
-
-            empModal.style.display = 'flex';
-            setTimeout(() => { empModal.style.opacity = '1'; }, 10);
-        };
-
-        window.toggleStatus = async (id, activate) => {
-            try {
-                const response = await fetch(`/api/v1/admin/employees/${id}/status`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ is_active: activate })
-                });
-                const data = await response.json();
-                if (response.ok && data.success) {
-                    loadAdminEmployees();
-                } else {
-                    alert(data.message);
-                }
-            } catch (error) {
-                console.error("Error toggling status:", error);
-            }
-        };
-
-        // Hook up search filter listener
+        // Filter listeners
         if (dirSearch) {
             dirSearch.addEventListener('input', debounce(loadAdminEmployees, 300));
         }
@@ -656,11 +1157,45 @@ document.addEventListener('DOMContentLoaded', () => {
             dirDeptFilter.addEventListener('change', loadAdminEmployees);
         }
 
-        // Initial load for admin
-        loadAdminEmployees();
+        // Initial Load on Admin
         loadMetadata();
+        loadAdminEmployees();
+
     } else {
-        // Employee-side initialization
+        // =========================================================================
+        // EMPLOYEE SECTION & DIRECTORY VIEW
+        // =========================================================================
+        const directoryList = document.getElementById('directory-list');
+        const btnDirectory = document.getElementById('btn-directory');
+        const btnChat = document.getElementById('btn-chat');
+        const directoryView = document.getElementById('directory-view');
+        const chatView = document.getElementById('chat-view');
+        const viewTitle = document.getElementById('view-title');
+
+        if (btnDirectory && btnChat) {
+            btnDirectory.addEventListener('click', () => {
+                btnDirectory.classList.add('active');
+                btnChat.classList.remove('active');
+                if (directoryView) directoryView.style.display = 'block';
+                if (chatView) chatView.style.display = 'none';
+                if (viewTitle) viewTitle.textContent = 'Employee Directory';
+                stopMessagePolling();
+            });
+
+            btnChat.addEventListener('click', () => {
+                btnChat.classList.add('active');
+                btnDirectory.classList.remove('active');
+                if (directoryView) directoryView.style.display = 'none';
+                if (chatView) chatView.style.display = 'block';
+                if (viewTitle) viewTitle.textContent = 'Chat Room';
+                loadChatContacts();
+
+                fetch('/api/v1/employee/inbox/mark-read', { method: 'POST', credentials: 'include' })
+                    .then(() => { if (typeof window.checkChatUnreadBadge === 'function') window.checkChatUnreadBadge(); })
+                    .catch(() => {});
+            });
+        }
+
         const loadDirectory = async () => {
             const search = dirSearch ? dirSearch.value.trim() : '';
             const deptId = dirDeptFilter ? dirDeptFilter.value : '';
@@ -671,11 +1206,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (response.ok && resData.success) {
                     renderDirectoryTable(resData.data.employees);
-                    if (dirDeptFilter && dirDeptFilter.options.length === 1) {
-                        populateDepartments(resData.data.departments);
+                    if (dirDeptFilter && dirDeptFilter.options.length === 1 && resData.data.departments) {
+                        resData.data.departments.forEach(dept => {
+                            const opt = document.createElement('option');
+                            opt.value = dept.id;
+                            opt.textContent = dept.name;
+                            dirDeptFilter.appendChild(opt);
+                        });
                     }
-                } else {
-                    console.error("Failed to load directory:", resData.message);
                 }
             } catch (error) {
                 console.error("Error loading directory:", error);
@@ -713,17 +1251,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
 
-        const populateDepartments = (departments) => {
-            if (!dirDeptFilter) return;
-            departments.forEach(dept => {
-                const opt = document.createElement('option');
-                opt.value = dept.id;
-                opt.textContent = dept.name;
-                dirDeptFilter.appendChild(opt);
-            });
-        };
-
-        // Filter listeners
         if (dirSearch) {
             dirSearch.addEventListener('input', debounce(loadDirectory, 300));
         }
@@ -732,27 +1259,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         loadDirectory();
-    } 
+    }
 
-    // Chat State variables
+    // =========================================================================
+    // CHAT SYSTEM (FOR CHAT ROOM IF APPLICABLE)
+    // =========================================================================
     let chatContacts = [];
     let selectedContact = null;
     let chatInterval = null;
-    let currentUserId = null; // We will retrieve this from /api/v1/auth/me
+    let currentUserId = null;
 
-    // Retrieve current user ID on load
     async function fetchCurrentUser() {
         try {
             const res = await fetch('/api/v1/auth/me');
             const data = await res.json();
             if (data.success && data.data) {
-                // If it returns user profile, we find user's employee ID
-                // Let's store current user info
                 currentUserId = data.data.employee_id || data.data.id;
             }
-        } catch (e) {
-            console.error("Error fetching current user for chat:", e);
-        }
+        } catch (e) {}
     }
     fetchCurrentUser();
 
@@ -777,13 +1301,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!list) return;
         list.innerHTML = '';
 
-        // 💬 Section 1: Direct Messages
+        // Direct Messages
         const dmHeader = document.createElement('div');
         dmHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:10px 0 6px 4px;';
         dmHeader.innerHTML = '<i class="fa-solid fa-user"></i> Direct Messages';
         list.appendChild(dmHeader);
 
-        chatChannels.directMessages.forEach(c => {
+        (chatChannels.directMessages || []).forEach(c => {
             const item = document.createElement('div');
             const isSelected = selectedChannel && selectedChannel.id === c.employee_id && selectedChannel.type === 'DM';
             const isBusy = c.presence_status === 'Busy';
@@ -815,8 +1339,8 @@ document.addEventListener('DOMContentLoaded', () => {
             list.appendChild(item);
         });
 
-        // 👥 Section 2: Task Groups
-        if (chatChannels.taskGroups.length > 0) {
+        // Task Groups
+        if (chatChannels.taskGroups && chatChannels.taskGroups.length > 0) {
             const tgHeader = document.createElement('div');
             tgHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:16px 0 6px 4px;';
             tgHeader.innerHTML = '<i class="fa-solid fa-users"></i> Task Groups';
@@ -843,8 +1367,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // 🏢 Section 3: Department Channels
-        if (chatChannels.departmentChannels.length > 0) {
+        // Department Channels
+        if (chatChannels.departmentChannels && chatChannels.departmentChannels.length > 0) {
             const deptHeader = document.createElement('div');
             deptHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:16px 0 6px 4px;';
             deptHeader.innerHTML = '<i class="fa-solid fa-building"></i> Department Channels';
@@ -875,30 +1399,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectChannelItem = async (type, id, title, subtitle) => {
         selectedChannel = { type, id, title, subtitle };
 
-        document.getElementById('chat-thread-empty').style.display = 'none';
-        document.getElementById('chat-thread-active').style.display = 'flex';
+        const emptyEl = document.getElementById('chat-thread-empty'); if (emptyEl) emptyEl.style.display = 'none';
+        const activeEl = document.getElementById('chat-thread-active'); if (activeEl) activeEl.style.display = 'flex';
 
-        document.getElementById('chat-header-name').textContent = title;
-        document.getElementById('chat-header-status').textContent = subtitle;
+        const nameEl = document.getElementById('chat-header-name'); if (nameEl) nameEl.textContent = title;
+        const statusEl = document.getElementById('chat-header-status'); if (statusEl) statusEl.textContent = subtitle;
 
         loadMessages();
         startMessagePolling();
 
-        // Mark channel notifications read
         try {
             const readUrl = type === 'DM' ? `/api/v1/chat/channels/0/read?contactId=${id}` : `/api/v1/chat/channels/${id}/read`;
             await fetch(readUrl, { method: 'POST' });
             if (typeof window.checkChatUnreadBadge === 'function') window.checkChatUnreadBadge();
-            // Refresh channel list to update unread badge dots
-            const res = await fetch('/api/v1/chat/channels');
-            const data = await res.json();
-            if (res.ok && data.success) {
-                chatChannels = data.data;
-                renderChatChannels();
-            }
-        } catch (e) {
-            console.error("Error marking channel read:", e);
-        }
+        } catch (e) {}
     };
 
     const loadMessages = async () => {
@@ -917,7 +1431,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // ── File Attachment Helpers ──
+    const formatFileSize = (bytes) => {
+        if (!bytes) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    };
+
     const getFileIcon = (type, name) => {
         if (!type && !name) return 'fa-solid fa-file';
         const ext = (name || '').split('.').pop().toLowerCase();
@@ -927,41 +1447,60 @@ document.addEventListener('DOMContentLoaded', () => {
         if (/doc|docx/.test(ext)) return 'fa-solid fa-file-word';
         if (/xls|xlsx/.test(ext)) return 'fa-solid fa-file-excel';
         if (/ppt|pptx/.test(ext)) return 'fa-solid fa-file-powerpoint';
-        if (ext === 'txt') return 'fa-solid fa-file-lines';
         return 'fa-solid fa-file';
     };
 
-    const formatFileSize = (bytes) => {
-        if (!bytes) return '';
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / 1048576).toFixed(1) + ' MB';
-    };
+    const renderMessages = (messagesList) => {
+        const container = document.getElementById('chat-messages-container');
+        if (!container) return;
 
-    const isImageFile = (type, name) => {
-        if (/^image\//.test(type)) return true;
-        const ext = (name || '').split('.').pop().toLowerCase();
-        return ['jpg','jpeg','png','gif','webp','svg'].includes(ext);
-    };
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+        container.innerHTML = '';
 
-    const buildAttachmentHTML = (fileUrl, fileName, fileType, fileSize, isMe) => {
-        if (!fileUrl) return '';
-        const linkColor = isMe ? '#a9d94c' : 'var(--teal-700)';
-        if (isImageFile(fileType, fileName)) {
-            return `<div style="margin-top:6px;"><a href="${fileUrl}" target="_blank"><img src="${fileUrl}" alt="${fileName}" style="max-width:220px; max-height:180px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" /></a><div style="font-size:10px; margin-top:3px; opacity:0.8;">📎 ${fileName} ${fileSize ? '(' + formatFileSize(fileSize) + ')' : ''}</div></div>`;
+        if (messagesList.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;font-size:12.5px;">No messages yet. Start the conversation!</div>';
+            return;
         }
-        const icon = getFileIcon(fileType, fileName);
-        return `<div style="margin-top:8px; padding:10px 12px; border-radius:10px; background:${isMe ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)'}; display:flex; align-items:center; gap:10px;">
-            <i class="${icon}" style="font-size:22px; color:${linkColor};"></i>
-            <div style="flex:1; min-width:0;">
-                <a href="${fileUrl}" download="${fileName}" target="_blank" style="color:${linkColor}; font-weight:700; font-size:12.5px; text-decoration:underline; display:block; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${fileName}</a>
-                <span style="font-size:10px; opacity:0.7;">${formatFileSize(fileSize)}</span>
-            </div>
-            <a href="${fileUrl}" download="${fileName}" style="color:${linkColor}; font-size:14px;" title="Download"><i class="fa-solid fa-download"></i></a>
-        </div>`;
+
+        messagesList.forEach(m => {
+            const isMe = currentUserId && (m.sender_id === currentUserId);
+            const senderName = m.sender_name || 'Staff';
+            const time = new Date(m.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            
+            const outerDiv = document.createElement('div');
+            outerDiv.style.cssText = `display:flex; flex-direction:column; align-items: ${isMe ? 'flex-end' : 'flex-start'}; width:100%; margin-bottom:10px;`;
+
+            const bubble = document.createElement('div');
+            bubble.style.cssText = `
+                max-width:75%; padding:10px 14px; border-radius:16px; font-size:13px; line-height:1.4;
+                background:${isMe ? 'linear-gradient(135deg, var(--teal-600), var(--teal-900))' : 'rgba(255,255,255,0.9)'};
+                color:${isMe ? '#ffffff' : 'var(--text-dark)'};
+                border:1px solid ${isMe ? 'transparent' : 'rgba(0,0,0,0.06)'};
+                box-shadow:0 2px 6px rgba(0,0,0,0.06);
+                border-bottom-right-radius:${isMe ? '4px' : '16px'};
+                border-bottom-left-radius:${isMe ? '16px' : '4px'};
+                word-break: break-word;
+            `;
+            let text = m.message_text || m.message || '';
+            const senderHeader = `<strong style="font-size:11px; color:${isMe ? '#a9d94c' : 'var(--teal-900)'}; display:block; margin-bottom:2px;">${isMe ? 'You' : senderName}</strong>`;
+
+            let bubbleContent = senderHeader + `<span>${text}</span>`;
+            bubble.innerHTML = bubbleContent;
+
+            const infoDiv = document.createElement('div');
+            infoDiv.style.cssText = `font-size:10px; color:var(--text-muted); margin-top:3px; margin-left:4px; margin-right:4px;`;
+            infoDiv.textContent = time;
+
+            outerDiv.appendChild(bubble);
+            outerDiv.appendChild(infoDiv);
+            container.appendChild(outerDiv);
+        });
+
+        if (isNearBottom || container.scrollTop === 0) {
+            container.scrollTop = container.scrollHeight;
+        }
     };
 
-    // ── File Input State ──
     let pendingFile = null;
     const fileInput = document.getElementById('chat-file-input');
     const attachBtn = document.getElementById('btn-chat-attach');
@@ -992,91 +1531,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (filePreview) filePreview.style.display = 'none';
         });
     }
-
-    const renderMessages = (messagesList) => {
-        const container = document.getElementById('chat-messages-container');
-        if (!container) return;
-
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
-
-        container.innerHTML = '';
-        if (messagesList.length === 0) {
-            container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;font-size:12.5px;">No messages yet. Start the conversation!</div>';
-            return;
-        }
-
-        messagesList.forEach(m => {
-            const isMe = currentUserId && (m.sender_id === currentUserId);
-            const senderName = m.sender_name || 'Staff';
-            const time = new Date(m.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-            
-            const outerDiv = document.createElement('div');
-            outerDiv.style.cssText = `
-                display:flex; flex-direction:column; align-items: ${isMe ? 'flex-end' : 'flex-start'}; width:100%; margin-bottom:10px;
-            `;
-
-            const bubble = document.createElement('div');
-            bubble.style.cssText = `
-                max-width:75%; padding:10px 14px; border-radius:16px; font-size:13px; line-height:1.4;
-                background:${isMe ? 'linear-gradient(135deg, var(--teal-600), var(--teal-900))' : 'rgba(255,255,255,0.9)'};
-                color:${isMe ? '#ffffff' : 'var(--text-dark)'};
-                border:1px solid ${isMe ? 'transparent' : 'rgba(0,0,0,0.06)'};
-                box-shadow:0 2px 6px rgba(0,0,0,0.06);
-                border-bottom-right-radius:${isMe ? '4px' : '16px'};
-                border-bottom-left-radius:${isMe ? '16px' : '4px'};
-                word-break: break-word;
-            `;
-            let text = m.message_text || m.message || '';
-            const senderHeader = `<strong style="font-size:11px; color:${isMe ? '#a9d94c' : 'var(--teal-900)'}; display:block; margin-bottom:2px;">${isMe ? 'You' : senderName}</strong>`;
-
-            // Detect file attachment (DM: file_url, Channel: attachments array)
-            let fileUrl = m.file_url || null;
-            let fileName = m.file_name || null;
-            let fileType = m.file_type || null;
-            let fileSize = m.file_size || null;
-
-            // Channel messages use attachments JSONB array
-            if (!fileUrl && m.attachments) {
-                const atts = typeof m.attachments === 'string' ? JSON.parse(m.attachments) : m.attachments;
-                if (Array.isArray(atts) && atts.length > 0) {
-                    fileUrl = atts[0].url;
-                    fileName = atts[0].name;
-                    fileType = atts[0].type;
-                    fileSize = atts[0].size;
-                }
-            }
-
-            // Text content (hide auto-generated 📎 text if we have actual file to show)
-            let displayText = text;
-            if (fileUrl && text.startsWith('📎')) displayText = '';
-
-            let bubbleContent = senderHeader;
-            if (displayText) {
-                if (displayText.includes('https://meet.google.com/')) {
-                    displayText = displayText.replace(/(https:\/\/meet\.google\.com\/[a-z0-9-]+)/g, `<a href="$1" target="_blank" style="color:${isMe ? '#a9d94c' : 'var(--teal-700)'};text-decoration:underline;font-weight:700;">$1</a>`);
-                }
-                bubbleContent += `<span>${displayText}</span>`;
-            }
-            if (fileUrl) {
-                bubbleContent += buildAttachmentHTML(fileUrl, fileName, fileType, fileSize, isMe);
-            }
-            bubble.innerHTML = bubbleContent;
-
-            const infoDiv = document.createElement('div');
-            infoDiv.style.cssText = `
-                font-size:10px; color:var(--text-muted); margin-top:3px; margin-left:4px; margin-right:4px;
-            `;
-            infoDiv.textContent = time;
-
-            outerDiv.appendChild(bubble);
-            outerDiv.appendChild(infoDiv);
-            container.appendChild(outerDiv);
-        });
-
-        if (isNearBottom || container.scrollTop === 0) {
-            container.scrollTop = container.scrollHeight;
-        }
-    };
 
     const sendChatMessage = async () => {
         const input = document.getElementById('chat-message-input');
@@ -1125,7 +1579,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Attach sending triggers
     const sendBtn = document.getElementById('btn-chat-send');
     const msgInput = document.getElementById('chat-message-input');
     if (sendBtn) sendBtn.addEventListener('click', sendChatMessage);
@@ -1133,179 +1586,5 @@ document.addEventListener('DOMContentLoaded', () => {
         msgInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') sendChatMessage();
         });
-
-        // `@mention` Auto-Complete suggestion popup
-        msgInput.addEventListener('keyup', (e) => {
-            const val = msgInput.value;
-            const lastAtPos = val.lastIndexOf('@');
-            if (lastAtPos !== -1 && lastAtPos === val.length - 1) {
-                let popup = document.getElementById('mention-suggestion-popup-org');
-                if (!popup) {
-                    popup = document.createElement('div');
-                    popup.id = 'mention-suggestion-popup-org';
-                    popup.style.cssText = 'position:absolute; bottom:60px; left:20px; background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border-radius:14px; padding:10px; box-shadow:0 10px 30px rgba(0,0,0,0.2); border:1px solid rgba(0,0,0,0.1); z-index:99999;';
-                    msgInput.parentElement.appendChild(popup);
-                }
-
-                popup.innerHTML = `
-                    <div style="font-size:10px; font-weight:800; color:var(--teal-900); margin-bottom:6px;">MENTION TEAM MEMBER</div>
-                    ${(chatChannels.directMessages || []).slice(0, 4).map(e => `
-                        <div onclick="window.insertMentionOrg('${e.full_name}')" style="padding:6px 10px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; color:var(--text-dark);">
-                            @${e.full_name}
-                        </div>
-                    `).join('')}
-                `;
-            }
-        });
     }
-
-    window.insertMentionOrg = (name) => {
-        if (!msgInput) return;
-        const val = msgInput.value;
-        const lastAtPos = val.lastIndexOf('@');
-        msgInput.value = val.substring(0, lastAtPos) + `@${name} `;
-        const popup = document.getElementById('mention-suggestion-popup-org');
-        if (popup) popup.remove();
-        msgInput.focus();
-    };
-
-    // Contact Search Listener
-    const contactSearchInput = document.getElementById('chat-contact-search');
-    if (contactSearchInput) {
-        contactSearchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            const filtered = chatContacts.filter(c => 
-                c.full_name.toLowerCase().includes(query) || 
-                (c.designation_name && c.designation_name.toLowerCase().includes(query))
-            );
-            renderChatContacts(filtered);
-        });
-    }
-
-    // Call Feature Handlers
-    let callTimerInterval = null;
-    const btnCall = document.getElementById('btn-chat-call');
-    const btnMeet = document.getElementById('btn-chat-meet');
-    const callModal = document.getElementById('call-modal');
-    
-    if (btnCall) {
-        btnCall.addEventListener('click', () => {
-            if (!selectedContact) return;
-            // Open modal
-            callModal.style.display = 'flex';
-            setTimeout(() => { callModal.style.opacity = '1'; }, 10);
-            
-            // Set details
-            const avatarId = selectedContact.id + 10;
-            document.getElementById('call-avatar').src = `https://i.pravatar.cc/120?img=${avatarId}`;
-            document.getElementById('call-name').textContent = selectedContact.full_name;
-            document.getElementById('call-status').textContent = 'Ringing...';
-            document.getElementById('btn-call-mute').style.background = '#e5e7eb';
-            document.getElementById('btn-call-mute').innerHTML = '<i class="fa-solid fa-microphone"></i>';
-
-            // Simulate call connection after 3 seconds
-            let seconds = 0;
-            if (callTimerInterval) clearInterval(callTimerInterval);
-            
-            setTimeout(() => {
-                if (callModal.style.display === 'flex') {
-                    document.getElementById('call-status').textContent = 'Connected (00:00)';
-                    callTimerInterval = setInterval(() => {
-                        seconds++;
-                        const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-                        const s = String(seconds % 60).padStart(2, '0');
-                        document.getElementById('call-status').textContent = `Connected (${m}:${s})`;
-                    }, 1000);
-                }
-            }, 3000);
-        });
-    }
-
-    // Google Meet Link Generator
-    if (btnMeet) {
-        btnMeet.addEventListener('click', async () => {
-            if (!selectedContact) return;
-            // Generate a random meet code
-            const code = Math.random().toString(36).substring(2, 5) + '-' + Math.random().toString(36).substring(2, 6) + '-' + Math.random().toString(36).substring(2, 5);
-            const meetUrl = `https://meet.google.com/${code}`;
-            const msg = `Let's join a Voice Call / Google Meet here: ${meetUrl}`;
-            
-            // Post as a message
-            try {
-                const res = await fetch('/api/v1/employee/chat/send', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ recipient_id: selectedContact.id, message: msg }),
-                    credentials: 'include'
-                });
-                if (res.ok) {
-                    await loadMessages();
-                }
-            } catch (e) {
-                console.error("Error sending Google Meet link:", e);
-            }
-        });
-    }
-
-    // Call End/Mute Handler
-    const btnHangup = document.getElementById('btn-call-hangup');
-    const btnMute = document.getElementById('btn-call-mute');
-    
-    if (btnHangup) {
-        btnHangup.addEventListener('click', () => {
-            if (callTimerInterval) clearInterval(callTimerInterval);
-            callModal.style.opacity = '0';
-            setTimeout(() => { callModal.style.display = 'none'; }, 250);
-        });
-    }
-
-    if (btnMute) {
-        btnMute.addEventListener('click', () => {
-            const currentBg = btnMute.style.background;
-            if (currentBg === 'rgb(243, 244, 246)' || btnMute.style.background === 'rgba(0, 0, 0, 0.05)' || btnMute.style.background === '') {
-                // Mute
-                btnMute.style.background = '#f87171';
-                btnMute.style.color = '#fff';
-                btnMute.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
-            } else {
-                // Unmute
-                btnMute.style.background = '#e5e7eb';
-                btnMute.style.color = '#374151';
-                btnMute.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-            }
-        });
-    }
-
-    // Filter listeners
-    if (dirSearch) {
-        dirSearch.addEventListener('input', debounce(loadDirectory, 300));
-    }
-    if (dirDeptFilter) {
-        dirDeptFilter.addEventListener('change', loadDirectory);
-    }
-
-    // Logout implementation
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/v1/auth/logout', { method: 'POST' });
-                if (response.ok) {
-                    window.location.href = '/login.html';
-                }
-            } catch (error) {
-                console.error("Logout failed:", error);
-            }
-        });
-    }
-
-    function debounce(func, delay) {
-        let timer;
-        return function(...args) {
-            clearTimeout(timer);
-            timer = setTimeout(() => func.apply(this, args), delay);
-        };
-    }
-
-    // Initial load
-    loadDirectory();
 });

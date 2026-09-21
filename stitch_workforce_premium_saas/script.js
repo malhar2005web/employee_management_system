@@ -197,136 +197,150 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   }
 
-  // ── Employee Topbar & Polling Adjustments ──
-  if (window.location.pathname.includes('employee-') || window.location.pathname === '/') {
-    // Hide dark mode button
-    const darkBtn = document.querySelector('.topbar-actions .fa-moon')?.closest('.icon-btn');
-    if (darkBtn) darkBtn.remove();
-
-    // Hide envelope message button
-    const mailBtn = document.querySelector('.topbar-actions .fa-envelope')?.closest('.icon-btn');
-    if (mailBtn) mailBtn.remove();
-
-    // Make bell icon redirect to inbox
-    const bellBtn = document.querySelector('.topbar-actions .fa-bell')?.closest('.icon-btn');
-    if (bellBtn) {
-      bellBtn.style.cursor = 'pointer';
-      bellBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        window.location.href = '/employee-inbox.html';
-      });
-    }
-
-    // Make profile picture redirect to profile
-    const topbarUser = document.querySelector('.topbar-user');
-    if (topbarUser) {
-      topbarUser.style.cursor = 'pointer';
-      topbarUser.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        window.location.href = '/employee-profile.html';
-      });
-    }
-
-    // Synthesized chime player
-    function playNotificationSound() {
-      try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const now = audioCtx.currentTime;
-
-        // First tone (A5)
-        const osc1 = audioCtx.createOscillator();
-        const gain1 = audioCtx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(880, now);
-        gain1.gain.setValueAtTime(0, now);
-        gain1.gain.linearRampToValueAtTime(0.1, now + 0.05);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-        osc1.connect(gain1);
-        gain1.connect(audioCtx.destination);
-        osc1.start(now);
-        osc1.stop(now + 0.3);
-
-        // Second tone (E6)
-        const osc2 = audioCtx.createOscillator();
-        const gain2 = audioCtx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1320, now + 0.12);
-        gain2.gain.setValueAtTime(0, now + 0.12);
-        gain2.gain.linearRampToValueAtTime(0.1, now + 0.17);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-        osc2.connect(gain2);
-        gain2.connect(audioCtx.destination);
-        osc2.start(now + 0.12);
-        osc2.stop(now + 0.45);
-      } catch (err) {
-        console.error("Audio error:", err);
+  // ── Global Audio Unlock & Synthesized Chime Engine ──
+  let notificationAudioCtx = null;
+  function getAudioContext() {
+    try {
+      if (!notificationAudioCtx) {
+        notificationAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
-    }
-
-    // Polling unread notifications count
-    let lastUnreadCount = null;
-    async function checkNotifications() {
-      try {
-        const res = await fetch('/api/v1/employee/inbox', { credentials: 'include' });
-        const data = await res.json();
-        if (!data.success || !Array.isArray(data.data)) return;
-
-        const unreadCount = data.data.filter(n => !n.is_read).length;
-
-        // Update topbar bell badge
-        const bellBadge = document.querySelector('.topbar-actions .fa-bell')?.parentNode.querySelector('.badge');
-        if (bellBadge) {
-          if (unreadCount > 0) {
-            bellBadge.textContent = unreadCount;
-            bellBadge.style.display = 'flex';
-          } else {
-            bellBadge.style.display = 'none';
-          }
-        }
-
-        // Play chime if count has increased (and it's not the first load check)
-        if (lastUnreadCount !== null && unreadCount > lastUnreadCount) {
-          playNotificationSound();
-        }
-        lastUnreadCount = unreadCount;
-      } catch (e) {
-        console.error("Notification check error:", e);
+      if (notificationAudioCtx && notificationAudioCtx.state === 'suspended') {
+        notificationAudioCtx.resume().catch(() => {});
       }
+      return notificationAudioCtx;
+    } catch (e) {
+      return null;
     }
-
-    // Run first check and set interval (10 seconds)
-    checkNotifications();
-    setInterval(checkNotifications, 10000);
-
-  } else if (window.location.pathname.includes('admin-')) {
-    // Hide dark mode button
-    const darkBtn = document.querySelector('.topbar-actions .fa-moon')?.closest('.icon-btn');
-    if (darkBtn) darkBtn.remove();
-
-    // Hide envelope message button
-    const mailBtn = document.querySelector('.topbar-actions .fa-envelope')?.closest('.icon-btn');
-    if (mailBtn) mailBtn.remove();
-
-    // Make profile picture redirect to admin profile
-    document.querySelectorAll('.topbar-user').forEach(el => {
-      el.style.cursor = 'pointer';
-      el.onclick = () => { window.location.href = '/admin-profile.html'; };
-    });
   }
 
-  // Universal Topbar User Avatar click handler (delegation fallback)
-  document.addEventListener('click', (e) => {
-    const userBtn = e.target.closest('.topbar-user');
-    if (userBtn) {
-      e.preventDefault();
-      const isEmployeePage = window.location.pathname.includes('employee-');
-      window.location.href = isEmployeePage ? '/employee-profile.html' : '/admin-profile.html';
+  // Pre-unlock AudioContext on first user interaction
+  ['click', 'touchstart', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, () => {
+      try {
+        const ctx = getAudioContext();
+        if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+      } catch (e) {}
+    }, { once: true, passive: true });
+  });
+
+  // Synthesized crystal chime player
+  function playNotificationSound() {
+    try {
+      const audioCtx = getAudioContext();
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      const now = audioCtx.currentTime;
+
+      // First Tone: C6 (1046.5 Hz)
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(1046.5, now);
+      gain1.gain.setValueAtTime(0.001, now);
+      gain1.gain.linearRampToValueAtTime(0.18, now + 0.04);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.35);
+
+      // Second Tone: G6 (1567.98 Hz)
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(1567.98, now + 0.12);
+      gain2.gain.setValueAtTime(0.001, now + 0.12);
+      gain2.gain.linearRampToValueAtTime(0.22, now + 0.16);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.55);
+    } catch (err) {
+      console.warn("Audio notification playback error:", err);
+    }
+  }
+  window.playNotificationSound = playNotificationSound;
+
+  // ── Universal Notification Polling & Badge Update (Admin & Employee) ──
+  let lastUnreadCount = null;
+  async function checkNotifications() {
+    try {
+      const res = await fetch('/api/v1/employee/inbox', { credentials: 'include' });
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.data)) return;
+
+      const unreadCount = data.data.filter(n => !n.is_read).length;
+
+      // Update all topbar bell badges across the page
+      const bellIcons = document.querySelectorAll('.topbar-actions .fa-bell, .topbar .fa-bell');
+      bellIcons.forEach(bellIcon => {
+        const btn = bellIcon.closest('.icon-btn') || bellIcon.parentElement;
+        if (!btn) return;
+        let badge = btn.querySelector('.badge');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'badge';
+          btn.appendChild(badge);
+        }
+        if (unreadCount > 0) {
+          badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+          badge.style.display = 'flex';
+        } else {
+          badge.textContent = '0';
+          badge.style.display = 'none';
+        }
+      });
+
+      // Play chime if count has increased after initial page load
+      if (lastUnreadCount !== null && unreadCount > lastUnreadCount) {
+        playNotificationSound();
+      }
+      lastUnreadCount = unreadCount;
+    } catch (e) {
+      // Ignore network errors silently
+    }
+  }
+
+  // Run initial notification check immediately and interval every 8 seconds
+  checkNotifications();
+  setInterval(checkNotifications, 8000);
+
+  // ── Common Topbar Adjustments ──
+  const isEmployeePage = window.location.pathname.includes('employee-') || window.location.pathname === '/';
+  const isAdminPage = window.location.pathname.includes('admin-');
+
+  // Hide dark mode & envelope icons
+  document.querySelectorAll('.topbar-actions .fa-moon').forEach(el => el.closest('.icon-btn')?.remove());
+  document.querySelectorAll('.topbar-actions .fa-envelope').forEach(el => el.closest('.icon-btn')?.remove());
+
+  // Bell icon click handler
+  const bellBtns = document.querySelectorAll('.topbar-actions .fa-bell');
+  bellBtns.forEach(bellIcon => {
+    const btn = bellIcon.closest('.icon-btn');
+    if (btn) {
+      btn.style.cursor = 'pointer';
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.href = isEmployeePage ? '/employee-inbox.html' : '/admin-communication.html';
+      };
     }
   });
 
-  // ── Hide removed modules from sidebar (Timesheets, Goals, Training, Workload/Activity Summary, Reports) ──
+  // Profile picture click handler
+  document.querySelectorAll('.topbar-user').forEach(el => {
+    el.style.cursor = 'pointer';
+    el.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.location.href = isEmployeePage ? '/employee-profile.html' : '/admin-profile.html';
+    };
+  });
+
+  // ── Hide removed modules from sidebar ──
   const removedPages = [
     'employee-timesheets', 'employee-goals', 'employee-trainings',
     'admin-timesheets', 'admin-goals', 'admin-trainings', 'admin-workload', 'admin-reports',
@@ -340,32 +354,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ── Combine Attendance and Leave for Sidebar dynamically ──
+  // ── Combine Attendance and Leave & Ensure Support Desk in Sidebar ──
   const navList = document.querySelector('.nav-list');
   if (navList) {
     let attItem = null;
     let leaveItem = null;
+    let hasSupportDesk = false;
+    let taskItem = null;
+
     navList.querySelectorAll('.nav-item').forEach(item => {
       const onclick = item.getAttribute('onclick') || '';
       if (onclick.includes('attendance')) attItem = item;
       if (onclick.includes('leave')) leaveItem = item;
+      if (onclick.includes('support')) hasSupportDesk = true;
+      if (onclick.includes('tasks')) taskItem = item;
     });
 
     if (attItem && leaveItem) {
       attItem.innerHTML = '<i class="fa-solid fa-calendar-check"></i> Attendance &amp; Leave';
-      if (window.location.pathname.includes('admin-')) {
-        attItem.setAttribute('onclick', "window.location.href='/admin-attendance.html'");
-      } else {
-        attItem.setAttribute('onclick', "window.location.href='/employee-attendance.html'");
-      }
+      attItem.setAttribute('onclick', isAdminPage ? "window.location.href='/admin-attendance.html'" : "window.location.href='/employee-attendance.html'");
       leaveItem.remove();
     } else if (attItem) {
       attItem.innerHTML = '<i class="fa-solid fa-calendar-check"></i> Attendance &amp; Leave';
-      if (window.location.pathname.includes('admin-')) {
-        attItem.setAttribute('onclick', "window.location.href='/admin-attendance.html'");
-      } else {
-        attItem.setAttribute('onclick', "window.location.href='/employee-attendance.html'");
-      }
+      attItem.setAttribute('onclick', isAdminPage ? "window.location.href='/admin-attendance.html'" : "window.location.href='/employee-attendance.html'");
+    }
+
+    // Ensure Support Desk is present on all Admin pages
+    if (isAdminPage && !hasSupportDesk && attItem) {
+      const supportLi = document.createElement('li');
+      supportLi.className = 'nav-item' + (window.location.pathname.includes('admin-support') ? ' active' : '');
+      supportLi.style.cursor = 'pointer';
+      supportLi.setAttribute('onclick', "window.location.href='/admin-support.html'");
+      supportLi.innerHTML = '<i class="fa-solid fa-headset"></i> Support Desk';
+      navList.insertBefore(supportLi, attItem);
     }
   }
 
@@ -484,7 +505,6 @@ document.addEventListener('click', (e) => {
 
 // ── GLOBAL RECTANGULAR CARD SPOTLIGHT POP-UP & BACKGROUND BLUR ENGINE ───────
 (function initGlobalRowSpotlight() {
-  let hoverTimer = null;
   let activeSpotlightRow = null;
   let backdropEl = null;
   let popupCardEl = null;
@@ -504,10 +524,6 @@ document.addEventListener('click', (e) => {
       popupCardEl.id = 'spotlight-card-popup';
       popupCardEl.style.cssText = 'display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.96); z-index:999999; width:95%; max-width:1420px; background:rgba(255, 255, 255, 0.98); border:1px solid rgba(255, 255, 255, 0.9); backdrop-filter:blur(32px); -webkit-backdrop-filter:blur(32px); border-radius:20px; box-shadow:0 25px 70px rgba(0, 0, 0, 0.35); opacity:0; transition:all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); padding:18px 24px; box-sizing:border-box; overflow:hidden;';
       document.body.appendChild(popupCardEl);
-
-      popupCardEl.addEventListener('mouseleave', () => {
-        clearSpotlight();
-      });
     }
   }
 
@@ -551,7 +567,7 @@ document.addEventListener('click', (e) => {
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-      <div style="width:100%; box-sizing:border-box;">
+      <div style="width:100%; box-sizing:border-box; overflow-x:auto;">
         <table style="width:100%; border-collapse:separate; border-spacing:0; table-layout:auto;">
           ${theadHtml}
           <tbody>
@@ -563,7 +579,7 @@ document.addEventListener('click', (e) => {
 
     // Close spotlight immediately when any action button inside the card is clicked
     popupCardEl.onclick = (e) => {
-      const btn = e.target.closest('button');
+      const btn = e.target.closest('button') || e.target.closest('a');
       if (btn) {
         clearSpotlight();
       }
@@ -579,7 +595,6 @@ document.addEventListener('click', (e) => {
   }
 
   function clearSpotlight() {
-    clearTimeout(hoverTimer);
     activeSpotlightRow = null;
     if (backdropEl) backdropEl.classList.remove('active');
     if (popupCardEl) {
@@ -597,27 +612,15 @@ document.addEventListener('click', (e) => {
     if (e.key === 'Escape') clearSpotlight();
   });
 
-  // Long-hover detection on table rows
-  document.addEventListener('mouseover', (e) => {
-    const tr = e.target.closest('tbody tr');
-    if (!tr || tr === activeSpotlightRow) return;
-    if (tr.closest('.modal-box') || tr.closest('#spotlight-card-popup') || tr.closest('#view-logs') || tr.closest('#logs-list') || tr.closest('#table-emp-hist') || window.location.pathname.includes('attendance')) return;
+  // Open Focused Record Inspector ONLY on DOUBLE CLICK (dblclick)
+  document.addEventListener('dblclick', (e) => {
+    // If double-click is inside an interactive button/input/select/textarea, ignore
+    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) return;
 
-    clearTimeout(hoverTimer);
-
-    // 1000ms (1 second) hold timer
-    hoverTimer = setTimeout(() => {
-      activateSpotlight(tr);
-    }, 1000);
-  });
-
-  document.addEventListener('mouseout', (e) => {
     const tr = e.target.closest('tbody tr');
     if (!tr) return;
+    if (tr.closest('.modal-box') || tr.closest('#spotlight-card-popup') || tr.closest('#view-logs') || tr.closest('#logs-list') || tr.closest('#table-emp-hist') || window.location.pathname.includes('attendance')) return;
 
-    const related = e.relatedTarget;
-    if (related && (tr.contains(related) || (popupCardEl && popupCardEl.contains(related)))) return;
-
-    clearTimeout(hoverTimer);
+    activateSpotlight(tr);
   });
 })();

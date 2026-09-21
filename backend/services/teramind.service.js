@@ -1,4 +1,5 @@
 import { pool } from '../config/db.js';
+import { calculateShiftAttendanceTimes } from '../utils/attendanceHelper.js';
 
 // ── STRICT PRIVACY WHITELIST ──────────────────────────────────────────────────
 // Allowed BI Cubes and Endpoints only.
@@ -624,29 +625,13 @@ export async function syncTeramindDataToCache() {
                     });
 
                     for (const [dStr, pList] of dateMap.entries()) {
-                        let minTs = Infinity;
-                        let maxTs = 0;
-                        let totalSecs = 0;
-                        pList.forEach(p => {
-                            if (p.ts < minTs) minTs = p.ts;
-                            const end = p.ts + p.dur;
-                            if (end > maxTs) maxTs = end;
-                            totalSecs += p.dur;
-                        });
+                        const shiftRes = calculateShiftAttendanceTimes(pList, dStr);
+                        if (!shiftRes.checkInDate) continue;
 
-                        const inD = new Date(minTs * 1000);
-                        const outD = new Date(maxTs * 1000);
-                        const inStr = inD.toISOString();
-                        const outStr = outD.toISOString();
-                        const hrs = (totalSecs / 3600).toFixed(2);
-
-                        const inParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(inD);
-                        const ip = {};
-                        inParts.forEach(({ type, value }) => { ip[type] = value; });
-                        const hh = parseInt(ip.hour, 10);
-                        const mm = parseInt(ip.minute, 10);
-                        const isLate = (hh > 10 || (hh === 10 && mm > 15));
-                        const status = isLate ? 'Late' : 'Present';
+                        const inStr = shiftRes.checkInDate.toISOString();
+                        const outStr = shiftRes.checkOutDate ? shiftRes.checkOutDate.toISOString() : null;
+                        const hrs = (shiftRes.totalActiveSecs / 3600).toFixed(2);
+                        const status = shiftRes.isLate ? 'Late' : 'Present';
 
                         const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
                         if (checkRes.rows.length > 0) {

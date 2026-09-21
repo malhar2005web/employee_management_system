@@ -1,5 +1,62 @@
 import { pool } from '../config/db.js';
 import { sendWhatsAppTemplate, sendWhatsAppText, sanitizePhoneNumber } from '../services/whatsapp.service.js';
+import { processIncomingEmail } from '../services/emailTicket.service.js';
+
+export async function handleInboundEmail(req, res) {
+    try {
+        const { from, to, cc, subject, text, html, body, messageId, inReplyTo } = req.body;
+        
+        let fromEmail = from || '';
+        let fromName = '';
+        if (from && from.includes('<')) {
+            const m = from.match(/(.*)<(.*)>/);
+            if (m) {
+                fromName = m[1].trim().replace(/['"]/g, '');
+                fromEmail = m[2].trim();
+            }
+        }
+
+        const toList = typeof to === 'string' ? to.split(',').map(s => s.trim()) : (Array.isArray(to) ? to : []);
+        const ccList = typeof cc === 'string' ? cc.split(',').map(s => s.trim()) : (Array.isArray(cc) ? cc : []);
+
+        const attachments = [];
+        if (req.files && Array.isArray(req.files)) {
+            for (const file of req.files) {
+                attachments.push({
+                    url: `/uploads/support/${file.filename}`,
+                    name: file.originalname,
+                    size: file.size,
+                    type: file.mimetype
+                });
+            }
+        } else if (req.file) {
+            attachments.push({
+                url: `/uploads/support/${req.file.filename}`,
+                name: req.file.originalname,
+                size: req.file.size,
+                type: req.file.mimetype
+            });
+        }
+
+        const result = await processIncomingEmail({
+            fromEmail,
+            fromName,
+            toEmails: toList,
+            ccEmails: ccList,
+            subject: subject || 'Support Ticket from Email',
+            textBody: text || body || '',
+            htmlBody: html || '',
+            attachments,
+            messageId: messageId || '',
+            inReplyTo: inReplyTo || ''
+        });
+
+        res.status(200).json(result);
+    } catch (err) {
+        console.error("Error in handleInboundEmail:", err);
+        res.status(500).json({ success: false, message: err.message || "Failed to process inbound email" });
+    }
+}
 
 export function formatTurnaroundTime(createdAt, resolvedAt = new Date()) {
     try {
@@ -254,28 +311,64 @@ export const getTickets = async (req, res) => {
         let idx = 1;
 
         if (status && status !== 'all') {
-            conditions.push(`t.status = $${idx++}`);
-            params.push(status);
+            const statusList = String(status).split(',').map(s => s.trim()).filter(s => s && s !== 'all');
+            if (statusList.length === 1) {
+                conditions.push(`t.status = $${idx++}`);
+                params.push(statusList[0]);
+            } else if (statusList.length > 1) {
+                conditions.push(`t.status = ANY($${idx++})`);
+                params.push(statusList);
+            }
         }
         if (priority && priority !== 'all') {
-            conditions.push(`t.priority = $${idx++}`);
-            params.push(priority);
+            const priorityList = String(priority).split(',').map(p => p.trim()).filter(p => p && p !== 'all');
+            if (priorityList.length === 1) {
+                conditions.push(`t.priority = $${idx++}`);
+                params.push(priorityList[0]);
+            } else if (priorityList.length > 1) {
+                conditions.push(`t.priority = ANY($${idx++})`);
+                params.push(priorityList);
+            }
         }
         if (category && category !== 'all') {
-            conditions.push(`t.category = $${idx++}`);
-            params.push(category);
+            const categoryList = String(category).split(',').map(c => c.trim()).filter(c => c && c !== 'all');
+            if (categoryList.length === 1) {
+                conditions.push(`t.category = $${idx++}`);
+                params.push(categoryList[0]);
+            } else if (categoryList.length > 1) {
+                conditions.push(`t.category = ANY($${idx++})`);
+                params.push(categoryList);
+            }
         }
         if (customer_id && customer_id !== 'all') {
-            conditions.push(`t.customer_id = $${idx++}`);
-            params.push(customer_id);
+            const custList = String(customer_id).split(',').map(c => parseInt(c.trim(), 10)).filter(c => !isNaN(c) && c > 0);
+            if (custList.length === 1) {
+                conditions.push(`t.customer_id = $${idx++}`);
+                params.push(custList[0]);
+            } else if (custList.length > 1) {
+                conditions.push(`t.customer_id = ANY($${idx++}::int[])`);
+                params.push(custList);
+            }
         }
 
         const chosenEmp = employee_id || assigned_to;
         if (chosenEmp && chosenEmp !== 'all') {
-            conditions.push(`(t.assigned_to = $${idx} OR t.assigned_team::text ILIKE $${idx + 1})`);
-            params.push(parseInt(chosenEmp, 10) || 0);
-            params.push(`%"id":${chosenEmp}%`);
-            idx += 2;
+            const empList = String(chosenEmp).split(',').map(e => parseInt(e.trim(), 10)).filter(e => !isNaN(e) && e > 0);
+            if (empList.length === 1) {
+                conditions.push(`(t.assigned_to = $${idx} OR t.assigned_team::text ILIKE $${idx + 1})`);
+                params.push(empList[0]);
+                params.push(`%"id":${empList[0]}%`);
+                idx += 2;
+            } else if (empList.length > 1) {
+                const subOrs = [];
+                for (const empId of empList) {
+                    subOrs.push(`(t.assigned_to = $${idx} OR t.assigned_team::text ILIKE $${idx + 1})`);
+                    params.push(empId);
+                    params.push(`%"id":${empId}%`);
+                    idx += 2;
+                }
+                conditions.push(`(${subOrs.join(' OR ')})`);
+            }
         }
 
         const fromDateVal = from_date || from;
@@ -1549,6 +1642,74 @@ export const deleteSubtask = async (req, res) => {
     } catch (error) {
         console.error('Error deleting subtask:', error);
         return res.status(500).json({ success: false, message: 'Server error deleting subtask' });
+    }
+};
+
+// DELETE /api/v1/support/:id - Delete single ticket
+export const deleteTicket = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Find ticket safely without type comparison collision
+        let findRes;
+        const parsedInt = parseInt(id, 10);
+        if (!isNaN(parsedInt) && String(parsedInt) === String(id).trim()) {
+            findRes = await pool.query(`SELECT * FROM support_tickets WHERE id = $1 OR ticket_code = $2`, [parsedInt, String(id).trim()]);
+        } else {
+            findRes = await pool.query(`SELECT * FROM support_tickets WHERE ticket_code = $1`, [String(id).trim()]);
+        }
+
+        if (findRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Ticket not found' });
+        }
+        const ticket = findRes.rows[0];
+        const ticketId = ticket.id;
+
+        // Clean up subtasks, comments, history, handover logs, notifications
+        await pool.query(`DELETE FROM ticket_subtasks WHERE ticket_id = $1`, [ticketId]).catch(() => {});
+        await pool.query(`DELETE FROM support_ticket_comments WHERE ticket_id = $1`, [ticketId]).catch(() => {});
+        await pool.query(`DELETE FROM support_ticket_history WHERE ticket_id = $1`, [ticketId]).catch(() => {});
+        await pool.query(`DELETE FROM handover_approvals WHERE metadata->>'ticket_id' = $1 OR metadata->>'ticket_code' = $2`, [ticketId.toString(), ticket.ticket_code]).catch(() => {});
+        await pool.query(`DELETE FROM notifications WHERE metadata->>'ticket_code' = $1`, [ticket.ticket_code]).catch(() => {});
+
+        // Delete ticket
+        await pool.query(`DELETE FROM support_tickets WHERE id = $1`, [ticketId]);
+
+        return res.json({ success: true, message: `Ticket ${ticket.ticket_code} deleted successfully` });
+    } catch (error) {
+        console.error('Error deleting support ticket:', error);
+        return res.status(500).json({ success: false, message: 'Server error deleting ticket: ' + error.message });
+    }
+};
+
+// POST /api/v1/support/bulk-delete - Bulk delete tickets
+export const bulkDeleteTickets = async (req, res) => {
+    try {
+        const { ticketIds, onlyEmailInbound } = req.body;
+        
+        let targetIds = [];
+        if (Array.isArray(ticketIds) && ticketIds.length > 0) {
+            targetIds = ticketIds.map(Number).filter(n => !isNaN(n));
+        } else if (onlyEmailInbound === true) {
+            const emailTicketsRes = await pool.query(`SELECT id FROM support_tickets WHERE source = 'Email' OR category = 'Email Inbound'`);
+            targetIds = emailTicketsRes.rows.map(r => r.id);
+        }
+
+        if (targetIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'No tickets selected for deletion' });
+        }
+
+        for (const tid of targetIds) {
+            await pool.query(`DELETE FROM ticket_subtasks WHERE ticket_id = $1`, [tid]).catch(() => {});
+            await pool.query(`DELETE FROM support_ticket_comments WHERE ticket_id = $1`, [tid]).catch(() => {});
+            await pool.query(`DELETE FROM support_ticket_history WHERE ticket_id = $1`, [tid]).catch(() => {});
+            await pool.query(`DELETE FROM support_tickets WHERE id = $1`, [tid]).catch(() => {});
+        }
+
+        return res.json({ success: true, message: `Successfully deleted ${targetIds.length} ticket(s)` });
+    } catch (error) {
+        console.error('Error in bulkDeleteTickets:', error);
+        return res.status(500).json({ success: false, message: 'Server error during bulk deletion' });
     }
 };
 

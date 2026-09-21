@@ -5,9 +5,10 @@ export async function getEmployees(req, res) {
     try {
         const result = await pool.query(`
             SELECT e.id, e.full_name, e.employee_code, e.status, e.joining_date, e.salary_grade,
-                   e.phone, e.dob, e.citizenship, e.address, e.perm_address, 
+                   e.gender, e.phone, e.dob, e.citizenship, e.address, e.perm_address, 
                    e.bank_name, e.bank_acc_no, e.bank_ifsc,
                    e.doc_cv, e.doc_offer_letter, e.doc_adhar_card, e.doc_pan_card,
+                   e.anydesk_id, e.whatsapp_no,
                    u.id AS user_id, u.email, u.is_active,
                    d.name AS department_name, d.id AS department_id,
                    ds.title AS designation_name, ds.id AS designation_id,
@@ -32,7 +33,7 @@ export async function createEmployee(req, res) {
     try {
         const { 
             fullName, email, employeeCode, departmentId, designationId, reportingManagerId, joiningDate, salaryGrade,
-            phone, dob, citizenship, address, permAddress, bankName, bankAccNo, bankIfsc,
+            gender, phone, dob, citizenship, address, permAddress, bankName, bankAccNo, bankIfsc,
             docCv, docOfferLetter, docAdharCard, docPanCard,
             anydeskId, whatsappNo
         } = req.body;
@@ -71,11 +72,11 @@ export async function createEmployee(req, res) {
         await client.query(
             `INSERT INTO employees (
                 user_id, full_name, employee_code, department_id, designation_id, reporting_manager_id, joining_date, salary_grade, status,
-                phone, dob, citizenship, address, perm_address, bank_name, bank_acc_no, bank_ifsc,
+                gender, phone, dob, citizenship, address, perm_address, bank_name, bank_acc_no, bank_ifsc,
                 doc_cv, doc_offer_letter, doc_adhar_card, doc_pan_card,
                 anydesk_id, whatsapp_no
              )
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
             [
                 userId, 
                 fullName, 
@@ -86,6 +87,7 @@ export async function createEmployee(req, res) {
                 joiningDate || null, 
                 salaryGrade || null, 
                 'Active',
+                gender || 'Male',
                 phone || null,
                 dob ? dob : null,
                 citizenship || null,
@@ -120,38 +122,53 @@ export async function updateEmployee(req, res) {
         const { id } = req.params;
         const { 
             fullName, email, employeeCode, departmentId, designationId, reportingManagerId, joiningDate, salaryGrade,
-            phone, dob, citizenship, address, permAddress, bankName, bankAccNo, bankIfsc,
+            gender, phone, dob, citizenship, address, permAddress, bankName, bankAccNo, bankIfsc,
             docCv, docOfferLetter, docAdharCard, docPanCard,
             anydeskId, whatsappNo
         } = req.body;
 
-        const empQuery = await client.query("SELECT user_id FROM employees WHERE id = $1", [id]);
+        const empQuery = await client.query("SELECT * FROM employees WHERE id = $1", [id]);
         if (empQuery.rows.length === 0) {
             return res.status(404).json({ success: false, message: "Employee not found" });
         }
-        const userId = empQuery.rows[0].user_id;
+        const existingEmp = empQuery.rows[0];
+        const userId = existingEmp.user_id;
 
         await client.query("BEGIN");
 
-        // Update user email
-        await client.query("UPDATE users SET email = $1 WHERE id = $2", [email, userId]);
+        // Update user email if provided
+        if (email && userId) {
+            await client.query("UPDATE users SET email = $1 WHERE id = $2", [email, userId]);
+        }
+
+        // Preserve documents if not uploaded anew
+        const finalDocCv = docCv ? (typeof docCv === 'object' ? JSON.stringify(docCv) : docCv) : existingEmp.doc_cv;
+        const finalDocOffer = docOfferLetter ? (typeof docOfferLetter === 'object' ? JSON.stringify(docOfferLetter) : docOfferLetter) : existingEmp.doc_offer_letter;
+        const finalDocAdhar = docAdharCard ? (typeof docAdharCard === 'object' ? JSON.stringify(docAdharCard) : docAdharCard) : existingEmp.doc_adhar_card;
+        const finalDocPan = docPanCard ? (typeof docPanCard === 'object' ? JSON.stringify(docPanCard) : docPanCard) : existingEmp.doc_pan_card;
+
+        // Parse IDs safely
+        const parsedDeptId = (departmentId !== undefined && departmentId !== "" && departmentId !== null) ? parseInt(departmentId, 10) : null;
+        const parsedDesigId = (designationId !== undefined && designationId !== "" && designationId !== null) ? parseInt(designationId, 10) : null;
+        const parsedManagerId = (reportingManagerId !== undefined && reportingManagerId !== "" && reportingManagerId !== null) ? parseInt(reportingManagerId, 10) : null;
 
         // Update employee details
         await client.query(
             `UPDATE employees 
              SET full_name = $1, employee_code = $2, department_id = $3, designation_id = $4, reporting_manager_id = $5, joining_date = $6, salary_grade = $7,
-                 phone = $8, dob = $9, citizenship = $10, address = $11, perm_address = $12, bank_name = $13, bank_acc_no = $14, bank_ifsc = $15,
-                 doc_cv = $16, doc_offer_letter = $17, doc_adhar_card = $18, doc_pan_card = $19,
-                 anydesk_id = $20, whatsapp_no = $21
-             WHERE id = $22`,
+                 gender = $8, phone = $9, dob = $10, citizenship = $11, address = $12, perm_address = $13, bank_name = $14, bank_acc_no = $15, bank_ifsc = $16,
+                 doc_cv = $17, doc_offer_letter = $18, doc_adhar_card = $19, doc_pan_card = $20,
+                 anydesk_id = $21, whatsapp_no = $22
+             WHERE id = $23`,
             [
-                fullName,
-                employeeCode,
-                departmentId ? parseInt(departmentId, 10) : null,
-                designationId ? parseInt(designationId, 10) : null,
-                reportingManagerId ? parseInt(reportingManagerId, 10) : null,
+                fullName || existingEmp.full_name,
+                employeeCode || existingEmp.employee_code,
+                parsedDeptId,
+                parsedDesigId,
+                parsedManagerId,
                 joiningDate || null,
                 salaryGrade || null,
+                gender !== undefined && gender !== null && gender !== '' ? gender : (existingEmp.gender || 'Male'),
                 phone || null,
                 dob ? dob : null,
                 citizenship || null,
@@ -160,12 +177,12 @@ export async function updateEmployee(req, res) {
                 bankName || null,
                 bankAccNo || null,
                 bankIfsc || null,
-                docCv ? (typeof docCv === 'object' ? JSON.stringify(docCv) : docCv) : '{}',
-                docOfferLetter ? (typeof docOfferLetter === 'object' ? JSON.stringify(docOfferLetter) : docOfferLetter) : '{}',
-                docAdharCard ? (typeof docAdharCard === 'object' ? JSON.stringify(docAdharCard) : docAdharCard) : '{}',
-                docPanCard ? (typeof docPanCard === 'object' ? JSON.stringify(docPanCard) : docPanCard) : '{}',
-                anydeskId || req.body.anydesk_id || null,
-                whatsappNo || req.body.whatsapp_no || null,
+                finalDocCv || '{}',
+                finalDocOffer || '{}',
+                finalDocAdhar || '{}',
+                finalDocPan || '{}',
+                anydeskId !== undefined ? anydeskId : (req.body.anydesk_id || existingEmp.anydesk_id),
+                whatsappNo !== undefined ? whatsappNo : (req.body.whatsapp_no || existingEmp.whatsapp_no),
                 id
             ]
         );
@@ -175,7 +192,7 @@ export async function updateEmployee(req, res) {
     } catch (error) {
         await client.query("ROLLBACK");
         console.log("Error in updateEmployee:", error.message);
-        res.status(500).json({ success: false, message: "Internal server error" });
+        res.status(500).json({ success: false, message: "Internal server error: " + error.message });
     } finally {
         client.release();
     }
@@ -213,8 +230,8 @@ export async function toggleEmployeeStatus(req, res) {
 
 export async function getDeptsAndDesigs(req, res) {
     try {
-        const depts = await pool.query("SELECT id, name, code FROM departments ORDER BY name ASC;");
-        const desigs = await pool.query("SELECT id, title, department_id FROM designations ORDER BY title ASC;");
+        const depts = await pool.query("SELECT id, name, code, description FROM departments ORDER BY name ASC;");
+        const desigs = await pool.query("SELECT id, title, department_id, level FROM designations ORDER BY title ASC;");
 
         res.status(200).json({
             success: true,
@@ -241,14 +258,56 @@ export async function createDepartment(req, res) {
             return res.status(400).json({ success: false, message: "Department code already exists" });
         }
 
-        await pool.query(
-            "INSERT INTO departments (name, code, description) VALUES ($1, $2, $3);",
+        const insertRes = await pool.query(
+            "INSERT INTO departments (name, code, description) VALUES ($1, $2, $3) RETURNING id, name, code, description;",
             [name, code, description || null]
         );
 
-        res.status(201).json({ success: true, message: "Department created successfully" });
+        res.status(201).json({ success: true, message: "Department created successfully", data: insertRes.rows[0] });
     } catch (error) {
         console.log("Error in createDepartment:", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export async function updateDepartment(req, res) {
+    try {
+        const { id } = req.params;
+        const { name, code, description } = req.body;
+        if (!name || !code) {
+            return res.status(400).json({ success: false, message: "Name and Code are required" });
+        }
+
+        const checkCode = await pool.query("SELECT id FROM departments WHERE code = $1 AND id != $2", [code, id]);
+        if (checkCode.rows.length > 0) {
+            return res.status(400).json({ success: false, message: "Department code already in use" });
+        }
+
+        const updateRes = await pool.query(
+            "UPDATE departments SET name = $1, code = $2, description = $3 WHERE id = $4 RETURNING id, name, code, description;",
+            [name, code.toUpperCase(), description || null, id]
+        );
+
+        if (updateRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Department not found" });
+        }
+
+        res.status(200).json({ success: true, message: "Department updated successfully", data: updateRes.rows[0] });
+    } catch (error) {
+        console.log("Error in updateDepartment:", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export async function deleteDepartment(req, res) {
+    try {
+        const { id } = req.params;
+        await pool.query("UPDATE employees SET department_id = NULL WHERE department_id = $1;", [id]);
+        await pool.query("DELETE FROM designations WHERE department_id = $1;", [id]);
+        await pool.query("DELETE FROM departments WHERE id = $1;", [id]);
+        res.status(200).json({ success: true, message: "Department deleted successfully" });
+    } catch (error) {
+        console.log("Error in deleteDepartment:", error.message);
         res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
@@ -260,15 +319,51 @@ export async function createDesignation(req, res) {
             return res.status(400).json({ success: false, message: "Title and Department ID are required" });
         }
 
-        await pool.query(
-            "INSERT INTO designations (title, department_id, level) VALUES ($1, $2, $3);",
+        const insertRes = await pool.query(
+            "INSERT INTO designations (title, department_id, level) VALUES ($1, $2, $3) RETURNING id, title, department_id, level;",
             [title, parseInt(departmentId, 10), level ? parseInt(level, 10) : null]
         );
 
-        res.status(201).json({ success: true, message: "Designation created successfully" });
+        res.status(201).json({ success: true, message: "Designation created successfully", data: insertRes.rows[0] });
     } catch (error) {
         console.log("Error in createDesignation:", error.message);
         res.status(501).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export async function updateDesignation(req, res) {
+    try {
+        const { id } = req.params;
+        const { title, departmentId, level } = req.body;
+        if (!title || !departmentId) {
+            return res.status(400).json({ success: false, message: "Title and Department are required" });
+        }
+
+        const updateRes = await pool.query(
+            "UPDATE designations SET title = $1, department_id = $2, level = $3 WHERE id = $4 RETURNING id, title, department_id, level;",
+            [title, parseInt(departmentId, 10), level ? parseInt(level, 10) : null, id]
+        );
+
+        if (updateRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Designation not found" });
+        }
+
+        res.status(200).json({ success: true, message: "Designation updated successfully", data: updateRes.rows[0] });
+    } catch (error) {
+        console.log("Error in updateDesignation:", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export async function deleteDesignation(req, res) {
+    try {
+        const { id } = req.params;
+        await pool.query("UPDATE employees SET designation_id = NULL WHERE designation_id = $1;", [id]);
+        await pool.query("DELETE FROM designations WHERE id = $1;", [id]);
+        res.status(200).json({ success: true, message: "Designation deleted successfully" });
+    } catch (error) {
+        console.log("Error in deleteDesignation:", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
 

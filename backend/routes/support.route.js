@@ -44,14 +44,19 @@ router.post('/upload-attachment', upload.single('attachment'), (req, res) => {
     });
 });
 
+// Public Inbound Email Webhook (for SendGrid, Mailgun, Postmark or external email services)
+router.post('/inbound-email', upload.array('attachments', 10), supportController.handleInboundEmail);
+
 // Apply RBAC check (Employees & Admins can access support desk)
 router.use(protectRoute, isEmployeeOrAdmin);
 
 // Support Ticket REST Routes
 router.get('/', supportController.getTickets);
 router.post('/', supportController.createTicket);
+router.post('/bulk-delete', supportController.bulkDeleteTickets);
 router.get('/:id', supportController.getTicketById);
 router.put('/:id', supportController.updateTicket);
+router.delete('/:id', supportController.deleteTicket);
 router.put('/:id/status', supportController.updateTicketStatus);
 router.put('/:id/assign', supportController.assignTicket);
 router.put('/:id/transfer', supportController.transferTicket);

@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { getSettings, updateSettings, uploadWhatsappAttachment } from '../controller/settings.controller.js';
+import { getSettings, updateSettings, uploadWhatsappAttachment, testEmailSettings } from '../controller/settings.controller.js';
 import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
 
 const router = express.Router();
@@ -32,6 +32,7 @@ router.use(protectRoute, isAdmin);
 
 router.get("/", getSettings);
 router.put("/", updateSettings);
+router.post("/test-email", testEmailSettings);
 router.post("/upload-attachment", waUpload.single('attachment'), uploadWhatsappAttachment);
 
 export default router;

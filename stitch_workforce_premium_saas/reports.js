@@ -18,6 +18,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let employeesCache = [];
 
+    function formatDateDMY(val) {
+        if (!val || val === '—' || val === '-') return '—';
+        if (typeof val === 'string') {
+            const cleanStr = val.split('T')[0];
+            if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+                const parts = cleanStr.split('-');
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        }
+        try {
+            const d = new Date(val);
+            if (!isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+        } catch (e) {}
+        return String(val);
+    }
+
     // Switch Tab Panels
     tabItems.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -69,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         list.forEach(sr => {
-            const dateStr = new Date(sr.date).toLocaleDateString();
+            const dateStr = formatDateDMY(sr.date);
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="font-weight:700;">${dateStr}</td>
@@ -93,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         list.forEach(dr => {
-            const dateStr = new Date(dr.created_at).toLocaleDateString();
+            const dateStr = formatDateDMY(dr.created_at || dr.date);
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="font-weight:700;">${dateStr}</td>
@@ -173,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             list.forEach(item => {
                 const tr = document.createElement('tr');
-                const dateStr = new Date(item.date).toLocaleDateString();
+                const dateStr = formatDateDMY(item.date);
                 tr.innerHTML = `
                     <td style="font-weight:700;">${dateStr}</td>
                     <td class="task-name">${item.full_name} <span style="font-size:12px;color:var(--text-muted);">(${item.employee_code})</span></td>
@@ -197,13 +218,13 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             list.forEach(item => {
                 const tr = document.createElement('tr');
-                const startStr = new Date(item.start_date).toLocaleDateString();
-                const endStr = new Date(item.end_date).toLocaleDateString();
+                const startStr = formatDateDMY(item.start_date);
+                const endStr = formatDateDMY(item.end_date);
                 tr.innerHTML = `
                     <td class="task-name">${item.full_name} <span style="font-size:12px;color:var(--text-muted);">(${item.employee_code})</span></td>
                     <td style="font-weight:700;color:var(--teal-900);">${item.leave_type || 'Annual'}</td>
-                    <td>${startStr}</td>
-                    <td>${endStr}</td>
+                    <td><strong>${startStr}</strong></td>
+                    <td><strong>${endStr}</strong></td>
                     <td>${item.reason || '-'}</td>
                     <td><span class="status-pill ${item.status === 'Approved' ? 'progress' : 'pending'}">${item.status}</span></td>
                 `;
@@ -222,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             list.forEach(item => {
                 const tr = document.createElement('tr');
-                const dateStr = new Date(item.date).toLocaleDateString();
+                const dateStr = formatDateDMY(item.date);
                 tr.innerHTML = `
                     <td style="font-weight:700;">${dateStr}</td>
                     <td class="task-name">${item.full_name} <span style="font-size:12px;color:var(--text-muted);">(${item.employee_code})</span></td>
@@ -245,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             list.forEach(item => {
                 const tr = document.createElement('tr');
-                const dateStr = new Date(item.date).toLocaleDateString();
+                const dateStr = formatDateDMY(item.date);
                 tr.innerHTML = `
                     <td style="font-weight:700;">${dateStr}</td>
                     <td class="task-name">${item.full_name} <span style="font-size:12px;color:var(--text-muted);">(${item.employee_code})</span></td>

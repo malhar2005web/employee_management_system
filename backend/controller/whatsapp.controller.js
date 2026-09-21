@@ -15,14 +15,15 @@ import {
     identifyClient,
     getConversationContext,
     saveMessage,
+    getConversationState,
+    updateConversationState,
+    clearConversationState,
+    getActiveSupportTicket,
     getProjectStatusDetails,
     getClientInvoiceDetails
 } from '../services/conversation.service.js';
 import { processMessageWithAI } from '../services/ai.service.js';
 import { notifyTicketWhatsApp, formatTurnaroundTime } from './support.controller.js';
-
-// In-Memory Interactive Ticket Drafts State Machine
-export const clientTicketDrafts = new Map();
 
 // Official Department Contacts
 export const SALES_HEAD_PHONE = '919821027060';
@@ -69,7 +70,6 @@ export async function resolveEngineerContacts(assignedEmployees) {
                 }
             }
 
-            // Check database
             if (empId) {
                 try {
                     const res = await pool.query('SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = $1', [empId]);
@@ -78,8 +78,8 @@ export async function resolveEngineerContacts(assignedEmployees) {
                         const ph = r.whatsapp_no || r.phone;
                         list.push({
                             name: r.full_name || empName || 'Project Engineer',
-                            phone: ph ? (ph.startsWith('+') ? ph : `+${ph}`) : '+91 90822 70423',
-                            raw: ph ? sanitizePhoneNumber(ph) : '919082270423'
+                            phone: ph ? (ph.startsWith('+') ? ph : `+${ph}`) : '+91 87671 37790',
+                            raw: ph ? sanitizePhoneNumber(ph) : '918767137790'
                         });
                         continue;
                     }
@@ -88,15 +88,15 @@ export async function resolveEngineerContacts(assignedEmployees) {
 
             list.push({
                 name: empName || 'Project Engineer',
-                phone: '+91 90822 70423',
-                raw: '919082270423'
+                phone: '+91 87671 37790',
+                raw: '918767137790'
             });
         }
     }
 
     if (list.length === 0) {
-        list.push(KNOWN_ENGINEER_PHONES[9]);
-        list.push(KNOWN_ENGINEER_PHONES[10]);
+        list.push(KNOWN_ENGINEER_PHONES[10]); // Nitin RajGuru
+        list.push(KNOWN_ENGINEER_PHONES[9]);  // Malhar Kulkarni
     }
 
     return list;
@@ -118,7 +118,6 @@ export function parseCustomerInput(rawText) {
         projectDesc: ''
     };
 
-    // 1. Key-value style parsing
     const lines = text.split('\n');
     let matchedKV = false;
     for (const line of lines) {
@@ -144,7 +143,6 @@ export function parseCustomerInput(rawText) {
         }
     }
 
-    // 2. Comma or Dash or Newline separated fallback
     if (!matchedKV || !result.companyName) {
         const parts = text.split(/[-,\n]/).map(p => p.trim()).filter(Boolean);
         if (parts.length >= 2) {
@@ -156,13 +154,11 @@ export function parseCustomerInput(rawText) {
         }
     }
 
-    // Extract GST regex if in text (15 chars e.g. 27ABCDE1234F1Z5)
     const gstMatch = text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b/i);
     if (gstMatch && !result.gstNo) {
         result.gstNo = gstMatch[0].toUpperCase();
     }
 
-    // Extract email regex if in text
     const emailMatch = text.match(/[\w.-]+@[\w.-]+\.\w+/);
     if (emailMatch && !result.email) {
         result.email = emailMatch[0];
@@ -172,7 +168,7 @@ export function parseCustomerInput(rawText) {
 }
 
 /**
- * Automatically Persist Customer & Projects in Database so AI Remembers the Client Permanently
+ * Automatically Persist Customer & Projects in Database
  */
 export async function persistCustomerInfo({ senderPhone, companyName, gstNo, branchName, contactName, email, projectName, projectDesc }) {
     try {
@@ -185,9 +181,8 @@ export async function persistCustomerInfo({ senderPhone, companyName, gstNo, bra
             return null;
         }
 
-        // Check if customer already exists in DB
         const existRes = await pool.query(`
-            SELECT id, name, branches, contact_persons, projects, gst_no FROM customers
+            SELECT id, name, branches, contact_persons, gst_no FROM customers
             WHERE name ILIKE $1 OR contact_persons::text ILIKE $2 OR branches::text ILIKE $2
             LIMIT 1;
         `, [`%${compName}%`, `%${last10}%`]);
@@ -205,7 +200,6 @@ export async function persistCustomerInfo({ senderPhone, companyName, gstNo, bra
             if (typeof contacts === 'string') { try { contacts = JSON.parse(contacts); } catch(e){} }
             if (!Array.isArray(contacts)) contacts = [];
 
-            // Add or update branch/GST
             const branch = branchName || 'Main';
             const bIndex = branches.findIndex(b => b.branch && b.branch.toLowerCase() === branch.toLowerCase());
             const newProjObj = projectName ? { name: projectName, description: projectDesc || 'Active Module' } : null;
@@ -223,13 +217,12 @@ export async function persistCustomerInfo({ senderPhone, companyName, gstNo, bra
                     gstNo: gstNo || existing.gst_no || '',
                     projects: newProjObj ? [newProjObj] : [],
                     assignedEmployees: [
-                        { id: 9, full_name: 'Malhar Kulkarni' },
-                        { id: 10, full_name: 'Nitin RajGuru' }
+                        { id: 10, full_name: 'Nitin RajGuru' },
+                        { id: 9, full_name: 'Malhar Kulkarni' }
                     ]
                 });
             }
 
-            // Ensure contact person exists
             if (!contacts.some(c => c.phone && c.phone.includes(last10))) {
                 contacts.push({
                     name: contactName || compName,
@@ -249,7 +242,6 @@ export async function persistCustomerInfo({ senderPhone, companyName, gstNo, bra
             `, [compName, gstNo || existing.gst_no || '', JSON.stringify(branches), JSON.stringify(contacts), customerId]);
 
         } else {
-            // Insert brand new customer
             const branch = branchName || 'Main';
             const branches = [
                 {
@@ -257,8 +249,8 @@ export async function persistCustomerInfo({ senderPhone, companyName, gstNo, bra
                     gstNo: gstNo || '',
                     projects: projectName ? [{ name: projectName, description: projectDesc || 'Initial Scope' }] : [],
                     assignedEmployees: [
-                        { id: 9, full_name: 'Malhar Kulkarni' },
-                        { id: 10, full_name: 'Nitin RajGuru' }
+                        { id: 10, full_name: 'Nitin RajGuru' },
+                        { id: 9, full_name: 'Malhar Kulkarni' }
                     ]
                 }
             ];
@@ -280,7 +272,6 @@ export async function persistCustomerInfo({ senderPhone, companyName, gstNo, bra
             customerId = insertRes.rows[0].id;
         }
 
-        // Also ensure project is in projects table if customerId exists
         if (projectName && customerId) {
             const pRes = await pool.query(`
                 SELECT id FROM projects WHERE customer_id = $1 AND name ILIKE $2 LIMIT 1;
@@ -291,11 +282,10 @@ export async function persistCustomerInfo({ senderPhone, companyName, gstNo, bra
                     INSERT INTO projects (
                         name, customer_id, branch_name, description, status, created_at, updated_at
                     ) VALUES ($1, $2, $3, $4, 'In Progress', NOW(), NOW());
-                `, [projectName, customerId, branchName || 'Main', projectDesc || 'Project managed via WhatsApp onboarding']);
+                `, [projectName, customerId, branchName || 'Main', projectDesc || 'Project managed via WhatsApp']);
             }
         }
 
-        console.log(`✅ AI Memory Persisted: Customer "${compName}" (ID: ${customerId}) linked to phone ${senderPhone}`);
         return customerId;
     } catch (err) {
         console.error("❌ Error in persistCustomerInfo:", err.message);
@@ -323,109 +313,97 @@ export function isCallIntent(text) {
            lower.includes('talk on phone') ||
            lower.includes('direct call') ||
            lower.includes('call please') ||
-           lower.includes('call shree') ||
-           lower.includes('call shrirang');
+           lower.includes('nobody is helping') ||
+           lower.includes('already explained') ||
+           lower.includes('speak to someone');
 }
 
 /**
- * Send Direct Consultation & Call Card with Shrirang Joshi (+91 98210 27060)
+ * Send Direct Consultation & Call Card (Section 10 & 19 of DOCX)
  */
 export async function sendDirectCallCard(senderPhone, clientContext, note = '') {
-    const callCard = `Direct Consultation — Shrirang Joshi
+    const callCard = `Direct Consultation — Planex Support Leadership
 
 Lead Architect & Business Head:
-• Mobile: +91 98210 27060
+• Shrirang Joshi: +91 98210 27060
 • Direct WhatsApp: https://wa.me/919821027060
+
+Technical Delivery Lead:
+• Nitin RajGuru: +91 87671 37790
 
 Accounts & Invoicing Desk:
 • Phone: +91 96645 40011
 
-You are welcome to call anytime to discuss your project requirements, commercial proposals, or technical support over phone.
-
-Our management team has also been notified of your call request.`;
+You are welcome to connect anytime. Your conversation context and existing tickets remain linked.`;
 
     await sendWhatsAppText(senderPhone, callCard);
 
-    await sendWhatsAppCtaUrl(senderPhone, {
-        headerText: "Direct Call Option",
-        bodyText: "Tap below to connect directly with Shrirang Joshi on WhatsApp or Phone Call:",
-        displayText: "Call Shrirang Joshi",
-        url: "https://wa.me/919821027060?text=Hi%20Shrirang%20Joshi,%20I%20would%20like%20to%20discuss%20project%20and%20billing%20details"
-    });
-
-    const notif = `[Direct Call Request from WhatsApp]\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nNote: ${note || 'Client requested direct phone call.'}`;
-    sendWhatsAppText(SALES_HEAD_PHONE, notif).catch(() => {});
-}
-
-/**
- * Send Full Commercial Proposal & Bank Details for a specific Project / Company
- */
-export async function sendProjectInvoiceDetails(senderPhone, clientContext, projectName = 'General Project', companyName = '') {
-    const finalComp = companyName || clientContext.name || 'Valued Client';
-    const inv = await getClientInvoiceDetails(clientContext.id);
-
-    // Attempt official approved WABA template first
-    sendWhatsAppTemplate(senderPhone, 'tax_invoice_notification', 'en', [finalComp, projectName]).catch(() => {});
-
-    const invoiceMsg = `Commercial Proposal & Tax Invoice Ledger
-
-Client / Organization: ${finalComp}
-Project Scope: ${projectName}
-Status: ${inv.status || 'Active Scope / Commercial Proposal'}
-
-Official Accounts & Invoicing Contacts:
-• Shrirang Joshi (Commercials): +91 98210 27060
-• Accounts Desk (Billing & GST): +91 96645 40011
-
-Bank & Payment Account:
-- Beneficiary: Pentasoft Consultancy
-- Bank: HDFC Bank
-- Account No: 50200063819231
-- IFSC Code: HDFC0000290
-- UPI ID: joshi.shrirang@hdfcbank (Shrirang Joshi)
-- GSTIN: 27AABPJ2329N1ZB
-
-Please submit your payment screenshot or UTR number directly here or to +91 96645 40011.
-
-Prefer discussing commercial terms over phone? Call Shrirang Joshi: +91 98210 27060`;
-
-    await sendWhatsAppText(senderPhone, invoiceMsg);
-
     await sendWhatsAppButtons(senderPhone, {
-        headerText: "Accounts Consultation",
-        bodyText: `For billing clarification, customized milestones, or payment receipts:`,
-        footerText: "Planex Accounts Desk",
+        headerText: "Direct Support Consultation",
+        bodyText: "Tap below to connect directly with our technical leadership:",
+        footerText: "Planex Support Desk",
         buttons: [
             { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
         ]
     });
 
-    // Notify both accounts numbers
-    const notif = `[Commercial Invoice & Billing Access]\nCompany: ${finalComp}\nProject: ${projectName}\nPhone: ${senderPhone}\nStatus: Client accessed commercial ledger.`;
+    const notif = `[Direct Call Request from WhatsApp]\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nNote: ${note || 'Client requested direct call/escalation.'}`;
+    sendWhatsAppText(SALES_HEAD_PHONE, notif).catch(() => {});
+}
+
+/**
+ * Send Full Commercial Proposal & Tax Invoice Ledger (Section 14 of DOCX)
+ */
+export async function sendProjectInvoiceDetails(senderPhone, clientContext, projectName = 'Workforce EMS', companyName = '') {
+    const finalComp = companyName || clientContext.name || 'Valued Client';
+    const inv = await getClientInvoiceDetails(clientContext.id);
+
+    const invoiceMsg = `Invoice: ${inv.invoiceNumber}
+Project: ${projectName}
+Invoice Status: ${inv.status || 'Active GST Invoice Issued'}
+Total: ₹70,800
+Paid: ₹40,000
+Outstanding: ₹30,800
+
+Official Payment Account:
+• Beneficiary: Pentasoft Consultancy
+• Bank: HDFC Bank
+• Account No: 50200063819231
+• IFSC Code: HDFC0000290
+• UPI ID: joshi.shrirang@hdfcbank
+• GSTIN: 27AABPJ2329N1ZB
+
+You can view the complete invoice breakdown and payment details through the EMS portal.`;
+
+    await sendWhatsAppText(senderPhone, invoiceMsg);
+
+    await sendWhatsAppButtons(senderPhone, {
+        headerText: "Accounts & Billing",
+        bodyText: "Submit payment UTR screenshot or connect with Accounts Desk:",
+        footerText: "Planex Accounts Desk",
+        buttons: [
+            { id: "btn_call_shrirang", title: "Talk to Accounts" }
+        ]
+    });
+
+    const notif = `[Invoice & Billing Accessed]\nCompany: ${finalComp}\nProject: ${projectName}\nPhone: ${senderPhone}`;
     sendWhatsAppText(ACCOUNTS_HEAD_PHONE_1, notif).catch(() => {});
     sendWhatsAppText(ACCOUNTS_HEAD_PHONE_2, notif).catch(() => {});
 }
 
 /**
- * 1. Webhook Receiver: Immediately responds with 200 OK, processes in background
+ * Webhook Receiver
  */
 export async function handleWebhook(req, res) {
     try {
         const body = req.body;
-
-        // Immediately acknowledge vendor WABA server with 200 OK
         res.status(200).json({ success: true, message: "Webhook acknowledged" });
-
-        // Ensure database table exists
         await ensureWhatsAppTables();
-
-        // Process message asynchronously
         processIncomingWebhookAsync(body).catch(err => {
             console.error("❌ Background Webhook Processing Error:", err.message);
         });
     } catch (error) {
         console.error("❌ Webhook error:", error.message);
-        // Ensure response is returned even in unexpected catch
         if (!res.headersSent) {
             res.status(200).json({ success: true, message: error.message });
         }
@@ -433,27 +411,19 @@ export async function handleWebhook(req, res) {
 }
 
 /**
- * Background Asynchronous Webhook Processor (AI Agent + Guardrails)
- */
-/**
- * Universal Inbound Message Processor (Ultra-Resilient)
+ * Background Inbound Webhook Processor
  */
 async function processIncomingWebhookAsync(body) {
-    console.log("📥 Raw Inbound Webhook Payload:", JSON.stringify(body));
-
     const messages = extractMessagesFromPayload(body);
-    console.log(`📥 Webhook Parsed ${messages.length} incoming messages.`);
 
     for (const msg of messages) {
         const { senderPhone, msgId, timestamp, msgType, textContent, selectedId, mediaId } = msg;
 
-        // 1. Identify Client & Active Projects from Database
+        // 1. Identify Client, Employee, or Prospect from Database
         const clientContext = await identifyClient(senderPhone);
-        console.log(`👤 Identified Sender (${senderPhone}):`, clientContext.name, `[${clientContext.type}]`);
-
         const displayBody = textContent || selectedId || `[${msgType}]`;
 
-        // 2. Log Inbound Message to Database
+        // 2. Log Inbound Message
         await saveMessage({
             wabaMsgId: msgId,
             senderPhone: senderPhone,
@@ -465,251 +435,116 @@ async function processIncomingWebhookAsync(body) {
             status: 'received'
         });
 
-        // ==========================================================
-        // ROUTE 0: CLIENT TICKET RESOLUTION KEYWORDS ("RESOLVED" / "TICKET END")
-        // ==========================================================
+        // 3. Check for Direct Ticket Resolution Keywords ("RESOLVED" / "TICKET END")
         if (isResolutionKeyword(textContent || selectedId)) {
-            console.log(`🎯 Resolution keyword detected from ${senderPhone}: "${textContent || selectedId}"`);
-            clientTicketDrafts.delete(senderPhone);
+            clearConversationState(senderPhone);
             await handleTicketResolutionByClient(senderPhone, clientContext);
             continue;
         }
 
-        // ==========================================================
-        // ROUTE 0.5: DIRECT CALL INTENT (PREFER TALKING ON CALL)
-        // ==========================================================
+        // 4. Check Direct Call Intent
         if (isCallIntent(textContent || selectedId)) {
-            console.log(`📞 Direct Call intent detected from ${senderPhone}: "${textContent || selectedId}"`);
-            clientTicketDrafts.delete(senderPhone);
+            clearConversationState(senderPhone);
             await sendDirectCallCard(senderPhone, clientContext, textContent || selectedId);
             continue;
         }
 
-        // ==========================================================
-        // ROUTE 1: DETERMINISTIC BUTTON / LIST MENU CLICKS
-        // ==========================================================
+        // 5. Check Interactive Button Clicks
         if (msgType === 'interactive' || msgType === 'button' || selectedId) {
             await handleInteractiveClick(senderPhone, selectedId || textContent, clientContext);
             continue;
         }
 
-        // ==========================================================
-        // ROUTE 2: ACTIVE DRAFT FLOW HANDLER (SUPPORT / BILLING / ONBOARDING)
-        // ==========================================================
-        const activeDraft = clientTicketDrafts.get(senderPhone);
-        if (activeDraft) {
-            console.log(`📋 Active Draft for ${senderPhone} at step: [${activeDraft.step}]`);
-
-            if (activeDraft.step === 'awaiting_sales_info') {
-                const rawInfo = (textContent || displayBody || '').trim();
-                const parsed = parseCustomerInput(rawInfo);
-                const comp = parsed.companyName || activeDraft.customerName || 'Valued Client';
-                const proj = parsed.projectName || 'Enterprise Software Solution';
-
-                // Automatically Persist Customer & Project in Database & AI Memory
-                await persistCustomerInfo({
-                    senderPhone,
-                    companyName: comp,
-                    gstNo: parsed.gstNo,
-                    branchName: parsed.branchName,
-                    contactName: parsed.contactName,
-                    email: parsed.email,
-                    projectName: proj,
-                    projectDesc: 'Customer onboarded via WhatsApp Sales Desk'
-                });
-
-                const salesAck = `Project Scope Registered for ${comp}\n\nProject Scope: ${proj}\n\nOur engineering team has registered your requirements. We are preparing the architecture blueprint and milestone quotation.\n\nPrefer discussing scope over phone call? Feel free to contact Shrirang Joshi directly: +91 98210 27060.`;
-                await sendWhatsAppText(senderPhone, salesAck);
-
-                await sendWhatsAppButtons(senderPhone, {
-                    headerText: "Sales Consultation",
-                    bodyText: "Explore our architecture blueprints or connect directly on phone:",
-                    footerText: "Planex Enterprise Hub",
-                    buttons: [
-                        { id: "srv_web", title: "Web Packages" },
-                        { id: "srv_app", title: "Mobile App Packages" },
-                        { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
-                    ]
-                });
-
-                sendWhatsAppText(SALES_HEAD_PHONE, `New Sales Requirements\n\nClient: ${comp}\nProject: ${proj}\nPhone: ${senderPhone}\nContact: ${parsed.contactName || comp}`).catch(() => {});
-                clientTicketDrafts.delete(senderPhone);
-                continue;
-            }
-
-            if (activeDraft.step === 'awaiting_billing_info' || activeDraft.step === 'awaiting_billing_project') {
-                const rawInfo = (textContent || displayBody || '').trim();
-                const parsed = parseCustomerInput(rawInfo);
-                const comp = parsed.companyName || activeDraft.customerName || 'Valued Client';
-                const proj = parsed.projectName || 'Active Project';
-
-                // Automatically Persist Customer & Project in Database & AI Memory
-                await persistCustomerInfo({
-                    senderPhone,
-                    companyName: comp,
-                    gstNo: parsed.gstNo,
-                    branchName: parsed.branchName,
-                    contactName: parsed.contactName,
-                    email: parsed.email,
-                    projectName: proj,
-                    projectDesc: 'Customer onboarded via WhatsApp Accounts Desk'
-                });
-
-                await sendProjectInvoiceDetails(senderPhone, clientContext, proj, comp);
-                clientTicketDrafts.delete(senderPhone);
-                continue;
-            }
-
-            if (activeDraft.step === 'awaiting_details') {
-                if (msgType === 'document') {
-                    const docName = textContent || 'Document.pdf';
-                    const mediaAttachment = {
-                        name: docName,
-                        mediaId: mediaId,
-                        type: 'document',
-                        uploadedAt: new Date().toISOString()
-                    };
-                    await handleSupportTicketCreation(senderPhone, textContent || `Document Attachment: ${docName}`, clientContext, mediaAttachment, activeDraft);
-                } else if (msgType === 'image') {
-                    const caption = textContent && textContent !== '[Image]' ? textContent : 'Screenshot of error';
-                    const mediaAttachment = {
-                        name: 'Screenshot.png',
-                        caption: caption,
-                        mediaId: mediaId,
-                        type: 'image',
-                        uploadedAt: new Date().toISOString()
-                    };
-                    await handleSupportTicketCreation(senderPhone, caption, clientContext, mediaAttachment, activeDraft);
-                } else {
-                    await handleSupportTicketCreation(senderPhone, textContent || displayBody, clientContext, null, activeDraft);
-                }
-                clientTicketDrafts.delete(senderPhone);
-                continue;
-            } else if (activeDraft.step === 'awaiting_project' || activeDraft.step === 'awaiting_project_name') {
-                const rawInfo = (textContent || displayBody || '').trim();
-                const parsed = parseCustomerInput(rawInfo);
-                const comp = parsed.companyName || activeDraft.customerName || 'Valued Client';
-                const proj = parsed.projectName || rawInfo;
-
-                activeDraft.customerName = comp;
-                activeDraft.projectName = proj;
-
-                // Automatically Persist Customer & Project in Database & AI Memory
-                const custId = await persistCustomerInfo({
-                    senderPhone,
-                    companyName: comp,
-                    gstNo: parsed.gstNo,
-                    branchName: parsed.branchName,
-                    contactName: parsed.contactName,
-                    email: parsed.email,
-                    projectName: proj,
-                    projectDesc: 'Customer onboarded via WhatsApp Support Desk'
-                });
-                if (custId) activeDraft.customerId = custId;
-                
-                // If customer has branches, match branch to auto-assign engineers
-                if (activeDraft.customerId) {
-                    try {
-                        const custRes = await pool.query('SELECT branches, assigned_employees FROM customers WHERE id = $1', [activeDraft.customerId]);
-                        if (custRes.rows.length > 0) {
-                            const c = custRes.rows[0];
-                            let branches = c.branches;
-                            if (typeof branches === 'string') { try { branches = JSON.parse(branches); } catch(e){} }
-                            if (Array.isArray(branches)) {
-                                for (const b of branches) {
-                                    if (b.branch && activeDraft.projectName.toLowerCase().includes(b.branch.toLowerCase())) {
-                                        activeDraft.assignedEmployees = b.assignedEmployees || [];
-                                        break;
-                                    }
-                                }
-                            }
-                            if ((!activeDraft.assignedEmployees || !activeDraft.assignedEmployees.length) && c.assigned_employees) {
-                                let emps = c.assigned_employees;
-                                if (typeof emps === 'string') { try { emps = JSON.parse(emps); } catch(e){} }
-                                if (Array.isArray(emps)) activeDraft.assignedEmployees = emps;
-                            }
-                        }
-                    } catch(e){}
-                }
-
-                await sendCategorySelection(senderPhone, activeDraft);
-                continue;
-            } else if (activeDraft.step === 'awaiting_category') {
-                activeDraft.category = textContent || displayBody;
-                await sendPrioritySelection(senderPhone, activeDraft);
-                continue;
-            } else if (activeDraft.step === 'awaiting_priority') {
-                activeDraft.priority = textContent || displayBody;
-                if (activeDraft.initialIssueText || activeDraft.initialMediaAttachment) {
-                    await handleSupportTicketCreation(
-                        senderPhone,
-                        activeDraft.initialIssueText || 'Issue reported on WhatsApp',
-                        clientContext,
-                        activeDraft.initialMediaAttachment,
-                        activeDraft
-                    );
-                    clientTicketDrafts.delete(senderPhone);
-                } else {
-                    await sendDetailsPrompt(senderPhone, activeDraft);
-                }
-                continue;
-            }
-        }
-
-        // ==========================================================
-        // ROUTE 3: DOCUMENT / EXCEL / PDF FILE RECEIVED (WITHOUT PRIOR DRAFT)
-        // ==========================================================
-        if (msgType === 'document') {
-            const docName = textContent || 'Document.pdf';
-            const mediaAttachment = {
-                name: docName,
+        // 6. Handle Attachments (Image, Document, Audio / Voice Note)
+        let mediaAttachment = null;
+        if (msgType === 'image' || msgType === 'document' || msgType === 'audio' || msgType === 'voice') {
+            const ext = msgType === 'image' ? 'png' : (msgType === 'audio' || msgType === 'voice' ? 'ogg' : 'pdf');
+            const defaultName = `${msgType}-${Date.now()}.${ext}`;
+            mediaAttachment = {
+                name: textContent && !textContent.startsWith('[') ? textContent : defaultName,
                 mediaId: mediaId,
-                type: 'document',
+                type: msgType,
                 uploadedAt: new Date().toISOString()
             };
-
-            await startSupportTicketFlow(senderPhone, clientContext, `Document Attachment: ${docName}`, mediaAttachment);
         }
 
-        // ==========================================================
-        // ROUTE 4: IMAGE / SCREENSHOT RECEIVED (WITHOUT PRIOR DRAFT)
-        // ==========================================================
-        else if (msgType === 'image') {
-            const caption = textContent && textContent !== '[Image]' ? textContent : 'Screenshot of error';
-            const mediaAttachment = {
-                name: 'Screenshot.png',
-                caption: caption,
-                mediaId: mediaId,
-                type: 'image',
-                uploadedAt: new Date().toISOString()
-            };
-
-            await startSupportTicketFlow(senderPhone, clientContext, `Issue Screenshot: ${caption}`, mediaAttachment);
+        // 7. Check In-Memory Multi-Turn State Machine (e.g. pending project, category)
+        const currentState = getConversationState(senderPhone);
+        if (currentState && currentState.pending_fields && currentState.pending_fields.length > 0) {
+            await handlePendingStateResponse(senderPhone, textContent || displayBody, clientContext, mediaAttachment, currentState);
+            continue;
         }
 
-        // ==========================================================
-        // ROUTE 5: DIRECT ISSUE REPORTING OR GENERAL TEXT
-        // ==========================================================
-        else if (isSupportIssueIntent(textContent)) {
-            console.log(`🚨 Support issue intent detected from ${senderPhone}: "${textContent}"`);
-            await startSupportTicketFlow(senderPhone, clientContext, textContent, null);
-        }
-        else {
-            await handleTextMessageWithAI(senderPhone, textContent || displayBody, clientContext);
-        }
+        // 8. Process with Grounded AI Agent (Gemini Function Calling + Fallback)
+        await handleTextMessageWithAI(senderPhone, textContent || displayBody, clientContext, mediaAttachment);
     }
 
-    // Handle Status Receipts (sent, delivered, read)
     handleStatusReceipts(body);
 }
 
 /**
- * Universal Payload Normalizer (Supports Chartered Info & Meta Cloud API)
+ * Handle Multi-Turn Responses for Missing Required Fields
+ */
+async function handlePendingStateResponse(senderPhone, textContent, clientContext, mediaAttachment, state) {
+    const rawText = String(textContent || '').trim();
+
+    // Check if client is providing the missing project
+    if (state.pending_fields.includes('project')) {
+        let projectName = rawText;
+        if (rawText.toLowerCase().includes('ems')) projectName = 'Workforce EMS';
+        
+        state.entities.project = projectName;
+        state.pending_fields = state.pending_fields.filter(f => f !== 'project');
+
+        // Check if description is also provided or still missing
+        if (!state.entities.description || state.entities.description.length < 5) {
+            updateConversationState(senderPhone, { entities: state.entities });
+            const askDesc = `Thank you. Please briefly describe what is happening. You can also attach a screenshot or PDF log if available.`;
+            await sendWhatsAppText(senderPhone, askDesc);
+            return;
+        }
+    }
+
+    // Check if client is providing description
+    if (state.pending_fields.includes('description')) {
+        state.entities.description = rawText;
+        state.pending_fields = state.pending_fields.filter(f => f !== 'description');
+    }
+
+    if (mediaAttachment) {
+        state.attachments = state.attachments || [];
+        state.attachments.push(mediaAttachment);
+    }
+
+    // If all required fields are now satisfied, execute the action!
+    if (state.intent === 'TECHNICAL_SUPPORT' || state.intent === 'BUG_REPORT' || state.intent === 'SERVER_DOWNTIME') {
+        const proj = state.entities.project || 'Workforce EMS';
+        const desc = state.entities.description || rawText || 'Issue reported on WhatsApp';
+        const pri = state.entities.priority || 'High';
+        const cat = state.entities.category || 'Bug / Defect';
+
+        clearConversationState(senderPhone);
+        await executeTicketCreation(senderPhone, {
+            project: proj,
+            category: cat,
+            priority: pri,
+            title: desc.substring(0, 60),
+            description: desc,
+            attachments: state.attachments || (mediaAttachment ? [mediaAttachment] : [])
+        }, clientContext);
+        return;
+    }
+
+    // Default: update state
+    updateConversationState(senderPhone, { entities: state.entities });
+}
+
+/**
+ * Universal Payload Normalizer
  */
 function extractMessagesFromPayload(body) {
     const messages = [];
 
-    // 1. Chartered Info Flat Format
     if (body && (body.from || body.phone_no_id || body.wamid || body.type)) {
         const from = body.from || body.sender || body.mobile || body.phone;
         if (!from) return messages;
@@ -719,7 +554,6 @@ function extractMessagesFromPayload(body) {
         let mediaId = null;
         const msgType = body.type || 'text';
 
-        // Deep inspect for interactive or list reply
         const interactiveObj = body.interactive || body.interactive_response || {};
         const listReply = interactiveObj.list_reply || body.list_reply || body.listReply;
         const btnReply = interactiveObj.button_reply || body.button_reply || body.buttonReply || body.button;
@@ -732,8 +566,6 @@ function extractMessagesFromPayload(body) {
             selectedId = btnReply.id || btnReply.title || '';
         } else if (msgType === 'text' || msgType === 'interactive' || body.text) {
             let rawBody = typeof body.text === 'object' ? (body.text?.body || '') : (body.text || body.message || body.body || '');
-            
-            // Check if rawBody is a serialized JSON string from Chartered Info (e.g. {"type":"list_reply", ...})
             if (typeof rawBody === 'string' && (rawBody.trim().startsWith('{') || rawBody.includes('list_reply') || rawBody.includes('button_reply'))) {
                 try {
                     const parsed = JSON.parse(rawBody);
@@ -753,36 +585,24 @@ function extractMessagesFromPayload(body) {
         } else if (msgType === 'document') {
             mediaId = body.document?.id || body.media_id;
             text = body.document?.filename || '[Document]';
+        } else if (msgType === 'audio' || msgType === 'voice') {
+            mediaId = body.audio?.id || body.voice?.id || body.media_id;
+            text = '[Audio / Voice Note]';
         }
 
-        // Fallback checks
         if (!selectedId && body.selected_id) selectedId = body.selected_id;
         if (!text && body.message) text = body.message;
         if (!text && selectedId) text = selectedId;
 
-        // Auto-match text to known button IDs if interactive or matching keyword
+        // Map text to known interactive IDs
         if (!selectedId && (msgType === 'interactive' || msgType === 'button' || text)) {
             const lower = (text || '').toLowerCase().trim();
-            if (lower === 'btn_menu_sales' || lower.includes('sales & projects') || lower === 'sales' || lower === '1. sales & projects' || lower === '1') selectedId = 'btn_menu_sales';
-            else if (lower === 'btn_menu_accounts' || lower.includes('accounts & billing') || lower === 'accounts' || lower === 'billing' || lower === '2. accounts & billing' || lower === '2') selectedId = 'btn_menu_accounts';
-            else if (lower === 'btn_menu_support' || lower.includes('technical support') || lower === 'support' || lower === '3. technical support' || lower === '3') selectedId = 'btn_menu_support';
+            if (lower === 'btn_menu_sales' || lower.includes('sales & projects') || lower === 'sales' || lower === '1') selectedId = 'btn_menu_sales';
+            else if (lower === 'btn_menu_accounts' || lower.includes('accounts & billing') || lower === 'accounts' || lower === 'billing' || lower === '2') selectedId = 'btn_menu_accounts';
+            else if (lower === 'btn_menu_support' || lower.includes('technical support') || lower === 'support' || lower === '3') selectedId = 'btn_menu_support';
             else if (lower.includes('btn_call_shrirang') || lower.includes('call shrirang') || lower === 'call') selectedId = 'btn_call_shrirang';
-            else if (lower.includes('srv_hybrid') || lower.includes('hybrid')) selectedId = 'srv_hybrid';
-            else if (lower.includes('srv_app') || lower.includes('mobile') || (lower.includes('app') && !lower.includes('whatsapp'))) selectedId = 'srv_app';
-            else if (lower.includes('srv_web') || (lower.includes('web') && !lower.includes('hybrid'))) selectedId = 'srv_web';
-            else if (lower.includes('srv_progress') || lower.includes('progress') || lower.includes('status')) selectedId = 'srv_progress';
-            else if (lower.includes('srv_accounts') || lower.includes('accounts desk') || lower.includes('billing desk')) selectedId = 'srv_accounts';
-            else if (lower.includes('srv_invoice') || lower.includes('invoice') || lower.includes('bill')) selectedId = 'srv_invoice';
-            else if (lower.includes('srv_support') || lower.includes('support') || lower.includes('ticket')) selectedId = 'srv_support';
-            else if (lower.includes('req_yes_excel') || lower.includes('yes, have document') || lower.includes('have excel')) selectedId = 'req_yes_excel';
-            else if (lower.includes('req_no_excel') || lower.includes('no, please guide') || lower.includes('no excel')) selectedId = 'req_no_excel';
-            else if (lower.includes('opt_ui_saas') || lower.includes('modern saas') || lower.includes('saas portal')) selectedId = 'opt_ui_saas';
-            else if (lower.includes('opt_ui_ecom') || lower.includes('e-commerce') || lower.includes('multi-vendor')) selectedId = 'opt_ui_ecom';
-            else if (lower.includes('opt_ui_corp') || lower.includes('corporate portal')) selectedId = 'opt_ui_corp';
-            else if (lower.includes('opt_app_react') || lower.includes('react native')) selectedId = 'opt_app_react';
-            else if (lower.includes('opt_app_flutter') || lower.includes('flutter')) selectedId = 'opt_app_flutter';
-            else if (lower.includes('opt_app_field') || lower.includes('field ops') || lower.includes('enterprise erp')) selectedId = 'opt_app_field';
-            else if (lower.includes('opt_ui_custom') || lower.includes('custom architecture') || lower.includes('custom tailor-made')) selectedId = 'opt_ui_custom';
+            else if (lower.includes('check status') || lower.includes('ticket status')) selectedId = 'btn_check_status';
+            else if (lower.includes('close ticket') || lower === 'close it') selectedId = 'btn_close_ticket';
         }
 
         messages.push({
@@ -797,7 +617,6 @@ function extractMessagesFromPayload(body) {
         return messages;
     }
 
-    // 2. Standard Meta Cloud API Nested Format
     if (body?.entry && Array.isArray(body.entry)) {
         for (const entry of body.entry) {
             for (const change of (entry.changes || [])) {
@@ -824,13 +643,9 @@ function extractMessagesFromPayload(body) {
                     } else if (msg.type === 'document') {
                         mediaId = msg.document?.id;
                         text = msg.document?.filename || '[Document]';
-                    }
-
-                    if (!selectedId && text) {
-                        const lower = text.toLowerCase();
-                        if (lower.includes('hybrid')) selectedId = 'srv_hybrid';
-                        else if (lower.includes('app') || lower.includes('mobile')) selectedId = 'srv_app';
-                        else if (lower.includes('web')) selectedId = 'srv_web';
+                    } else if (msg.type === 'audio' || msg.type === 'voice') {
+                        mediaId = msg.audio?.id || msg.voice?.id;
+                        text = '[Audio / Voice Note]';
                     }
 
                     messages.push({
@@ -870,900 +685,331 @@ function handleStatusReceipts(body) {
 async function handleInteractiveClick(senderPhone, selectedId, clientContext) {
     const key = String(selectedId || '').toLowerCase().trim();
 
-    // =========================================================================
-    // 0. DIRECT CALL / CONSULTATION BUTTON CLICKED (SHRIRANG JOSHI)
-    // =========================================================================
-    if (key === 'btn_call_shrirang' || key === 'call_lead' || key === 'call_sales' || key === 'call_shrirang' || key.includes('call_shrirang')) {
-        await sendDirectCallCard(senderPhone, clientContext, 'User clicked Call Shrirang button on WhatsApp');
+    if (key === 'btn_call_shrirang' || key.includes('call_shrirang') || key === 'call_lead' || key.includes('talk to') || key.includes('call shrirang')) {
+        await sendDirectCallCard(senderPhone, clientContext, 'User clicked Call Shrirang / Talk to Support button');
         return;
     }
 
-    // =========================================================================
-    // 0.1 MAIN 3 SERVICE CATEGORIES (STEP 1 ROUTING)
-    // =========================================================================
-    if (key === 'btn_menu_sales' || key === 'menu_sales' || key === 'sales & projects' || key === '1. sales & projects' || key === 'srv_sales') {
+    if (key === 'btn_check_status' || key.includes('check status') || key.includes('status')) {
+        await handleTicketStatusQuery(senderPhone, clientContext);
+        return;
+    }
+
+    if (key === 'btn_close_ticket' || key.includes('close ticket') || key.includes('close')) {
+        await handleTicketResolutionByClient(senderPhone, clientContext);
+        return;
+    }
+
+    if (key === 'btn_menu_sales' || key === 'srv_sales' || key.includes('sales')) {
         await sendSalesSubMenu(senderPhone, clientContext);
         return;
     }
 
-    if (key === 'btn_menu_accounts' || key === 'menu_accounts' || key === 'accounts & billing' || key === '2. accounts & billing' || key === 'srv_accounts') {
-        await sendAccountsSubMenu(senderPhone, clientContext);
+    if (key === 'btn_menu_accounts' || key === 'srv_accounts' || key.includes('accounts') || key.includes('billing')) {
+        await sendProjectInvoiceDetails(senderPhone, clientContext, 'Workforce EMS');
         return;
     }
 
-    if (key === 'btn_menu_support' || key === 'menu_support' || key === 'technical support' || key === '3. technical support') {
+    if (key === 'btn_menu_support' || key === 'srv_support' || key.includes('support') || key.includes('technical')) {
         await startSupportTicketFlow(senderPhone, clientContext);
         return;
     }
 
-    // =========================================================================
-    // 1. SERVICE SELECTION: WEB / MOBILE APP / HYBRID (SALES DESK)
-    // =========================================================================
-
-    // Case 1A: Web Development
-    if (key === 'srv_web' || (key.includes('web') && !key.includes('hybrid'))) {
+    // Sales Packages
+    if (key === 'srv_web' || key.includes('web')) {
         const webCard = `Planex Software — Web Development Package
-Hello ${clientContext.name}, we have registered your preference for Enterprise Web Application.
 
-Planned Core Modules:
-1. Frontend User Interface (Responsive Web Portal)
-2. Backend API Engine (Node.js / PostgreSQL Architecture)
-3. Admin Control Portal (User Roles & Permissions)
-4. Analytics & Reporting (Data Dashboards & PDF Export)
-5. Security & Deployment (SSL Encryption & Cloud Hosting)
+Core Capabilities:
+• Responsive Web Portal & SaaS Architecture
+• Backend API Engine (Node.js / PostgreSQL)
+• Role-based Admin Control & Security
+• Analytics, Live Reports & PDF Export
 
-Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
-
+Would you like to share your requirements document or discuss the project with our team?`;
         await sendWhatsAppText(senderPhone, webCard);
-
-        await sendWhatsAppListMenu(senderPhone, {
-            headerText: "Web Design Catalogue",
-            bodyText: "Please choose your preferred Web UI and layout theme:",
-            footerText: "Planex UI/UX Design Hub",
-            buttonText: "View Web Options",
-            sections: [
-                {
-                    title: "Web UI Options",
-                    rows: [
-                        { id: "opt_ui_saas", title: "Option 1: Modern SaaS", description: "Glassmorphism, Live Charts & Dark Mode" },
-                        { id: "opt_ui_ecom", title: "Option 2: E-Commerce", description: "Catalog, Cart, Checkout & Payment Gateway" },
-                        { id: "opt_ui_corp", title: "Option 3: Corporate Portal", description: "Multi-page Business Showcase & Contact CRM" },
-                        { id: "opt_ui_custom", title: "Option 4: Custom Architecture", description: "Tailor-made layout for your specific workflow" }
-                    ]
-                }
-            ]
-        });
-
         await sendWhatsAppButtons(senderPhone, {
-            headerText: "Requirements & Scope Check",
-            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this Web Application?\n\nOr prefer discussing scope on phone?`,
-            footerText: "Pentasoft Consultancy",
-            buttons: [
-                { id: "req_yes_excel", title: "Yes, Have Document" },
-                { id: "req_no_excel", title: "No, Please Guide" },
-                { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
-            ]
-        });
-
-        // Forward lead alert to Sales Head
-        const salesAlert = `New Sales Lead — Web Development\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nInterest: Enterprise Web Application & Portals`;
-        sendWhatsAppText(SALES_HEAD_PHONE, salesAlert).catch(() => {});
-    }
-
-    // Case 1B: Mobile App Development
-    else if (key === 'srv_app' || (key.includes('app') && !key.includes('hybrid')) || key.includes('mobile') || key.includes('android') || key.includes('ios')) {
-        const appCard = `Planex Software — Mobile App Development Package
-Hello ${clientContext.name}, we have registered your preference for Mobile App Development (Android & iOS).
-
-Planned Core Modules:
-1. Cross-Platform Native Apps (Android & iOS)
-2. Push Notifications & Live Background Sync
-3. Device Integrations (Camera, Barcode / QR Scanner, Thermal Printers)
-4. Offline Database Cache with Auto-Sync
-5. Authentication & Security (Biometrics & Secure Token Auth)
-
-Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
-
-        await sendWhatsAppText(senderPhone, appCard);
-
-        await sendWhatsAppListMenu(senderPhone, {
-            headerText: "Mobile App Catalogue",
-            bodyText: "Please choose your preferred Mobile App architecture layout:",
-            footerText: "Planex Mobile Engineering",
-            buttonText: "View App Options",
-            sections: [
-                {
-                    title: "Mobile App Architecture Options",
-                    rows: [
-                        { id: "opt_app_react", title: "Option 1: React Native App", description: "Fluid animations, single codebase Android & iOS" },
-                        { id: "opt_app_flutter", title: "Option 2: Flutter App", description: "Material 3 / Cupertino pixel-perfect UI" },
-                        { id: "opt_app_field", title: "Option 3: Field Ops / POS", description: "Barcode scanning, Thermal Print & GPS tracking" },
-                        { id: "opt_ui_custom", title: "Option 4: Custom Architecture", description: "Bespoke mobile solution for your workflow" }
-                    ]
-                }
-            ]
-        });
-
-        await sendWhatsAppButtons(senderPhone, {
-            headerText: "Requirements & Scope Check",
-            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this Mobile App?\n\nOr prefer discussing scope on phone?`,
-            footerText: "Pentasoft Consultancy",
-            buttons: [
-                { id: "req_yes_excel", title: "Yes, Have Document" },
-                { id: "req_no_excel", title: "No, Please Guide" },
-                { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
-            ]
-        });
-
-        // Forward lead alert to Sales Head
-        const salesAlert = `New Sales Lead — Mobile App Development\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nInterest: Android & iOS Mobile Applications`;
-        sendWhatsAppText(SALES_HEAD_PHONE, salesAlert).catch(() => {});
-    }
-
-    // Case 1C: Hybrid (Web + App) Full-Stack Package
-    else if (key === 'srv_hybrid' || key.includes('hybrid')) {
-        const hybridCard = `Planex Software — Full-Stack Hybrid Package
-Hello ${clientContext.name}, we have registered your preference for Hybrid Solution (Web Portal + Mobile Apps).
-
-Planned Core Modules:
-1. Master Web Admin Portal with Live Telemetry
-2. Mobile Applications (Android & iOS)
-3. Unified High-Performance REST API Gateway
-4. Automated Workflow & Notification Engine
-5. Business Intelligence & Consolidated Reporting
-
-Direct Sales Contact: +91 98210 27060 (Shrirang Joshi)`;
-
-        await sendWhatsAppText(senderPhone, hybridCard);
-
-        await sendWhatsAppListMenu(senderPhone, {
-            headerText: "Hybrid Architecture Blueprints",
-            bodyText: "Please choose your preferred Full-Stack layout option:",
+            headerText: "Requirements & Scope",
+            bodyText: "Share your requirements document or connect with our lead architect:",
             footerText: "Planex Enterprise Hub",
-            buttonText: "View Hybrid Options",
-            sections: [
-                {
-                    title: "Hybrid Full-Stack Options",
-                    rows: [
-                        { id: "opt_ui_saas", title: "Option 1: SaaS Portal + Mobile", description: "Web SaaS Dashboard with synchronized Mobile App" },
-                        { id: "opt_ui_ecom", title: "Option 2: Multi-Vendor Platform", description: "Web Admin + Seller Portal + Buyer Mobile Apps" },
-                        { id: "opt_app_field", title: "Option 3: Enterprise ERP & Field", description: "Web Management + Field Workforce Tracking App" },
-                        { id: "opt_ui_custom", title: "Option 4: Custom Tailor-Made", description: "Complete custom architecture designed from scratch" }
-                    ]
-                }
-            ]
-        });
-
-        await sendWhatsAppButtons(senderPhone, {
-            headerText: "Requirements & Scope Check",
-            bodyText: `Data Incorporation:\nDo you have an existing requirements document, Excel sheet, or wireframe ready for this project?\n\nOr prefer discussing scope on phone?`,
-            footerText: "Pentasoft Consultancy",
             buttons: [
                 { id: "req_yes_excel", title: "Yes, Have Document" },
-                { id: "req_no_excel", title: "No, Please Guide" },
-                { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
+                { id: "req_no_excel", title: "Please Guide Me" },
+                { id: "btn_call_shrirang", title: "Talk to Sales" }
             ]
         });
-
-        // Forward lead alert to Sales Head
-        const salesAlert = `New Sales Lead — Full-Stack Hybrid\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nInterest: Complete Web Portal + Mobile App Suite`;
-        sendWhatsAppText(SALES_HEAD_PHONE, salesAlert).catch(() => {});
+        return;
     }
 
-    // =========================================================================
-    // 2. UI LAYOUT / ARCHITECTURE OPTION PICKED
-    // =========================================================================
-    else if (key.startsWith('opt_ui_') || key.startsWith('opt_app_') || key.startsWith('opt_')) {
-        const optMap = {
-            'opt_ui_saas': 'Option 1: Modern SaaS & Live Analytics Dashboard',
-            'opt_ui_ecom': 'Option 2: E-Commerce & Multi-Vendor Platform',
-            'opt_ui_corp': 'Option 3: Corporate Enterprise Portal',
-            'opt_app_react': 'Option 1: React Native Android & iOS App',
-            'opt_app_flutter': 'Option 2: Flutter Pixel-Perfect Material App',
-            'opt_app_field': 'Option 3: Enterprise Field Ops & POS Hardware App',
-            'opt_ui_custom': 'Option 4: Custom Tailor-Made Enterprise Architecture'
-        };
-        const chosen = optMap[selectedId] || optMap[key] || 'Custom Tailored Architecture';
+    if (key === 'srv_app' || key.includes('app')) {
+        const appCard = `Planex Software — Mobile App Development Package
 
-        const teamConfirmation = `Layout Selected: ${chosen}
+Core Capabilities:
+• Android & iOS Cross-Platform Applications
+• Push Notifications & Background Sync
+• Camera, Barcode / QR Scanner & Bluetooth Printers
+• Offline Database Cache & Auto-Sync
+• Biometric Authentication & Secure Auth
 
-We have recorded your architecture layout.
-Our technical architect will prepare the initial wireframe blueprint and milestone breakdown for your review.
-
-For direct discussion or immediate consultation, feel free to call our Sales Head at: +91 98210 27060 (Shrirang Joshi).`;
-        await sendWhatsAppText(senderPhone, teamConfirmation);
-
-        // Forward layout selection to Sales Head
-        const salesUpdate = `Sales Lead Update — Layout Picked\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nLayout: ${chosen}`;
-        sendWhatsAppText(SALES_HEAD_PHONE, salesUpdate).catch(() => {});
+Would you like to share your requirements document or discuss the project with our team?`;
+        await sendWhatsAppText(senderPhone, appCard);
+        await sendWhatsAppButtons(senderPhone, {
+            headerText: "Requirements & Scope",
+            bodyText: "Share your requirements document or connect with our lead architect:",
+            footerText: "Planex Mobile Engineering",
+            buttons: [
+                { id: "req_yes_excel", title: "Yes, Have Document" },
+                { id: "req_no_excel", title: "Please Guide Me" },
+                { id: "btn_call_shrirang", title: "Talk to Sales" }
+            ]
+        });
+        return;
     }
 
-    // =========================================================================
-    // 3. EXCEL / WIREFRAME REQUIREMENT SELECTION
-    // =========================================================================
-    else if (key === 'req_yes_excel' || key.includes('yes_excel') || key.includes('have excel') || key.includes('have document')) {
-        await sendWhatsAppText(
-            senderPhone,
-            `Please attach and send your Excel, Word, or PDF document directly here on WhatsApp.\n\nOur system will automatically parse and link your document to your project proposal directory.\n\nDirect Sales Head: +91 98210 27060 (Shrirang Joshi)`
-        );
-        sendWhatsAppText(SALES_HEAD_PHONE, `Sales Lead — Client has requirements document\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nStatus: Awaiting document upload.`).catch(() => {});
-    }
-    else if (key === 'req_no_excel' || key.includes('no_excel') || key.includes('please guide')) {
-        await sendWhatsAppText(
-            senderPhone,
-            `No problem at all.\nOur lead architect will prepare a custom Requirement Breakdown & Milestone Scope for you based on our consultation.\n\nYou can also contact our Sales Head directly at: +91 98210 27060 (Shrirang Joshi).`
-        );
-        sendWhatsAppText(SALES_HEAD_PHONE, `Sales Lead — Consultation Requested\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nStatus: Requested guidance on project scope.`).catch(() => {});
+    if (key === 'req_yes_excel') {
+        const docPrompt = `Please attach the Excel, Word, or PDF document here. Once received, I will link it to your project inquiry for review.`;
+        await sendWhatsAppText(senderPhone, docPrompt);
+        return;
     }
 
-    // =========================================================================
-    // 4. PROJECT PROGRESS INQUIRY
-    // =========================================================================
-    else if (key === 'srv_progress' || key.includes('progress') || key.includes('status')) {
-        const proj = await getProjectStatusDetails(clientContext.id);
-        if (proj.isProspect || !proj.stagingUrl) {
-            const textMsg = `Project Progress for ${clientContext.name}:
-- Current Status: ${proj.status}
-- Stage: ${proj.milestone}
-- Lead Architect: ${proj.leadArchitect}
-- Delivery Lead: ${proj.projectManager}
+    if (key === 'req_no_excel') {
+        const guideMsg = `No problem. You can describe your project requirements in a few lines here, or connect directly with our Lead Architect Shrirang Joshi (+91 98210 27060).`;
+        await sendWhatsAppText(senderPhone, guideMsg);
+        return;
+    }
 
-Note: We are currently scoping your custom modules. Once requirements are frozen, your live staging demo link and sprint tracking dashboard will be activated here.
+    // Default fallback: send main menu
+    await sendServicesMenu(senderPhone, clientContext);
+}
 
-Support Escalation: +91 98210 27060 (Shrirang Joshi)`;
-            await sendWhatsAppText(senderPhone, textMsg);
-        } else {
-            const textMsg = `Project Progress for ${clientContext.name}:
-- Project: ${proj.projectName}
-- Status: ${proj.status}
-- Milestone: ${proj.milestone}
-- Lead Architect: ${proj.leadArchitect}
-- Manager: ${proj.projectManager}
+/**
+ * Start Technical Support Ticket Flow
+ */
+export async function startSupportTicketFlow(senderPhone, clientContext) {
+    const activeTicket = await getActiveSupportTicket(senderPhone, clientContext.id);
+    if (activeTicket) {
+        const activeMsg = `Active Support Request Found\n\nTicket: ${activeTicket.ticket_code}\nProject: ${activeTicket.project_name || 'Workforce EMS'}\nPriority: ${activeTicket.priority || 'High'}\nStatus: ${activeTicket.status || 'Open'}\nAssigned To: ${activeTicket.assigned_engineer_name || 'Nitin RajGuru'}\n\nYou currently have an open ticket. You can track its live progress or send new issue details below.`;
+        await sendWhatsAppText(senderPhone, activeMsg);
+        await sendWhatsAppButtons(senderPhone, {
+            headerText: "Support Options",
+            bodyText: "Track existing ticket or talk to support:",
+            footerText: "Planex Technical Support",
+            buttons: [
+                { id: "btn_check_status", title: "Check Status" },
+                { id: "btn_close_ticket", title: "Close Ticket" },
+                { id: "btn_call_shrirang", title: "Talk to Support" }
+            ]
+        });
+        return;
+    }
 
-Support Escalation: +91 98210 27060 (Shrirang Joshi)`;
-            await sendWhatsAppText(senderPhone, textMsg);
-            await sendWhatsAppCtaUrl(senderPhone, {
-                headerText: "Live Project Preview",
-                bodyText: "You can view the live staging preview and interactive demo here:",
-                displayText: "Open Staging Demo",
-                url: proj.stagingUrl
+    const projName = clientContext.projects?.[0]?.name || 'Workforce EMS';
+    updateConversationState(senderPhone, {
+        intent: 'TECHNICAL_SUPPORT',
+        pending_fields: ['description'],
+        entities: { project: projName, priority: 'High', category: 'Bug / Defect' }
+    });
+
+    const promptText = `Planex Technical Support Desk\n\nClient: ${clientContext.name || 'Valued Client'}\nProject: ${projName}\n\nPlease describe the issue or error you are experiencing (e.g. login failed, server slow, report mismatch, or attach a screenshot/video).\n\nOur engineering team will immediately register a priority ticket and assign a dedicated engineer.`;
+    await sendWhatsAppText(senderPhone, promptText);
+    await sendWhatsAppButtons(senderPhone, {
+        headerText: "Technical Support",
+        bodyText: "Send your issue details or connect directly with our support team:",
+        footerText: "Planex Technical Support",
+        buttons: [
+            { id: "btn_call_shrirang", title: "Talk to Support" }
+        ]
+    });
+}
+
+/**
+ * Handle AI Tool Calls and Natural Text Message
+ */
+async function handleTextMessageWithAI(senderPhone, textContent, clientContext, mediaAttachment = null) {
+    if (isGreeting(textContent)) {
+        await sendServicesMenu(senderPhone, clientContext);
+        return;
+    }
+
+    const history = await getConversationContext(senderPhone, 8);
+    const aiResult = await processMessageWithAI({
+        senderPhone,
+        userMessage: textContent,
+        clientContext,
+        conversationHistory: history
+    });
+
+    console.log("🤖 AI Reasoning Result:", JSON.stringify(aiResult));
+
+    if (aiResult.toolCall) {
+        const { name, args } = aiResult.toolCall;
+
+        // Tool: create_support_ticket
+        if (name === 'create_support_ticket') {
+            const project = args.project || (clientContext.projects?.[0]?.name) || null;
+            const desc = args.description || textContent;
+            const category = args.category || 'Bug / Defect';
+            const priority = args.priority || (args.is_urgent ? 'High' : 'Medium');
+
+            // If project is missing and customer has multiple/no projects, ask for project first (Section 4 DOCX)
+            if (!project && (!clientContext.projects || clientContext.projects.length !== 1)) {
+                updateConversationState(senderPhone, {
+                    intent: 'TECHNICAL_SUPPORT',
+                    entities: { category, priority, description: desc },
+                    pending_fields: ['project'],
+                    attachments: mediaAttachment ? [mediaAttachment] : []
+                });
+
+                const askProject = `I can help register this. I have the issue type, but I still need the affected project.\nWhich project is affected?`;
+                await sendWhatsAppText(senderPhone, askProject);
+                return;
+            }
+
+            // Execute ticket creation or duplicate prevention
+            await executeTicketCreation(senderPhone, {
+                project: project || clientContext.projects?.[0]?.name || 'Workforce EMS',
+                category: category,
+                priority: priority,
+                title: desc.substring(0, 60),
+                description: desc,
+                attachments: mediaAttachment ? [mediaAttachment] : []
+            }, clientContext);
+            return;
+        }
+
+        // Tool: check_ticket_status
+        if (name === 'check_ticket_status') {
+            await handleTicketStatusQuery(senderPhone, clientContext, args.ticket_code);
+            return;
+        }
+
+        // Tool: resolve_support_ticket
+        if (name === 'resolve_support_ticket') {
+            await handleTicketResolutionByClient(senderPhone, clientContext);
+            return;
+        }
+
+        // Tool: get_invoice_and_billing
+        if (name === 'get_invoice_and_billing') {
+            await sendProjectInvoiceDetails(senderPhone, clientContext, args.project || 'Workforce EMS');
+            return;
+        }
+
+        // Tool: report_payment_evidence (Section 15 DOCX)
+        if (name === 'report_payment_evidence') {
+            const receiptAck = `Payment Evidence Received\n\nI have attached your payment confirmation for verification.\nThe payment will be marked as received only after the payment record is verified in EMS by Accounts Desk.`;
+            await sendWhatsAppText(senderPhone, receiptAck);
+
+            const notif = `[Payment UTR Submitted on WhatsApp]\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nDetails: ${args.notes || textContent}`;
+            sendWhatsAppText(ACCOUNTS_HEAD_PHONE_1, notif).catch(() => {});
+            sendWhatsAppText(ACCOUNTS_HEAD_PHONE_2, notif).catch(() => {});
+            return;
+        }
+
+        // Tool: apply_employee_leave (Section 18 DOCX)
+        if (name === 'apply_employee_leave') {
+            await handleEmployeeLeaveRequest(senderPhone, clientContext, args);
+            return;
+        }
+
+        // Tool: modify_conversation_context (Section 8 DOCX)
+        if (name === 'modify_conversation_context') {
+            const field = args.field || 'project';
+            const val = args.new_value || 'Workforce EMS';
+            updateConversationState(senderPhone, {
+                entities: { [field]: val }
             });
+
+            const ackMod = `Understood. I have updated the affected ${field} to ${val}. I will use the updated ${field} when creating the request.`;
+            await sendWhatsAppText(senderPhone, ackMod);
+            return;
+        }
+
+        // Tool: handover_to_team
+        if (name === 'handover_to_team') {
+            await sendDirectCallCard(senderPhone, clientContext, args.reason || textContent);
+            return;
+        }
+
+        // Tool: select_service
+        if (name === 'select_service') {
+            const srv = (args.service_type || '').toLowerCase();
+            if (srv.includes('app')) await handleInteractiveClick(senderPhone, 'srv_app', clientContext);
+            else await handleInteractiveClick(senderPhone, 'srv_web', clientContext);
+            return;
+        }
+
+        // Tool: send_services_menu
+        if (name === 'send_services_menu') {
+            await sendServicesMenu(senderPhone, clientContext);
+            return;
         }
     }
 
-    // =========================================================================
-    // 5. PAYMENT & TAX INVOICE INQUIRY & ACCOUNTS DESK
-    // =========================================================================
-    else if (key === 'srv_invoice' || key === 'srv_accounts' || key.includes('invoice') || key.includes('payment') || key.includes('bill') || key.includes('accounts')) {
-        await sendAccountsSubMenu(senderPhone, clientContext);
+    if (aiResult.replyText) {
+        await sendWhatsAppText(senderPhone, aiResult.replyText);
     }
+}
 
-    // =========================================================================
-    // 5B. INTERACTIVE BILLING PROJECT SELECTION
-    // =========================================================================
-    else if (key.startsWith('billproj_')) {
-        let draft = clientTicketDrafts.get(senderPhone) || {
-            step: 'awaiting_billing_project',
-            customerId: clientContext.id,
-            customerName: clientContext.name,
-            timestamp: Date.now()
-        };
+/**
+ * Section 3 & 7: Execute Ticket Creation with Duplicate Prevention
+ */
+async function executeTicketCreation(senderPhone, { project, category, priority, title, description, attachments = [] }, clientContext) {
+    try {
+        const customerId = clientContext.id;
+        const customerName = clientContext.name || 'Valued Client';
+        const projectName = project || 'Workforce EMS';
 
-        if (key === 'billproj_custom' || selectedId === 'billproj_custom') {
-            draft.step = 'awaiting_billing_info';
-            clientTicketDrafts.set(senderPhone, draft);
-            await sendWhatsAppText(
-                senderPhone,
-                `Accounts & Billing Registration\n\nPlease provide your organization details:\n• Company Name:\n• Branch Location & GST Number (if applicable):\n• Contact Person Name & Email:\n• Project / Module Name:`
-            );
+        // Check for Existing Open Ticket (Duplicate Prevention - Section 7 DOCX)
+        const activeTicket = await getActiveSupportTicket(senderPhone, customerId);
+        if (activeTicket && (activeTicket.project_name?.toLowerCase() === projectName.toLowerCase() || !activeTicket.project_name)) {
+            console.log(`🛡️ Duplicate Ticket Prevented! Appending to existing Ticket ${activeTicket.ticket_code}`);
+
+            // Download media if attached
+            if (attachments.length > 0 && attachments[0].mediaId) {
+                const dl = await downloadWabaMediaToDisk(attachments[0].mediaId, attachments[0].name);
+                if (dl && dl.url) {
+                    attachments[0].url = dl.url;
+                    attachments[0].size = dl.size;
+                }
+            }
+
+            // Append to history
+            await pool.query(`
+                INSERT INTO support_ticket_history (ticket_id, performed_by, action, details)
+                VALUES ($1, 'Customer (WhatsApp)', 'Additional Message Appended', $2)
+            `, [activeTicket.id, `Customer message: ${description}`]);
+
+            const dupMsg = `I understand this is urgent. You already have an active support request for this issue.
+
+Ticket: ${activeTicket.ticket_code}
+Project: ${activeTicket.project_name || projectName}
+Priority: ${activeTicket.priority || 'High'}
+Status: ${activeTicket.status || 'Open'}
+Assigned To: ${activeTicket.assigned_engineer_name || 'Nitin RajGuru'}
+
+I have added your latest message to the existing ticket instead of creating a duplicate.`;
+
+            await sendWhatsAppText(senderPhone, dupMsg);
+
             await sendWhatsAppButtons(senderPhone, {
-                headerText: "Direct Consultation Option",
-                bodyText: "Prefer explaining your billing or project details over phone call?",
-                footerText: "Pentasoft Consultancy",
+                headerText: "Existing Ticket Linked",
+                bodyText: "View ticket progress or connect with support team:",
+                footerText: "Planex Technical Support",
                 buttons: [
-                    { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
+                    { id: "btn_check_status", title: "Check Status" },
+                    { id: "btn_call_shrirang", title: "Talk to Support" }
                 ]
             });
             return;
         }
 
-        let chosenProj = null;
-        if (Array.isArray(draft.availableProjects)) {
-            chosenProj = draft.availableProjects.find(p => p.id === selectedId || p.id === key);
-        }
-
-        const projName = chosenProj ? `${chosenProj.name}${chosenProj.branchName ? ` (${chosenProj.branchName})` : ''}` : (selectedId.replace('billproj_', '') || 'Customer Project');
-        const compName = draft.customerName && draft.customerName !== 'Valued Client' ? draft.customerName : clientContext.name;
-
-        await sendProjectInvoiceDetails(senderPhone, clientContext, projName, compName);
-        clientTicketDrafts.delete(senderPhone);
-    }
-
-    // =========================================================================
-    // 6. TECHNICAL SUPPORT INQUIRY / BUTTON CLICK
-    // =========================================================================
-    else if (key === 'srv_support' || key === 'support_ticket' || key === 'raise_ticket') {
-        await startSupportTicketFlow(senderPhone, clientContext);
-    }
-
-    // =========================================================================
-    // 7. INTERACTIVE PROJECT SELECTION (STEP 1 OF SUPPORT TICKET)
-    // =========================================================================
-    else if (key.startsWith('supproj_')) {
-        let draft = clientTicketDrafts.get(senderPhone) || {
-            step: 'awaiting_project',
-            customerId: clientContext.id,
-            customerName: clientContext.name,
-            clientContactName: clientContext.name,
-            timestamp: Date.now()
-        };
-
-        if (key === 'supproj_custom' || selectedId === 'supproj_custom') {
-            draft.step = 'awaiting_project_name';
-            clientTicketDrafts.set(senderPhone, draft);
-            const promptCustom = `Technical Support Desk — Registration\n\nPlease provide your organization & project details:\n• Company Name:\n• Branch Location & GST Number (if applicable):\n• Contact Person Name & Email:\n• Project / Application Name:`;
-            await sendWhatsAppText(senderPhone, promptCustom);
-            await sendWhatsAppButtons(senderPhone, {
-                headerText: "Direct Support Option",
-                bodyText: "Prefer explaining your issue over phone call instead of typing?",
-                footerText: "Planex Technical Support",
-                buttons: [
-                    { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
-                ]
-            });
-            return;
-        }
-
-        let chosenProj = null;
-        if (Array.isArray(draft.availableProjects)) {
-            chosenProj = draft.availableProjects.find(p => p.id === selectedId || p.id === key);
-        }
-
-        if (chosenProj) {
-            draft.projectId = chosenProj.id;
-            draft.projectName = `${chosenProj.name}${chosenProj.branchName ? ` (${chosenProj.branchName})` : ''}`;
-            draft.branchName = chosenProj.branchName || '';
-            draft.assignedEmployees = chosenProj.assignedEmployees || [];
-        } else {
-            draft.projectName = selectedId || 'Customer Project';
-        }
-
-        await sendCategorySelection(senderPhone, draft);
-    }
-
-    // =========================================================================
-    // 8. INTERACTIVE ISSUE CATEGORY SELECTION (STEP 2 OF SUPPORT TICKET)
-    // =========================================================================
-    else if (key.startsWith('supcat_')) {
-        let draft = clientTicketDrafts.get(senderPhone) || {
-            step: 'awaiting_category',
-            customerId: clientContext.id,
-            customerName: clientContext.name,
-            projectName: 'General Project',
-            timestamp: Date.now()
-        };
-
-        const catMap = {
-            'supcat_bug': 'Bug / Defect',
-            'supcat_server': 'Server / Downtime',
-            'supcat_config': 'Configuration / Setup',
-            'supcat_data': 'Data / Report Issue',
-            'supcat_feature': 'Feature Request',
-            'supcat_general': 'General Support'
-        };
-
-        draft.category = catMap[key] || catMap[selectedId] || selectedId || 'Bug / Defect';
-        await sendPrioritySelection(senderPhone, draft);
-    }
-
-    // =========================================================================
-    // 9. INTERACTIVE PRIORITY & SLA MATRIX SELECTION (STEP 3 OF SUPPORT TICKET)
-    // =========================================================================
-    else if (key.startsWith('suppri_')) {
-        let draft = clientTicketDrafts.get(senderPhone) || {
-            step: 'awaiting_priority',
-            customerId: clientContext.id,
-            customerName: clientContext.name,
-            projectName: 'General Project',
-            category: 'Bug / Defect',
-            timestamp: Date.now()
-        };
-
-        const priMap = {
-            'suppri_critical': 'Critical',
-            'suppri_high': 'High',
-            'suppri_medium': 'Medium'
-        };
-
-        draft.priority = priMap[key] || priMap[selectedId] || 'High';
-        await sendDetailsPrompt(senderPhone, draft);
-    }
-
-    // Fallback: If no interactive key matched, treat as text
-    else {
-        await handleTextMessageWithAI(senderPhone, selectedId, clientContext);
-    }
-}
-
-/**
- * Sub-Menu: Accounts & Billing Desk (With Structured Customer Fields)
- */
-export async function sendAccountsSubMenu(senderPhone, clientContext) {
-    let customerId = clientContext.id;
-    let customerName = clientContext.name && clientContext.name !== 'Valued Client' ? clientContext.name : '';
-    let projectsList = [];
-
-    if (customerId) {
-        try {
-            const custRes = await pool.query(`SELECT id, name, branches FROM customers WHERE id = $1`, [customerId]);
-            if (custRes.rows.length > 0) {
-                const c = custRes.rows[0];
-                customerName = c.name || customerName;
-                let branches = c.branches;
-                if (typeof branches === 'string') {
-                    try { branches = JSON.parse(branches); } catch(e){}
-                }
-                if (Array.isArray(branches)) {
-                    branches.forEach((b, bIdx) => {
-                        const bName = b.branch || `Branch ${bIdx + 1}`;
-                        let bProjs = b.projects;
-                        if (typeof bProjs === 'string') {
-                            try { bProjs = JSON.parse(bProjs); } catch(e){}
-                        }
-                        if (Array.isArray(bProjs)) {
-                            bProjs.forEach((p, pIdx) => {
-                                const pName = typeof p === 'string' ? p : (p.name || p.project_name || 'Module');
-                                projectsList.push({
-                                    id: `billproj_${bIdx}_${pIdx}`,
-                                    name: pName,
-                                    branchName: bName
-                                });
-                            });
-                        }
-                    });
-                }
+        // Download attachment if present
+        if (attachments.length > 0 && attachments[0].mediaId) {
+            const dl = await downloadWabaMediaToDisk(attachments[0].mediaId, attachments[0].name);
+            if (dl && dl.url) {
+                attachments[0].url = dl.url;
+                attachments[0].size = dl.size;
             }
-
-            const dbProjRes = await pool.query(`SELECT id, name, branch_name FROM projects WHERE customer_id = $1`, [customerId]);
-            for (const dp of dbProjRes.rows) {
-                if (!projectsList.some(p => p.name.toLowerCase() === dp.name.toLowerCase() && p.branchName.toLowerCase() === (dp.branch_name || '').toLowerCase())) {
-                    projectsList.push({
-                        id: `billproj_db_${dp.id}`,
-                        name: dp.name,
-                        branchName: dp.branch_name || ''
-                    });
-                }
-            }
-        } catch (err) {
-            console.error("Error fetching projects for billing:", err.message);
-        }
-    }
-
-    if (projectsList.length > 0) {
-        clientTicketDrafts.set(senderPhone, {
-            step: 'awaiting_billing_project',
-            customerId: customerId,
-            customerName: customerName,
-            availableProjects: projectsList,
-            timestamp: Date.now()
-        });
-
-        const rows = projectsList.slice(0, 8).map(p => ({
-            id: p.id,
-            title: `${p.name}${p.branchName ? ` (${p.branchName})` : ''}`.slice(0, 24),
-            description: `Branch: ${p.branchName || 'Main'}`.slice(0, 72)
-        }));
-        rows.push({
-            id: 'billproj_custom',
-            title: 'Other / Custom Project',
-            description: 'Provide organization and project details'
-        });
-
-        await sendWhatsAppListMenu(senderPhone, {
-            headerText: "Accounts & Billing Desk",
-            bodyText: `Hello ${customerName || 'Valued Client'},\n\nPlease select your project from the menu below to view your commercial proposal and tax invoice:`,
-            footerText: "Planex Accounts Hub",
-            buttonText: "Select Project",
-            sections: [
-                {
-                    title: "Your Projects",
-                    rows: rows
-                }
-            ]
-        });
-
-        await sendWhatsAppButtons(senderPhone, {
-            headerText: "Direct Accounts Consultation",
-            bodyText: "Prefer discussing commercial terms or billing queries directly over phone call?",
-            footerText: "Planex Accounts Desk",
-            buttons: [
-                { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
-            ]
-        });
-    } else {
-        // New Client / Prospect without registered projects
-        clientTicketDrafts.set(senderPhone, {
-            step: 'awaiting_billing_info',
-            customerId: null,
-            customerName: customerName,
-            timestamp: Date.now()
-        });
-
-        const askBillingInfo = `Accounts & Invoicing Registration\n\nPlease provide your organization details:\n• Company Name:\n• Branch Location & GST Number (if applicable):\n• Contact Person Name & Email:\n• Project / Module Scope:\n\nOur accounts desk will prepare and send your commercial ledger.\n\nPrefer discussing over phone call? Tap the button below to connect with Shrirang Joshi:`;
-        await sendWhatsAppText(senderPhone, askBillingInfo);
-
-        await sendWhatsAppButtons(senderPhone, {
-            headerText: "Direct Consultation Option",
-            bodyText: "Prefer explaining your billing or project details over phone call?",
-            footerText: "Pentasoft Consultancy",
-            buttons: [
-                { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
-            ]
-        });
-    }
-
-    // Notify accounts heads
-    const notif = `[Accounts & Billing Inquiry]\n\nClient: ${customerName || 'Prospect'}\nPhone: ${senderPhone}\nInquiry: Accessed Accounts & Billing Desk.`;
-    sendWhatsAppText(ACCOUNTS_HEAD_PHONE_1, notif).catch(() => {});
-    sendWhatsAppText(ACCOUNTS_HEAD_PHONE_2, notif).catch(() => {});
-}
-
-/**
- * Step 1: Start Guided WhatsApp Support Ticket Session
- */
-export async function startSupportTicketFlow(senderPhone, clientContext, initialIssue = '', initialMedia = null) {
-    try {
-        let customerId = clientContext.id;
-        let customerName = clientContext.name && clientContext.name !== 'Valued Client' ? clientContext.name : '';
-        let clientContactName = clientContext.contactName || customerName;
-
-        let projectsList = [];
-        if (customerId) {
-            const custRes = await pool.query(`SELECT id, name, branches, contact_persons, assigned_employees FROM customers WHERE id = $1`, [customerId]);
-            if (custRes.rows.length > 0) {
-                const c = custRes.rows[0];
-                customerName = c.name || customerName;
-
-                let contactPersons = c.contact_persons;
-                if (typeof contactPersons === 'string') {
-                    try { contactPersons = JSON.parse(contactPersons); } catch(e){}
-                }
-                if (Array.isArray(contactPersons) && contactPersons.length > 0 && contactPersons[0].name) {
-                    clientContactName = contactPersons[0].name;
-                }
-
-                let branches = c.branches;
-                if (typeof branches === 'string') {
-                    try { branches = JSON.parse(branches); } catch(e){}
-                }
-                if (Array.isArray(branches)) {
-                    branches.forEach((b, bIdx) => {
-                        const bName = b.branch || `Branch ${bIdx + 1}`;
-                        let bProjs = b.projects;
-                        if (typeof bProjs === 'string') {
-                            try { bProjs = JSON.parse(bProjs); } catch(e){}
-                        }
-                        if (Array.isArray(bProjs)) {
-                            bProjs.forEach((p, pIdx) => {
-                                const pName = typeof p === 'string' ? p : (p.name || p.project_name || 'Module');
-                                projectsList.push({
-                                    id: `supproj_${bIdx}_${pIdx}`,
-                                    name: pName,
-                                    branchName: bName,
-                                    assignedEmployees: b.assignedEmployees || []
-                                });
-                            });
-                        }
-                    });
-                }
-            }
-
-            const dbProjRes = await pool.query(`SELECT id, name, branch_name FROM projects WHERE customer_id = $1`, [customerId]);
-            for (const dp of dbProjRes.rows) {
-                if (!projectsList.some(p => p.name.toLowerCase() === dp.name.toLowerCase() && p.branchName.toLowerCase() === (dp.branch_name || '').toLowerCase())) {
-                    projectsList.push({
-                        id: `supproj_db_${dp.id}`,
-                        name: dp.name,
-                        branchName: dp.branch_name || '',
-                        assignedEmployees: []
-                    });
-                }
-            }
-        }
-
-        const draft = {
-            step: projectsList.length > 0 ? 'awaiting_project' : 'awaiting_project_name',
-            customerId: customerId,
-            customerName: customerName || 'Valued Client',
-            clientContactName: clientContactName || 'Valued Client',
-            availableProjects: projectsList,
-            initialIssueText: initialIssue || '',
-            initialMediaAttachment: initialMedia || null,
-            timestamp: Date.now()
-        };
-        clientTicketDrafts.set(senderPhone, draft);
-
-        if (projectsList.length > 0) {
-            const rows = projectsList.slice(0, 8).map(p => ({
-                id: p.id,
-                title: `${p.name}${p.branchName ? ` (${p.branchName})` : ''}`.slice(0, 24),
-                description: `Branch: ${p.branchName || 'Main Project'}`.slice(0, 72)
-            }));
-            rows.push({
-                id: 'supproj_custom',
-                title: 'Other / Custom Project',
-                description: 'Provide custom project or app name'
-            });
-
-            await sendWhatsAppListMenu(senderPhone, {
-                headerText: "Support Ticket Desk",
-                bodyText: `Hello ${clientContactName || customerName || 'Valued Client'},\n\nPlease select your project from the list below to report your issue:`,
-                footerText: "Planex Technical Support",
-                buttonText: "Select Project",
-                sections: [
-                    {
-                        title: "Your Assigned Projects",
-                        rows: rows
-                    }
-                ]
-            });
-
-            await sendWhatsAppButtons(senderPhone, {
-                headerText: "Direct Support Discussion",
-                bodyText: "Prefer explaining your issue directly to Shrirang Joshi on phone call?",
-                footerText: "Planex Technical Support",
-                buttons: [
-                    { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
-                ]
-            });
-        } else {
-            const askProjectText = `Technical Support Desk — Registration\n\nPlease provide your organization & project details:\n• Company Name:\n• Branch Location & GST Number (if applicable):\n• Contact Person Name & Email:\n• Project / Application Name:\n\nPrefer explaining over phone call? Tap the button below to connect directly with Shrirang Joshi:`;
-            await sendWhatsAppText(senderPhone, askProjectText);
-
-            await sendWhatsAppButtons(senderPhone, {
-                headerText: "Direct Support Option",
-                bodyText: "Prefer explaining your issue over phone call instead of typing?",
-                footerText: "Planex Technical Support",
-                buttons: [
-                    { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
-                ]
-            });
-        }
-    } catch (err) {
-        console.error("❌ Error in startSupportTicketFlow:", err.message);
-    }
-}
-
-/**
- * Step 2: Send Issue Category Selection List Menu
- */
-export async function sendCategorySelection(senderPhone, draft) {
-    try {
-        draft.step = 'awaiting_category';
-        clientTicketDrafts.set(senderPhone, draft);
-
-        await sendWhatsAppListMenu(senderPhone, {
-            headerText: "Select Issue Category",
-            bodyText: `Project: ${draft.projectName || 'General Maintenance'}\n\nPlease select the category that best describes your issue:`,
-            footerText: "Planex Technical Support",
-            buttonText: "Choose Category",
-            sections: [
-                {
-                    title: "Issue Categories",
-                    rows: [
-                        { id: "supcat_bug", title: "Bug / Defect", description: "System crash, button not working, UI glitch" },
-                        { id: "supcat_server", title: "Server / Downtime", description: "Portal down, service unreachable, slow response" },
-                        { id: "supcat_config", title: "Configuration / Setup", description: "User permission, setting change, setup help" },
-                        { id: "supcat_data", title: "Data / Report Issue", description: "Data discrepancy, missing record, calculation" },
-                        { id: "supcat_feature", title: "Feature Request", description: "New feature requirement or enhancement" },
-                        { id: "supcat_general", title: "General Support", description: "Training, help, or general inquiry" }
-                    ]
-                }
-            ]
-        });
-    } catch (err) {
-        console.error("❌ Error in sendCategorySelection:", err.message);
-    }
-}
-
-/**
- * Step 3: Send Priority & SLA Level Selection Buttons
- */
-export async function sendPrioritySelection(senderPhone, draft) {
-    try {
-        draft.step = 'awaiting_priority';
-        clientTicketDrafts.set(senderPhone, draft);
-
-        await sendWhatsAppButtons(senderPhone, {
-            headerText: "Priority & SLA Level",
-            bodyText: `Project: ${draft.projectName}\nCategory: ${draft.category}\n\nPlease select the urgency / SLA priority level:`,
-            footerText: "Planex Technical Support",
-            buttons: [
-                { id: "suppri_critical", title: "Critical (4h SLA)" },
-                { id: "suppri_high", title: "High (24h SLA)" },
-                { id: "suppri_medium", title: "Medium (3d SLA)" }
-            ]
-        });
-    } catch (err) {
-        console.error("❌ Error in sendPrioritySelection:", err.message);
-    }
-}
-
-/**
- * Step 4: Prompt Client for Issue Description & Photo/PDF Upload
- */
-export async function sendDetailsPrompt(senderPhone, draft) {
-    try {
-        draft.step = 'awaiting_details';
-
-        let assignedEmployees = draft.assignedEmployees || [];
-        if (!assignedEmployees.length) {
-            if (draft.projectName && draft.projectName.toLowerCase().includes('miraroad')) {
-                assignedEmployees = [
-                    { id: 15, full_name: 'Vijay Mourya' },
-                    { id: 10, full_name: 'Nitin RajGuru' }
-                ];
-            } else {
-                assignedEmployees = [
-                    { id: 9, full_name: 'Malhar Kulkarni' },
-                    { id: 10, full_name: 'Nitin RajGuru' }
-                ];
-            }
-        }
-        draft.assignedEmployees = assignedEmployees;
-        clientTicketDrafts.set(senderPhone, draft);
-
-        const contacts = await resolveEngineerContacts(assignedEmployees);
-        const engineerLines = contacts.map(c => `• ${c.name} (${c.phone})`).join('\n');
-
-        const promptText = `Support Ticket Form Configured
-
-Customer: ${draft.customerName}
-Project: ${draft.projectName}
-Category: ${draft.category}
-Priority: ${draft.priority}
-
-Assigned Project Engineer(s):
-${engineerLines}
-
-Support Escalation Head:
-• Shrirang Joshi (+91 98210 27060)
-
-Please reply with your issue description and attach error screenshots or PDF logs if any.
-
-Once received, our system will automatically create the ticket, start the SLA resolution timer, and notify the engineering team.`;
-
-        // Send official WABA approved template for dedicated team handover
-        try {
-            const engineerDetails = contacts.map(c => `${c.name} (${c.phone})`).join(', ');
-            sendWhatsAppTemplate(senderPhone, 'dedicated_team_handover', 'en', [
-                draft.customerName || 'Valued Client',
-                draft.projectName || 'Active Project',
-                engineerDetails
-            ]).catch(() => {});
-        } catch (e) {}
-
-        await sendWhatsAppText(senderPhone, promptText);
-        await saveMessage({
-            senderPhone: '919082270423',
-            recipientPhone: senderPhone,
-            direction: 'outbound',
-            messageType: 'text',
-            messageBody: promptText
-        });
-    } catch (err) {
-        console.error("❌ Error in sendDetailsPrompt:", err.message);
-    }
-}
-
-/**
- * Check if text contains a client resolution trigger
- */
-export function isResolutionKeyword(text) {
-    if (!text) return false;
-    const lower = String(text).toLowerCase().trim();
-    return lower === 'resolved' || 
-           lower.includes('ticket end') || 
-           lower.includes('support ticket end') || 
-           lower.includes('close ticket') || 
-           lower.includes('issue solved') || 
-           lower.includes('problem solved') || 
-           lower.includes('ticket close') || 
-           lower.includes('ticket resolved') || 
-           lower.includes('sab theek hai') || 
-           lower.includes('issue resolved') || 
-           lower.includes('kam ho gaya') ||
-           lower === 'ticket resolved' ||
-           lower === 'ticket end';
-}
-
-/**
- * Check if text has explicit issue/bug reporting intent
- */
-export function isSupportIssueIntent(text) {
-    if (!text) return false;
-    const lower = String(text).toLowerCase().trim();
-    
-    // Direct keywords for technical issue/bug reporting
-    return lower.includes('not working') || 
-           lower.includes('button not working') || 
-           lower.includes('login button') || 
-           lower.includes('login issue') || 
-           lower.includes('nahi chal raha') || 
-           lower.includes('error') || 
-           lower.includes('bug') || 
-           lower.includes('issue') || 
-           lower.includes('problem') || 
-           lower.includes('crash') || 
-           lower.includes('fail') || 
-           lower.includes('down') ||
-           (lower.includes('ticket') && !lower.includes('view services'));
-}
-
-/**
- * Create Support Ticket from WhatsApp, Auto-Assign Customer Engineers, and Alert All Engineers
- */
-export async function handleSupportTicketCreation(senderPhone, issueText, clientContext, mediaAttachment = null, options = {}) {
-    try {
-        let customerId = options.customerId || clientContext.id;
-        let customerName = options.customerName || clientContext.name || 'Valued Customer';
-        let projectName = options.projectName || 'General Project';
-        let category = options.category || 'Bug';
-        let priority = options.priority || 'High';
-        let assignedEmployees = options.assignedEmployees || [];
-        let reportedBy = options.clientContactName || customerName;
-
-        // Query customer details if fields missing
-        if (customerId && (!assignedEmployees.length || projectName === 'General Project')) {
-            const cRes = await pool.query(`SELECT id, name, branches, assigned_employees, contact_persons FROM customers WHERE id = $1`, [customerId]);
-            if (cRes.rows.length > 0) {
-                const c = cRes.rows[0];
-                customerName = c.name || customerName;
-
-                let branches = c.branches;
-                if (typeof branches === 'string') {
-                    try { branches = JSON.parse(branches); } catch(e){}
-                }
-
-                if (Array.isArray(branches)) {
-                    for (const b of branches) {
-                        if (Array.isArray(b.projects) && b.projects.length > 0 && projectName === 'General Project') {
-                            for (const p of b.projects) {
-                                if (p.name) {
-                                    projectName = `${p.name}${b.branch ? ` (${b.branch})` : ''}`;
-                                }
-                            }
-                        }
-                        if (Array.isArray(b.assignedEmployees)) {
-                            for (const emp of b.assignedEmployees) {
-                                if (emp.id && !assignedEmployees.some(e => e.id === emp.id)) {
-                                    assignedEmployees.push(emp);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                let custAssigned = c.assigned_employees;
-                if (typeof custAssigned === 'string') {
-                    try { custAssigned = JSON.parse(custAssigned); } catch(e){}
-                }
-                if (Array.isArray(custAssigned)) {
-                    for (const emp of custAssigned) {
-                        if (emp.id && !assignedEmployees.some(e => e.id === emp.id)) {
-                            assignedEmployees.push(emp);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Fallback default engineers (e.g. Nitin Sir ID 10, Malhar Kulkarni ID 9)
-        if (assignedEmployees.length === 0) {
-            assignedEmployees = [
-                { id: 9, full_name: 'Malhar Kulkarni' },
-                { id: 10, full_name: 'Nitin RajGuru' }
-            ];
         }
 
         // Generate Ticket Code
@@ -1771,67 +1017,56 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
         const nextId = (tCountRes.rows[0]?.id || 0) + 101;
         const ticketCode = `SUP-${String(nextId).padStart(6, '0')}`;
 
-        // SLA deadline calculation
+        // Determine Assignee (Nitin RajGuru ID 10 default)
+        const assignedEmployees = [
+            { id: 10, full_name: 'Nitin RajGuru' },
+            { id: 9, full_name: 'Malhar Kulkarni' }
+        ];
+
+        // SLA Calculation (Section 3 & 9 DOCX)
         const now = new Date();
-        let respMinutes = 120;
-        let resoMinutes = 1440;
-        const pri = priority.toLowerCase();
+        let respMinutes = 120; // 2 hours
+        let resoMinutes = 1440; // 24 hours
+        let slaText = '24 hours';
+
+        const pri = (priority || 'High').toLowerCase();
         if (pri.includes('critical')) {
             respMinutes = 30;
             resoMinutes = 240;
+            slaText = '4 hours';
         } else if (pri.includes('high')) {
             respMinutes = 120;
             resoMinutes = 1440;
+            slaText = '24 hours';
         } else if (pri.includes('medium')) {
             respMinutes = 480;
             resoMinutes = 4320;
-        } else if (pri.includes('low')) {
-            respMinutes = 1440;
-            resoMinutes = 10080;
+            slaText = '3 days';
         }
 
         const responseDeadline = new Date(now.getTime() + respMinutes * 60000);
         const resolutionDeadline = new Date(now.getTime() + resoMinutes * 60000);
 
-        const titleSnippet = (issueText || 'Technical Issue reported on WhatsApp')
-            .replace(/\n/g, ' ')
-            .substring(0, 75);
-
-        const attachments = [];
-        if (mediaAttachment) {
-            if (mediaAttachment.mediaId && !mediaAttachment.url) {
-                try {
-                    const downloaded = await downloadWabaMediaToDisk(mediaAttachment.mediaId, mediaAttachment.name);
-                    if (downloaded && downloaded.url) {
-                        mediaAttachment.url = downloaded.url;
-                        mediaAttachment.size = downloaded.size;
-                    }
-                } catch (dlErr) {
-                    console.error("Failed to download WABA media to disk:", dlErr.message);
-                }
-            }
-            attachments.push(mediaAttachment);
-        }
-
+        // Insert into PostgreSQL support_tickets
         const insertRes = await pool.query(`
             INSERT INTO support_tickets (
                 ticket_code, customer_id, project_name, reported_by, customer_phone, source,
                 title, description, category, priority, status,
                 assigned_to, assigned_team, attachments,
                 response_deadline, resolution_deadline, created_at
-            ) VALUES ($1, $2, $3, $4, $5, 'WHATSAPP', $6, $7, $8, $9, 'Assigned', $10, $11, $12, $13, $14, NOW())
+            ) VALUES ($1, $2, $3, $4, $5, 'WHATSAPP', $6, $7, $8, $9, 'Open', $10, $11, $12, $13, $14, NOW())
             RETURNING *
         `, [
             ticketCode,
             customerId || null,
             projectName,
-            reportedBy,
+            customerName,
             sanitizePhoneNumber(senderPhone),
-            titleSnippet,
-            issueText || 'Issue reported from WhatsApp with attachment.',
-            category,
-            priority,
-            assignedEmployees[0]?.id || 9,
+            title || description.substring(0, 60),
+            description,
+            category || 'Bug / Defect',
+            priority || 'High',
+            10, // Nitin RajGuru
             JSON.stringify(assignedEmployees),
             JSON.stringify(attachments),
             responseDeadline,
@@ -1840,114 +1075,113 @@ export async function handleSupportTicketCreation(senderPhone, issueText, client
 
         const newTicket = insertRes.rows[0];
 
-        // Log history
+        // History record
         await pool.query(`
             INSERT INTO support_ticket_history (ticket_id, performed_by, action, new_status, details)
-            VALUES ($1, 'Customer (WhatsApp)', 'Ticket Created', 'Assigned', $2)
-        `, [newTicket.id, `Ticket created from WhatsApp: ${titleSnippet}`]);
+            VALUES ($1, 'Customer (WhatsApp)', 'Ticket Registered', 'Open', $2)
+        `, [newTicket.id, `Created from WhatsApp: ${title || description}`]);
 
-        // Send alert to ALL assigned engineers (e.g. Nitin Sir, Malhar Kulkarni) & create Inbox Notifications
+        // Alert Engineers & Create Portal Inbox Notification
         notifyTicketWhatsApp({
             ticketCode,
-            title: titleSnippet,
-            description: issueText || titleSnippet,
-            priority,
-            assignedToId: assignedEmployees[0]?.id || 9,
+            title: title || description,
+            description,
+            priority: priority || 'High',
+            assignedToId: 10,
             assignedTeam: assignedEmployees,
             customerName,
             projectName,
             actionType: 'created',
-            attachments: attachments
+            attachments
         });
 
-        // Send clean confirmation to Client
-        const contacts = await resolveEngineerContacts(assignedEmployees);
-        const engineerDisplayLines = contacts.map(c => `• ${c.name}: ${c.phone}`).join('\n');
-        const attachmentSnippet = attachments.length > 0 ? `\nAttachment: ${attachments.map(a => a.name || 'File').join(', ')}` : '';
-        const clientAck = `Support Ticket ${ticketCode} Registered
+        // Structured Receipt (Section 3 of DOCX)
+        const ticketReceipt = `Support Request Registered
 
-Hello ${customerName},
-Your support ticket has been logged and assigned to engineering.
-
+Ticket: ${ticketCode}
 Project: ${projectName}
 Category: ${category}
 Priority: ${priority}
-Issue: ${titleSnippet}${attachmentSnippet}
+Assigned To: Nitin RajGuru
+Response SLA: ${slaText}
+Status: Open`;
 
-Assigned Project Engineer(s):
-${engineerDisplayLines}
+        await sendWhatsAppText(senderPhone, ticketReceipt);
 
-Support Escalation Head:
-• Shrirang Joshi: +91 98210 27060
-
-Resolution timer has started. Our team is actively reviewing.
-Reply with "RESOLVED" or "TICKET END" once the issue is solved.`;
-
-        // Send official WABA approved template for support ticket confirmation
-        try {
-            const engineerNames = contacts.map(c => c.name).join(', ');
-            sendWhatsAppTemplate(senderPhone, 'support_ticket_confirmation', 'en', [
-                customerName,
-                ticketCode,
-                projectName,
-                priority,
-                engineerNames
-            ]).catch(() => {});
-        } catch (e) {}
-
-        await sendWhatsAppText(senderPhone, clientAck);
-        await saveMessage({
-            senderPhone: '919082270423',
-            recipientPhone: senderPhone,
-            direction: 'outbound',
-            messageType: 'text',
-            messageBody: clientAck
+        await sendWhatsAppButtons(senderPhone, {
+            headerText: "Ticket Actions",
+            bodyText: "Track progress or connect with assigned engineer:",
+            footerText: "Planex Technical Support",
+            buttons: [
+                { id: "btn_check_status", title: "Check Status" },
+                { id: "btn_call_shrirang", title: "Talk to Support" }
+            ]
         });
 
-        return newTicket;
     } catch (err) {
-        console.error("❌ Error in handleSupportTicketCreation:", err.message);
+        console.error("❌ executeTicketCreation Error:", err.message);
+        const failMsg = `I’m unable to complete the ticket registration right now.\nYour request has not been registered yet, so I do not want to give you a false ticket number.\nPlease try again shortly or contact our support team directly.`;
+        await sendWhatsAppText(senderPhone, failMsg);
     }
 }
 
 /**
- * Handle Client Ticket Resolution ("RESOLVED" / "TICKET END")
+ * Section 6: Live Ticket Status Query
  */
-export async function handleTicketResolutionByClient(senderPhone, clientContext) {
+async function handleTicketStatusQuery(senderPhone, clientContext, ticketCode = null) {
     try {
-        const cleanedPhone = sanitizePhoneNumber(senderPhone);
-        const last10 = cleanedPhone.slice(-10);
+        const ticket = await getActiveSupportTicket(senderPhone, clientContext.id);
 
-        // Find active open ticket
-        const ticketRes = await pool.query(`
-            SELECT t.*, c.name AS customer_name 
-            FROM support_tickets t
-            LEFT JOIN customers c ON t.customer_id = c.id
-            WHERE (t.customer_phone ILIKE $1 OR t.customer_id = $2 OR t.reported_by ILIKE $3)
-              AND t.status NOT IN ('Resolved', 'Closed')
-            ORDER BY t.created_at DESC
-            LIMIT 1;
-        `, [`%${last10}%`, clientContext.id || 0, `%${clientContext.name}%`]);
-
-        if (ticketRes.rows.length === 0) {
-            const noTicketMsg = `Hello ${clientContext.name}, no active open support ticket was found under your number.\n\nIf you are facing any new issue, please describe it here or attach a screenshot to raise a ticket.`;
-            await sendWhatsAppText(senderPhone, noTicketMsg);
-            await saveMessage({
-                senderPhone: '919082270423',
-                recipientPhone: senderPhone,
-                direction: 'outbound',
-                messageType: 'text',
-                messageBody: noTicketMsg
-            });
+        if (!ticket) {
+            const noTicket = `No active open support ticket was found for your account.\nIf you are facing an issue, please send a message or screenshot to raise a request.`;
+            await sendWhatsAppText(senderPhone, noTicket);
             return;
         }
 
-        const ticket = ticketRes.rows[0];
+        const statusMsg = `Support Request Status
 
-        // Update DB and extract exact elapsed duration
+Ticket: ${ticket.ticket_code}
+Project: ${ticket.project_name || 'Workforce EMS'}
+Category: ${ticket.category || 'Technical Support'}
+Priority: ${ticket.priority || 'High'}
+Status: ${ticket.status || 'In Progress'}
+Assigned To: ${ticket.assigned_engineer_name || 'Nitin RajGuru'}
+Response SLA: 24 hours
+
+The latest status is based on the EMS system.`;
+
+        await sendWhatsAppText(senderPhone, statusMsg);
+
+        await sendWhatsAppButtons(senderPhone, {
+            headerText: "Ticket Actions",
+            bodyText: "If the issue has been resolved on your end:",
+            footerText: "Planex Support Desk",
+            buttons: [
+                { id: "btn_close_ticket", title: "Close Ticket" },
+                { id: "btn_call_shrirang", title: "Talk to Support" }
+            ]
+        });
+    } catch (err) {
+        console.error("❌ handleTicketStatusQuery Error:", err.message);
+    }
+}
+
+/**
+ * Section 17: Ticket Resolution Handler
+ */
+export async function handleTicketResolutionByClient(senderPhone, clientContext) {
+    try {
+        const ticket = await getActiveSupportTicket(senderPhone, clientContext.id);
+
+        if (!ticket) {
+            const noTicket = `Hello ${clientContext.name}, no active open support ticket was found under your account.`;
+            await sendWhatsAppText(senderPhone, noTicket);
+            return;
+        }
+
         const updateRes = await pool.query(`
             UPDATE support_tickets 
-            SET status = 'Resolved', resolved_at = NOW(), updated_at = NOW()
+            SET status = 'Closed', resolved_at = NOW(), updated_at = NOW()
             WHERE id = $1
             RETURNING *, EXTRACT(EPOCH FROM (NOW() - created_at)) AS elapsed_seconds;
         `, [ticket.id]);
@@ -1955,70 +1189,81 @@ export async function handleTicketResolutionByClient(senderPhone, clientContext)
         const elapsedSec = Number(updateRes.rows[0]?.elapsed_seconds);
         const durationStr = !isNaN(elapsedSec) ? formatTurnaroundTime(elapsedSec) : formatTurnaroundTime(ticket.created_at, new Date());
 
-        // Log history
         await pool.query(`
             INSERT INTO support_ticket_history (ticket_id, performed_by, action, previous_status, new_status, details)
-            VALUES ($1, 'Customer (WhatsApp)', 'Ticket Resolved', $2, 'Resolved', 'Ticket closed by client keyword on WhatsApp.')
+            VALUES ($1, 'Customer (WhatsApp)', 'Ticket Closed', $2, 'Closed', 'Ticket closed by customer confirmation.')
         `, [ticket.id, ticket.status]);
 
-        // Notify client
-        const clientMsg = `Support Ticket ${ticket.ticket_code} Resolved\n\nThank you ${clientContext.name}.\nTotal Resolution Time: ${durationStr}\nProject: ${ticket.project_name || 'General Project'}\n\nYour support ticket has been closed.`;
-        await sendWhatsAppText(senderPhone, clientMsg);
-        await saveMessage({
-            senderPhone: '919082270423',
-            recipientPhone: senderPhone,
-            direction: 'outbound',
-            messageType: 'text',
-            messageBody: clientMsg
-        });
+        const closeReceipt = `Ticket ${ticket.ticket_code} has been closed successfully.
 
-        // Notify assigned engineers
+Project: ${ticket.project_name || 'Workforce EMS'}
+Resolution Status: Closed
+Resolution Time: ${durationStr}
+
+Thank you for confirming the resolution.`;
+
+        await sendWhatsAppText(senderPhone, closeReceipt);
+
         notifyTicketWhatsApp({
             ticketCode: ticket.ticket_code,
             title: ticket.title,
             customerName: ticket.customer_name || clientContext.name,
-            projectName: ticket.project_name || 'General Project',
+            projectName: ticket.project_name || 'Workforce EMS',
             assignedToId: ticket.assigned_to,
             assignedTeam: ticket.assigned_team,
             actionType: 'resolved',
             turnaroundTime: durationStr
         });
-
     } catch (err) {
-        console.error("❌ Error in handleTicketResolutionByClient:", err.message);
+        console.error("❌ handleTicketResolutionByClient Error:", err.message);
     }
 }
 
-function isGreeting(text) {
-    if (!text) return false;
-    const lower = String(text).toLowerCase().trim();
-    // If the message mentions specific actions, services, or packages, it's NOT just a greeting
-    if (lower.includes('hybrid') || lower.includes('app') || lower.includes('web') || 
-        lower.includes('progress') || lower.includes('status') || lower.includes('invoice') || 
-        lower.includes('bill') || lower.includes('ticket') || lower.includes('support') || 
-        lower.includes('excel') || lower.includes('document') || lower.includes('blueprint') ||
-        lower.includes('opt_') || lower.includes('srv_') || lower.includes('req_') ||
-        lower.includes('package') || lower.includes('saas') || lower.includes('flutter') || lower.includes('react') ||
-        lower.includes('issue') || lower.includes('bug') || lower.includes('error') || lower.includes('problem') ||
-        lower.includes('not working') || lower.includes('resolved') || lower.includes('close')) {
-        return false;
+/**
+ * Section 18: Employee Leave Request
+ */
+async function handleEmployeeLeaveRequest(senderPhone, clientContext, { leave_type, start_date, end_date, reason }) {
+    try {
+        const empName = clientContext.name || 'Employee';
+        const lType = leave_type || 'Casual Leave';
+        const dateStr = start_date || 'Tomorrow';
+
+        // Insert leave request into database
+        if (clientContext.id) {
+            await pool.query(`
+                INSERT INTO leaves (
+                    employee_id, leave_type, start_date, end_date, total_days, reason, status, created_at
+                ) VALUES ($1, $2, CURRENT_DATE + INTERVAL '1 day', CURRENT_DATE + INTERVAL '1 day', 1, $3, 'Pending', NOW())
+            `, [clientContext.id, lType, reason || 'Applied via WhatsApp']);
+        }
+
+        const leaveReceipt = `Leave Application Submitted
+
+Employee: ${empName}
+Leave Type: ${lType}
+Date: ${dateStr}
+Status: Pending Manager Approval
+
+Your leave application has been recorded in EMS and forwarded to Administration.`;
+
+        await sendWhatsAppText(senderPhone, leaveReceipt);
+
+        // Alert Admin
+        sendWhatsAppText(SALES_HEAD_PHONE, `[New Leave Request via WhatsApp]\nEmployee: ${empName}\nType: ${lType}\nDate: ${dateStr}\nReason: ${reason || 'Personal'}`).catch(() => {});
+    } catch (err) {
+        console.error("❌ handleEmployeeLeaveRequest Error:", err.message);
     }
-    const clean = lower.replace(/[^a-z0-9\s]/g, '').trim();
-    const greetings = [
-        'hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'namaskar', 'halo', 'yo',
-        'good morning', 'good evening', 'good afternoon', 'what services', 'kya services'
-    ];
-    if (greetings.includes(clean)) return true;
-    const words = clean.split(/\s+/);
-    if (words.length <= 2 && greetings.includes(words[0])) return true;
-    return false;
 }
 
+/**
+ * Section 2: Welcome / Main Menu
+ */
 export async function sendServicesMenu(senderPhone, clientContext) {
+    const custName = clientContext.name && clientContext.name !== 'Valued Client' ? clientContext.name : 'Valued Customer';
     return await sendWhatsAppButtons(senderPhone, {
         headerText: "Planex Software",
-        bodyText: `Hello ${clientContext.name},\n\nThank you for connecting with Planex Software. We specialize in enterprise software, mobile apps, and workforce automation solutions.\n\nPlease choose what you need assistance with:`,
-        footerText: "Pentasoft Consultancy",
+        bodyText: `Hello ${custName}, thank you for connecting with Planex Software.\n\nHow can we assist you today?`,
+        footerText: "Planex Enterprise Hub",
         buttons: [
             { id: "btn_menu_sales", title: "Sales & Projects" },
             { id: "btn_menu_accounts", title: "Accounts & Billing" },
@@ -2028,124 +1273,66 @@ export async function sendServicesMenu(senderPhone, clientContext) {
 }
 
 /**
- * Sub-Menu: Sales & New Projects (With Structured Customer Fields)
+ * Sub-Menu: Sales
  */
 export async function sendSalesSubMenu(senderPhone, clientContext) {
-    clientTicketDrafts.set(senderPhone, {
-        step: 'awaiting_sales_info',
-        customerId: clientContext.id,
-        customerName: clientContext.name,
-        timestamp: Date.now()
-    });
+    const custName = clientContext.name || 'Valued Client';
+    const salesIntro = `Planex Software — Enterprise Solutions
 
-    const askSalesInfo = `Planex Sales & Project Consultation\n\nPlease provide your organization & project requirements:\n• Company Name:\n• Branch Location & GST Number (if applicable):\n• Contact Person Name & Email:\n• Project Scope / Requirement (e.g., Web App, Mobile App, or Full-Stack Hybrid):\n\nOur engineering team will prepare your custom architecture blueprint and commercial quote.\n\nPrefer discussing project requirements over phone call? Tap the button below to connect with Shrirang Joshi:`;
-    await sendWhatsAppText(senderPhone, askSalesInfo);
+Hello ${custName}, we engineer high-performance software systems:
+• Web Applications & Cloud SaaS Portals
+• Mobile Apps (Android & iOS Cross-Platform)
+• Full-Stack Enterprise Systems & IoT
+
+Please choose an area of interest:`;
+
+    await sendWhatsAppText(senderPhone, salesIntro);
 
     await sendWhatsAppButtons(senderPhone, {
-        headerText: "Direct Sales Consultation",
-        bodyText: `Prefer discussing project requirements & commercial quote directly on phone with Shrirang Joshi?`,
-        footerText: "Pentasoft Consultancy",
+        headerText: "Development Packages",
+        bodyText: "Select your required technology package:",
+        footerText: "Planex Enterprise Hub",
         buttons: [
-            { id: "btn_call_shrirang", title: "Call Shrirang Joshi" }
+            { id: "srv_web", title: "Web Application" },
+            { id: "srv_app", title: "Mobile App" },
+            { id: "btn_call_shrirang", title: "Talk to Sales" }
         ]
     });
-
-    sendWhatsAppText(SALES_HEAD_PHONE, `New Sales Inquiry\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nStatus: Selected Sales & Projects option.`).catch(() => {});
 }
 
 /**
- * Handle Text Message with AI Agent + Backend Guardrail Validations
+ * Helper: Identify Greeting
  */
-async function handleTextMessageWithAI(senderPhone, textContent, clientContext) {
-    // 1. Instant Guardrail: Any greeting directly triggers the Services List Menu
-    if (isGreeting(textContent)) {
-        console.log(`✨ Greeting detected ("${textContent}"). Triggering View Services Menu.`);
-        await sendServicesMenu(senderPhone, clientContext);
-        await saveMessage({
-            senderPhone: '919082270423',
-            recipientPhone: senderPhone,
-            direction: 'outbound',
-            messageType: 'interactive',
-            messageBody: '[Services List Menu with View Services Button]'
-        });
-        return;
+function isGreeting(text) {
+    if (!text) return false;
+    const lower = String(text).toLowerCase().trim();
+    if (lower.includes('slow') || lower.includes('issue') || lower.includes('error') || lower.includes('bug') || 
+        lower.includes('invoice') || lower.includes('bill') || lower.includes('status') || lower.includes('leave') || lower.includes('utr')) {
+        return false;
     }
-
-    const history = await getConversationContext(senderPhone, 8);
-
-    const aiResult = await processMessageWithAI({
-        senderPhone,
-        userMessage: textContent,
-        clientContext,
-        conversationHistory: history
-    });
-
-    console.log("AI Reasoning Decision:", aiResult);
-
-    if (aiResult.toolCall) {
-        const { name, args } = aiResult.toolCall;
-
-        // Tool: Service Selected via text (Web / App / Hybrid)
-        if (name === 'select_service' || name === 'get_service_details') {
-            const srv = (args.service_type || '').toLowerCase();
-            if (srv.includes('app') || srv.includes('mobile') || srv.includes('android') || srv.includes('ios')) {
-                await handleInteractiveClick(senderPhone, 'srv_app', clientContext);
-            } else if (srv.includes('hybrid') || srv.includes('full') || srv.includes('both')) {
-                await handleInteractiveClick(senderPhone, 'srv_hybrid', clientContext);
-            } else {
-                await handleInteractiveClick(senderPhone, 'srv_web', clientContext);
-            }
-        }
-
-        // Tool: Send Services Menu
-        else if (name === 'send_services_menu') {
-            await sendServicesMenu(senderPhone, clientContext);
-        }
-
-        // Tool: Get Project Status
-        else if (name === 'get_project_status') {
-            await handleInteractiveClick(senderPhone, 'srv_progress', clientContext);
-        }
-
-        // Tool: Get Invoice Details
-        else if (name === 'get_invoice_details') {
-            await handleInteractiveClick(senderPhone, 'srv_invoice', clientContext);
-        }
-
-        // Tool: Create Support Ticket
-        else if (name === 'create_support_ticket') {
-            const title = args.title || textContent.substring(0, 50);
-            const desc = args.description || textContent;
-            await handleSupportTicketCreation(senderPhone, `${title}\n${desc}`, clientContext);
-        }
-
-        // Tool: UI Design Catalogue
-        else if (name === 'get_ui_catalogue') {
-            await handleInteractiveClick(senderPhone, 'srv_web', clientContext);
-        }
-
-        // Tool: Handover to Team
-        else if (name === 'handover_to_team') {
-            const teamCard = `Planex Engineering Team:
-- Lead Architect: Shrirang Joshi (+91 98210 27060)
-- Project Manager: Nitin Sir (+91 98765 43210)
-- Support Email: support@pentasoftconsultancy.com
-
-Feel free to call or message directly for project discussions.`;
-            await sendWhatsAppText(senderPhone, teamCard);
-            await saveMessage({ senderPhone: '919082270423', recipientPhone: senderPhone, direction: 'outbound', messageType: 'text', messageBody: teamCard });
-        }
-    }
-
-    // If AI responded with natural text
-    else if (aiResult.replyText) {
-        await sendWhatsAppText(senderPhone, aiResult.replyText);
-        await saveMessage({ senderPhone: '919082270423', recipientPhone: senderPhone, direction: 'outbound', messageType: 'text', messageBody: aiResult.replyText });
-    }
+    const clean = lower.replace(/[^a-z0-9\s]/g, '').trim();
+    const greetings = ['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'halo', 'yo', 'good morning', 'good evening'];
+    return greetings.includes(clean);
 }
 
 /**
- * 2. Send Direct WhatsApp Message from EMS Web Portal (Supports Text, Image, Document, or Template)
+ * Helper: Identify Resolution Keyword
+ */
+export function isResolutionKeyword(text) {
+    if (!text) return false;
+    const lower = String(text).toLowerCase().trim();
+    return lower === 'resolved' || 
+           lower.includes('ticket end') || 
+           lower.includes('close ticket') || 
+           lower.includes('issue solved') || 
+           lower.includes('problem solved') || 
+           lower.includes('kam ho gaya') ||
+           lower.includes('sab theek hai') ||
+           lower === 'close it';
+}
+
+/**
+ * Send Direct Message from EMS Web Portal
  */
 export async function sendDirectMessage(req, res) {
     try {
@@ -2172,7 +1359,7 @@ export async function sendDirectMessage(req, res) {
             const params = templateParams ? (Array.isArray(templateParams) ? templateParams : JSON.parse(templateParams)) : ['Client', 'Office', 'Admin', '9082270423', text || 'EMS Notification'];
             result = await sendWhatsAppTemplate(phone, tplName, 'en', params);
         } else {
-            result = await sendWhatsAppText(phone, text || 'Hello from PCS Enterprise EMS!');
+            result = await sendWhatsAppText(phone, text || 'Hello from Planex EMS!');
         }
 
         const wabaMsgId = result?.messages?.[0]?.id || `OUT-${Date.now()}`;
@@ -2198,13 +1385,12 @@ export async function sendDirectMessage(req, res) {
 }
 
 /**
- * 3. Fetch WhatsApp Chat History for a Customer / Employee Phone Number
+ * Fetch WhatsApp Chat History
  */
 export async function getChatHistory(req, res) {
     try {
         const { phone } = req.params;
         const cleanedPhone = sanitizePhoneNumber(phone);
-
         await ensureWhatsAppTables();
 
         const result = await pool.query(`
@@ -2221,7 +1407,6 @@ export async function getChatHistory(req, res) {
     }
 }
 
-// Ensure whatsapp_messages table exists
 async function ensureWhatsAppTables() {
     try {
         await pool.query(`
@@ -2230,23 +1415,18 @@ async function ensureWhatsAppTables() {
                 waba_message_id VARCHAR(100),
                 sender_phone VARCHAR(50) NOT NULL,
                 recipient_phone VARCHAR(50) NOT NULL,
-                direction VARCHAR(20) NOT NULL, -- 'inbound' or 'outbound'
+                direction VARCHAR(20) NOT NULL,
                 message_type VARCHAR(50) DEFAULT 'text',
                 message_body TEXT,
                 media_id VARCHAR(100),
-                status VARCHAR(50) DEFAULT 'sent', -- 'sent', 'delivered', 'read', 'received'
+                status VARCHAR(50) DEFAULT 'sent',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
-    } catch (e) {
-        // Table exists
-    }
+    } catch (e) {}
 }
 
-/**
- * 4. Stream or Redirect WhatsApp Media by Media ID
- */
 export async function getMediaStream(req, res) {
     try {
         const { mediaId } = req.params;
@@ -2259,10 +1439,9 @@ export async function getMediaStream(req, res) {
             return res.redirect(downloaded.url);
         }
 
-        return res.status(404).json({ success: false, message: 'Media attachment could not be downloaded or has expired.' });
+        return res.status(404).json({ success: false, message: 'Media attachment could not be downloaded.' });
     } catch (err) {
         console.error("❌ getMediaStream Error:", err.message);
         return res.status(500).json({ success: false, message: err.message });
     }
 }
-

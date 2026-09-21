@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resTimeRaw) {
                 const resD = new Date(resTimeRaw);
                 resDateStr = resD.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
-                             resD.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    resD.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
             }
 
             let durText = '';
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const createdDate = ticket.created_at ? new Date(ticket.created_at) : new Date();
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
-                               createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
         // If Open or Assigned and resolution not started yet:
         if ((ticket.status === 'Open' || ticket.status === 'Assigned') && !ticket.started_resolving_at) {
@@ -160,8 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const pName = typeof p === 'string' ? p : (p.name || p.project_name || 'Module');
                                 if (pName && !availableProjects.some(x => x.name.toLowerCase() === pName.toLowerCase() && x.branch_name === bName)) {
                                     // Match exact project from projectsCache (by customer_id and branch or name)
-                                    const matchingProj = projectsCache.find(mp => 
-                                        String(mp.customer_id) === String(customerId) && 
+                                    const matchingProj = projectsCache.find(mp =>
+                                        String(mp.customer_id) === String(customerId) &&
                                         ((mp.branch_name && mp.branch_name.toLowerCase() === bName.toLowerCase()) || mp.name.toLowerCase() === pName.toLowerCase())
                                     );
                                     availableProjects.push({
@@ -347,17 +347,20 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate Customer Filter & Modal Selects
             const ticketCustSelect = document.getElementById('ticket-customer');
             const editCustSelect = document.getElementById('edit-ticket-customer');
-            if (filterCustomer) filterCustomer.innerHTML = '<option value="all">All Customers</option>';
+            if (filterCustomer && filterCustomer.tagName === 'SELECT') filterCustomer.innerHTML = '<option value="all">All Customers</option>';
             if (ticketCustSelect) ticketCustSelect.innerHTML = '<option value="">Select Customer...</option>';
             if (editCustSelect) editCustSelect.innerHTML = '<option value="">Select Customer...</option>';
 
             customersCache.forEach(c => {
                 const cName = c.company_name || c.name || 'Customer';
                 const opt = `<option value="${c.id}">${cName}</option>`;
-                if (filterCustomer) filterCustomer.innerHTML += opt;
+                if (filterCustomer && filterCustomer.tagName === 'SELECT') filterCustomer.innerHTML += opt;
                 if (ticketCustSelect) ticketCustSelect.innerHTML += opt;
                 if (editCustSelect) editCustSelect.innerHTML += opt;
             });
+
+            // Populate Multi-Select Customer Checkboxes
+            populateCustomerCheckboxes(customersCache);
 
             // Initial population of Project Modal Selects
             const ticketProjSelect = document.getElementById('ticket-project');
@@ -414,18 +417,21 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate Staff Modal, Filter & Workspace Selects
             const ticketAssigneeSelect = document.getElementById('ticket-assignee');
             const editAssigneeSelect = document.getElementById('edit-ticket-assignee');
-            if (filterEmployee) filterEmployee.innerHTML = '<option value="all">All Employees</option>';
+            if (filterEmployee && filterEmployee.tagName === 'SELECT') filterEmployee.innerHTML = '<option value="all">All Employees</option>';
             if (ticketAssigneeSelect) ticketAssigneeSelect.innerHTML = '<option value="">Unassigned</option>';
             if (editAssigneeSelect) editAssigneeSelect.innerHTML = '<option value="">Unassigned</option>';
             if (metaAssigneeSelect) metaAssigneeSelect.innerHTML = '<option value="">Unassigned</option>';
 
             employeesCache.forEach(e => {
                 const opt = `<option value="${e.id}">${e.full_name} (${e.role || 'Staff'})</option>`;
-                if (filterEmployee) filterEmployee.innerHTML += `<option value="${e.id}">${e.full_name}</option>`;
+                if (filterEmployee && filterEmployee.tagName === 'SELECT') filterEmployee.innerHTML += `<option value="${e.id}">${e.full_name}</option>`;
                 if (ticketAssigneeSelect) ticketAssigneeSelect.innerHTML += opt;
                 if (editAssigneeSelect) editAssigneeSelect.innerHTML += opt;
                 if (metaAssigneeSelect) metaAssigneeSelect.innerHTML += opt;
             });
+
+            // Populate Multi-Select Employee Checkboxes
+            populateEmployeeCheckboxes(employeesCache);
         } catch (err) {
             console.error("Error loading dropdown data:", err);
         }
@@ -499,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const attList = Array.isArray(t.attachments) ? t.attachments : (t.attachments ? [t.attachments] : []);
                 const attBadge = attList.length > 0 ? `<span class="badge" style="background:rgba(14,165,233,0.12); color:#0284c7; font-size:10.5px; border:1px solid rgba(14,165,233,0.25); margin-left:4px;"><i class="fa-solid fa-paperclip"></i> ${attList.length} attachment${attList.length > 1 ? 's' : ''}</span>` : '';
+                const sourceBadge = t.source === 'Email' ? `<span class="badge" style="background:rgba(234,88,12,0.12); color:#ea580c; font-size:10.5px; border:1px solid rgba(234,88,12,0.3); margin-left:4px;"><i class="fa-solid fa-envelope"></i> Email</span>` : '';
 
                 const totalChunks = parseInt(t.total_subtasks || 0, 10);
                 const doneChunks = parseInt(t.completed_subtasks || 0, 10);
@@ -524,6 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>
                             <div style="font-weight:700; color:var(--teal-950); font-size:13px; margin-bottom:3px;">${t.title}</div>
                             <span class="badge" style="background:rgba(6,182,212,0.12); color:#0891b2; font-size:10.5px; border:1px solid rgba(6,182,212,0.25);">${t.category || 'Bug'}</span>
+                            ${sourceBadge}
                             ${attBadge}
                             ${chunkBadge}
                         </td>
@@ -553,6 +561,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <button type="button" class="btn-secondary" onclick="window.openEditTicketModal(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(217,119,6,0.1); color:#d97706; border:1px solid rgba(217,119,6,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Edit Support Ticket">
                                     <i class="fa-solid fa-pen-to-square" style="font-size:10.5px;"></i> Edit
                                 </button>
+                                <button type="button" class="btn-secondary" onclick="window.deleteSupportTicket(${t.id}, '${t.ticket_code}')" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(239,68,68,0.12); color:#dc2626; border:1px solid rgba(239,68,68,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Delete Ticket">
+                                    <i class="fa-solid fa-trash" style="font-size:10.5px;"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -567,13 +578,310 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Wire Filter Listeners
+    // Single Ticket Delete Handler
+    window.deleteSupportTicket = async function(id, code) {
+        if (!confirm(`Are you sure you want to permanently delete ticket ${code}? This will remove all associated comments, subtasks, and files.`)) {
+            return;
+        }
+        try {
+            const res = await fetch(`/api/v1/support/${id}`, { method: 'DELETE' });
+            const json = await res.json();
+            if (res.ok && json.success) {
+                if (typeof showToast === 'function') showToast(`Ticket ${code} deleted successfully`, "success");
+                else alert(`Ticket ${code} deleted successfully`);
+                loadTickets();
+            } else {
+                alert(json.message || "Failed to delete ticket");
+            }
+        } catch (e) {
+            console.error("Error deleting ticket:", e);
+            alert("Network error deleting ticket");
+        }
+    };
+
+    // Bulk Purge Inbound Email Tickets Handler
+    window.purgeAllEmailTickets = async function() {
+        if (!confirm("Are you sure you want to PURGE & DELETE all auto-created Inbound Email tickets from the database?")) {
+            return;
+        }
+        try {
+            const res = await fetch('/api/v1/support/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ onlyEmailInbound: true })
+            });
+            const json = await res.json();
+            if (res.ok && json.success) {
+                if (typeof showToast === 'function') showToast(json.message, "success");
+                else alert(json.message);
+                loadTickets();
+            } else {
+                alert(json.message || "Failed to purge email tickets");
+            }
+        } catch (e) {
+            console.error("Error purging email tickets:", e);
+            alert("Network error deleting tickets");
+        }
+    };
+
+    // =========================================================================
+    // UNIVERSAL MULTI-SELECT DROPDOWN SYSTEM
+    // =========================================================================
+    const multiSelectInstances = {};
+
+    function initMultiSelectDropdown({
+        containerId,
+        btnId,
+        labelId,
+        menuId,
+        chevronId,
+        checkboxClass,
+        selectAllId,
+        clearAllId,
+        hiddenInputId,
+        defaultText,
+        iconHtml,
+        onChange
+    }) {
+        const container = document.getElementById(containerId);
+        const btn = document.getElementById(btnId);
+        const label = document.getElementById(labelId);
+        const menu = document.getElementById(menuId);
+        const chevron = document.getElementById(chevronId);
+        const hiddenInput = document.getElementById(hiddenInputId);
+        const selectAllBtn = document.getElementById(selectAllId);
+        const clearAllBtn = document.getElementById(clearAllId);
+
+        if (!container || !btn || !menu) return null;
+
+        const updateState = () => {
+            const checkboxes = Array.from(container.querySelectorAll(`.${checkboxClass}`));
+            const checked = Array.from(container.querySelectorAll(`.${checkboxClass}:checked`)).map(cb => {
+                const textSpan = cb.closest('label')?.querySelector('span:not([style*="border-radius:50%"])') || cb.closest('label');
+                const labelText = (textSpan ? textSpan.textContent.trim() : cb.value) || cb.value;
+                return { value: cb.value, label: labelText };
+            });
+            const total = checkboxes.length;
+
+            if (checked.length === 0 || checked.length === total) {
+                if (hiddenInput) hiddenInput.value = 'all';
+                if (label) label.innerHTML = `${iconHtml} ${defaultText}`;
+            } else if (checked.length === 1) {
+                if (hiddenInput) hiddenInput.value = checked[0].value;
+                if (label) label.innerHTML = `<i class="fa-solid fa-check" style="color:#0F766E;"></i> ${checked[0].label}`;
+            } else if (checked.length === 2) {
+                if (hiddenInput) hiddenInput.value = checked.map(c => c.value).join(',');
+                if (label) label.innerHTML = `<i class="fa-solid fa-check-double" style="color:#0F766E;"></i> ${checked.map(c => c.label).join(', ')}`;
+            } else {
+                if (hiddenInput) hiddenInput.value = checked.map(c => c.value).join(',');
+                if (label) label.innerHTML = `<span class="badge" style="background:rgba(15,118,110,0.15); color:#0F766E; font-size:11px; padding:2px 7px; border-radius:6px; font-weight:800;">${checked.length} Selected</span>`;
+            }
+        };
+
+        // Open/Close toggle (and close any other open multi-selects)
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = menu.style.display === 'block';
+
+            // Close all custom multi-select menus first
+            document.querySelectorAll('.custom-multiselect-menu').forEach(m => m.style.display = 'none');
+            document.querySelectorAll('.custom-multiselect-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.custom-multiselect-container i.fa-chevron-down').forEach(ch => ch.style.transform = 'none');
+
+            if (!isOpen) {
+                menu.style.display = 'block';
+                btn.classList.add('active');
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
+            }
+        });
+
+        // Delegate checkbox changes
+        menu.addEventListener('change', (e) => {
+            if (e.target.classList.contains(checkboxClass)) {
+                updateState();
+                if (typeof onChange === 'function') onChange();
+            }
+        });
+
+        // Select All
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                container.querySelectorAll(`.${checkboxClass}`).forEach(cb => cb.checked = true);
+                updateState();
+                if (typeof onChange === 'function') onChange();
+            });
+        }
+
+        // Clear All
+        if (clearAllBtn) {
+            clearAllBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                container.querySelectorAll(`.${checkboxClass}`).forEach(cb => cb.checked = false);
+                updateState();
+                if (typeof onChange === 'function') onChange();
+            });
+        }
+
+        return { updateState };
+    }
+
+    // Global Click Handler to close any open multi-select dropdown menu
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.custom-multiselect-container')) {
+            document.querySelectorAll('.custom-multiselect-menu').forEach(m => m.style.display = 'none');
+            document.querySelectorAll('.custom-multiselect-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.custom-multiselect-container i.fa-chevron-down').forEach(ch => ch.style.transform = 'none');
+        }
+    });
+
+    // Populate Dynamic Customer Checkboxes in Dropdown Menu
+    function populateCustomerCheckboxes(customers) {
+        const listEl = document.getElementById('customer-checkboxes-list');
+        if (!listEl) return;
+        if (!customers || customers.length === 0) {
+            listEl.innerHTML = '<span style="color:#94a3b8; font-size:12px; padding:6px;">No customers found</span>';
+            return;
+        }
+        let html = '';
+        customers.forEach(c => {
+            const cName = c.company_name || c.name || 'Customer';
+            html += `
+                <label class="multiselect-item customer-item-label" style="display:flex; align-items:center; gap:10px; padding:7px 9px; border-radius:8px; cursor:pointer; font-size:13.5px; font-weight:600; color:#334155; user-select:none;">
+                  <input type="checkbox" class="customer-checkbox" value="${c.id}" style="width:16px; height:16px; accent-color:#0F766E; cursor:pointer;">
+                  <span class="cust-name-text">${cName}</span>
+                </label>
+            `;
+        });
+        listEl.innerHTML = html;
+
+        // Quick filter search inside customer menu
+        const searchInput = document.getElementById('search-customer-filter');
+        if (searchInput) {
+            searchInput.oninput = (e) => {
+                const term = e.target.value.toLowerCase();
+                listEl.querySelectorAll('.customer-item-label').forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    item.style.display = text.includes(term) ? 'flex' : 'none';
+                });
+            };
+        }
+
+        if (multiSelectInstances.customer) multiSelectInstances.customer.updateState();
+    }
+
+    // Populate Dynamic Employee Checkboxes in Dropdown Menu
+    function populateEmployeeCheckboxes(employees) {
+        const listEl = document.getElementById('employee-checkboxes-list');
+        if (!listEl) return;
+        if (!employees || employees.length === 0) {
+            listEl.innerHTML = '<span style="color:#94a3b8; font-size:12px; padding:6px;">No employees found</span>';
+            return;
+        }
+        let html = '';
+        employees.forEach(emp => {
+            html += `
+                <label class="multiselect-item employee-item-label" style="display:flex; align-items:center; gap:10px; padding:7px 9px; border-radius:8px; cursor:pointer; font-size:13.5px; font-weight:600; color:#334155; user-select:none;">
+                  <input type="checkbox" class="employee-checkbox" value="${emp.id}" style="width:16px; height:16px; accent-color:#0F766E; cursor:pointer;">
+                  <span class="emp-name-text">${emp.full_name}</span>
+                </label>
+            `;
+        });
+        listEl.innerHTML = html;
+
+        // Quick filter search inside employee menu
+        const searchInput = document.getElementById('search-employee-filter');
+        if (searchInput) {
+            searchInput.oninput = (e) => {
+                const term = e.target.value.toLowerCase();
+                listEl.querySelectorAll('.employee-item-label').forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    item.style.display = text.includes(term) ? 'flex' : 'none';
+                });
+            };
+        }
+
+        if (multiSelectInstances.employee) multiSelectInstances.employee.updateState();
+    }
+
+    // Initialize all 5 multi-select instances
+    multiSelectInstances.customer = initMultiSelectDropdown({
+        containerId: 'customer-multiselect-container',
+        btnId: 'filter-customer-btn',
+        labelId: 'filter-customer-label',
+        menuId: 'filter-customer-menu',
+        chevronId: 'filter-customer-chevron',
+        checkboxClass: 'customer-checkbox',
+        selectAllId: 'btn-customer-select-all',
+        clearAllId: 'btn-customer-clear-all',
+        hiddenInputId: 'filter-customer',
+        defaultText: 'All Customers',
+        iconHtml: '<i class="fa-solid fa-building" style="color:#0F766E;"></i>',
+        onChange: loadTickets
+    });
+
+    multiSelectInstances.employee = initMultiSelectDropdown({
+        containerId: 'employee-multiselect-container',
+        btnId: 'filter-employee-btn',
+        labelId: 'filter-employee-label',
+        menuId: 'filter-employee-menu',
+        chevronId: 'filter-employee-chevron',
+        checkboxClass: 'employee-checkbox',
+        selectAllId: 'btn-employee-select-all',
+        clearAllId: 'btn-employee-clear-all',
+        hiddenInputId: 'filter-employee',
+        defaultText: 'All Employees',
+        iconHtml: '<i class="fa-solid fa-user-gear" style="color:#0F766E;"></i>',
+        onChange: loadTickets
+    });
+
+    multiSelectInstances.category = initMultiSelectDropdown({
+        containerId: 'category-multiselect-container',
+        btnId: 'filter-category-btn',
+        labelId: 'filter-category-label',
+        menuId: 'filter-category-menu',
+        chevronId: 'filter-category-chevron',
+        checkboxClass: 'category-checkbox',
+        selectAllId: 'btn-category-select-all',
+        clearAllId: 'btn-category-clear-all',
+        hiddenInputId: 'filter-category',
+        defaultText: 'All Categories',
+        iconHtml: '<i class="fa-solid fa-tags" style="color:#0F766E;"></i>',
+        onChange: loadTickets
+    });
+
+    multiSelectInstances.priority = initMultiSelectDropdown({
+        containerId: 'priority-multiselect-container',
+        btnId: 'filter-priority-btn',
+        labelId: 'filter-priority-label',
+        menuId: 'filter-priority-menu',
+        chevronId: 'filter-priority-chevron',
+        checkboxClass: 'priority-checkbox',
+        selectAllId: 'btn-priority-select-all',
+        clearAllId: 'btn-priority-clear-all',
+        hiddenInputId: 'filter-priority',
+        defaultText: 'All Priorities',
+        iconHtml: '<i class="fa-solid fa-layer-group" style="color:#0F766E;"></i>',
+        onChange: loadTickets
+    });
+
+    multiSelectInstances.status = initMultiSelectDropdown({
+        containerId: 'status-multiselect-container',
+        btnId: 'filter-status-btn',
+        labelId: 'filter-status-label',
+        menuId: 'filter-status-menu',
+        chevronId: 'filter-status-chevron',
+        checkboxClass: 'status-checkbox',
+        selectAllId: 'btn-status-select-all',
+        clearAllId: 'btn-status-clear-all',
+        hiddenInputId: 'filter-status',
+        defaultText: 'All Statuses',
+        iconHtml: '<i class="fa-solid fa-list-check" style="color:#0F766E;"></i>',
+        onChange: loadTickets
+    });
+
+    // Wire Search & Date Filter Listeners
     if (ticketSearch) ticketSearch.addEventListener('input', loadTickets);
-    if (filterCustomer) filterCustomer.addEventListener('change', loadTickets);
-    if (filterEmployee) filterEmployee.addEventListener('change', loadTickets);
-    if (filterCategory) filterCategory.addEventListener('change', loadTickets);
-    if (filterPriority) filterPriority.addEventListener('change', loadTickets);
-    if (filterStatus) filterStatus.addEventListener('change', loadTickets);
     if (filterFromDate) filterFromDate.addEventListener('change', loadTickets);
     if (filterToDate) filterToDate.addEventListener('change', loadTickets);
     if (btnClearDates) btnClearDates.addEventListener('click', () => {
@@ -704,14 +1012,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Details & Attachments
             const descEl = document.getElementById('view-ticket-description');
             if (descEl) descEl.textContent = t.description || 'No detailed description provided.';
-            
+
             const attArea = document.getElementById('view-ticket-attachments-area');
             const attList = document.getElementById('view-ticket-attachments-list');
             let atts = [];
             if (t.attachments) {
                 try {
                     atts = typeof t.attachments === 'string' ? JSON.parse(t.attachments) : t.attachments;
-                } catch(e) {
+                } catch (e) {
                     atts = typeof t.attachments === 'string' && t.attachments.trim() ? [t.attachments] : [];
                 }
             }
@@ -1031,26 +1339,43 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalSubtaskHandoverCancel = document.getElementById('modal-subtask-handover-cancel');
 
     const closeAddSubtaskModal = () => {
-        if (modalAddSubtask) modalAddSubtask.style.display = 'none';
+        const m = document.getElementById('modal-add-subtask');
+        if (m) {
+            m.classList.remove('active');
+            m.style.opacity = '0';
+            m.style.pointerEvents = 'none';
+            setTimeout(() => { m.style.display = 'none'; }, 150);
+        }
         if (formAddSubtask) formAddSubtask.reset();
         const editIdEl = document.getElementById('subtask-edit-id');
         if (editIdEl) editIdEl.value = '';
     };
+    window.closeAddSubtaskModal = closeAddSubtaskModal;
 
     const closeSubtaskHandoverModal = () => {
-        if (modalSubtaskHandover) modalSubtaskHandover.style.display = 'none';
+        const m = document.getElementById('modal-subtask-handover');
+        if (m) {
+            m.classList.remove('active');
+            m.style.opacity = '0';
+            m.style.pointerEvents = 'none';
+            setTimeout(() => { m.style.display = 'none'; }, 150);
+        }
         if (formSubtaskHandover) formSubtaskHandover.reset();
         const hidEl = document.getElementById('handover-subtask-id');
         if (hidEl) hidEl.value = '';
     };
+    window.closeSubtaskHandoverModal = closeSubtaskHandoverModal;
 
     if (modalAddSubtaskClose) modalAddSubtaskClose.addEventListener('click', closeAddSubtaskModal);
     if (modalAddSubtaskCancel) modalAddSubtaskCancel.addEventListener('click', closeAddSubtaskModal);
     if (modalSubtaskHandoverClose) modalSubtaskHandoverClose.addEventListener('click', closeSubtaskHandoverModal);
     if (modalSubtaskHandoverCancel) modalSubtaskHandoverCancel.addEventListener('click', closeSubtaskHandoverModal);
 
-    window.openAddSubtaskModal = (editId = null) => {
-        if (!currentActiveTicketId) return;
+    window.openAddSubtaskModal = async (editId = null) => {
+        if (!currentActiveTicketId) {
+            console.warn("No active ticket selected when opening subtask modal");
+            return;
+        }
 
         const titleEl = document.getElementById('subtask-modal-title');
         const editIdInput = document.getElementById('subtask-edit-id');
@@ -1061,26 +1386,41 @@ document.addEventListener('DOMContentLoaded', () => {
         const seqInput = document.getElementById('subtask-seq-input');
         const hoursInput = document.getElementById('subtask-hours-input');
 
+        // Ensure employeesCache is populated
+        if (!employeesCache || employeesCache.length === 0) {
+            try {
+                const empRes = await fetch('/api/v1/admin/employees');
+                const empData = await empRes.json();
+                if (empData.success) {
+                    employeesCache = Array.isArray(empData.data) ? empData.data : (empData.data?.employees || []);
+                }
+            } catch (e) {
+                console.warn("Could not fetch employees for subtasks:", e);
+            }
+        }
+
         // Populate Assignees
         if (assigneeSelect) {
             assigneeSelect.innerHTML = '<option value="">Select Employee...</option>';
-            employeesCache.forEach(e => {
-                assigneeSelect.innerHTML += `<option value="${e.id}">${e.full_name} (${e.role || 'Staff'})</option>`;
+            (employeesCache || []).forEach(e => {
+                const empName = e.full_name || e.name || 'Staff';
+                const empRole = e.role || e.designation || 'Staff';
+                assigneeSelect.innerHTML += `<option value="${e.id}">${empName} (${empRole})</option>`;
             });
         }
 
         // Populate Dependencies (exclude self if editing)
         if (depSelect) {
-            depSelect.innerHTML = '<option value="">None (Can start immediately)</option>';
-            currentTicketSubtasksCache.forEach(s => {
+            depSelect.innerHTML = '<option value="">⚡ None (Parallel / Start Immediately)</option>';
+            (currentTicketSubtasksCache || []).forEach(s => {
                 if (!editId || String(s.id) !== String(editId)) {
-                    depSelect.innerHTML += `<option value="${s.id}">#${s.sequence_order} - ${s.title} (${s.assigned_to_name || 'Staff'})</option>`;
+                    depSelect.innerHTML += `<option value="${s.id}">🔗 #${s.sequence_order} - ${s.title} (${s.assigned_to_name || 'Staff'})</option>`;
                 }
             });
         }
 
         if (editId) {
-            const st = currentTicketSubtasksCache.find(s => String(s.id) === String(editId));
+            const st = (currentTicketSubtasksCache || []).find(s => String(s.id) === String(editId));
             if (!st) return;
             if (titleEl) titleEl.textContent = "Edit Work Chunk / Sub-Task";
             if (editIdInput) editIdInput.value = st.id;
@@ -1097,11 +1437,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (descInput) descInput.value = '';
             if (assigneeSelect) assigneeSelect.value = '';
             if (depSelect) depSelect.value = '';
-            if (seqInput) seqInput.value = currentTicketSubtasksCache.length + 1;
+            if (seqInput) seqInput.value = (currentTicketSubtasksCache || []).length + 1;
             if (hoursInput) hoursInput.value = '0.0';
         }
 
-        if (modalAddSubtask) modalAddSubtask.style.display = 'flex';
+        const m = document.getElementById('modal-add-subtask');
+        if (m) {
+            m.style.display = 'flex';
+            m.classList.add('active');
+            m.style.opacity = '1';
+            m.style.pointerEvents = 'auto';
+            m.style.zIndex = '9999999';
+        }
     };
 
     window.openEditSubtaskModal = (subtaskId) => {
@@ -1109,7 +1456,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (btnAddSubtask) {
-        btnAddSubtask.addEventListener('click', () => window.openAddSubtaskModal());
+        btnAddSubtask.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.openAddSubtaskModal();
+        });
     }
 
     if (formAddSubtask) {
@@ -1157,15 +1508,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.openSubtaskHandoverModal = (subtaskId) => {
-        const st = currentTicketSubtasksCache.find(s => String(s.id) === String(subtaskId));
+        const st = (currentTicketSubtasksCache || []).find(s => String(s.id) === String(subtaskId));
         if (!st) return;
 
-        document.getElementById('handover-subtask-id').value = st.id;
-        document.getElementById('handover-subtask-title').textContent = `#${st.sequence_order || ''} - ${st.title}`;
-        document.getElementById('handover-hours-input').value = st.time_spent_hours || '1.0';
-        document.getElementById('handover-notes-input').value = st.handover_notes || '';
+        const hidEl = document.getElementById('handover-subtask-id');
+        const hTitleEl = document.getElementById('handover-subtask-title');
+        const hHoursEl = document.getElementById('handover-hours-input');
+        const hNotesEl = document.getElementById('handover-notes-input');
 
-        if (modalSubtaskHandover) modalSubtaskHandover.style.display = 'flex';
+        if (hidEl) hidEl.value = st.id;
+        if (hTitleEl) hTitleEl.textContent = `#${st.sequence_order || ''} - ${st.title}`;
+        if (hHoursEl) hHoursEl.value = st.time_spent_hours || '1.0';
+        if (hNotesEl) hNotesEl.value = st.handover_notes || '';
+
+        const m = document.getElementById('modal-subtask-handover');
+        if (m) {
+            m.style.display = 'flex';
+            m.classList.add('active');
+            m.style.opacity = '1';
+            m.style.pointerEvents = 'auto';
+            m.style.zIndex = '9999999';
+        }
     };
 
     if (formSubtaskHandover) {
@@ -1286,7 +1649,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Quick Start Resolving Ticket from Admin Table or Modal
-    window.startResolvingTicket = async function(ticketId) {
+    window.startResolvingTicket = async function (ticketId) {
         try {
             const res = await fetch(`/api/v1/support/${ticketId}/status`, {
                 method: 'PUT',
@@ -1309,7 +1672,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Quick Resolve Ticket from Admin Table
-    window.quickResolveTicket = async function(ticketId) {
+    window.quickResolveTicket = async function (ticketId) {
         if (!confirm("Mark this support ticket as Resolved?")) return;
         try {
             const res = await fetch(`/api/v1/support/${ticketId}/status`, {
@@ -1333,7 +1696,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Reopen Ticket from Admin Desk
-    window.reopenTicket = async function(ticketId) {
+    window.reopenTicket = async function (ticketId) {
         const reason = prompt("Enter reason for reopening ticket (or customer feedback):", "Further resolution work required.");
         if (reason === null) return;
 
@@ -1507,7 +1870,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('edit-ticket-category').value = t.category || 'Bug';
             document.getElementById('edit-ticket-priority').value = t.priority || 'Medium';
             document.getElementById('edit-ticket-status').value = t.status || 'Open';
-            
+
             const custSelect = document.getElementById('edit-ticket-customer');
             if (custSelect) custSelect.value = t.customer_id || '';
 

@@ -174,6 +174,27 @@ document.addEventListener('DOMContentLoaded', () => {
     let holidaysCache = [];
     let currentDailyLogsCache = [];
 
+    function formatDateDMY(val) {
+        if (!val || val === '—' || val === '-') return '—';
+        if (typeof val === 'string') {
+            const cleanStr = val.split('T')[0];
+            if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+                const parts = cleanStr.split('-');
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        }
+        try {
+            const d = new Date(val);
+            if (!isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+        } catch (e) {}
+        return String(val);
+    }
+
     // Switch Top-Level Main Tabs (Attendance vs Leaves vs Out Entry vs Holidays)
     const switchMainTab = (tab) => {
         if (tabBtnAttendance) tabBtnAttendance.classList.remove('active');
@@ -266,57 +287,137 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabPcsSummary) tabPcsSummary.addEventListener('click', () => switchAttendanceTab('pcs-summary'));
     if (tabPending) tabPending.addEventListener('click', () => switchAttendanceTab('pending'));
 
-    // --- MODAL CONTROLLERS ---
-    const openCorrectionModal = () => {
-        if (corrDate) corrDate.value = today;
-        if (correctionModal) correctionModal.style.display = 'flex';
+    // --- MODAL CONTROLLERS & DROPDOWNS ---
+    const ensureEmployeesLoaded = async () => {
+        if (employeesCache && employeesCache.length > 0) return employeesCache;
+        try {
+            const res = await fetch('/api/v1/admin/employees');
+            const data = await res.json();
+            if (res.ok && data.success) {
+                employeesCache = Array.isArray(data.data) ? data.data : (data.data?.employees || []);
+                populateEmployeesDropdowns();
+            }
+        } catch (e) {
+            console.warn("Could not load employees dropdown:", e);
+        }
+        return employeesCache;
     };
+
+    const openCorrectionModal = async () => {
+        await ensureEmployeesLoaded();
+        if (corrDate) corrDate.value = today;
+        populateEmployeesDropdowns();
+        const m = document.getElementById('correction-modal');
+        if (m) {
+            m.style.display = 'flex';
+            m.classList.add('active');
+            m.style.opacity = '1';
+            m.style.pointerEvents = 'auto';
+        }
+        if (typeof window.openModal === 'function') window.openModal('correction-modal');
+    };
+    window.openCorrectionModal = openCorrectionModal;
+
     const closeCorrectionModal = () => {
-        if (correctionModal) correctionModal.style.display = 'none';
+        const m = document.getElementById('correction-modal');
+        if (m) {
+            m.classList.remove('active');
+            m.style.opacity = '0';
+            m.style.pointerEvents = 'none';
+            setTimeout(() => { m.style.display = 'none'; }, 150);
+        }
+        if (typeof window.closeModal === 'function') window.closeModal('correction-modal');
         if (correctionForm) correctionForm.reset();
     };
+    window.closeCorrectionModal = closeCorrectionModal;
 
     if (btnAddCorrection) btnAddCorrection.addEventListener('click', openCorrectionModal);
     if (correctionClose) correctionClose.addEventListener('click', closeCorrectionModal);
     if (correctionCancel) correctionCancel.addEventListener('click', closeCorrectionModal);
 
-    const openLeaveModal = () => {
+    const openLeaveModal = async () => {
+        await ensureEmployeesLoaded();
         const startEl = document.getElementById('leave-start');
         const endEl = document.getElementById('leave-end');
         if (startEl) startEl.value = today;
         if (endEl) endEl.value = today;
-        if (leaveModal) leaveModal.style.display = 'flex';
+        populateEmployeesDropdowns();
+        const m = document.getElementById('leave-modal');
+        if (m) {
+            m.style.display = 'flex';
+            m.classList.add('active');
+            m.style.opacity = '1';
+            m.style.pointerEvents = 'auto';
+        }
+        if (typeof window.openModal === 'function') window.openModal('leave-modal');
     };
+    window.openLeaveModal = openLeaveModal;
+
     const closeLeaveModal = () => {
-        if (leaveModal) leaveModal.style.display = 'none';
+        const m = document.getElementById('leave-modal');
+        if (m) {
+            m.classList.remove('active');
+            m.style.opacity = '0';
+            m.style.pointerEvents = 'none';
+            setTimeout(() => { m.style.display = 'none'; }, 150);
+        }
+        if (typeof window.closeModal === 'function') window.closeModal('leave-modal');
         if (leaveForm) leaveForm.reset();
     };
+    window.closeLeaveModal = closeLeaveModal;
 
     if (btnAddLeave) btnAddLeave.addEventListener('click', openLeaveModal);
     if (leaveClose) leaveClose.addEventListener('click', closeLeaveModal);
     if (leaveCancel) leaveCancel.addEventListener('click', closeLeaveModal);
 
-    const openOutEntryModal = () => {
+    const openOutEntryModal = async () => {
+        await ensureEmployeesLoaded();
         if (outDate) outDate.value = today;
         if (outTimeVal) {
             const now = new Date();
             outTimeVal.value = now.toTimeString().slice(0, 5);
         }
-        if (outEntryModal) outEntryModal.style.display = 'flex';
+        populateEmployeesDropdowns();
+        const m = document.getElementById('out-entry-modal');
+        if (m) {
+            m.style.display = 'flex';
+            m.classList.add('active');
+            m.style.opacity = '1';
+            m.style.pointerEvents = 'auto';
+        }
+        if (typeof window.openModal === 'function') window.openModal('out-entry-modal');
     };
+    window.openOutEntryModal = openOutEntryModal;
+
     const closeOutEntryModal = () => {
-        if (outEntryModal) outEntryModal.style.display = 'none';
+        const m = document.getElementById('out-entry-modal');
+        if (m) {
+            m.classList.remove('active');
+            m.style.opacity = '0';
+            m.style.pointerEvents = 'none';
+            setTimeout(() => { m.style.display = 'none'; }, 150);
+        }
+        if (typeof window.closeModal === 'function') window.closeModal('out-entry-modal');
         if (outEntryForm) outEntryForm.reset();
     };
+    window.closeOutEntryModal = closeOutEntryModal;
 
     if (btnAddOutEntry) btnAddOutEntry.addEventListener('click', openOutEntryModal);
     if (outEntryClose) outEntryClose.addEventListener('click', closeOutEntryModal);
     if (outEntryCancel) outEntryCancel.addEventListener('click', closeOutEntryModal);
 
     const closeMarkReturnModal = () => {
-        if (markReturnModal) markReturnModal.style.display = 'none';
+        const m = document.getElementById('mark-return-modal');
+        if (m) {
+            m.classList.remove('active');
+            m.style.opacity = '0';
+            m.style.pointerEvents = 'none';
+            setTimeout(() => { m.style.display = 'none'; }, 150);
+        }
+        if (typeof window.closeModal === 'function') window.closeModal('mark-return-modal');
         if (markReturnForm) markReturnForm.reset();
     };
+    window.closeMarkReturnModal = closeMarkReturnModal;
 
     if (markReturnClose) markReturnClose.addEventListener('click', closeMarkReturnModal);
     if (markReturnCancel) markReturnCancel.addEventListener('click', closeMarkReturnModal);
@@ -712,7 +813,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-weight:700; color:var(--text-dark);">${req.full_name || 'Unknown'}</div>
                         <div style="font-size:11px; color:var(--text-muted);">${req.employee_code || ''}</div>
                     </td>
-                    <td>${new Date(req.date).toLocaleDateString()}</td>
+                    <td>${formatDateDMY(req.date)}</td>
                     <td><strong>${reqInStr}</strong></td>
                     <td><strong>${reqOutStr}</strong></td>
                     <td><span class="status-pill pending">${req.approval_status}</span></td>
@@ -760,24 +861,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    window.editCorrection = (log) => {
+    window.editCorrection = async (log) => {
+        await ensureEmployeesLoaded();
+        populateEmployeesDropdowns();
         if (correctionForm) correctionForm.reset();
         if (corrEmployee) corrEmployee.value = log.employee_id;
-        if (corrDate) corrDate.value = new Date(log.date).toISOString().split('T')[0];
+        if (corrDate) {
+            const d = new Date(log.date);
+            corrDate.value = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : today;
+        }
         
         if (log.login_time) {
             const login = new Date(log.login_time);
-            document.getElementById('corr-in').value = login.toTimeString().split(' ')[0].substring(0, 5);
+            document.getElementById('corr-in').value = !isNaN(login.getTime()) ? login.toTimeString().split(' ')[0].substring(0, 5) : '';
         }
         if (log.logout_time) {
             const logout = new Date(log.logout_time);
-            document.getElementById('corr-out').value = logout.toTimeString().split(' ')[0].substring(0, 5);
+            document.getElementById('corr-out').value = !isNaN(logout.getTime()) ? logout.toTimeString().split(' ')[0].substring(0, 5) : '';
         }
 
         document.getElementById('corr-status').value = log.status || 'Present';
         document.getElementById('corr-overtime').value = log.overtime || '';
 
-        if (correctionModal) correctionModal.classList.add('active');
+        const m = document.getElementById('correction-modal');
+        if (m) {
+            m.style.display = 'flex';
+            m.classList.add('active');
+            m.style.opacity = '1';
+            m.style.pointerEvents = 'auto';
+        }
+        if (typeof window.openModal === 'function') window.openModal('correction-modal');
     };
 
     window.approveCorrectionClick = async (id) => {
@@ -843,8 +956,8 @@ document.addEventListener('DOMContentLoaded', () => {
             leavesList.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No leave requests found</td></tr>`;
         } else {
             leavesCache.forEach(req => {
-                const startDate = new Date(req.start_date).toLocaleDateString();
-                const endDate = new Date(req.end_date).toLocaleDateString();
+                const startDate = formatDateDMY(req.start_date);
+                const endDate = formatDateDMY(req.end_date);
                 
                 const statusClass = req.status === 'Approved' ? 'progress' : (req.status === 'Rejected' ? 'todo' : 'pending');
                 const statusLabel = req.status || 'Pending';
@@ -875,7 +988,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-size:11px; color:var(--text-muted);">${req.employee_code || ''}</div>
                     </td>
                     <td><span style="font-weight:600;">${req.leave_type}</span></td>
-                    <td>${startDate} &rarr; ${endDate}</td>
+                    <td><strong>${startDate}</strong> &rarr; <strong>${endDate}</strong></td>
                     <td><span style="color:var(--text-muted); font-size:12.5px;">${req.reason || '—'}</span></td>
                     <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
                     <td>
@@ -1010,7 +1123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             outEntriesCache.forEach(entry => {
                 const tr = document.createElement('tr');
-                const outDateFormatted = new Date(entry.date).toLocaleDateString();
+                const outDateFormatted = formatDateDMY(entry.date);
                 
                 let durationStr = '—';
                 if (entry.duration_minutes > 0) {
@@ -1859,13 +1972,13 @@ document.addEventListener('DOMContentLoaded', () => {
         currentHistoryData.forEach(l => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
-            const sDate = new Date(l.start_date).toLocaleDateString();
-            const eDate = new Date(l.end_date).toLocaleDateString();
+            const sDate = formatDateDMY(l.start_date);
+            const eDate = formatDateDMY(l.end_date);
             const statusClass = l.status === 'Approved' ? 'progress' : (l.status === 'Rejected' ? 'todo' : 'pending');
 
             tr.innerHTML = `
                 <td style="padding:8px 12px; font-weight:700; color:var(--teal-900);">${l.leave_type}</td>
-                <td style="padding:8px 12px;">${sDate} &rarr; ${eDate}</td>
+                <td style="padding:8px 12px;"><strong>${sDate}</strong> &rarr; <strong>${eDate}</strong></td>
                 <td style="padding:8px 12px; color:var(--text-muted);">${l.reason || '—'}</td>
                 <td style="padding:8px 12px;"><span class="status-pill ${statusClass}">${l.status}</span></td>
             `;
@@ -1896,7 +2009,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentHistoryData.forEach(o => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
-            const dStr = new Date(o.date).toLocaleDateString();
+            const dStr = formatDateDMY(o.date);
             let durStr = '—';
             if (o.duration_minutes > 0) {
                 const hrs = Math.floor(o.duration_minutes / 60);
@@ -2266,7 +2379,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (el) el.value = val;
         };
 
-        setVal('rate-base-salary', empRecord.base_salary || 30000);
+        setVal('rate-base-salary', empRecord.base_salary !== undefined && empRecord.base_salary !== null ? empRecord.base_salary : 0);
         setVal('rate-hourly-billing', empRecord.hourly_billing_rate || 1000);
         setVal('rate-advance', empRecord.advance_deduction || 0);
         setVal('rate-loan', empRecord.loan_deduction || 0);

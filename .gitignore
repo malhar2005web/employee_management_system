@@ -32,9 +32,23 @@ pnpm-debug.log*
 Thumbs.db
 
 # .NET and MAUI Build Artifacts
+# .NET and MAUI Build Artifacts
 **/bin/
 **/obj/
 **/[Bb]in/
 **/[Oo]bj/
 *.user
+
+# Scratch & Temporary Test Scripts
+scratch/
+scratch_docx_text.txt
+backend/check_all_salary_data.js
+backend/inspect_employee_salaries.js
+backend/read_book1.js
+backend/test_read_book1.js
+backend/scratch_poll.js
+
+# Uploads & Media
+backend/uploads/*
+!backend/uploads/**/.gitkeep
 

@@ -59,6 +59,42 @@
     margin-right: auto;
     font-size: 13px;
   }
+  .btn-inbox-action {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 7px 13px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    letter-spacing: 0.2px !important;
+  }
+  .btn-inbox-action.btn-ticket {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    box-shadow: 0 3px 8px rgba(2, 132, 199, 0.38) !important;
+  }
+  .btn-inbox-action.btn-ticket:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #075985 100%) !important;
+    transform: translateY(-1.5px) !important;
+    box-shadow: 0 6px 14px rgba(2, 132, 199, 0.48) !important;
+    color: #ffffff !important;
+  }
+  .btn-inbox-action.btn-alert {
+    background: linear-gradient(135deg, #0f766e 0%, #115e59 100%) !important;
+    box-shadow: 0 3px 8px rgba(15, 118, 110, 0.35) !important;
+  }
+  .btn-inbox-action.btn-alert:hover {
+    background: linear-gradient(135deg, #115e59 0%, #134e4a 100%) !important;
+    transform: translateY(-1.5px) !important;
+    box-shadow: 0 6px 14px rgba(15, 118, 110, 0.45) !important;
+    color: #ffffff !important;
+  }
 </style>
 </head>
 <body>
@@ -80,7 +116,7 @@
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-monitoring.html'"><i class="fa-solid fa-desktop"></i> Workstation Monitoring</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-organization.html'"><i class="fa-solid fa-sitemap"></i> Organization</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-customers.html'"><i class="fa-solid fa-address-card"></i> Customers</li>
-      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Audit Logs</li>
+      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-tasks.html'"><i class="fa-regular fa-square-check"></i> Tasks &amp; Workflows</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-support.html'"><i class="fa-solid fa-headset"></i> Support Desk</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/admin-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance &amp; Leave</li>
       <li class="nav-item active" style="cursor:pointer;" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-comments"></i> Communication</li>
@@ -103,7 +139,7 @@
       </nav>
 
       <div class="topbar-actions">
-        <button class="icon-btn" onclick="window.location.href='/admin-communication.html'"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn" onclick="window.location.href='/admin-communication.html'" title="Notifications & Announcements"><i class="fa-regular fa-bell"></i><span class="badge" style="display:none;">0</span></button>
         <div class="topbar-user" onclick="window.location.href='/admin-profile.html'" style="cursor:pointer;">
           <img src="https://i.pravatar.cc/80?img=12" alt="Admin avatar">
           <i class="fa-solid fa-chevron-down"></i>
@@ -120,34 +156,88 @@
       <div style="display:flex; align-items:center; gap:12px;">
         <button class="btn-primary" onclick="window.openAdminApprovalsInbox()" style="background:linear-gradient(135deg,var(--teal-600),var(--teal-900));"><i class="fa-solid fa-inbox"></i> Handover Approvals</button>
         <div class="tab-group" id="comm-tabs" style="display:flex; gap:6px; background:rgba(255,255,255,0.15); padding:6px; border-radius:12px; border:1px solid rgba(255,255,255,0.25);">
-          <button class="active" id="btn-announcements" style="padding:8px 16px; border:none; background:transparent; border-radius:8px; font-weight:700; color:var(--text-dark); cursor:pointer;">Notice Board</button>
-          <button id="btn-chat" style="padding:8px 16px; border:none; background:transparent; border-radius:8px; font-weight:700; color:var(--text-muted); cursor:pointer;">Direct Chat Room</button>
+          <button class="active" id="btn-announcements" onclick="window.switchCommTab('notices')" style="padding:8px 16px; border:none; background:transparent; border-radius:8px; font-weight:700; color:var(--text-dark); cursor:pointer;">Notice Board</button>
+          <button id="btn-inbox-tab" onclick="window.switchCommTab('inbox')" style="padding:8px 16px; border:none; background:transparent; border-radius:8px; font-weight:700; color:var(--text-muted); cursor:pointer;"><i class="fa-solid fa-inbox" style="margin-right:6px;"></i>Inbound Mailbox &amp; Alerts <span id="inbox-count-badge" style="display:none; background:var(--teal-700); color:#fff; font-size:11px; padding:2px 7px; border-radius:10px; margin-left:4px; font-weight:800;">0</span></button>
+          <button id="btn-chat" onclick="window.switchCommTab('chat')" style="padding:8px 16px; border:none; background:transparent; border-radius:8px; font-weight:700; color:var(--text-muted); cursor:pointer;">Direct Chat Room</button>
         </div>
         <button class="btn-primary" id="btn-add-notice"><i class="fa-solid fa-bullhorn"></i> Publish Notice</button>
+        <button class="btn-primary" id="btn-sync-mailbox" onclick="if(window.triggerMailboxSync) window.triggerMailboxSync();" style="display:none; background:linear-gradient(135deg, #0284c7, #0369a1);"><i class="fa-solid fa-rotate"></i> Sync Mailbox Now</button>
       </div>
     </div>
 
     <!-- Announcement Section -->
     <div id="announcements-view">
       <!-- Table Card -->
-      <div class="card table-card">
-        <div class="card-head">
+      <div class="card table-card" style="padding:22px; overflow:hidden;">
+        <div class="card-head" style="margin-bottom:14px;">
           <h3>Announcements Roster</h3>
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Date Published</th>
-              <th>Title</th>
-              <th>Message Body</th>
-              <th>Target Audience</th>
-            </tr>
-          </thead>
-          <tbody id="notices-list">
-            <!-- Dynamic rows -->
-          </tbody>
-        </table>
+        <div class="table-responsive" style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;">
+          <table style="width:100%; min-width:850px; border-collapse:separate; border-spacing:0; table-layout:fixed;">
+            <thead>
+              <tr>
+                <th style="width:160px;">Date Published</th>
+                <th style="width:220px;">Title</th>
+                <th style="width:420px;">Message Body</th>
+                <th style="width:170px;">Target Audience</th>
+              </tr>
+            </thead>
+            <tbody id="notices-list">
+              <!-- Dynamic rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inbound Mailbox & Notifications View -->
+    <div id="inbox-view" style="display:none;">
+      <!-- Quick Filter Bar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; background:rgba(255,255,255,0.25); border:1px solid rgba(255,255,255,0.4); backdrop-filter:blur(12px); padding:12px 18px; border-radius:var(--radius-md);">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <span style="font-size:13px; font-weight:700; color:var(--teal-950);"><i class="fa-solid fa-filter" style="margin-right:6px;"></i>Filter Channel:</span>
+          <button class="inbox-filter-btn active" data-filter="all" onclick="if(window.setInboxFilter) window.setInboxFilter('all', this)" style="padding:6px 14px; border:none; border-radius:20px; font-size:12px; font-weight:700; background:var(--teal-700); color:white; cursor:pointer;">All Items (<span id="count-all">0</span>)</button>
+          <button class="inbox-filter-btn" data-filter="email" onclick="if(window.setInboxFilter) window.setInboxFilter('email', this)" style="padding:6px 14px; border:1px solid rgba(255,255,255,0.5); border-radius:20px; font-size:12px; font-weight:700; background:rgba(255,255,255,0.3); color:var(--text-dark); cursor:pointer;">✉️ Inbound Emails (<span id="count-email">0</span>)</button>
+          <button class="inbox-filter-btn" data-filter="ticket" onclick="if(window.setInboxFilter) window.setInboxFilter('ticket', this)" style="padding:6px 14px; border:1px solid rgba(255,255,255,0.5); border-radius:20px; font-size:12px; font-weight:700; background:rgba(255,255,255,0.3); color:var(--text-dark); cursor:pointer;">🎫 Support Tickets (<span id="count-tickets">0</span>)</button>
+          <button class="inbox-filter-btn" data-filter="alert" onclick="if(window.setInboxFilter) window.setInboxFilter('alert', this)" style="padding:6px 14px; border:1px solid rgba(255,255,255,0.5); border-radius:20px; font-size:12px; font-weight:700; background:rgba(255,255,255,0.3); color:var(--text-dark); cursor:pointer;">🔔 Alerts &amp; Staff CC (<span id="count-alerts">0</span>)</button>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); font-weight:600;">
+          <i class="fa-regular fa-clock" style="margin-right:4px;"></i> Live Auto-Refreshed
+        </div>
+      </div>
+
+      <!-- Inbound Stream Table Card -->
+      <div class="card table-card" style="padding:22px; overflow:hidden;">
+        <div class="card-head" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div>
+            <h3 style="font-size:17px; font-weight:800; color:var(--teal-950); margin-bottom:2px;">Inbound Mailbox &amp; Notification Stream</h3>
+            <span style="font-size:12px; color:var(--text-muted);">Real-time stream of incoming customer emails &amp; automated ticket assignments</span>
+          </div>
+        </div>
+
+        <div class="table-responsive" style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;">
+          <table style="width:100%; min-width:980px; border-collapse:separate; border-spacing:0; table-layout:fixed;">
+            <thead>
+              <tr>
+                <th style="width:130px;">Channel / Type</th>
+                <th style="width:105px;">Ticket Code</th>
+                <th style="width:155px;">Customer / Sender</th>
+                <th style="width:265px;">Subject &amp; Issue Details</th>
+                <th style="width:155px;">Assigned / CC Staff</th>
+                <th style="width:115px;">Received At</th>
+                <th style="width:130px; text-align:right; padding-right:16px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="inbox-list">
+              <tr>
+                <td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">
+                  <i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> Loading inbound mailbox and notifications...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -225,10 +315,10 @@
   </div>
 </div>
 
-<script src="auth.js"></script>
-<script src="script.js"></script>
-<script src="js/taskHandoverModal.js"></script>
-<script src="js/activityTimelineWidget.js"></script>
-<script src="communication.js"></script>
+<script src="auth.js?v=2.5"></script>
+<script src="script.js?v=2.5"></script>
+<script src="js/taskHandoverModal.js?v=2.5"></script>
+<script src="js/activityTimelineWidget.js?v=2.5"></script>
+<script src="communication.js?v=2.5"></script>
 </body>
 </html>

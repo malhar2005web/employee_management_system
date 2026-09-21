@@ -29,14 +29,14 @@ export async function getMonthlyPayroll(req, res) {
         const startDate = `${yearMonth}-01`;
         const endDate = `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`;
 
-        // 1. Fetch active employees with workstation mappings and salary parameters
+        // 1. Fetch active employees with workstation mappings and salary parameters from employees master table
         const empRes = await pool.query(`
             SELECT e.id, e.full_name, e.employee_code, 
                    COALESCE(m.computer_name, '—') as computer_name,
                    m.computer_id,
                    COALESCE(d.name, 'General') as department,
                    COALESCE(des.title, 'Staff') as designation,
-                   COALESCE(e.base_salary, 30000.00) as base_salary,
+                   COALESCE(e.base_salary, 0.00) as base_salary,
                    COALESCE(e.hourly_rate, 1000.00) as hourly_rate,
                    COALESCE(e.advance_amount, 0.00) as advance_amount,
                    COALESCE(e.loan_amount, 0.00) as loan_amount,
@@ -224,14 +224,15 @@ export async function getMonthlyPayroll(req, res) {
         for (const emp of employees) {
             const savedRec = savedPayrollMap.get(emp.id) || {};
 
-            const baseSalary = parseFloat(savedRec.base_salary ?? emp.base_salary ?? 30000.00);
-            const hourlyRate = parseFloat(savedRec.hourly_billing_rate ?? emp.hourly_rate ?? 1000.00);
-            const advanceDeduction = parseFloat(savedRec.advance_deduction ?? emp.advance_amount ?? 0.00);
-            const loanDeduction = parseFloat(savedRec.loan_deduction ?? emp.loan_amount ?? 0.00);
-            const loanBalance = parseFloat(savedRec.loan_balance ?? emp.loan_balance ?? 0.00);
-            const incentiveAddition = parseFloat(savedRec.incentive_addition ?? emp.incentive_amount ?? 0.00);
-            const mobileDeduction = parseFloat(savedRec.mobile_deduction ?? emp.mobile_deduction ?? 0.00);
-            const ptMiscDeduction = parseFloat(savedRec.pt_misc_deduction ?? emp.pt_misc_deduction ?? 200.00);
+            // Dynamic master financials from employee master database
+            const baseSalary = parseFloat(emp.base_salary !== undefined && emp.base_salary !== null ? emp.base_salary : (savedRec.base_salary ?? 0.00));
+            const hourlyRate = parseFloat(emp.hourly_rate !== undefined && emp.hourly_rate !== null ? emp.hourly_rate : (savedRec.hourly_billing_rate ?? 1000.00));
+            const advanceDeduction = parseFloat(emp.advance_amount !== undefined && emp.advance_amount !== null ? emp.advance_amount : (savedRec.advance_deduction ?? 0.00));
+            const loanDeduction = parseFloat(emp.loan_amount !== undefined && emp.loan_amount !== null ? emp.loan_amount : (savedRec.loan_deduction ?? 0.00));
+            const loanBalance = parseFloat(emp.loan_balance !== undefined && emp.loan_balance !== null ? emp.loan_balance : (savedRec.loan_balance ?? 0.00));
+            const incentiveAddition = parseFloat(emp.incentive_amount !== undefined && emp.incentive_amount !== null ? emp.incentive_amount : (savedRec.incentive_addition ?? 0.00));
+            const mobileDeduction = parseFloat(emp.mobile_deduction !== undefined && emp.mobile_deduction !== null ? emp.mobile_deduction : (savedRec.mobile_deduction ?? 0.00));
+            const ptMiscDeduction = parseFloat(emp.pt_misc_deduction !== undefined && emp.pt_misc_deduction !== null ? emp.pt_misc_deduction : (savedRec.pt_misc_deduction ?? 200.00));
             let latePenalty = parseFloat(savedRec.late_hours_deduction ?? 0.00);
 
             const cId = emp.computer_id ? String(emp.computer_id) : null;

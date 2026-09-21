@@ -1,8 +1,29 @@
 import { pool } from '../config/db.js';
 import { sanitizePhoneNumber } from './whatsapp.service.js';
 
+// In-Memory Multi-Turn Conversation State Machine
+export const conversationStates = new Map();
+
+// Required entities for canonical intents
+export const REQUIRED_ENTITIES = {
+    TECHNICAL_SUPPORT: ['project', 'description'],
+    BUG_REPORT: ['project', 'description'],
+    SERVER_DOWNTIME: ['project'],
+    FEATURE_REQUEST: ['project', 'description'],
+    TICKET_STATUS: [], // can fetch latest active ticket for phone
+    TICKET_RESOLVE: [], // can resolve latest active ticket
+    BILLING_QUERY: [],
+    INVOICE_REQUEST: [],
+    PAYMENT_EVIDENCE: [],
+    LEAVE_APPLICATION: ['leave_type', 'date'],
+    SALES_INQUIRY: ['project_scope'],
+    REQUIREMENT_DOC: [],
+    HUMAN_HANDOVER: [],
+    GREETING_MENU: []
+};
+
 /**
- * 1. Identify Client, Employee or Guest from incoming phone number
+ * 1. Identify Client, Employee, or Guest from incoming phone number
  */
 export async function identifyClient(phone) {
     const cleaned = sanitizePhoneNumber(phone);
@@ -10,9 +31,9 @@ export async function identifyClient(phone) {
     const last10 = rawDigits.slice(-10);
 
     try {
-        // A. Check if the sender is an existing Customer in the database
+        // A. Check if the sender is an existing Customer in PostgreSQL
         const custRes = await pool.query(`
-            SELECT c.id, c.name, c.industry, c.branches, c.contact_persons,
+            SELECT c.id, c.name, c.industry, c.branches, c.contact_persons, c.assigned_employees,
                    COALESCE(
                        JSON_AGG(
                            JSON_BUILD_OBJECT(
@@ -50,13 +71,15 @@ export async function identifyClient(phone) {
                 contactName: contactName,
                 company: customer.name,
                 industry: customer.industry,
-                projects: customer.projects || []
+                projects: customer.projects || [],
+                assignedEmployees: customer.assigned_employees || []
             };
         }
 
         // B. Check if the sender is an Employee
         const empRes = await pool.query(`
-            SELECT e.id, e.full_name, e.employee_code, d.name AS department_name, ds.title AS designation
+            SELECT e.id, e.full_name, e.employee_code, e.phone, e.whatsapp_no,
+                   d.name AS department_name, ds.title AS designation
             FROM employees e
             LEFT JOIN departments d ON e.department_id = d.id
             LEFT JOIN designations ds ON e.designation_id = ds.id
@@ -72,7 +95,8 @@ export async function identifyClient(phone) {
                 name: emp.full_name,
                 code: emp.employee_code,
                 department: emp.department_name,
-                designation: emp.designation
+                designation: emp.designation,
+                phone: emp.whatsapp_no || emp.phone
             };
         }
 
@@ -97,7 +121,70 @@ export async function identifyClient(phone) {
 }
 
 /**
- * 2. Get recent conversation transcript for LLM Context
+ * 2. Get / Update / Clear Conversation State Machine
+ */
+export function getConversationState(phone) {
+    const cleaned = sanitizePhoneNumber(phone);
+    let state = conversationStates.get(cleaned);
+    
+    // Auto-expire state older than 2 hours of inactivity
+    if (state && Date.now() - state.lastUpdated > 2 * 60 * 60 * 1000) {
+        conversationStates.delete(cleaned);
+        return null;
+    }
+    return state || null;
+}
+
+export function updateConversationState(phone, updates = {}) {
+    const cleaned = sanitizePhoneNumber(phone);
+    let existing = conversationStates.get(cleaned) || {
+        intent: null,
+        entities: {},
+        pending_fields: [],
+        active_ticket_id: null,
+        attachments: [],
+        createdAt: Date.now()
+    };
+
+    const newEntities = { ...existing.entities, ...(updates.entities || {}) };
+    const intent = updates.intent || existing.intent;
+
+    // Calculate remaining missing required fields
+    const required = REQUIRED_ENTITIES[intent] || [];
+    const pending_fields = required.filter(field => {
+        const val = newEntities[field];
+        return !val || (typeof val === 'string' && !val.trim());
+    });
+
+    const merged = {
+        ...existing,
+        ...updates,
+        intent,
+        entities: newEntities,
+        pending_fields,
+        attachments: updates.attachments ? [...(existing.attachments || []), ...updates.attachments] : existing.attachments,
+        lastUpdated: Date.now()
+    };
+
+    conversationStates.set(cleaned, merged);
+    return merged;
+}
+
+export function clearConversationState(phone) {
+    const cleaned = sanitizePhoneNumber(phone);
+    conversationStates.delete(cleaned);
+}
+
+/**
+ * 3. Calculate Pending Fields for an Intent
+ */
+export function calculatePendingFields(intent, entities = {}) {
+    const required = REQUIRED_ENTITIES[intent] || [];
+    return required.filter(field => !entities[field] || (typeof entities[field] === 'string' && !entities[field].trim()));
+}
+
+/**
+ * 4. Get recent conversation transcript for LLM Context
  */
 export async function getConversationContext(phone, limit = 8) {
     const cleaned = sanitizePhoneNumber(phone);
@@ -110,7 +197,6 @@ export async function getConversationContext(phone, limit = 8) {
             LIMIT $2;
         `, [cleaned, limit]);
 
-        // Reverse to chronological order (oldest to newest)
         const history = res.rows.reverse();
 
         return history.map(msg => ({
@@ -124,7 +210,7 @@ export async function getConversationContext(phone, limit = 8) {
 }
 
 /**
- * 3. Log a Message to the database
+ * 5. Log a Message to the database
  */
 export async function saveMessage({ wabaMsgId, senderPhone, recipientPhone, direction, messageType, messageBody, mediaId, status }) {
     try {
@@ -150,7 +236,34 @@ export async function saveMessage({ wabaMsgId, senderPhone, recipientPhone, dire
 }
 
 /**
- * 4. Fetch Client Active Project Status Details (Realistic Prospect vs Live Customer)
+ * 6. Fetch Active Support Ticket for a Customer / Phone Number
+ */
+export async function getActiveSupportTicket(phone, customerId = null) {
+    const cleaned = sanitizePhoneNumber(phone);
+    const last10 = cleaned.slice(-10);
+
+    try {
+        const res = await pool.query(`
+            SELECT t.*, c.name AS customer_name,
+                   e.full_name AS assigned_engineer_name, e.phone AS assigned_engineer_phone
+            FROM support_tickets t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            LEFT JOIN employees e ON t.assigned_to = e.id
+            WHERE (t.customer_phone ILIKE $1 OR t.customer_id = $2)
+              AND t.status NOT IN ('Resolved', 'Closed')
+            ORDER BY t.created_at DESC
+            LIMIT 1;
+        `, [`%${last10}%`, customerId || 0]);
+
+        return res.rows[0] || null;
+    } catch (err) {
+        console.error("❌ getActiveSupportTicket Error:", err.message);
+        return null;
+    }
+}
+
+/**
+ * 7. Fetch Client Active Project Status Details
  */
 export async function getProjectStatusDetails(customerId) {
     try {
@@ -158,11 +271,11 @@ export async function getProjectStatusDetails(customerId) {
             return {
                 isProspect: true,
                 projectName: "Custom Architecture Solution",
-                status: "Requirement Discovery & Scope Planning Phase",
-                milestone: "Architecture & feature scope registered. SOW and UI wireframe blueprint under preparation.",
+                status: "Requirement Discovery & Scope Planning",
+                milestone: "Architecture & feature scope registered. SOW under preparation.",
                 stagingUrl: null,
                 leadArchitect: "Shrirang Joshi (+91 98210 27060)",
-                projectManager: "Nitin Sir (+91 98765 43210)"
+                projectManager: "Nitin Sir (+91 87671 37790)"
             };
         }
 
@@ -181,10 +294,10 @@ export async function getProjectStatusDetails(customerId) {
                 isProspect: true,
                 projectName: "Custom Enterprise Portal",
                 status: "Architecture Draft & Requirement Scoping",
-                milestone: "Initial consultation recorded. Milestone scope roadmap being drafted.",
+                milestone: "Initial consultation recorded. Milestone roadmap being drafted.",
                 stagingUrl: null,
                 leadArchitect: "Shrirang Joshi (+91 98210 27060)",
-                projectManager: "Nitin Sir (+91 98765 43210)"
+                projectManager: "Nitin Sir (+91 87671 37790)"
             };
         }
 
@@ -196,7 +309,7 @@ export async function getProjectStatusDetails(customerId) {
             milestone: p.description || "Core module engineering and API integration in progress.",
             stagingUrl: "https://planexsoftware.in/",
             leadArchitect: "Shrirang Joshi (+91 98210 27060)",
-            projectManager: p.account_manager_name ? `${p.account_manager_name} (${p.account_manager_phone || '+91 98765 43210'})` : "Nitin Sir (+91 98765 43210)"
+            projectManager: p.account_manager_name ? `${p.account_manager_name} (${p.account_manager_phone || '+91 87671 37790'})` : "Nitin Sir (+91 87671 37790)"
         };
     } catch (e) {
         console.error("❌ getProjectStatusDetails Error:", e.message);
@@ -207,13 +320,13 @@ export async function getProjectStatusDetails(customerId) {
             milestone: "Discovery & consulting phase.",
             stagingUrl: null,
             leadArchitect: "Shrirang Joshi (+91 98210 27060)",
-            projectManager: "Nitin Sir (+91 98765 43210)"
+            projectManager: "Nitin Sir (+91 87671 37790)"
         };
     }
 }
 
 /**
- * 5. Fetch Client Tax Invoice & Billing Details
+ * 8. Fetch Client Tax Invoice & Billing Details
  */
 export async function getClientInvoiceDetails(customerId) {
     const isLive = Boolean(customerId);
@@ -222,11 +335,11 @@ export async function getClientInvoiceDetails(customerId) {
         invoiceNumber: isLive ? `INV-2026-${String(customerId).padStart(3, '0')}` : "PROPOSAL-QUOTATION",
         status: isLive ? "Active GST Invoice Issued" : "Requirement Scoping / Pre-Invoice Stage",
         beneficiary: "Planex Software / Pentasoft Consultancy",
-        gstin: "27ABCDE1234F1Z5",
+        gstin: "27AABPJ2329N1ZB",
         bankName: "HDFC Bank",
-        accountNo: "50200012345678",
-        ifsc: "HDFC0001234",
-        upiId: "9821027060@okbizaxis",
+        accountNo: "50200063819231",
+        ifsc: "HDFC0000290",
+        upiId: "joshi.shrirang@hdfcbank",
         amountDue: isLive ? "₹ 75,000 + 18% GST" : "Milestone Quotation based on selected modules",
         paymentTerms: "50% Advance upon SOW Freeze | 50% upon UAT Sign-off & Delivery"
     };

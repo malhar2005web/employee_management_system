@@ -1030,9 +1030,32 @@ export async function runMigrations() {
         console.error('❌ Phase 18 Migration Error:', e.message);
     }
 
-    client.release();
-    console.log('🎉 All migrations complete.');
-}
+    // ── STEP 20: Phase 19 Email-to-Ticket & Support Desk Inbound Mailbox ────────
+    try {
+        await client.query(`
+            ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'Portal';
+            ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS customer_email VARCHAR(255);
+            ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS cc_emails TEXT[];
+            ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS email_message_id VARCHAR(255);
+
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    id SERIAL PRIMARY KEY,
+                    category VARCHAR(100) NOT NULL UNIQUE,
+                    data JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    updated_at TIMESTAMP DEFAULT NOW()
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_support_tickets_source ON support_tickets(source);
+                CREATE INDEX IF NOT EXISTS idx_support_tickets_email ON support_tickets(customer_email);
+            `);
+            console.log('✅ Phase 19 Email-to-Ticket & Support Desk Inbound Mailbox tables ensured.');
+        } catch (e) {
+            console.error('❌ Phase 19 Migration Error:', e.message);
+        }
+
+        client.release();
+        console.log('🎉 All migrations complete.');
+    }
 
 
 

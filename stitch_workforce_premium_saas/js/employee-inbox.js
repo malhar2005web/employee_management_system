@@ -56,8 +56,10 @@
         let filtered = allMessages;
         if (currentFilter === 'unread') {
             filtered = allMessages.filter(m => !m.is_read);
+        } else if (currentFilter === 'leaves') {
+            filtered = allMessages.filter(m => m.type === 'Leave' || (m.title && m.title.toLowerCase().includes('leave')));
         } else if (currentFilter === 'support') {
-            filtered = allMessages.filter(m => m.type === 'Support Ticket' || (m.title && m.title.toLowerCase().includes('ticket')));
+            filtered = allMessages.filter(m => m.type === 'Support Ticket' || (m.title && m.title.toLowerCase().includes('ticket')) || (m.title && m.title.includes('SUP-')));
         } else if (currentFilter === 'broadcast') {
             filtered = allMessages.filter(m => m.recipient_id === null);
         }
@@ -74,7 +76,17 @@
             let typeIcon = '<i class="fa-regular fa-bell" style="color: var(--teal-700);"></i>';
             let typeBadge = '';
             
-            if (m.type === 'Support Ticket' || (m.title && m.title.includes('SUP-'))) {
+            if (m.type === 'Leave' || (m.title && m.title.toLowerCase().includes('leave'))) {
+                const isApproved = (m.title && m.title.toLowerCase().includes('approved')) || (m.message && m.message.includes('APPROVED'));
+                const isRejected = (m.title && m.title.toLowerCase().includes('declined')) || (m.title && m.title.toLowerCase().includes('rejected'));
+                const iconColor = isApproved ? '#10b981' : isRejected ? '#ef4444' : '#f59e0b';
+                typeIcon = `<i class="fa-solid fa-person-walking-luggage" style="color: ${iconColor};"></i>`;
+                
+                const bg = isApproved ? 'rgba(16,185,129,0.12)' : isRejected ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)';
+                const col = isApproved ? '#059669' : isRejected ? '#dc2626' : '#d97706';
+                const label = isApproved ? 'LEAVE APPROVED' : isRejected ? 'LEAVE DECLINED' : 'LEAVE';
+                typeBadge = `<span style="font-size:10.5px; font-weight:700; background:${bg}; color:${col}; padding:2px 6px; border-radius:4px; margin-left:6px;">${label}</span>`;
+            } else if (m.type === 'Support Ticket' || (m.title && m.title.includes('SUP-'))) {
                 typeIcon = '<i class="fa-solid fa-headset" style="color: #0284c7;"></i>';
                 typeBadge = '<span style="font-size:10.5px; font-weight:700; background:rgba(2,132,199,0.12); color:#0284c7; padding:2px 6px; border-radius:4px; margin-left:6px;">SUPPORT</span>';
             } else if (m.recipient_id === null) {
@@ -209,8 +221,22 @@
         });
 
         // Type badge & icon
+        const isLeave = msg.type === 'Leave' || (msg.title && msg.title.toLowerCase().includes('leave'));
         const isSupport = msg.type === 'Support Ticket' || (meta && meta.ticket_code) || (msg.title && msg.title.includes('SUP-'));
-        modalTypeBadge.textContent = isSupport ? 'Support Ticket' : (msg.recipient_id === null ? 'Broadcast' : 'Direct Notice');
+        
+        if (isLeave) {
+            modalTypeBadge.textContent = 'Leave Update';
+            modalTypeBadge.style.background = 'rgba(16,185,129,0.15)';
+            modalTypeBadge.style.color = '#059669';
+        } else if (isSupport) {
+            modalTypeBadge.textContent = 'Support Ticket';
+            modalTypeBadge.style.background = 'rgba(2,132,199,0.12)';
+            modalTypeBadge.style.color = '#0284c7';
+        } else {
+            modalTypeBadge.textContent = msg.recipient_id === null ? 'Broadcast' : 'Direct Notice';
+            modalTypeBadge.style.background = 'rgba(234,88,12,0.12)';
+            modalTypeBadge.style.color = '#ea580c';
+        }
 
         // Ticket code
         const ticketCode = meta.ticket_code || (msg.title && msg.title.match(/SUP-\d+/)?.[0]) || '';
@@ -240,20 +266,29 @@
             modalPriorityBadge.style.display = 'none';
         }
 
-        // Customer & Project
-        modalCustomer.textContent = meta.customer_name || 'Valued Client';
-        modalProject.textContent = meta.project_name || 'General Project';
+        // Customer & Project / Leave Info
+        if (isLeave) {
+            modalCustomer.textContent = meta.leave_type ? `Type: ${meta.leave_type}` : 'Leave Application';
+            modalProject.textContent = meta.total_days ? `Duration: ${meta.total_days} Day(s)` : 'Attendance & Leave';
+        } else {
+            modalCustomer.textContent = meta.customer_name || 'Valued Client';
+            modalProject.textContent = meta.project_name || 'General Project';
+        }
 
         // Full Description
         let fullDesc = meta.description || msg.message || 'No additional details provided.';
-        // Clean markdown bold or raw escaped quotes
         fullDesc = fullDesc.replace(/\*\*/g, '').trim();
         modalDescription.textContent = fullDesc;
 
-        // Support desk direct link
+        // Action button
         if (isSupport) {
             modalOpenSupportBtn.style.display = 'inline-flex';
             modalOpenSupportBtn.href = ticketCode ? `/admin-support.html?ticket_code=${ticketCode}` : '/admin-support.html';
+            modalOpenSupportBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Support Desk';
+        } else if (isLeave || msg.link) {
+            modalOpenSupportBtn.style.display = 'inline-flex';
+            modalOpenSupportBtn.href = msg.link || '/employee-attendance.html';
+            modalOpenSupportBtn.innerHTML = '<i class="fa-solid fa-calendar-check"></i> View Attendance & Leave';
         } else {
             modalOpenSupportBtn.style.display = 'none';
         }

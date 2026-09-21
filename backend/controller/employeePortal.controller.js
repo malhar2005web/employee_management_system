@@ -994,14 +994,20 @@ export async function getLeaveBalances(req, res) {
     try {
         const employeeId = await getEmployeeId(req.user.id);
         const balances = await pool.query(`
-            SELECT lb.id, lb.employee_id, lb.leave_type_id,
-                   lb.balance as total_days,
-                   lb.used as used_days,
-                   (lb.balance - lb.used) as remaining_days,
-                   lt.name as leave_type_name
-            FROM leave_balances lb
-            LEFT JOIN leave_types lt ON lb.leave_type_id = lt.id
-            WHERE lb.employee_id = $1
+            SELECT lt.id as leave_type_id,
+                   lt.name as leave_type_name,
+                   COALESCE(lb.balance, lt.default_balance, 0) as total_days,
+                   COALESCE(approved.used_count, lb.used, 0) as used_days,
+                   (COALESCE(lb.balance, lt.default_balance, 0) - COALESCE(approved.used_count, lb.used, 0)) as remaining_days
+            FROM leave_types lt
+            LEFT JOIN leave_balances lb ON lb.leave_type_id = lt.id AND lb.employee_id = $1
+            LEFT JOIN (
+                SELECT leave_type_id, SUM(total_days) as used_count
+                FROM leaves
+                WHERE employee_id = $1 AND status = 'Approved'
+                GROUP BY leave_type_id
+            ) approved ON approved.leave_type_id = lt.id
+            WHERE lt.is_active = true
             ORDER BY lt.name;
         `, [employeeId]);
         res.status(200).json({ success: true, data: balances.rows });
@@ -1020,11 +1026,42 @@ export async function applyLeave(req, res) {
             return res.status(400).json({ success: false, message: "Missing leave registration parameters" });
         }
 
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const diffDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+
         const result = await pool.query(`
-            INSERT INTO leaves (employee_id, leave_type_id, start_date, end_date, reason, status)
-            VALUES ($1, $2, $3, $4, $5, 'Pending')
+            INSERT INTO leaves (employee_id, leave_type_id, start_date, end_date, total_days, reason, status)
+            VALUES ($1, $2, $3, $4, $5, $6, 'Pending')
             RETURNING *;
-        `, [employeeId, leaveTypeId, startDate, endDate, reason || ""]);
+        `, [employeeId, leaveTypeId, startDate, endDate, diffDays, reason || ""]);
+
+        try {
+            const ltRes = await pool.query('SELECT name FROM leave_types WHERE id = $1', [leaveTypeId]);
+            const ltName = ltRes.rows[0]?.name || 'Leave';
+            await pool.query(`
+                INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status)
+                VALUES ($1, $2, $3, $4, $5, 'Pending');
+            `, [employeeId, ltName, startDate, endDate, reason || ""]);
+
+            // Format date for notification
+            const sParts = String(startDate).split('-');
+            const eParts = String(endDate).split('-');
+            const sFmt = sParts.length === 3 ? `${sParts[2]}/${sParts[1]}/${sParts[0]}` : startDate;
+            const eFmt = eParts.length === 3 ? `${eParts[2]}/${eParts[1]}/${eParts[0]}` : endDate;
+
+            await pool.query(`
+                INSERT INTO notifications (recipient_id, type, title, message, link, metadata, is_read)
+                VALUES ($1, 'Leave', $2, $3, '/employee-attendance.html', $4, false);
+            `, [
+                employeeId,
+                `Leave Applied: ${ltName}`,
+                `Your leave application for ${ltName} (${sFmt} to ${eFmt}, ${diffDays} day${diffDays > 1 ? 's' : ''}) has been submitted and is awaiting admin approval.\nReason: ${reason || 'N/A'}`,
+                JSON.stringify({ leave_type: ltName, start_date: startDate, end_date: endDate, total_days: diffDays, status: 'Pending', reason: reason || "" })
+            ]);
+        } catch (lrErr) {
+            console.warn("leave_requests sync warn:", lrErr.message);
+        }
 
         res.status(201).json({ success: true, message: "Leave application submitted successfully", data: result.rows[0] });
     } catch (error) {

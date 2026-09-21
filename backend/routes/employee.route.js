@@ -6,7 +6,11 @@ import {
     toggleEmployeeStatus, 
     getDeptsAndDesigs, 
     createDepartment, 
+    updateDepartment,
+    deleteDepartment,
     createDesignation,
+    updateDesignation,
+    deleteDesignation,
     getDashboardSummary,
     getProductivityTrend
 } from '../controller/employee.controller.js';
@@ -25,6 +29,10 @@ router.put("/:id", updateEmployee);
 router.patch("/:id/status", toggleEmployeeStatus);
 router.get("/metadata", getDeptsAndDesigs);
 router.post("/departments", createDepartment);
+router.put("/departments/:id", updateDepartment);
+router.delete("/departments/:id", deleteDepartment);
 router.post("/designations", createDesignation);
+router.put("/designations/:id", updateDesignation);
+router.delete("/designations/:id", deleteDesignation);
 
 export default router;

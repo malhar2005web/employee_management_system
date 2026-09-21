@@ -506,6 +506,11 @@ export async function downloadWabaMediaToDisk(mediaId, defaultName = 'attachment
         else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = '.jpg';
         else if (mimeType.includes('png')) ext = '.png';
         else if (mimeType.includes('excel') || mimeType.includes('sheet')) ext = '.xlsx';
+        else if (mimeType.includes('word') || mimeType.includes('document')) ext = '.docx';
+        else if (mimeType.includes('ogg')) ext = '.ogg';
+        else if (mimeType.includes('mp4') || mimeType.includes('m4a')) ext = '.m4a';
+        else if (mimeType.includes('audio') || mimeType.includes('mpeg')) ext = '.mp3';
+        else if (mimeType.includes('amr')) ext = '.amr';
 
         const safeFileName = `waba-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
         const filePath = path.join(uploadDir, safeFileName);

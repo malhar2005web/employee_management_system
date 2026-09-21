@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getEmailTicketConfig, saveEmailTicketConfig, testEmailConnection } from '../services/emailTicket.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,11 +16,24 @@ const defaultSettings = {
         currency: "USD"
     },
     smtp: {
-        host: "smtp.mailtrap.io",
-        port: 2525,
-        user: "smtpuser",
+        host: "mail.pentasoftconsultancy.com",
+        port: 465,
+        user: "joshi@pentasoftconsultancy.com",
         pass: "",
-        sender: "noreply@pcscorp.com"
+        sender: "joshi@pentasoftconsultancy.com"
+    },
+    emailTicketing: {
+        enabled: true,
+        email: "joshi@pentasoftconsultancy.com",
+        password: "",
+        imapHost: "mail.pentasoftconsultancy.com",
+        imapPort: 993,
+        imapSecure: true,
+        smtpHost: "mail.pentasoftconsultancy.com",
+        smtpPort: 465,
+        smtpSecure: true,
+        autoReply: true,
+        pollIntervalSeconds: 30
     },
     preferences: {
         standardHours: 8,
@@ -37,9 +51,14 @@ const defaultSettings = {
 async function readSettingsFile() {
     try {
         const data = await fs.readFile(settingsPath, 'utf-8');
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        const emailConfig = await getEmailTicketConfig().catch(() => defaultSettings.emailTicketing);
+        return {
+            ...defaultSettings,
+            ...parsed,
+            emailTicketing: emailConfig || parsed.emailTicketing || defaultSettings.emailTicketing
+        };
     } catch (e) {
-        // Create settings.json with default options if missing
         await fs.writeFile(settingsPath, JSON.stringify(defaultSettings, null, 2), 'utf-8');
         return defaultSettings;
     }
@@ -57,11 +76,13 @@ export async function getSettings(req, res) {
 
 export async function updateSettings(req, res) {
     try {
-        const { company, smtp, preferences, ipWhitelist, whatsappTemplate } = req.body;
+        const { company, smtp, emailTicketing, preferences, ipWhitelist, whatsappTemplate } = req.body;
 
-        if (!company || !smtp || !preferences) {
+        if (!company) {
             return res.status(400).json({ success: false, message: "Invalid settings payload" });
         }
+
+        const currentSettings = await readSettingsFile();
 
         const newSettings = {
             company: {
@@ -72,16 +93,29 @@ export async function updateSettings(req, res) {
                 currency: company.currency || "USD"
             },
             smtp: {
-                host: smtp.host || "",
-                port: parseInt(smtp.port, 10) || 25,
-                user: smtp.user || "",
-                pass: smtp.pass || "",
-                sender: smtp.sender || ""
+                host: smtp?.host || emailTicketing?.smtpHost || "",
+                port: parseInt(smtp?.port || emailTicketing?.smtpPort, 10) || 465,
+                user: smtp?.user || emailTicketing?.email || "",
+                pass: smtp?.pass !== undefined ? smtp.pass : (emailTicketing?.password || ""),
+                sender: smtp?.sender || emailTicketing?.email || ""
+            },
+            emailTicketing: {
+                enabled: emailTicketing ? Boolean(emailTicketing.enabled) : true,
+                email: emailTicketing?.email || "joshi@pentasoftconsultancy.com",
+                password: emailTicketing?.password !== undefined ? emailTicketing.password : (currentSettings.emailTicketing?.password || ""),
+                imapHost: emailTicketing?.imapHost || "mail.pentasoftconsultancy.com",
+                imapPort: parseInt(emailTicketing?.imapPort, 10) || 993,
+                imapSecure: emailTicketing?.imapSecure !== false,
+                smtpHost: emailTicketing?.smtpHost || "mail.pentasoftconsultancy.com",
+                smtpPort: parseInt(emailTicketing?.smtpPort, 10) || 465,
+                smtpSecure: emailTicketing?.smtpSecure !== false,
+                autoReply: emailTicketing?.autoReply !== false,
+                pollIntervalSeconds: parseInt(emailTicketing?.pollIntervalSeconds, 10) || 30
             },
             preferences: {
-                standardHours: parseInt(preferences.standardHours, 10) || 8,
-                gracePeriod: parseInt(preferences.gracePeriod, 10) || 15,
-                workingDays: Array.isArray(preferences.workingDays) ? preferences.workingDays.map(Number) : [1, 2, 3, 4, 5]
+                standardHours: parseInt(preferences?.standardHours, 10) || 8,
+                gracePeriod: parseInt(preferences?.gracePeriod, 10) || 15,
+                workingDays: Array.isArray(preferences?.workingDays) ? preferences.workingDays.map(Number) : [1, 2, 3, 4, 5]
             },
             ipWhitelist: ipWhitelist || "",
             whatsappTemplate: {
@@ -91,11 +125,36 @@ export async function updateSettings(req, res) {
             }
         };
 
+        // If email password was omitted or empty, retain previous password
+        if (!newSettings.emailTicketing.password && currentSettings.emailTicketing?.password) {
+            newSettings.emailTicketing.password = currentSettings.emailTicketing.password;
+        }
+
         await fs.writeFile(settingsPath, JSON.stringify(newSettings, null, 2), 'utf-8');
+        await saveEmailTicketConfig(newSettings.emailTicketing).catch(e => console.warn("saveEmailTicketConfig notice:", e.message));
+
         res.status(200).json({ success: true, message: "Settings configuration saved successfully", data: newSettings });
     } catch (error) {
         console.log("Error in updateSettings:", error.message);
-        res.status(500).json({ success: false, message: "Internal server error" });
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+}
+
+export async function testEmailSettings(req, res) {
+    try {
+        const config = req.body;
+        const currentSettings = await readSettingsFile();
+        
+        // If password is not supplied in test payload, use stored password
+        if (!config.password && currentSettings.emailTicketing?.password) {
+            config.password = currentSettings.emailTicketing.password;
+        }
+
+        const result = await testEmailConnection(config);
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("Error in testEmailSettings:", error);
+        res.status(500).json({ success: false, message: error.message || "Server error testing email connection" });
     }
 }
 
@@ -118,3 +177,4 @@ export async function uploadWhatsappAttachment(req, res) {
         res.status(500).json({ success: false, message: "Server error uploading attachment" });
     }
 }
+

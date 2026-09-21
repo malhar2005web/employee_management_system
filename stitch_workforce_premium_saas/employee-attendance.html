@@ -59,7 +59,7 @@
     <div class="topbar">
       <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i> Search anything...</div>
       <div class="topbar-actions" style="margin-left:auto;">
-        <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">5</span></button>
+        <button class="icon-btn" title="Inbox Notifications"><i class="fa-regular fa-bell"></i><span class="badge" style="display:none;">0</span></button>
         <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
         <div class="topbar-user">
           <img src="https://i.pravatar.cc/80?img=68" alt="Employee avatar">
@@ -75,9 +75,9 @@
         <p id="page-description">Track your daily clock-in/out, apply for leaves, and record gate-pass out entries.</p>
       </div>
       <div style="display: flex; gap: 10px;">
-        <button class="btn-primary" id="btn-correction" style="display: flex;"><i class="fa-solid fa-pen-to-square"></i> Request Correction</button>
-        <button class="btn-primary" id="btn-apply-leave" style="display: none;"><i class="fa-solid fa-circle-plus"></i> Apply for Leave</button>
-        <button class="btn-primary" id="btn-apply-out-entry" style="display: none;"><i class="fa-solid fa-person-walking-arrow-right"></i> Apply Out Entry</button>
+        <button class="btn-primary" id="btn-correction" style="display: flex;" onclick="window.openModal ? window.openModal('modal-correction') : null"><i class="fa-solid fa-pen-to-square"></i> Request Correction</button>
+        <button class="btn-primary" id="btn-apply-leave" style="display: none;" onclick="window.openLeaveModal ? window.openLeaveModal() : (window.openModal ? window.openModal('modal-leave') : null)"><i class="fa-solid fa-circle-plus"></i> Apply for Leave</button>
+        <button class="btn-primary" id="btn-apply-out-entry" style="display: none;" onclick="window.openModal ? window.openModal('modal-out-entry') : null"><i class="fa-solid fa-person-walking-arrow-right"></i> Apply Out Entry</button>
       </div>
     </div>
 
@@ -436,9 +436,9 @@
 </div>
 
 <!-- Scripts -->
-<script src="script.js?v=20260909_3"></script>
-<script src="js/employee-attendance.js?v=20260909_3"></script>
-<script src="js/employee-leave.js?v=20260909_3"></script>
+<script src="script.js?v=20260911_1"></script>
+<script src="js/employee-attendance.js?v=20260911_1"></script>
+<script src="js/employee-leave.js?v=20260911_1"></script>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {

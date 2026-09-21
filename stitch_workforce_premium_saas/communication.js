@@ -68,11 +68,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch lists
     const loadCommunication = async () => {
         try {
-            const response = await fetch('/api/v1/admin/communication');
+            const token = localStorage.getItem('token') || (typeof getAuthToken === 'function' ? getAuthToken() : '');
+            const headers = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const response = await fetch('/api/v1/admin/communication', {
+                credentials: 'include',
+                headers
+            });
             const data = await response.json();
             if (response.ok && data.success) {
-                employeesCache = data.data.employees;
-                announcementsCache = data.data.announcements;
+                employeesCache = data.data.employees || [];
+                announcementsCache = data.data.announcements || [];
 
                 populateEmployeesDropdown();
                 renderAnnouncements();
@@ -133,9 +139,13 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             try {
+                const token = localStorage.getItem('token') || (typeof getAuthToken === 'function' ? getAuthToken() : '');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
                 const response = await fetch('/api/v1/admin/communication', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    headers,
                     body: JSON.stringify(payload)
                 });
                 const data = await response.json();
@@ -153,48 +163,318 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Tab selection
     const btnAnnouncements = document.getElementById('btn-announcements');
+    const btnInboxTab = document.getElementById('btn-inbox-tab');
     const btnChat = document.getElementById('btn-chat');
+    const btnSyncMailbox = document.getElementById('btn-sync-mailbox');
     const announcementsView = document.getElementById('announcements-view');
+    const inboxView = document.getElementById('inbox-view');
     const chatView = document.getElementById('chat-view');
     const commTitle = document.getElementById('comm-title');
     const commDesc = document.getElementById('comm-desc');
+    const inboxList = document.getElementById('inbox-list');
+    const inboxCountBadge = document.getElementById('inbox-count-badge');
 
-    if (btnAnnouncements && btnChat) {
-        btnAnnouncements.addEventListener('click', () => {
-            btnAnnouncements.classList.add('active');
-            btnChat.classList.remove('active');
+    let inboxCache = { tickets: [], notifications: [] };
+    let currentInboxFilter = 'all';
 
-            btnAnnouncements.style.color = 'var(--text-dark)';
-            btnChat.style.color = 'var(--text-muted)';
+    // Inbox Data Loader & Filter Handlers
+    const loadInboxData = async () => {
+        if (!inboxList) return;
+        try {
+            const token = localStorage.getItem('token') || (typeof getAuthToken === 'function' ? getAuthToken() : '');
+            const headers = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await fetch('/api/v1/admin/communication/inbox', {
+                credentials: 'include',
+                headers
+            });
+            const json = await res.json();
+            if (res.ok && json.success) {
+                inboxCache = json.data || { tickets: [], notifications: [] };
+                updateInboxCounts();
+                renderInboxStream();
+            } else {
+                inboxList.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Failed to load inbound mailbox: ${json.message || 'Error'}</td></tr>`;
+            }
+        } catch (e) {
+            console.error("Error loading inbox stream:", e);
+            inboxList.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:#dc2626;"><i class="fa-solid fa-circle-xmark"></i> Network error loading inbound items.</td></tr>`;
+        }
+    };
 
-            announcementsView.style.display = 'block';
-            chatView.style.display = 'none';
-            btnAddNotice.style.display = 'inline-flex';
-            commTitle.textContent = 'Notice Board & Broadcasting';
-            commDesc.textContent = 'Publish office-wide alerts, schedule team announcements, or direct target alerts to individual staff.';
-            stopMessagePolling();
+    window.switchCommTab = function(tabName) {
+        const btnAnn = document.getElementById('btn-announcements');
+        const btnInb = document.getElementById('btn-inbox-tab');
+        const btnCh = document.getElementById('btn-chat');
+        const btnSync = document.getElementById('btn-sync-mailbox');
+        const btnAdd = document.getElementById('btn-add-notice');
+        const annView = document.getElementById('announcements-view');
+        const inbView = document.getElementById('inbox-view');
+        const chView = document.getElementById('chat-view');
+        const title = document.getElementById('comm-title');
+        const desc = document.getElementById('comm-desc');
+
+        [btnAnn, btnInb, btnCh].forEach(b => {
+            if (b) {
+                b.classList.remove('active');
+                b.style.color = 'var(--text-muted)';
+            }
         });
 
-        btnChat.addEventListener('click', () => {
-            btnChat.classList.add('active');
-            btnAnnouncements.classList.remove('active');
+        if (tabName === 'notices') {
+            if (btnAnn) { btnAnn.classList.add('active'); btnAnn.style.color = 'var(--text-dark)'; }
+            if (annView) annView.style.display = 'block';
+            if (inbView) inbView.style.display = 'none';
+            if (chView) chView.style.display = 'none';
+            if (btnAdd) btnAdd.style.display = 'inline-flex';
+            if (btnSync) btnSync.style.display = 'none';
+            if (title) title.textContent = 'Notice Board & Broadcasting';
+            if (desc) desc.textContent = 'Publish office-wide alerts, schedule team announcements, or direct target alerts to individual staff.';
+            if (typeof stopMessagePolling === 'function') stopMessagePolling();
+        } else if (tabName === 'inbox') {
+            if (btnInb) { btnInb.classList.add('active'); btnInb.style.color = 'var(--text-dark)'; }
+            if (annView) annView.style.display = 'none';
+            if (inbView) inbView.style.display = 'block';
+            if (chView) chView.style.display = 'none';
+            if (btnAdd) btnAdd.style.display = 'none';
+            if (btnSync) btnSync.style.display = 'inline-flex';
+            if (title) title.textContent = 'Inbound Mailbox & Alerts Inbox';
+            if (desc) desc.textContent = 'Live stream of inbound customer emails, auto-created tickets, and internal staff CC notifications.';
+            if (typeof stopMessagePolling === 'function') stopMessagePolling();
+            if (typeof loadInboxData === 'function') loadInboxData();
+        } else if (tabName === 'chat') {
+            if (btnCh) { btnCh.classList.add('active'); btnCh.style.color = 'var(--text-dark)'; }
+            if (annView) annView.style.display = 'none';
+            if (inbView) inbView.style.display = 'none';
+            if (chView) chView.style.display = 'block';
+            if (btnAdd) btnAdd.style.display = 'none';
+            if (btnSync) btnSync.style.display = 'none';
+            if (title) title.textContent = 'Direct Chat Room';
+            if (desc) desc.textContent = 'Chat in real-time with employee contacts or initiate a voice call.';
+            if (typeof loadChatContacts === 'function') loadChatContacts();
+            fetch('/api/v1/employee/inbox/mark-read', { method: 'POST', credentials: 'include' }).catch(() => {});
+        }
+    };
 
-            btnChat.style.color = 'var(--text-dark)';
-            btnAnnouncements.style.color = 'var(--text-muted)';
+    if (btnAnnouncements) btnAnnouncements.addEventListener('click', () => window.switchCommTab('notices'));
+    if (btnInboxTab) btnInboxTab.addEventListener('click', () => window.switchCommTab('inbox'));
+    if (btnChat) btnChat.addEventListener('click', () => window.switchCommTab('chat'));
 
-            announcementsView.style.display = 'none';
-            chatView.style.display = 'block';
-            btnAddNotice.style.display = 'none';
-            commTitle.textContent = 'Direct Chat Room';
-            commDesc.textContent = 'Chat in real-time with employee contacts or initiate a voice call.';
-            loadChatContacts();
-            
-            // Mark chat notifications read & update badge
-            fetch('/api/v1/employee/inbox/mark-read', { method: 'POST', credentials: 'include' })
-                .then(() => { if (typeof window.checkChatUnreadBadge === 'function') window.checkChatUnreadBadge(); })
-                .catch(() => {});
+    const updateInboxCounts = () => {
+        const tickets = inboxCache.tickets || [];
+        const notifs = inboxCache.notifications || [];
+        const emailTickets = tickets.filter(t => t.source === 'Email' || t.category === 'Email Inbound');
+        
+        const countAll = tickets.length + notifs.length;
+        const countEmail = emailTickets.length;
+        const countTickets = tickets.length;
+        const countAlerts = notifs.length;
+
+        const elAll = document.getElementById('count-all');
+        const elEmail = document.getElementById('count-email');
+        const elTickets = document.getElementById('count-tickets');
+        const elAlerts = document.getElementById('count-alerts');
+
+        if (elAll) elAll.textContent = countAll;
+        if (elEmail) elEmail.textContent = countEmail;
+        if (elTickets) elTickets.textContent = countTickets;
+        if (elAlerts) elAlerts.textContent = countAlerts;
+
+        if (inboxCountBadge) {
+            if (countAll > 0) {
+                inboxCountBadge.style.display = 'inline-block';
+                inboxCountBadge.textContent = countAll;
+            } else {
+                inboxCountBadge.style.display = 'none';
+            }
+        }
+    };
+
+    const renderInboxStream = () => {
+        if (!inboxList) return;
+        const tickets = inboxCache.tickets || [];
+        const notifs = inboxCache.notifications || [];
+
+        let items = [];
+
+        if (currentInboxFilter === 'all') {
+            items = [
+                ...tickets.map(t => ({ ...t, _kind: 'ticket' })),
+                ...notifs.map(n => ({ ...n, _kind: 'notification' }))
+            ];
+        } else if (currentInboxFilter === 'email') {
+            items = tickets.filter(t => t.source === 'Email' || t.category === 'Email Inbound').map(t => ({ ...t, _kind: 'ticket' }));
+        } else if (currentInboxFilter === 'ticket') {
+            items = tickets.map(t => ({ ...t, _kind: 'ticket' }));
+        } else if (currentInboxFilter === 'alert') {
+            items = notifs.map(n => ({ ...n, _kind: 'notification' }));
+        }
+
+        // Sort by created_at DESC
+        items.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+        if (items.length === 0) {
+            inboxList.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align:center; padding:45px 20px; color:var(--text-muted);">
+                        <i class="fa-regular fa-envelope-open" style="font-size:36px; margin-bottom:12px; color:var(--teal-600); opacity:0.6; display:block;"></i>
+                        <strong>No items found in this inbox filter</strong>
+                        <p style="font-size:12.5px; margin-top:4px;">Incoming emails sent to support will automatically appear here.</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        inboxList.innerHTML = items.map(item => {
+            const isTicket = (item._kind === 'ticket');
+            const isEmail = isTicket && (item.source === 'Email' || item.category === 'Email Inbound');
+            const dateStr = item.created_at ? new Date(item.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent';
+
+            // Badge
+            let badgeHtml = '';
+            if (isEmail) {
+                badgeHtml = `<span class="badge" style="background:rgba(2,132,199,0.15); color:#0284c7; border:1px solid rgba(2,132,199,0.3); font-weight:700;"><i class="fa-solid fa-envelope" style="margin-right:4px;"></i> Inbound Mail</span>`;
+            } else if (isTicket) {
+                badgeHtml = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#059669; border:1px solid rgba(16,185,129,0.3); font-weight:700;"><i class="fa-solid fa-ticket" style="margin-right:4px;"></i> Portal Ticket</span>`;
+            } else {
+                badgeHtml = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#d97706; border:1px solid rgba(245,158,11,0.3); font-weight:700;"><i class="fa-solid fa-bell" style="margin-right:4px;"></i> Alert / CC</span>`;
+            }
+
+            // Ticket code
+            const tCode = item.ticket_code || (item.metadata && item.metadata.ticket_code) || '—';
+            const tCodeHtml = (tCode && tCode !== '—') 
+                ? `<a href="/admin-support.html?ticket_code=${encodeURIComponent(tCode)}" style="font-weight:800; color:var(--teal-700); text-decoration:none; font-family:monospace; background:rgba(255,255,255,0.4); padding:3px 7px; border-radius:4px; border:1px solid rgba(255,255,255,0.6);">${tCode}</a>`
+                : `<span style="color:var(--text-muted); font-size:12px;">Notice</span>`;
+
+            // Sender / Customer
+            const senderName = isTicket ? (item.customer_name || 'Customer') : (item.recipient_name || 'Staff Member');
+            const senderEmail = isTicket ? (item.customer_email || item.reported_by || '') : (item.employee_code || '');
+
+            // Subject / Description
+            const subject = item.title || item.subject || 'Support Request';
+            const desc = item.description || item.message || '';
+            const descSnippet = desc.length > 90 ? desc.substring(0, 90) + '...' : desc;
+
+            // Attachments
+            let atts = [];
+            if (item.attachments) {
+                try {
+                    atts = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+                } catch(e) {}
+            }
+            const attBadge = (Array.isArray(atts) && atts.length > 0)
+                ? `<span style="display:inline-flex; align-items:center; gap:3px; font-size:11px; background:rgba(2,132,199,0.1); color:#0284c7; padding:2px 6px; border-radius:4px; margin-top:4px; font-weight:700;"><i class="fa-solid fa-paperclip"></i> ${atts.length} Attachment${atts.length > 1 ? 's' : ''}</span>`
+                : '';
+
+            // Staff & CC
+            const staffName = item.assigned_to_name || (isTicket ? 'Unassigned' : (item.recipient_name || 'All'));
+            let ccHtml = '';
+            if (item.cc_emails && Array.isArray(item.cc_emails) && item.cc_emails.length > 0) {
+                ccHtml = `<div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;"><strong>CC:</strong> ${item.cc_emails.slice(0, 2).join(', ')}${item.cc_emails.length > 2 ? ' +' + (item.cc_emails.length - 2) : ''}</div>`;
+            }
+
+            // Action button: Vibrant & clearly labeled
+            let actionLink = '';
+            if (tCode && tCode !== '—') {
+                actionLink = `<a href="/admin-support.html?ticket_code=${encodeURIComponent(tCode)}" class="btn-inbox-action btn-ticket" title="Open Ticket ${tCode} in Support Desk"><i class="fa-solid fa-up-right-from-square" style="font-size:11px;"></i> View Ticket</a>`;
+            } else if (isTicket) {
+                actionLink = `<a href="/admin-support.html?id=${item.id}" class="btn-inbox-action btn-ticket" title="Open Ticket"><i class="fa-solid fa-ticket" style="font-size:11px;"></i> View Ticket</a>`;
+            } else {
+                actionLink = `<a href="/admin-support.html" class="btn-inbox-action btn-alert" title="Go to Support Desk"><i class="fa-solid fa-headset" style="font-size:11px;"></i> Support Desk</a>`;
+            }
+
+            return `
+                <tr>
+                    <td style="white-space:nowrap;">${badgeHtml}</td>
+                    <td style="white-space:nowrap;">${tCodeHtml}</td>
+                    <td style="overflow:hidden; text-overflow:ellipsis;">
+                        <div style="font-weight:700; color:var(--text-dark); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${senderName}</div>
+                        ${senderEmail ? `<div style="font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${senderEmail}">${senderEmail}</div>` : ''}
+                    </td>
+                    <td style="word-break:break-word;">
+                        <div style="font-weight:700; color:var(--teal-950); margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${subject}">${subject}</div>
+                        <div style="font-size:12px; color:var(--text-muted); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${descSnippet}</div>
+                        ${attBadge}
+                    </td>
+                    <td style="overflow:hidden; text-overflow:ellipsis;">
+                        <div style="font-weight:600; font-size:12px; color:var(--teal-900); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="fa-solid fa-user-check" style="margin-right:4px; font-size:10px;"></i>${staffName}</div>
+                        ${ccHtml}
+                    </td>
+                    <td style="font-size:11.5px; color:var(--text-muted); white-space:nowrap;">${dateStr}</td>
+                    <td style="text-align:right; white-space:nowrap; padding-right:16px;">${actionLink}</td>
+                </tr>
+            `;
+        }).join('');
+    };
+
+    // Filter switcher
+    window.setInboxFilter = function(filterType, clickedEl) {
+        document.querySelectorAll('.inbox-filter-btn').forEach(b => {
+            b.classList.remove('active');
+            b.style.background = 'rgba(255,255,255,0.3)';
+            b.style.color = 'var(--text-dark)';
+            b.style.border = '1px solid rgba(255,255,255,0.5)';
         });
+        if (clickedEl) {
+            clickedEl.classList.add('active');
+            clickedEl.style.background = 'var(--teal-700)';
+            clickedEl.style.color = 'white';
+            clickedEl.style.border = 'none';
+        }
+
+        currentInboxFilter = filterType || 'all';
+        renderInboxStream();
+    };
+
+    // Filter Buttons wire
+    document.querySelectorAll('.inbox-filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const filterType = e.currentTarget.getAttribute('data-filter') || 'all';
+            window.setInboxFilter(filterType, e.currentTarget);
+        });
+    });
+
+    // Wire Sync Mailbox Button
+    window.triggerMailboxSync = async function() {
+        const btn = document.getElementById('btn-sync-mailbox');
+        const icon = btn ? btn.querySelector('i') : null;
+        if (icon) icon.classList.add('fa-spin');
+        if (btn) btn.disabled = true;
+
+        try {
+            const token = localStorage.getItem('token') || (typeof getAuthToken === 'function' ? getAuthToken() : '');
+            const headers = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await fetch('/api/v1/admin/communication/sync-mailbox', { 
+                method: 'POST',
+                credentials: 'include',
+                headers
+            });
+            const json = await res.json();
+            if (typeof showToast === 'function') {
+                showToast(json.message || "Mailbox sync cycle initiated!", "success");
+            }
+            setTimeout(() => {
+                loadInboxData();
+                if (icon) icon.classList.remove('fa-spin');
+                if (btn) btn.disabled = false;
+            }, 2000);
+        } catch (err) {
+            console.error("Sync error:", err);
+            if (icon) icon.classList.remove('fa-spin');
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    if (btnSyncMailbox) {
+        btnSyncMailbox.addEventListener('click', () => window.triggerMailboxSync());
     }
+
+    window.loadInboxData = loadInboxData;
+
+    // Auto-load inbox count badge on initial page open
+    loadInboxData();
 
     // Chat State variables
     let chatChannels = { directMessages: [], taskGroups: [], departmentChannels: [] };
@@ -328,11 +608,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectChannelItem = async (type, id, title, subtitle) => {
         selectedChannel = { type, id, title, subtitle };
 
-        document.getElementById('chat-thread-empty').style.display = 'none';
-        document.getElementById('chat-thread-active').style.display = 'flex';
+        const threadEmpty = document.getElementById('chat-thread-empty');
+        const threadActive = document.getElementById('chat-thread-active');
+        if (threadEmpty) threadEmpty.style.display = 'none';
+        if (threadActive) threadActive.style.display = 'flex';
 
-        document.getElementById('chat-header-name').textContent = title;
-        document.getElementById('chat-header-status').textContent = subtitle;
+        const headerName = document.getElementById('chat-header-name') || document.getElementById('chat-active-header');
+        if (headerName) headerName.textContent = title + (subtitle ? ` (${subtitle})` : '');
+        const headerStatus = document.getElementById('chat-header-status');
+        if (headerStatus) headerStatus.textContent = subtitle;
 
         loadMessages();
         startMessagePolling();
@@ -532,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const sendChatMessage = async () => {
-        const input = document.getElementById('chat-message-input');
+        const input = document.getElementById('chat-message-input') || document.getElementById('chat-input');
         if (!input || !selectedChannel) return;
         const msg = input.value.trim();
         if (!msg && !pendingFile) return;
@@ -546,14 +830,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (msg) formData.append('message', msg);
                 await fetch('/api/v1/employee/chat/send', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    credentials: 'include'
                 });
             } else {
                 formData.append('channelId', selectedChannel.id);
                 if (msg) formData.append('messageText', msg);
                 await fetch('/api/v1/chat/messages', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    credentials: 'include'
                 });
             }
             input.value = '';
@@ -579,8 +865,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Attach sending triggers
-    const sendBtn = document.getElementById('btn-chat-send');
-    const msgInput = document.getElementById('chat-message-input');
+    const sendBtn = document.getElementById('btn-chat-send') || document.getElementById('chat-send-btn');
+    const msgInput = document.getElementById('chat-message-input') || document.getElementById('chat-input');
     if (sendBtn) sendBtn.addEventListener('click', sendChatMessage);
     if (msgInput) {
         msgInput.addEventListener('keydown', (e) => {
@@ -701,10 +987,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial load
     loadCommunication();
+    loadInboxData();
 
-    // Check query params to auto-switch tab
+    // Check query params or hash to auto-switch tab
     const params = new URLSearchParams(window.location.search);
-    if (params.get('chat_id')) {
-        if (btnChat) btnChat.click();
+    const hash = window.location.hash;
+    if (params.get('chat_id') || hash === '#chat' || params.get('tab') === 'chat') {
+        window.switchCommTab('chat');
+    } else if (params.get('tab') === 'inbox' || hash === '#inbox') {
+        window.switchCommTab('inbox');
     }
 });

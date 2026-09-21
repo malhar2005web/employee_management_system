@@ -1,3 +1,6 @@
+import dns from "dns";
+try { dns.setDefaultResultOrder("ipv4first"); } catch (e) {}
+
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -267,6 +270,8 @@ const startTeramindSyncWorker = () => {
     }, 300000);
 };
 
+import { initEmailTicketWorker } from "./services/emailTicket.service.js";
+
 const server = createServer(app);
 
 // DB + Migrations + Server Start
@@ -276,6 +281,7 @@ connectDB()
     startHeartbeatMonitor();
     startDelegationExpiryWorker();
     startTeramindSyncWorker();
+    await initEmailTicketWorker().catch(e => console.warn("Email ticket worker init notice:", e.message));
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`💓 Background Heartbeat Monitor active (120s timeout)`);

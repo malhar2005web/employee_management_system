@@ -21,6 +21,27 @@
     updateClock();
     setInterval(updateClock, 1000);
 
+    function formatDateDMY(val) {
+        if (!val || val === '—' || val === '-') return '—';
+        if (typeof val === 'string') {
+            const cleanStr = val.split('T')[0];
+            if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+                const parts = cleanStr.split('-');
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        }
+        try {
+            const d = new Date(val);
+            if (!isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+        } catch (e) {}
+        return String(val);
+    }
+
     // --- Month filter default ---
     const today = new Date();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -215,7 +236,7 @@
                 const dateObj = parts.length === 3 ? new Date(parts[0], parts[1] - 1, parts[2]) : new Date(r.date);
 
                 const day = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
-                const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                const dateStr = formatDateDMY(rawDate || r.date);
                 const isToday = rawDate === todayIso;
 
                 const loginStr = r.login_time ? new Date(r.login_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
@@ -325,8 +346,17 @@
     const btnCorrection = document.getElementById('btn-correction');
     if (btnCorrection) {
         btnCorrection.addEventListener('click', () => {
-            const mod = document.getElementById('modal-correction');
-            if (mod) mod.style.display = 'flex';
+            if (window.openModal) {
+                window.openModal('modal-correction');
+            } else {
+                const mod = document.getElementById('modal-correction');
+                if (mod) {
+                    mod.classList.add('active');
+                    mod.style.display = 'flex';
+                    mod.style.opacity = '1';
+                    mod.style.pointerEvents = 'auto';
+                }
+            }
         });
     }
 
@@ -334,8 +364,16 @@
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('click', () => {
-                const mod = document.getElementById('modal-correction');
-                if (mod) mod.style.display = 'none';
+                if (window.closeModal) {
+                    window.closeModal('modal-correction');
+                } else {
+                    const mod = document.getElementById('modal-correction');
+                    if (mod) {
+                        mod.classList.remove('active');
+                        mod.style.display = 'none';
+                        mod.style.opacity = '0';
+                    }
+                }
             });
         }
     });
@@ -358,7 +396,11 @@
                 const data = await res.json();
                 if (data.success) {
                     showToast('Correction request submitted!', 'success');
-                    document.getElementById('modal-correction').style.display = 'none';
+                    if (window.closeModal) {
+                        window.closeModal('modal-correction');
+                    } else {
+                        document.getElementById('modal-correction').style.display = 'none';
+                    }
                 } else {
                     showToast(data.message || 'Failed to submit', 'error');
                 }
@@ -387,7 +429,14 @@
                 const now = new Date();
                 timeInput.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             }
-            if (modalOutEntry) modalOutEntry.style.display = 'flex';
+            if (window.openModal) {
+                window.openModal('modal-out-entry');
+            } else if (modalOutEntry) {
+                modalOutEntry.classList.add('active');
+                modalOutEntry.style.display = 'flex';
+                modalOutEntry.style.opacity = '1';
+                modalOutEntry.style.pointerEvents = 'auto';
+            }
         });
     }
 
@@ -395,7 +444,13 @@
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('click', () => {
-                if (modalOutEntry) modalOutEntry.style.display = 'none';
+                if (window.closeModal) {
+                    window.closeModal('modal-out-entry');
+                } else if (modalOutEntry) {
+                    modalOutEntry.classList.remove('active');
+                    modalOutEntry.style.display = 'none';
+                    modalOutEntry.style.opacity = '0';
+                }
             });
         }
     });
@@ -404,7 +459,13 @@
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('click', () => {
-                if (modalEmpReturn) modalEmpReturn.style.display = 'none';
+                if (window.closeModal) {
+                    window.closeModal('modal-emp-return');
+                } else if (modalEmpReturn) {
+                    modalEmpReturn.classList.remove('active');
+                    modalEmpReturn.style.display = 'none';
+                    modalEmpReturn.style.opacity = '0';
+                }
             });
         }
     });
@@ -434,7 +495,11 @@
                 const data = await res.json();
                 if (data.success) {
                     showToast('Out entry submitted successfully!', 'success');
-                    if (modalOutEntry) modalOutEntry.style.display = 'none';
+                    if (window.closeModal) {
+                        window.closeModal('modal-out-entry');
+                    } else if (modalOutEntry) {
+                        modalOutEntry.style.display = 'none';
+                    }
                     loadEmployeeOutEntries();
                 } else {
                     showToast(data.message || 'Failed to submit', 'error');
@@ -483,7 +548,7 @@
             }
 
             empOutTbody.innerHTML = entries.map(entry => {
-                const d = new Date(entry.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                const d = formatDateDMY(entry.date);
                 
                 let durationStr = '—';
                 if (entry.duration_minutes > 0) {
@@ -537,7 +602,14 @@
             const now = new Date();
             timeInput.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         }
-        if (modalEmpReturn) modalEmpReturn.style.display = 'flex';
+        if (window.openModal) {
+            window.openModal('modal-emp-return');
+        } else if (modalEmpReturn) {
+            modalEmpReturn.classList.add('active');
+            modalEmpReturn.style.display = 'flex';
+            modalEmpReturn.style.opacity = '1';
+            modalEmpReturn.style.pointerEvents = 'auto';
+        }
     };
 
     // Confirm Return Action
@@ -562,7 +634,11 @@
                 const data = await res.json();
                 if (data.success) {
                     showToast('Return time confirmed!', 'success');
-                    if (modalEmpReturn) modalEmpReturn.style.display = 'none';
+                    if (window.closeModal) {
+                        window.closeModal('modal-emp-return');
+                    } else if (modalEmpReturn) {
+                        modalEmpReturn.style.display = 'none';
+                    }
                     loadEmployeeOutEntries();
                 } else {
                     showToast(data.message || 'Failed to record return', 'error');
