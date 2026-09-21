@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-import { getWebPagesApplicationsGrid, syncTeramindAttendance } from '../services/teramind.service.js';
+import { getWebPagesApplicationsGrid, syncTeramindDataToCache } from '../services/teramind.service.js';
 
 /**
  * Trigger PL/pgSQL Calculation Engine for a Month
@@ -23,9 +23,9 @@ export async function calculateAttendance(req, res) {
         }
 
         try {
-            await syncTeramindAttendance();
+            await syncTeramindDataToCache();
         } catch (sErr) {
-            console.warn("syncTeramindAttendance notice:", sErr.message);
+            console.warn("syncTeramindDataToCache notice:", sErr.message);
         }
 
         res.status(200).json({

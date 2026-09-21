@@ -778,3 +778,5 @@ function getMockInputRate() {
         overall_activity_level: 'High'
     };
 }
+
+export { syncTeramindDataToCache as syncTeramindAttendance };
