@@ -101,32 +101,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
             createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        // If Open or Assigned and resolution not started yet:
-        if ((ticket.status === 'Open' || ticket.status === 'Assigned') && !ticket.started_resolving_at) {
-            return `<div class="live-ticket-timer" data-started="" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-                <div style="font-weight:700; color:#0d9488; display:flex; align-items:center; gap:4px;">
-                    <i class="fa-solid fa-stopwatch" style="color:#0d9488;"></i>
-                    <span class="live-timer-text">00:00:00</span>
-                    <span style="font-size:11px; font-weight:600; color:#0d9488;">elapsed</span>
-                </div>
-                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
-                    <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
-                </div>
-            </div>`;
-        }
-
         const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
         const startMs = new Date(startTimeRaw).getTime();
-        const elapsedMs = Math.max(0, Date.now() - startMs);
+        const elapsedMs = Math.max(0, Date.now() - (isNaN(startMs) ? Date.now() : startMs));
         const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
         const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
         const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
 
-        return `<div class="live-ticket-timer" data-started="${ticket.started_resolving_at || ticket.created_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-            <div style="font-weight:700; color:#2563eb; display:flex; align-items:center; gap:4px;">
-                <i class="fa-solid fa-stopwatch fa-spin" style="--fa-animation-duration: 3s; color:#2563eb;"></i>
+        const isResolving = !!ticket.started_resolving_at;
+        const timerColor = isResolving ? '#2563eb' : '#0d9488';
+        const timerIcon = isResolving ? 'fa-solid fa-stopwatch fa-spin' : 'fa-solid fa-stopwatch';
+        const labelText = isResolving ? 'active' : 'elapsed';
+
+        return `<div class="live-ticket-timer" data-started="${ticket.started_resolving_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+            <div style="font-weight:700; color:${timerColor}; display:flex; align-items:center; gap:4px;">
+                <i class="${timerIcon}" style="${isResolving ? '--fa-animation-duration: 3s;' : ''} color:${timerColor};"></i>
                 <span class="live-timer-text">${eH}:${eM}:${eS}</span>
-                <span style="font-size:11px; font-weight:700; color:#2563eb;">elapsed</span>
+                <span style="font-size:11px; font-weight:700; color:${timerColor};">${labelText}</span>
             </div>
             <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
                 <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
@@ -1044,31 +1035,38 @@ document.addEventListener('DOMContentLoaded', () => {
                             isImage = att.type === 'image' || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name) || /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
                         }
 
+                        // Fallback to universal attachment streaming route if url is empty
+                        if (!url && name && name !== 'Attachment') {
+                            url = `/api/v1/support/attachment/${encodeURIComponent(name)}`;
+                        }
+
                         if (url && url !== '#' && url !== '[object Object]') {
                             if (isImage) {
                                 return `
-                                    <div style="display:inline-block; margin:6px; background:rgba(255,255,255,0.85); border:1px solid rgba(0,0,0,0.12); border-radius:8px; padding:6px; text-align:center; vertical-align:top;">
-                                        <a href="${url}" target="_blank" title="Click to view full image">
-                                            <img src="${url}" alt="${name}" style="max-width:200px; max-height:140px; border-radius:6px; display:block; object-fit:cover; margin-bottom:6px; box-shadow:0 2px 6px rgba(0,0,0,0.08);" onerror="this.style.display='none';">
+                                    <div style="display:inline-block; margin:6px; background:rgba(255,255,255,0.95); border:1.5px solid #cbd5e1; border-radius:10px; padding:8px; text-align:center; vertical-align:top; box-shadow:0 2px 8px rgba(0,0,0,0.06); max-width:240px;">
+                                        <a href="${url}" target="_blank" rel="noopener noreferrer" title="Click to view full image" style="display:block; overflow:hidden; border-radius:6px; background:#f8fafc;">
+                                            <img src="${url}" alt="${name}" style="max-width:220px; max-height:160px; border-radius:6px; display:block; margin:0 auto; object-fit:contain;" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\\'padding:20px; color:#64748b; font-size:12px;\\'><i class=\\'fa-solid fa-image\\' style=\\'font-size:24px; color:#94a3b8; display:block; margin-bottom:4px;\\'></i>${name}</div>';">
                                         </a>
-                                        <a href="${url}" target="_blank" style="font-size:12px; font-weight:700; color:var(--teal-700); text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+                                        <a href="${url}" target="_blank" rel="noopener noreferrer" style="font-size:12px; font-weight:700; color:var(--teal-700); text-decoration:none; display:inline-flex; align-items:center; gap:4px; margin-top:8px; word-break:break-all;">
                                             <i class="fa-solid fa-arrow-up-right-from-square"></i> ${name}
                                         </a>
                                     </div>
                                 `;
                             } else {
                                 return `
-                                    <a href="${url}" target="_blank" class="badge" style="background:rgba(255,255,255,0.85); border:1px solid rgba(0,0,0,0.15); color:var(--teal-800); font-weight:700; padding:8px 14px; margin:4px; font-size:12.5px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                                    <a href="${url}" target="_blank" rel="noopener noreferrer" class="badge" style="background:rgba(255,255,255,0.95); border:1.5px solid #cbd5e1; color:var(--teal-800); font-weight:700; padding:8px 14px; margin:4px; font-size:12.5px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.05);">
                                         <i class="fa-solid fa-paperclip" style="color:var(--teal-600); font-size:14px;"></i> ${name}
                                         <i class="fa-solid fa-arrow-up-right-from-square" style="margin-left:4px; font-size:11px; color:var(--text-muted);"></i>
                                     </a>
                                 `;
                             }
                         } else {
+                            const fallbackUrl = `/api/v1/support/attachment/${encodeURIComponent(name)}`;
                             return `
-                                <span class="badge" style="background:rgba(100,116,139,0.12); color:#475569; font-size:12px; font-weight:600; padding:6px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:5px; margin:4px;">
-                                    <i class="fa-solid fa-paperclip" style="color:#64748b;"></i> ${name}
-                                </span>
+                                <a href="${fallbackUrl}" target="_blank" rel="noopener noreferrer" class="badge" style="background:rgba(255,255,255,0.95); border:1.5px solid #cbd5e1; color:var(--teal-800); font-weight:700; padding:8px 14px; margin:4px; font-size:12.5px; text-decoration:none; display:inline-flex; align-items:center; gap:6px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+                                    <i class="fa-solid fa-paperclip" style="color:var(--teal-600); font-size:14px;"></i> ${name}
+                                    <i class="fa-solid fa-arrow-up-right-from-square" style="margin-left:4px; font-size:11px; color:var(--text-muted);"></i>
+                                </a>
                             `;
                         }
                     }).join('');
@@ -2106,9 +2104,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (status === 'Resolved' || status === 'Closed') return;
 
                 const startedStr = el.getAttribute('data-started');
-                if (!startedStr) return; // Stays 00:00:00 until Start Resolving is clicked!
+                const createdStr = el.getAttribute('data-created');
+                const effectiveTimeStr = startedStr || createdStr;
+                if (!effectiveTimeStr) return;
 
-                const startMs = new Date(startedStr).getTime();
+                const startMs = new Date(effectiveTimeStr).getTime();
                 if (isNaN(startMs)) return;
 
                 const elapsedMs = Math.max(0, Date.now() - startMs);

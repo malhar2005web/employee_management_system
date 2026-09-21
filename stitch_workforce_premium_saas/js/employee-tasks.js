@@ -529,33 +529,23 @@
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
                                createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        // If Open or Assigned and resolution not started yet:
-        if ((ticket.status === 'Open' || ticket.status === 'Assigned') && !ticket.started_resolving_at) {
-            return `<div class="emp-live-timer" data-started="" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-                <div style="font-weight:700; color:#0d9488; display:flex; align-items:center; gap:4px;">
-                    <i class="fa-solid fa-stopwatch" style="color:#0d9488;"></i>
-                    <span class="live-timer-text">00:00:00</span>
-                    <span style="font-size:11px; font-weight:600; color:#0d9488;">elapsed</span>
-                </div>
-                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
-                    <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
-                </div>
-            </div>`;
-        }
-
-        // Active In Progress or resolution started
         const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
         const startMs = new Date(startTimeRaw).getTime();
-        const elapsedMs = Math.max(0, Date.now() - startMs);
+        const elapsedMs = Math.max(0, Date.now() - (isNaN(startMs) ? Date.now() : startMs));
         const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
         const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
         const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
 
-        return `<div class="emp-live-timer" data-started="${ticket.started_resolving_at || ticket.created_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-            <div style="font-weight:700; color:#2563eb; display:flex; align-items:center; gap:4px;">
-                <i class="fa-solid fa-stopwatch fa-spin" style="--fa-animation-duration: 3s; color:#2563eb;"></i>
+        const isResolving = !!ticket.started_resolving_at;
+        const timerColor = isResolving ? '#2563eb' : '#0d9488';
+        const timerIcon = isResolving ? 'fa-solid fa-stopwatch fa-spin' : 'fa-solid fa-stopwatch';
+        const labelText = isResolving ? 'active' : 'elapsed';
+
+        return `<div class="emp-live-timer" data-started="${ticket.started_resolving_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+            <div style="font-weight:700; color:${timerColor}; display:flex; align-items:center; gap:4px;">
+                <i class="${timerIcon}" style="${isResolving ? '--fa-animation-duration: 3s;' : ''} color:${timerColor};"></i>
                 <span class="live-timer-text">${eH}:${eM}:${eS}</span>
-                <span style="font-size:11px; font-weight:700; color:#2563eb;">elapsed</span>
+                <span style="font-size:11px; font-weight:700; color:${timerColor};">${labelText}</span>
             </div>
             <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
                 <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
@@ -1025,39 +1015,38 @@
                             if (typeof att === 'string') {
                                 url = att.trim();
                                 name = url.split('/').pop() || 'Attachment';
-                                isImg = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url);
+                                isImg = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name) || /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
                             } else if (typeof att === 'object' && att !== null) {
-                                url = att.url || (att.mediaId ? `/api/v1/whatsapp/media/${att.mediaId}` : '');
                                 name = att.name || att.filename || att.caption || 'Attachment';
+                                url = att.url || (att.mediaId ? `/api/v1/whatsapp/media/${att.mediaId}` : '');
+                                if (!url && name && name !== 'Attachment') {
+                                    url = `/api/v1/support/attachment/${encodeURIComponent(name)}`;
+                                }
                                 isImg = att.type === 'image' || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name) || /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
                             }
 
-                            if (url && url !== '#' && url !== '[object Object]') {
-                                if (isImg) {
-                                    return `
-                                        <div style="background:rgba(255,255,255,0.9); border:1px solid rgba(0,0,0,0.12); border-radius:8px; padding:6px; display:inline-flex; flex-direction:column; align-items:center; gap:4px;">
-                                            <a href="${url}" target="_blank" title="Click to view full image">
-                                                <img src="${url}" alt="${name}" style="max-width:180px; max-height:120px; object-fit:cover; border-radius:6px; border:1px solid rgba(0,0,0,0.08);">
-                                            </a>
-                                            <a href="${url}" target="_blank" class="btn-secondary" style="font-size:11.5px; font-weight:700; padding:2px 8px; display:inline-flex; align-items:center; gap:4px; text-decoration:none;">
-                                                <i class="fa-solid fa-arrow-up-right-from-square"></i> View Image
-                                            </a>
-                                        </div>
-                                    `;
-                                } else {
-                                    return `
-                                        <a href="${url}" target="_blank" class="btn-secondary" style="font-size:12px; font-weight:700; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:6px; color:var(--teal-900);">
-                                            <i class="fa-solid fa-paperclip" style="color:var(--teal-600);"></i>
-                                            <span>${name}</span>
-                                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10.5px; color:var(--text-muted);"></i>
+                            if (!url) {
+                                url = `/api/v1/support/attachment/${encodeURIComponent(name)}`;
+                            }
+
+                            if (isImg) {
+                                return `
+                                    <div style="background:rgba(255,255,255,0.95); border:1px solid rgba(0,0,0,0.12); border-radius:10px; padding:8px; display:inline-flex; flex-direction:column; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                                        <a href="${url}" target="_blank" title="Click to view full image" style="display:block;">
+                                            <img src="${url}" alt="${name}" style="max-width:180px; max-height:120px; object-fit:cover; border-radius:6px; border:1px solid rgba(0,0,0,0.08);" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'160\\' height=\\'90\\' viewBox=\\'0 0 160 90\\'><rect fill=\\'%23f1f5f9\\' width=\\'160\\' height=\\'90\\'/><text fill=\\'%2364748b\\' font-size=\\'12\\' font-weight=\\'bold\\' x=\\'50%\\' y=\\'50%\\' text-anchor=\\'middle\\' dominant-baseline=\\'middle\\'>Image File</text></svg>';">
                                         </a>
-                                    `;
-                                }
+                                        <a href="${url}" target="_blank" class="btn-secondary" style="font-size:11.5px; font-weight:700; padding:3px 10px; display:inline-flex; align-items:center; gap:5px; text-decoration:none; background:#f0fdfa; color:#0f766e; border:1px solid #99f6e4; border-radius:6px;">
+                                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Attachment
+                                        </a>
+                                    </div>
+                                `;
                             } else {
                                 return `
-                                    <span class="badge" style="background:rgba(100,116,139,0.12); color:#475569; font-size:12px; font-weight:600; padding:6px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:5px;">
-                                        <i class="fa-solid fa-paperclip" style="color:#64748b;"></i> ${name}
-                                    </span>
+                                    <a href="${url}" target="_blank" class="btn-secondary" style="font-size:12px; font-weight:700; padding:6px 14px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; background:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:8px; color:var(--teal-900); box-shadow:0 2px 6px rgba(0,0,0,0.04);">
+                                        <i class="fa-solid fa-paperclip" style="color:var(--teal-600); font-size:13px;"></i>
+                                        <span>${name}</span>
+                                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10.5px; color:var(--text-muted);"></i>
+                                    </a>
                                 `;
                             }
                         }).join('') + `</div>`;
@@ -1307,7 +1296,7 @@
                     <span>${c.author_name || 'Staff'}</span>
                     <span style="font-size:10.5px; font-weight:500; color:var(--text-muted);">${new Date(c.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                 </div>
-                <div style="color:var(--text-dark);">${c.comment}</div>
+                <div style="color:var(--text-dark); line-height:1.45; white-space:pre-wrap;">${c.comment_text || c.comment || c.details || ''}</div>
             </div>
         `).join('');
     }
@@ -1473,9 +1462,11 @@
             if (status === 'Resolved' || status === 'Closed') return;
 
             const startedStr = el.getAttribute('data-started');
-            if (!startedStr) return; // Stays at 00:00:00 until Start Resolving is clicked!
+            const createdStr = el.getAttribute('data-created');
+            const baseTimeStr = startedStr || createdStr;
+            if (!baseTimeStr) return;
 
-            const startMs = new Date(startedStr).getTime();
+            const startMs = new Date(baseTimeStr).getTime();
             if (isNaN(startMs)) return;
 
             const elapsedMs = Math.max(0, Date.now() - startMs);

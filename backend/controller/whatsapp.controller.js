@@ -9,6 +9,7 @@ import {
     sendWhatsAppCtaUrl,
     uploadMediaToWaba,
     downloadWabaMediaToDisk,
+    downloadMediaUrlToDisk,
     sanitizePhoneNumber
 } from '../services/whatsapp.service.js';
 import {
@@ -417,7 +418,7 @@ async function processIncomingWebhookAsync(body) {
     const messages = extractMessagesFromPayload(body);
 
     for (const msg of messages) {
-        const { senderPhone, msgId, timestamp, msgType, textContent, selectedId, mediaId } = msg;
+        const { senderPhone, msgId, timestamp, msgType, textContent, selectedId, mediaId, mediaUrl } = msg;
 
         // 1. Identify Client, Employee, or Prospect from Database
         const clientContext = await identifyClient(senderPhone);
@@ -457,12 +458,13 @@ async function processIncomingWebhookAsync(body) {
 
         // 6. Handle Attachments (Image, Document, Audio / Voice Note)
         let mediaAttachment = null;
-        if (msgType === 'image' || msgType === 'document' || msgType === 'audio' || msgType === 'voice') {
+        if (msgType === 'image' || msgType === 'document' || msgType === 'audio' || msgType === 'voice' || mediaId || mediaUrl) {
             const ext = msgType === 'image' ? 'png' : (msgType === 'audio' || msgType === 'voice' ? 'ogg' : 'pdf');
             const defaultName = `${msgType}-${Date.now()}.${ext}`;
             mediaAttachment = {
                 name: textContent && !textContent.startsWith('[') ? textContent : defaultName,
-                mediaId: mediaId,
+                mediaId: mediaId || null,
+                url: mediaUrl || '',
                 type: msgType,
                 uploadedAt: new Date().toISOString()
             };
@@ -551,7 +553,8 @@ function extractMessagesFromPayload(body) {
 
         let text = '';
         let selectedId = null;
-        let mediaId = null;
+        let mediaId = body.media_id || body.mediaId || body.image?.id || body.document?.id || body.audio?.id || body.voice?.id || null;
+        let mediaUrl = body.media_url || body.mediaUrl || body.image?.url || body.image?.link || body.document?.url || body.document?.link || body.url || null;
         const msgType = body.type || 'text';
 
         const interactiveObj = body.interactive || body.interactive_response || {};
@@ -580,13 +583,13 @@ function extractMessagesFromPayload(body) {
             }
             if (!text) text = rawBody;
         } else if (msgType === 'image') {
-            mediaId = body.image?.id || body.media_id;
+            mediaId = mediaId || body.image?.id || body.media_id;
             text = body.image?.caption || '[Image]';
         } else if (msgType === 'document') {
-            mediaId = body.document?.id || body.media_id;
+            mediaId = mediaId || body.document?.id || body.media_id;
             text = body.document?.filename || '[Document]';
         } else if (msgType === 'audio' || msgType === 'voice') {
-            mediaId = body.audio?.id || body.voice?.id || body.media_id;
+            mediaId = mediaId || body.audio?.id || body.voice?.id || body.media_id;
             text = '[Audio / Voice Note]';
         }
 
@@ -612,7 +615,8 @@ function extractMessagesFromPayload(body) {
             msgType: selectedId ? 'interactive' : msgType,
             textContent: text,
             selectedId: selectedId,
-            mediaId: mediaId
+            mediaId: mediaId,
+            mediaUrl: mediaUrl
         });
         return messages;
     }
@@ -625,7 +629,8 @@ function extractMessagesFromPayload(body) {
                 for (const msg of value.messages) {
                     let text = '';
                     let selectedId = null;
-                    let mediaId = null;
+                    let mediaId = msg.image?.id || msg.image?.media_id || msg.document?.id || msg.document?.media_id || msg.audio?.id || msg.media_id || msg.mediaId || null;
+                    let mediaUrl = msg.image?.url || msg.image?.link || msg.document?.url || msg.document?.link || msg.media_url || msg.mediaUrl || msg.url || null;
 
                     if (msg.type === 'text') {
                         text = msg.text?.body || '';
@@ -638,13 +643,10 @@ function extractMessagesFromPayload(body) {
                             selectedId = msg.interactive.list_reply.id;
                         }
                     } else if (msg.type === 'image') {
-                        mediaId = msg.image?.id;
                         text = msg.image?.caption || '[Image]';
                     } else if (msg.type === 'document') {
-                        mediaId = msg.document?.id;
                         text = msg.document?.filename || '[Document]';
                     } else if (msg.type === 'audio' || msg.type === 'voice') {
-                        mediaId = msg.audio?.id || msg.voice?.id;
                         text = '[Audio / Voice Note]';
                     }
 
@@ -655,7 +657,8 @@ function extractMessagesFromPayload(body) {
                         msgType: selectedId ? 'interactive' : msg.type,
                         textContent: text,
                         selectedId: selectedId,
-                        mediaId: mediaId
+                        mediaId: mediaId,
+                        mediaUrl: mediaUrl
                     });
                 }
             }
@@ -1004,11 +1007,20 @@ I have added your latest message to the existing ticket instead of creating a du
         }
 
         // Download attachment if present
-        if (attachments.length > 0 && attachments[0].mediaId) {
-            const dl = await downloadWabaMediaToDisk(attachments[0].mediaId, attachments[0].name);
-            if (dl && dl.url) {
-                attachments[0].url = dl.url;
-                attachments[0].size = dl.size;
+        if (attachments.length > 0) {
+            const att = attachments[0];
+            if (att.mediaId) {
+                const dl = await downloadWabaMediaToDisk(att.mediaId, att.name);
+                if (dl && dl.url) {
+                    att.url = dl.url;
+                    att.size = dl.size;
+                }
+            } else if (att.url && att.url.startsWith('http')) {
+                const dl = await downloadMediaUrlToDisk(att.url, att.name);
+                if (dl && dl.url) {
+                    att.url = dl.url;
+                    att.size = dl.size;
+                }
             }
         }
 

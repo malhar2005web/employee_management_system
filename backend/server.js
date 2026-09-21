@@ -119,8 +119,9 @@ app.get("/employee-trainings.html", protectHtml("Employee"));
 app.get("/employee-profile.html", protectHtml("Employee"));
 app.get("/employee-inbox.html", protectHtml("Employee"));
 
-// Serve uploaded chat files
+// Serve uploaded files (support tickets, attachments, chat, etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Serving Frontend static assets
 app.use(express.static(path.join(__dirname, "../stitch_workforce_premium_saas")));

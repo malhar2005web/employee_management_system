@@ -524,6 +524,14 @@ export async function downloadWabaMediaToDisk(mediaId, defaultName = 'attachment
             const arrayBuffer = await fileRes.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
             fs.writeFileSync(filePath, buffer);
+
+            // Also copy to backend/uploads/support if separate directory exists
+            const altDir = path.join(process.cwd(), 'backend', 'uploads', 'support');
+            if (fs.existsSync(path.join(process.cwd(), 'backend'))) {
+                if (!fs.existsSync(altDir)) fs.mkdirSync(altDir, { recursive: true });
+                fs.writeFileSync(path.join(altDir, safeFileName), buffer);
+            }
+
             console.log(`✅ Saved inbound WABA media to: ${filePath}`);
             return {
                 url: `/uploads/support/${safeFileName}`,
@@ -540,4 +548,49 @@ export async function downloadWabaMediaToDisk(mediaId, defaultName = 'attachment
         return null;
     }
 }
+
+/**
+ * 9. Download Direct Media URL to Local Disk
+ */
+export async function downloadMediaUrlToDisk(directUrl, defaultName = 'attachment.png') {
+    if (!directUrl || !directUrl.startsWith('http')) return null;
+    try {
+        const uploadDir = path.join(process.cwd(), 'uploads', 'support');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const ext = path.extname(defaultName) || '.png';
+        const safeFileName = `waba-direct-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+        const filePath = path.join(uploadDir, safeFileName);
+
+        const token = await getWabaAuthToken().catch(() => null);
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+        const res = await fetch(directUrl, { headers });
+        if (res.ok) {
+            const arrayBuffer = await res.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            fs.writeFileSync(filePath, buffer);
+
+            const altDir = path.join(process.cwd(), 'backend', 'uploads', 'support');
+            if (fs.existsSync(path.join(process.cwd(), 'backend'))) {
+                if (!fs.existsSync(altDir)) fs.mkdirSync(altDir, { recursive: true });
+                fs.writeFileSync(path.join(altDir, safeFileName), buffer);
+            }
+
+            console.log(`✅ Saved direct inbound media to: ${filePath}`);
+            return {
+                url: `/uploads/support/${safeFileName}`,
+                name: defaultName || safeFileName,
+                size: buffer.length
+            };
+        }
+        return null;
+    } catch (err) {
+        console.error("❌ downloadMediaUrlToDisk Error:", err.message);
+        return null;
+    }
+}
+
 
