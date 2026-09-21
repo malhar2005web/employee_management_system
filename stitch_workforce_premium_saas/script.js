@@ -646,3 +646,103 @@ document.addEventListener('click', (e) => {
     activateSpotlight(tr);
   });
 })();
+
+// =========================================================================
+// UNIVERSAL HAMBURGER NAVIGATION DRAWER FOR SIDEBAR MODULES
+// =========================================================================
+(function initHamburgerSidebar() {
+  function setup() {
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // 1. Ensure Backdrop element exists
+    let backdrop = document.getElementById('sidebar-backdrop');
+    if (!backdrop) {
+      backdrop = document.createElement('div');
+      backdrop.id = 'sidebar-backdrop';
+      backdrop.className = 'sidebar-backdrop';
+      document.body.appendChild(backdrop);
+    }
+
+    // 2. Ensure Close Button exists inside sidebar brand
+    const brand = sidebar.querySelector('.brand');
+    if (brand && !brand.querySelector('.sidebar-close-btn')) {
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'sidebar-close-btn';
+      closeBtn.title = 'Close Menu';
+      closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeSidebar();
+      };
+      brand.appendChild(closeBtn);
+    }
+
+    // 3. Ensure Hamburger Toggle Button exists
+    const topbar = document.querySelector('.topbar');
+    let hamburgerBtn = document.getElementById('sidebar-toggle-btn');
+    if (!hamburgerBtn) {
+      hamburgerBtn = document.createElement('button');
+      hamburgerBtn.id = 'sidebar-toggle-btn';
+      hamburgerBtn.className = 'hamburger-toggle-btn';
+      hamburgerBtn.type = 'button';
+      hamburgerBtn.title = 'Toggle Modules Navigation';
+      hamburgerBtn.setAttribute('aria-label', 'Toggle Navigation Menu');
+      hamburgerBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
+
+      if (topbar) {
+        topbar.insertBefore(hamburgerBtn, topbar.firstChild);
+      } else {
+        hamburgerBtn.style.position = 'fixed';
+        hamburgerBtn.style.top = '16px';
+        hamburgerBtn.style.left = '16px';
+        hamburgerBtn.style.zIndex = '99990';
+        document.body.appendChild(hamburgerBtn);
+      }
+    }
+
+    function openSidebar() {
+      sidebar.classList.add('open');
+      backdrop.classList.add('active');
+      document.body.classList.add('sidebar-drawer-open');
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+      backdrop.classList.remove('active');
+      document.body.classList.remove('sidebar-drawer-open');
+    }
+
+    window.openSidebarDrawer = openSidebar;
+    window.closeSidebarDrawer = closeSidebar;
+
+    hamburgerBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (sidebar.classList.contains('open')) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+    };
+
+    backdrop.onclick = closeSidebar;
+
+    // Close drawer when clicking any nav item
+    sidebar.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        closeSidebar();
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSidebar();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup);
+  } else {
+    setup();
+  }
+})();

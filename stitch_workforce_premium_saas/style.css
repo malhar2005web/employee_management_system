@@ -221,10 +221,10 @@ img{display:block;}
 
 .app-shell{
   display:flex;
-  align-items:flex-start;
+  flex-direction:column;
   min-height:100vh;
-  gap:20px;
-  padding:20px;
+  gap:0;
+  padding:16px 24px;
   position:relative;
   z-index:1;
 }
@@ -250,36 +250,107 @@ img{display:block;}
   z-index:0;
 }
 
-/* ---------------------------------- Sidebar (floating liquid-glass panel) ---------------------------------- */
+/* ---------------------------------- Hamburger Toggle & Backdrop ---------------------------------- */
+.hamburger-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid var(--glass-border, rgba(255, 255, 255, 0.7));
+  color: #0f766e;
+  font-size: 19px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+  margin-right: 14px;
+}
+
+.hamburger-toggle-btn:hover {
+  background: #ffffff;
+  color: #0d9488;
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.22);
+}
+
+.sidebar-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  color: #64748b;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: auto;
+}
+
+.sidebar-close-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  transform: scale(1.08);
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 99998;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sidebar-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---------------------------------- Sidebar (off-canvas drawer) ---------------------------------- */
 .sidebar{
-  width:290px;
-  flex-shrink:0;
-  background: var(--glass-bg);
+  width: 300px;
+  max-width: 85vw;
+  background: rgba(255, 255, 255, 0.96) !important;
   backdrop-filter: blur(var(--glass-blur)) saturate(160%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
   border: 1px solid var(--glass-border);
-  box-shadow:
-    0 25px 60px rgba(0,0,0,.08),
-    inset 0 1px 0 rgba(255,255,255,.5),
-    0 0 0 1px rgba(255,255,255,.25);
-  border-radius: 28px;
-  padding:26px 20px;
-  display:flex;
-  flex-direction:column;
-  position:sticky;
-  top:20px;
-  height: calc(100vh - 40px);
-  z-index:2;
-  transition: box-shadow .4s var(--ease-liquid);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25) !important;
+  border-radius: 0 28px 28px 0;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  transform: translateX(-105%);
+  transition: transform .35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .35s ease;
+  overflow-y: auto !important;
+}
+
+.sidebar.open{
+  transform: translateX(0) !important;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
 }
 
 .brand{
   display:flex;
   align-items:center;
   gap:12px;
-  padding:0 6px 24px;
+  padding:0 6px 20px;
   margin-bottom:8px;
-  border-bottom: 1px solid rgba(255,255,255,0.4);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .brand-logo {
@@ -793,7 +864,6 @@ tbody td:last-child{ border-top-right-radius:14px; border-bottom-right-radius:14
   .bottom-grid{ grid-template-columns:1fr; }
 }
 @media (max-width: 860px){
-  .sidebar{ display:none; }
   .main{ padding:0; }
   .topbar{ position:relative; top:0; }
 }
