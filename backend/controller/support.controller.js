@@ -852,11 +852,35 @@ export const assignTicket = async (req, res) => {
         const empRes = await pool.query(`SELECT full_name FROM employees WHERE id = $1`, [assigned_to]);
         const assigneeName = empRes.rows[0]?.full_name || 'Assigned Staff';
 
-        await pool.query(`
-            UPDATE support_tickets 
-            SET assigned_to = $1, status = $2, updated_at = NOW()
-            WHERE id = $3
-        `, [assigned_to, newStatus, id]);
+        const isReassignment = ticket.assigned_to && parseInt(ticket.assigned_to, 10) !== parseInt(assigned_to, 10);
+        if (isReassignment) {
+            let oldEmpName = 'Previous Assignee';
+            const oldEmpRes = await pool.query(`SELECT full_name FROM employees WHERE id = $1`, [ticket.assigned_to]);
+            if (oldEmpRes.rows.length > 0) oldEmpName = oldEmpRes.rows[0].full_name;
+
+            const transferEntry = {
+                from_id: parseInt(ticket.assigned_to, 10),
+                from_name: oldEmpName,
+                to_id: parseInt(assigned_to, 10),
+                to_name: assigneeName,
+                transferred_at: new Date().toISOString(),
+                transferred_by: req.user?.full_name || 'Admin',
+                reason: 'Reassignment',
+                notes: `Reassigned from ${oldEmpName} to ${assigneeName}`
+            };
+
+            await pool.query(`
+                UPDATE support_tickets 
+                SET assigned_to = $1, status = $2, transfer_history = COALESCE(transfer_history, '[]'::jsonb) || $3::jsonb, updated_at = NOW()
+                WHERE id = $4
+            `, [assigned_to, newStatus, JSON.stringify([transferEntry]), id]);
+        } else {
+            await pool.query(`
+                UPDATE support_tickets 
+                SET assigned_to = $1, status = $2, updated_at = NOW()
+                WHERE id = $3
+            `, [assigned_to, newStatus, id]);
+        }
 
         // Trigger WhatsApp & Inbox Notification for the assigned employee
         const custRes = await pool.query(`SELECT name FROM customers WHERE id = $1`, [ticket.customer_id]);
@@ -1096,7 +1120,8 @@ export const transferTicket = async (req, res) => {
         }
 
         const ticket = ticketRes.rows[0];
-        const oldAssigneeName = ticket.current_assignee_name || (req.user?.full_name || 'Staff');
+        const oldAssigneeName = ticket.current_assignee_name || (ticket.assigned_to ? `Employee #${ticket.assigned_to}` : (req.user?.full_name || 'Staff'));
+        const oldAssigneeId = ticket.assigned_to ? parseInt(ticket.assigned_to, 10) : null;
 
         const targetEmpRes = await pool.query(`SELECT id, full_name, phone, whatsapp_no FROM employees WHERE id = $1`, [target_employee_id]);
         if (targetEmpRes.rows.length === 0) {
@@ -1104,20 +1129,35 @@ export const transferTicket = async (req, res) => {
         }
         const targetEmp = targetEmpRes.rows[0];
         const newAssigneeName = targetEmp.full_name;
+        const targetEmpId = parseInt(targetEmp.id, 10);
 
         const newStatus = ticket.status === 'Resolved' || ticket.status === 'Closed' ? 'Assigned' : (ticket.status || 'Assigned');
-
-        // Update ticket assignment and timestamp
-        await pool.query(`
-            UPDATE support_tickets
-            SET assigned_to = $1, status = $2, updated_at = NOW()
-            WHERE id = $3
-        `, [target_employee_id, newStatus, id]);
 
         const senderName = req.user?.full_name || oldAssigneeName;
         const reasonCat = reason_category || 'Handover';
         const handoverNotes = notes || 'Transferred by colleague for resolution.';
-        const historyDetail = `Transferred from ${senderName} to ${newAssigneeName}. Reason: [${reasonCat}] ${handoverNotes}`;
+        const historyDetail = `Transferred from ${oldAssigneeName} to ${newAssigneeName}. Reason: [${reasonCat}] ${handoverNotes}`;
+
+        const transferEntry = {
+            from_id: oldAssigneeId,
+            from_name: oldAssigneeName,
+            to_id: targetEmpId,
+            to_name: newAssigneeName,
+            transferred_at: new Date().toISOString(),
+            transferred_by: senderName,
+            reason: reasonCat,
+            notes: handoverNotes
+        };
+
+        // Update ticket assignment, timestamp, and append to transfer_history
+        await pool.query(`
+            UPDATE support_tickets
+            SET assigned_to = $1,
+                status = $2,
+                transfer_history = COALESCE(transfer_history, '[]'::jsonb) || $3::jsonb,
+                updated_at = NOW()
+            WHERE id = $4
+        `, [targetEmpId, newStatus, JSON.stringify([transferEntry]), id]);
 
         // 1. Immutable Audit Timeline Entry
         await pool.query(`

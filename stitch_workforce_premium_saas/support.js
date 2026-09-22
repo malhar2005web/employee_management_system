@@ -46,6 +46,71 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper: Escaping quotes
     const esc = (str) => (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
+    // Helper: Ticket Transfer Trail Formatter
+    function formatTicketTransferTrail(transferHistory, options = {}) {
+        let list = transferHistory;
+        if (typeof list === 'string') {
+            try { list = JSON.parse(list); } catch (e) { list = []; }
+        }
+        if (!Array.isArray(list) || list.length === 0) return '';
+
+        const chainNodes = [];
+        const tooltipParts = [];
+
+        list.forEach((item, idx) => {
+            const fromFullName = item.from_name || 'Staff';
+            const toFullName = item.to_name || 'Staff';
+            const fromShort = options.fullName ? fromFullName : (item.from_name ? item.from_name.trim().split(' ')[0] : 'Staff');
+            const toShort = options.fullName ? toFullName : (item.to_name ? item.to_name.trim().split(' ')[0] : 'Staff');
+
+            if (idx === 0) {
+                chainNodes.push(fromShort);
+            } else if (chainNodes[chainNodes.length - 1] !== fromShort) {
+                chainNodes.push(fromShort);
+            }
+            chainNodes.push(toShort);
+
+            const timeStr = item.transferred_at ? new Date(item.transferred_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+            const reasonStr = item.reason ? `[${item.reason}]` : '';
+            tooltipParts.push(`Transfer #${idx + 1}: ${fromFullName} ➔ ${toFullName} ${reasonStr} ${timeStr ? '(' + timeStr + ')' : ''}`);
+        });
+
+        const chainHtml = chainNodes.join(` <i class="fa-solid fa-arrow-right" style="font-size:${options.arrowSize || '8px'}; color:#6366f1; opacity:0.85; margin:0 2px;"></i> `);
+        const tooltipText = tooltipParts.join('\n');
+
+        if (options.layout === 'details') {
+            let detailsHtml = `
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="font-size:12px; font-weight:700; color:#4338ca; display:flex; align-items:center; gap:5px;">
+                        <i class="fa-solid fa-shuffle"></i> <span>${chainHtml}</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px; border-left:2px solid #a5b4fc; padding-left:8px; margin-left:2px;">
+            `;
+            list.forEach((item, idx) => {
+                const timeStr = item.transferred_at ? new Date(item.transferred_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                detailsHtml += `
+                    <div style="font-size:11.5px; color:#475569; line-height:1.4;">
+                        <span style="font-weight:700; color:#1e293b;">${item.from_name || 'Staff'}</span>
+                        <i class="fa-solid fa-arrow-right" style="font-size:8.5px; color:#6366f1; margin:0 3px;"></i>
+                        <span style="font-weight:700; color:#0f766e;">${item.to_name || 'Staff'}</span>
+                        ${item.reason ? `<span style="background:rgba(99,102,241,0.12); color:#4338ca; font-weight:700; font-size:10.5px; padding:1px 5px; border-radius:4px; margin-left:4px;">${item.reason}</span>` : ''}
+                        ${timeStr ? `<span style="color:#94a3b8; font-size:10.5px; margin-left:4px;"><i class="fa-regular fa-clock" style="font-size:9.5px;"></i> ${timeStr}</span>` : ''}
+                        ${item.notes ? `<div style="font-size:11px; color:#64748b; font-style:italic; margin-top:1px;">Note: "${item.notes}"</div>` : ''}
+                    </div>
+                `;
+            });
+            detailsHtml += `</div></div>`;
+            return detailsHtml;
+        }
+
+        return `
+            <span class="ticket-transfer-chain-badge" title="${tooltipText.replace(/"/g, '&quot;')}" style="display:inline-flex; align-items:center; gap:3px; font-size:10.5px; font-weight:700; color:#4338ca; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.28); padding:1px 6px; border-radius:6px; cursor:help; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                <i class="fa-solid fa-shuffle" style="font-size:9px; color:#6366f1;"></i>
+                <span>${chainHtml}</span>
+            </span>
+        `;
+    }
+
     // Helper: Format Priority Badge
     const getPriorityBadge = (priority) => {
         const pri = (priority || 'Medium').toLowerCase();
@@ -492,7 +557,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const createdDate = new Date(t.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const customerName = t.customer_name || 'Customer';
                 const projName = t.project_name ? `<span style="font-size:11px; color:var(--text-muted); display:block;"><i class="fa-solid fa-diagram-project"></i> ${t.project_name}</span>` : '';
-                const assigneeName = t.assigned_to_name ? `<span style="font-weight:600; font-size:12.5px;"><i class="fa-solid fa-user-gear" style="color:var(--teal-600);"></i> ${t.assigned_to_name}</span>` : '<span style="color:var(--text-muted); font-size:12px;">Unassigned</span>';
+                const transferTrailBadge = formatTicketTransferTrail(t.transfer_history);
+                const assigneeColHtml = `
+                    <div style="display:flex; flex-direction:column; gap:3px; align-items:flex-start;">
+                        ${t.assigned_to_name 
+                            ? `<span style="font-weight:700; font-size:12.5px; color:#1e293b; display:inline-flex; align-items:center; gap:4px;">
+                                 <i class="fa-solid fa-user-gear" style="color:#0d9488; font-size:11px;"></i> ${t.assigned_to_name}
+                               </span>`
+                            : `<span style="color:var(--text-muted); font-size:12px; font-weight:500;">Unassigned</span>`
+                        }
+                        ${transferTrailBadge}
+                    </div>
+                `;
 
                 const attList = Array.isArray(t.attachments) ? t.attachments : (t.attachments ? [t.attachments] : []);
                 const attBadge = attList.length > 0 ? `<span class="badge" style="background:rgba(14,165,233,0.12); color:#0284c7; font-size:10.5px; border:1px solid rgba(14,165,233,0.25); margin-left:4px;"><i class="fa-solid fa-paperclip"></i> ${attList.length} attachment${attList.length > 1 ? 's' : ''}</span>` : '';
@@ -531,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div>${getSlaTimerHtml(t)}</div>
                         </td>
                         <td>${getStatusBadge(t.status)}</td>
-                        <td>${assigneeName}</td>
+                        <td>${assigneeColHtml}</td>
                         <td style="white-space:nowrap;">
                             <div style="display:inline-flex; gap:4px; align-items:center; flex-wrap:nowrap;">
                                 <button type="button" class="btn-secondary" onclick="window.openTicketWorkspace(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Open Ticket Workspace">
@@ -1078,6 +1154,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // Controls
             if (workspaceStatusSelect) workspaceStatusSelect.value = t.status || 'Open';
             if (metaAssigneeSelect) metaAssigneeSelect.value = t.assigned_to || '';
+
+            // Transfer Trail Box in Metadata Card
+            const trailBox = document.getElementById('meta-transfer-trail-box');
+            const trailContent = document.getElementById('meta-transfer-trail-content');
+            const trailCountBadge = document.getElementById('meta-transfer-count-badge');
+            
+            let thList = t.transfer_history;
+            if (typeof thList === 'string') {
+                try { thList = JSON.parse(thList); } catch (e) { thList = []; }
+            }
+            if (trailBox && trailContent) {
+                if (Array.isArray(thList) && thList.length > 0) {
+                    trailBox.style.display = 'block';
+                    if (trailCountBadge) trailCountBadge.textContent = `${thList.length} transfer${thList.length > 1 ? 's' : ''}`;
+                    trailContent.innerHTML = formatTicketTransferTrail(thList, { layout: 'details' });
+                } else {
+                    trailBox.style.display = 'none';
+                }
+            }
 
             // Metadata Card
             const metaCust = document.getElementById('meta-customer-name');

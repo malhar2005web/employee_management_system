@@ -1064,6 +1064,16 @@ export async function runMigrations() {
             console.error('❌ Phase 20 Migration Error:', e.message);
         }
 
+        // ── STEP 22: Phase 21 Ticket Transfer Chain & Assignment History ────
+        try {
+            await client.query(`
+                ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS transfer_history JSONB DEFAULT '[]'::jsonb;
+            `);
+            console.log('✅ Phase 21 Support Tickets transfer_history ensured.');
+        } catch (e) {
+            console.error('❌ Phase 21 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }

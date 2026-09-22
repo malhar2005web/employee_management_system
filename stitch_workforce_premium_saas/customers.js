@@ -24,6 +24,74 @@ document.addEventListener('DOMContentLoaded', () => {
     const membersModalOk = document.getElementById('members-modal-ok');
     const membersListPopup = document.getElementById('members-list-popup');
 
+    // ============ Ticket Transfer Trail Formatter ============
+    function formatTicketTransferTrail(transferHistory, options = {}) {
+        let list = transferHistory;
+        if (typeof list === 'string') {
+            try { list = JSON.parse(list); } catch (e) { list = []; }
+        }
+        if (!Array.isArray(list) || list.length === 0) return '';
+
+        const chainNodes = [];
+        const tooltipParts = [];
+
+        list.forEach((item, idx) => {
+            const fromFullName = item.from_name || 'Staff';
+            const toFullName = item.to_name || 'Staff';
+            const fromShort = options.fullName ? fromFullName : (item.from_name ? item.from_name.trim().split(' ')[0] : 'Staff');
+            const toShort = options.fullName ? toFullName : (item.to_name ? item.to_name.trim().split(' ')[0] : 'Staff');
+
+            if (idx === 0) {
+                chainNodes.push(fromShort);
+            } else if (chainNodes[chainNodes.length - 1] !== fromShort) {
+                chainNodes.push(fromShort);
+            }
+            chainNodes.push(toShort);
+
+            const timeStr = item.transferred_at ? new Date(item.transferred_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+            const reasonStr = item.reason ? `[${item.reason}]` : '';
+            tooltipParts.push(`Transfer #${idx + 1}: ${fromFullName} ➔ ${toFullName} ${reasonStr} ${timeStr ? '(' + timeStr + ')' : ''}`);
+        });
+
+        const chainHtml = chainNodes.join(` <i class="fa-solid fa-arrow-right" style="font-size:${options.arrowSize || '8px'}; color:#6366f1; opacity:0.85; margin:0 2px;"></i> `);
+        const tooltipText = tooltipParts.join('\n');
+
+        if (options.layout === 'details') {
+            let detailsHtml = `
+                <div style="margin-top:6px; padding:8px 10px; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.2); border-radius:8px;">
+                    <div style="font-size:11px; font-weight:800; color:#4338ca; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:5px; margin-bottom:4px;">
+                        <i class="fa-solid fa-shuffle"></i> Transfer History (${list.length})
+                    </div>
+                    <div style="font-size:12px; font-weight:700; color:#1e1b4b; margin-bottom:6px;">
+                        ${chainHtml}
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px; border-left:2px solid #a5b4fc; padding-left:8px; margin-left:2px;">
+            `;
+            list.forEach((item, idx) => {
+                const timeStr = item.transferred_at ? new Date(item.transferred_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                detailsHtml += `
+                    <div style="font-size:11.5px; color:#475569; line-height:1.4;">
+                        <span style="font-weight:700; color:#1e293b;">${item.from_name || 'Staff'}</span>
+                        <i class="fa-solid fa-arrow-right" style="font-size:8.5px; color:#6366f1; margin:0 3px;"></i>
+                        <span style="font-weight:700; color:#0f766e;">${item.to_name || 'Staff'}</span>
+                        ${item.reason ? `<span style="background:rgba(99,102,241,0.12); color:#4338ca; font-weight:700; font-size:10.5px; padding:1px 5px; border-radius:4px; margin-left:4px;">${item.reason}</span>` : ''}
+                        ${timeStr ? `<span style="color:#94a3b8; font-size:10.5px; margin-left:4px;"><i class="fa-regular fa-clock" style="font-size:9.5px;"></i> ${timeStr}</span>` : ''}
+                        ${item.notes ? `<div style="font-size:11px; color:#64748b; font-style:italic; margin-top:1px;">Note: "${item.notes}"</div>` : ''}
+                    </div>
+                `;
+            });
+            detailsHtml += `</div></div>`;
+            return detailsHtml;
+        }
+
+        return `
+            <span class="ticket-transfer-chain-badge" title="${tooltipText.replace(/"/g, '&quot;')}" style="display:inline-flex; align-items:center; gap:3px; font-size:10.5px; font-weight:700; color:#4338ca; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.28); padding:1px 6px; border-radius:6px; cursor:help; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                <i class="fa-solid fa-shuffle" style="font-size:9px; color:#6366f1;"></i>
+                <span>${chainHtml}</span>
+            </span>
+        `;
+    }
+
     // ============ Members Modal Popup Helper ============
     window.viewAssignedTeam = (members) => {
         if (!membersListPopup) return;
@@ -659,6 +727,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ${handoverText}
                                 ${resolvedText}
                             </div>
+                            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px; font-size:11px; margin-top:1px;">
+                                <span style="font-weight:700; color:#334155; display:inline-flex; align-items:center; gap:3.5px;" title="Assigned Engineer">
+                                    <i class="fa-solid fa-user-gear" style="color:#0d9488; font-size:10px;"></i> ${t.assigned_to_name || 'Unassigned'}
+                                </span>
+                                ${formatTicketTransferTrail(t.transfer_history)}
+                            </div>
                             ${deadlineBadge ? `<div>${deadlineBadge}</div>` : ''}
                         </div>
                     `;
@@ -1057,6 +1131,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${handoverText}
                             ${resolvedHtml}
                         </div>
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px; padding:6px 10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0; margin-top:2px;">
+                            <span style="font-weight:700; color:#1e293b; display:inline-flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-user-gear" style="color:#0d9488;"></i> <strong>Assigned:</strong> ${t.assigned_to_name || 'Unassigned'}
+                            </span>
+                            ${formatTicketTransferTrail(t.transfer_history, { layout: 'badge' })}
+                        </div>
+                        ${t.transfer_history && (Array.isArray(t.transfer_history) ? t.transfer_history.length > 0 : (typeof t.transfer_history === 'string' && t.transfer_history !== '[]')) ? formatTicketTransferTrail(t.transfer_history, { layout: 'details' }) : ''}
                         ${deadlineBadge ? `<div style="margin-top:2px;">${deadlineBadge}</div>` : ''}
                     </div>
                 `;
