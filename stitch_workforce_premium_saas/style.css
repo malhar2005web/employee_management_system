@@ -818,64 +818,90 @@ tbody td:last-child{ border-top-right-radius:14px; border-bottom-right-radius:14
   .bottom-grid{ grid-template-columns:1fr; }
 }
 /* ---------------------------------- Mobile App & Responsive Off-Canvas Drawer ---------------------------------- */
-@media (max-width: 860px) {
+@media (max-width: 860px), (hover: none) and (pointer: coarse) and (max-width: 1024px), body.is-mobile-app, html.is-mobile-app {
+  html, body {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+    width: 100% !important;
+  }
+
+  body.sidebar-drawer-open {
+    overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
+  }
+
   .app-shell {
     flex-direction: column !important;
-    padding: 12px !important;
+    padding: 12px 14px 30px 14px !important;
     gap: 12px !important;
+    max-width: 100vw !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
   }
 
   /* Hamburger Toggle Button ONLY for mobile viewport / mobile app */
   .hamburger-toggle-btn {
     display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.9);
-    border: 1.5px solid var(--glass-border, rgba(255, 255, 255, 0.7));
-    color: #0f766e;
-    font-size: 18px;
-    cursor: pointer;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    flex-shrink: 0;
-    margin-right: 12px;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    border: 1.5px solid rgba(15, 118, 110, 0.25) !important;
+    color: #0f766e !important;
+    font-size: 19px !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 14px rgba(15, 118, 110, 0.12) !important;
+    flex-shrink: 0 !important;
+    margin-right: 10px !important;
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
   }
 
-  .hamburger-toggle-btn:hover {
-    background: #ffffff;
-    color: #0d9488;
-    transform: scale(1.04);
+  .hamburger-toggle-btn:active {
+    transform: scale(0.95) !important;
+    background: #f0fdf4 !important;
   }
 
   .sidebar-close-btn {
     display: flex !important;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.05);
-    border: none;
-    color: #64748b;
-    font-size: 15px;
-    cursor: pointer;
-    margin-left: auto;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 10px !important;
+    background: #f1f5f9 !important;
+    border: none !important;
+    color: #475569 !important;
+    font-size: 17px !important;
+    cursor: pointer !important;
+    margin-left: auto !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 
   .sidebar-backdrop {
     display: block !important;
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    z-index: 99998;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    z-index: 999998 !important;
     opacity: 0 !important;
     pointer-events: none !important;
-    transition: opacity 0.25s ease;
+    transition: opacity 0.28s ease !important;
   }
 
   .sidebar-backdrop.active {
@@ -885,73 +911,315 @@ tbody td:last-child{ border-top-right-radius:14px; border-bottom-right-radius:14
 
   /* Mobile Slide-Out Drawer */
   .sidebar {
-    width: 290px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 300px !important;
     max-width: 85vw !important;
-    background: rgba(255, 255, 255, 0.98) !important;
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    border: 1px solid var(--glass-border);
-    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25) !important;
+    background: #ffffff !important;
+    border: none !important;
+    border-right: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
     border-radius: 0 24px 24px 0 !important;
-    padding: 24px 18px !important;
+    padding: 24px 16px !important;
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     bottom: 0 !important;
     height: 100vh !important;
-    z-index: 99999 !important;
+    height: 100dvh !important;
+    z-index: 999999 !important;
     transform: translateX(-105%) !important;
-    transition: transform .3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .3s ease;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease !important;
     overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
   }
 
   .sidebar.open {
     transform: translateX(0) !important;
-    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.35) !important;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.4) !important;
   }
 
-  .main { padding: 0; }
-  .topbar { position: relative; top: 0; }
-}
+  .sidebar .brand {
+    padding-bottom: 16px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    margin-bottom: 8px !important;
+  }
 
-/* Explicit class for Mobile WebView / MAUI App (even if larger DPI) */
-body.is-mobile-app .app-shell {
-  flex-direction: column !important;
-  padding: 12px !important;
-  gap: 12px !important;
-}
+  .sidebar .nav-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    margin-top: 10px !important;
+  }
 
-body.is-mobile-app .hamburger-toggle-btn {
-  display: inline-flex !important;
-}
+  .sidebar .nav-item {
+    padding: 12px 14px !important;
+    font-size: 14.5px !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+    min-height: 46px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    color: #334155 !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+  }
 
-body.is-mobile-app .sidebar-close-btn {
-  display: flex !important;
-}
+  .sidebar .nav-item.active {
+    background: #0f766e !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 14px rgba(15, 118, 110, 0.25) !important;
+  }
 
-body.is-mobile-app .sidebar-backdrop {
-  display: block !important;
-}
+  .sidebar .nav-item.active i {
+    color: #ffffff !important;
+  }
 
-body.is-mobile-app .sidebar-backdrop.active {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-}
+  .sidebar-profile {
+    margin-top: auto !important;
+    padding: 12px !important;
+    border-radius: 14px !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+  }
 
-body.is-mobile-app .sidebar {
-  width: 290px !important;
-  max-width: 85vw !important;
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  bottom: 0 !important;
-  height: 100vh !important;
-  z-index: 99999 !important;
-  transform: translateX(-105%) !important;
-}
+  .sidebar-logout {
+    margin-top: 10px !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #ef4444 !important;
+    background: #fef2f2 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    cursor: pointer !important;
+  }
 
-body.is-mobile-app .sidebar.open {
-  transform: translateX(0) !important;
+  /* Topbar Responsive */
+  .topbar {
+    position: relative !important;
+    top: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 12px !important;
+    border-radius: 16px !important;
+    margin-bottom: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background: rgba(255, 255, 255, 0.92) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .topbar .search-box {
+    flex: 1 !important;
+    min-width: 0 !important;
+    height: 42px !important;
+    font-size: 13px !important;
+    padding: 0 12px !important;
+    border-radius: 10px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .topbar-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin-left: auto !important;
+  }
+
+  .topbar-actions .icon-btn {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+    font-size: 14px !important;
+  }
+
+  .topbar-user img {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  /* Page Header */
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .page-header h2 {
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.3px !important;
+    margin: 0 !important;
+  }
+
+  .page-header p {
+    font-size: 13.5px !important;
+    color: #64748b !important;
+    margin: 2px 0 0 0 !important;
+  }
+
+  .date-picker {
+    width: 100% !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+    padding: 10px 14px !important;
+    border-radius: 12px !important;
+    font-size: 12.5px !important;
+  }
+
+  /* Stat Grid & Cards Mobile Optimized */
+  .stat-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    margin-bottom: 14px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Shift Clock is 1st card: Full Width */
+  .stat-grid > .stat-card:first-child {
+    grid-column: 1 / -1 !important;
+  }
+
+  .card, .stat-card {
+    border-radius: 18px !important;
+    padding: 16px 14px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05) !important;
+  }
+
+  #btn-clock-in, #btn-clock-out {
+    min-height: 44px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+  }
+
+  #btn-break {
+    min-height: 42px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+  }
+
+  /* Content Grids Stack 1 Column */
+  .content-grid, .bottom-grid, .dashboard-grid, .admin-dashboard-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Chart: Compact Without Giant Empty Space */
+  .chart-card-inner {
+    padding: 8px 4px 0 4px !important;
+    border-radius: 14px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .chart-wrap {
+    height: 200px !important;
+    max-height: 220px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+  }
+
+  .chart-wrap canvas {
+    max-width: 100% !important;
+    height: 200px !important;
+    width: 100% !important;
+  }
+
+  .card-head {
+    margin-bottom: 14px !important;
+  }
+
+  .card-head h3 {
+    font-size: 16px !important;
+  }
+
+  .toggle-group button {
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+  }
+
+  /* Schedule List on Mobile */
+  .schedule-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .schedule-item {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .schedule-item .time {
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    min-width: 60px !important;
+  }
+
+  .schedule-item .title {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+  }
+
+  .schedule-item .sub {
+    font-size: 11.5px !important;
+    color: #64748b !important;
+  }
+
+  .schedule-item .badge-icon {
+    margin-left: auto !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Task & Activity Lists */
+  .task-item, .activity-item {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Tables: Horizontal swipe inside table wrapper without page blowout */
+  .table-wrap, .table-container, .card-table-wrap, .data-table-wrap {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 12px !important;
+  }
 }
 
 /* Modal Styling */

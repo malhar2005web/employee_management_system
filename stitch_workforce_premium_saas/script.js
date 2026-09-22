@@ -651,15 +651,22 @@ document.addEventListener('click', (e) => {
 // UNIVERSAL HAMBURGER NAVIGATION DRAWER FOR SIDEBAR MODULES (MOBILE ONLY)
 // =========================================================================
 (function initHamburgerSidebar() {
+  if (typeof navigator !== 'undefined' && (navigator.userAgent.includes('EMS-Mobile') || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.location.search.includes('app=1') || window.location.search.includes('mobile=1'))) {
+    if (document.documentElement) document.documentElement.classList.add('is-mobile-app');
+    if (document.body) document.body.classList.add('is-mobile-app');
+  }
+
   function setup() {
     const sidebar = document.querySelector('.sidebar');
     if (!sidebar) return;
 
     function isMobileMode() {
-      return window.innerWidth <= 860 || 
-             document.body.classList.contains('is-mobile-app') ||
+      return document.body.classList.contains('is-mobile-app') ||
+             document.documentElement.classList.contains('is-mobile-app') ||
+             window.innerWidth <= 860 || 
              window.location.search.includes('mobile=1') ||
-             window.location.search.includes('app=1');
+             window.location.search.includes('app=1') ||
+             (typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
     }
 
     // 1. Ensure Backdrop element exists
@@ -673,20 +680,18 @@ document.addEventListener('click', (e) => {
 
     // 2. Ensure Close Button exists inside sidebar brand
     const brand = sidebar.querySelector('.brand');
-    if (brand && !brand.querySelector('.sidebar-close-btn')) {
-      const closeBtn = document.createElement('button');
+    let closeBtn = sidebar.querySelector('.sidebar-close-btn');
+    if (brand && !closeBtn) {
+      closeBtn = document.createElement('button');
       closeBtn.type = 'button';
       closeBtn.className = 'sidebar-close-btn';
       closeBtn.title = 'Close Menu';
+      closeBtn.setAttribute('aria-label', 'Close Menu');
       closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-      closeBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeSidebar();
-      };
       brand.appendChild(closeBtn);
     }
 
-    // 3. Ensure Hamburger Toggle Button exists
+    // 3. Ensure Hamburger Toggle Button exists in topbar
     const topbar = document.querySelector('.topbar');
     let hamburgerBtn = document.getElementById('sidebar-toggle-btn');
     if (!hamburgerBtn) {
@@ -710,25 +715,27 @@ document.addEventListener('click', (e) => {
     }
 
     function openSidebar() {
-      // NEVER open as off-canvas drawer on desktop website
-      if (!isMobileMode()) return;
       sidebar.classList.add('open');
       backdrop.classList.add('active');
       document.body.classList.add('sidebar-drawer-open');
+      document.documentElement.classList.add('sidebar-drawer-open');
     }
 
     function closeSidebar() {
       sidebar.classList.remove('open');
       backdrop.classList.remove('active');
       document.body.classList.remove('sidebar-drawer-open');
+      document.documentElement.classList.remove('sidebar-drawer-open');
     }
 
     window.openSidebarDrawer = openSidebar;
     window.closeSidebarDrawer = closeSidebar;
 
-    hamburgerBtn.onclick = (e) => {
-      e.stopPropagation();
-      if (!isMobileMode()) return;
+    const toggleHandler = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       if (sidebar.classList.contains('open')) {
         closeSidebar();
       } else {
@@ -736,7 +743,17 @@ document.addEventListener('click', (e) => {
       }
     };
 
-    backdrop.onclick = closeSidebar;
+    const closeHandler = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      closeSidebar();
+    };
+
+    hamburgerBtn.onclick = toggleHandler;
+    if (closeBtn) closeBtn.onclick = closeHandler;
+    backdrop.onclick = closeHandler;
 
     // Close drawer when clicking any nav item on mobile
     sidebar.querySelectorAll('.nav-item').forEach(item => {

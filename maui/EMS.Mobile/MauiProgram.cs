@@ -42,6 +42,10 @@ public static class MauiProgram
 			handler.PlatformView.Settings.DatabaseEnabled = true;
 			handler.PlatformView.Settings.JavaScriptCanOpenWindowsAutomatically = true;
 			handler.PlatformView.Settings.MixedContentMode = Android.Webkit.MixedContentHandling.AlwaysAllow;
+			if (!string.IsNullOrEmpty(handler.PlatformView.Settings.UserAgentString) && !handler.PlatformView.Settings.UserAgentString.Contains("EMS-Mobile"))
+			{
+				handler.PlatformView.Settings.UserAgentString += " EMS-Mobile";
+			}
 			handler.PlatformView.SetWebChromeClient(new AndroidPermissionWebChromeClient());
 		});
 #endif

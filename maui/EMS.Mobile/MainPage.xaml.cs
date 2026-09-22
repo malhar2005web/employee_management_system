@@ -86,8 +86,11 @@ public partial class MainPage : ContentPage
 
         if (e.Result == WebNavigationResult.Success)
         {
-            // Inject bridge so web pages can talk to native MAUI device APIs
+            // Inject mobile identification and bridge
             var bridgeScript = @"
+                if (document.documentElement) document.documentElement.classList.add('is-mobile-app');
+                if (document.body) document.body.classList.add('is-mobile-app');
+
                 if (!window.EMS || !window.EMS.Native) {
                     (function() {
                         let nextCallbackId = 1;
@@ -137,6 +140,9 @@ public partial class MainPage : ContentPage
 
     protected override bool OnBackButtonPressed()
     {
+        // If drawer is open, close it first
+        EmsWebView.EvaluateJavaScriptAsync("if (document.body.classList.contains('sidebar-drawer-open')) { if (window.closeSidebarDrawer) window.closeSidebarDrawer(); }");
+
         if (EmsWebView.CanGoBack)
         {
             EmsWebView.GoBack();
