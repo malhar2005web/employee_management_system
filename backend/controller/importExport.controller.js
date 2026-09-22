@@ -10,7 +10,7 @@ export const MODULE_REGISTRY = {
         uuidColumn: 'uuid',
         displayName: 'Customer Master',
         importColumns: ['name', 'email', 'phone', 'industry', 'sla_type', 'sla_response_time', 'sla_resolution_time', 'contract_start', 'contract_end', 'deadline'],
-        exportColumns: ['id', 'uuid', 'name', 'email', 'phone', 'industry', 'sla_type', 'sla_response_time', 'sla_resolution_time', 'contract_start', 'contract_end', 'deadline', 'updated_at'],
+        exportColumns: ['id', 'uuid', 'name', 'branch', 'gst_no', 'email', 'phone', 'billing_rate', 'industry', 'sla_type', 'sla_response_time', 'sla_resolution_time', 'contract_start', 'contract_end', 'deadline', 'updated_at'],
         dropdowns: {
             industry: ['Pharma', 'Manufacturing', 'IT Services', 'Logistics', 'Healthcare', 'Consulting', 'Retail', 'Others'],
             sla_type: ['Standard', 'Premium', 'Enterprise', 'SME', 'Government', 'Startup', 'Vendor', 'Partner']
@@ -242,13 +242,65 @@ export async function exportModuleData(req, res) {
         const dbRes = await pool.query(queryStr, queryParams);
         const rows = dbRes.rows;
 
+        function getExportCellValue(mod, r, col) {
+            let val = r[col];
+            if (val !== undefined && val !== null && val !== '') return val;
+
+            if (mod === 'customers') {
+                if (col === 'email') {
+                    let contacts = r.contact_persons;
+                    if (typeof contacts === 'string') try { contacts = JSON.parse(contacts); } catch(e){}
+                    if (Array.isArray(contacts) && contacts[0] && contacts[0].email) return contacts[0].email;
+                    if (r.branches) {
+                        let brs = r.branches;
+                        if (typeof brs === 'string') try { brs = JSON.parse(brs); } catch(e){}
+                        if (Array.isArray(brs) && brs[0] && Array.isArray(brs[0].contacts) && brs[0].contacts[0]) {
+                            return brs[0].contacts[0].email || '';
+                        }
+                    }
+                } else if (col === 'phone') {
+                    let contacts = r.contact_persons;
+                    if (typeof contacts === 'string') try { contacts = JSON.parse(contacts); } catch(e){}
+                    if (Array.isArray(contacts) && contacts[0] && contacts[0].phone) return contacts[0].phone;
+                    if (r.branches) {
+                        let brs = r.branches;
+                        if (typeof brs === 'string') try { brs = JSON.parse(brs); } catch(e){}
+                        if (Array.isArray(brs) && brs[0] && Array.isArray(brs[0].contacts) && brs[0].contacts[0]) {
+                            return brs[0].contacts[0].phone || '';
+                        }
+                    }
+                } else if (col === 'contract_start' || col === 'contract_start_date') {
+                    return r.contract_start_date || '';
+                } else if (col === 'contract_end' || col === 'contract_end_date') {
+                    return r.contract_end_date || '';
+                } else if (col === 'branch') {
+                    let br = r.branch;
+                    if (!br && r.branches) {
+                        let brs = r.branches;
+                        if (typeof brs === 'string') try { brs = JSON.parse(brs); } catch(e){}
+                        if (Array.isArray(brs) && brs[0]) br = brs[0].branch || '';
+                    }
+                    return br || '';
+                } else if (col === 'gst_no') {
+                    let gst = r.gst_no;
+                    if (!gst && r.branches) {
+                        let brs = r.branches;
+                        if (typeof brs === 'string') try { brs = JSON.parse(brs); } catch(e){}
+                        if (Array.isArray(brs) && brs[0]) gst = brs[0].gstNo || '';
+                    }
+                    return gst || '';
+                }
+            }
+            return '';
+        }
+
         if (format === 'csv') {
             // UTF-8 BOM CSV Export
             const headers = config.exportColumns.join(',');
             const csvRows = rows.map(r => {
                 return config.exportColumns.map(col => {
-                    const val = r[col] !== undefined && r[col] !== null ? r[col] : '';
-                    const sanitized = sanitizeCellValue(val);
+                    const rawVal = getExportCellValue(module, r, col);
+                    const sanitized = sanitizeCellValue(rawVal);
                     return `"${String(sanitized).replace(/"/g, '""')}"`;
                 }).join(',');
             });
@@ -278,7 +330,7 @@ export async function exportModuleData(req, res) {
             rows.forEach(r => {
                 const rowObj = {};
                 config.exportColumns.forEach(col => {
-                    rowObj[col] = sanitizeCellValue(r[col]);
+                    rowObj[col] = sanitizeCellValue(getExportCellValue(module, r, col));
                 });
                 sheet.addRow(rowObj);
             });

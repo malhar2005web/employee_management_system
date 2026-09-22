@@ -4,7 +4,7 @@ import { ENV_VARS } from '../config/envVars.js';
 
 export const protectRoute = async (req, res, next) => {
     try {
-        let token = req.cookies["jwt-moma"];
+        let token = req.cookies["jwt-moma"] || req.query.token;
         if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
             token = req.headers.authorization.split(" ")[1];
         }

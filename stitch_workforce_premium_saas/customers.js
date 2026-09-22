@@ -1605,7 +1605,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // CSV / Excel Export
     if (btnExportBillingCSV) {
-        btnExportBillingCSV.addEventListener('click', () => {
+        btnExportBillingCSV.addEventListener('click', async () => {
+            if (!cachedBillingReportData || cachedBillingReportData.length === 0) {
+                if (typeof loadBillingReport === 'function') {
+                    await loadBillingReport();
+                }
+            }
+
             if (!cachedBillingReportData || cachedBillingReportData.length === 0) {
                 alert('No billing report data available to export.');
                 return;
@@ -1614,6 +1620,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const rows = [
                 [
                     'Customer Name',
+                    'Industry',
                     'Customer Hourly Rate (INR)',
                     'Customer Total Hours',
                     'Customer Total Tickets',
@@ -1630,7 +1637,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Project Total Hours',
                     'Project Total Cost (INR)',
                     'Employee Name',
-                    'Employee Role',
+                    'Employee Code / Role',
                     'Employee Hourly Rate (INR)',
                     'Employee Hours Logged',
                     'Employee Total Cost (INR)',
@@ -1639,40 +1646,80 @@ document.addEventListener('DOMContentLoaded', () => {
             ];
 
             cachedBillingReportData.forEach(cust => {
-                const plants = cust.plants && cust.plants.length > 0 ? cust.plants : [{ branchName: 'General', gstNo: '', billingRate: cust.billingRate, projects: [] }];
-                
+                const custName = cust.customer_name || cust.name || 'Customer';
+                const custIndustry = cust.industry || 'IT / Engineering';
+                const custRate = parseFloat(cust.billing_rate || cust.billingRate || 1000);
+                const custHours = parseFloat(cust.total_hours || cust.totalHours || 0);
+                const custTickets = parseInt(cust.total_tickets || cust.totalTickets || 0, 10);
+                const custPayable = parseFloat(cust.total_payable || cust.totalPayable || 0);
+
+                const plants = (cust.plants && cust.plants.length > 0)
+                    ? cust.plants
+                    : [{ plant_name: 'General / Main', gst_no: cust.gst_no || '', hourly_rate: custRate, total_hours: custHours, total_tickets: custTickets, total_payable: custPayable, projects: [] }];
+
                 plants.forEach(plant => {
-                    const projects = plant.projects && plant.projects.length > 0 ? plant.projects : [{ projectName: 'Support & General Maintenance', status: 'Active', billingRate: plant.billingRate, employees: [] }];
+                    const plantName = plant.plant_name || plant.branchName || plant.name || 'General';
+                    const plantGst = plant.gst_no || plant.gstNo || '';
+                    const plantRate = parseFloat(plant.hourly_rate || plant.billingRate || custRate);
+                    const plantHours = parseFloat(plant.total_hours || plant.totalHours || 0);
+                    const plantTickets = parseInt(plant.total_tickets || plant.totalTickets || 0, 10);
+                    const plantPayable = parseFloat(plant.total_payable || plant.totalPayable || 0);
+
+                    const projects = (plant.projects && plant.projects.length > 0)
+                        ? plant.projects
+                        : [{ project_name: 'Support & General Scope', status: 'Active', hourly_rate: plantRate, total_hours: plantHours, total_cost: plantPayable, employees: [] }];
 
                     projects.forEach(proj => {
-                        const employees = proj.employees && proj.employees.length > 0 ? proj.employees : [{ employeeName: 'Unassigned / Team', role: 'Support', hourlyRate: proj.billingRate, totalHours: proj.totalHours || 0, totalCost: proj.totalCost || 0, tickets: [] }];
+                        const projName = proj.project_name || proj.projectName || 'General Maintenance';
+                        const projStatus = proj.status || 'Active';
+                        const projRate = parseFloat(proj.hourly_rate || proj.billingRate || plantRate);
+                        const projHours = parseFloat(proj.total_hours || proj.totalHours || 0);
+                        const projCost = parseFloat(proj.total_cost || proj.totalCost || 0);
+
+                        const employees = (proj.employees && proj.employees.length > 0)
+                            ? proj.employees
+                            : [{ employee_name: 'Support Staff / Team', employee_code: 'Staff', hourly_rate: projRate, total_hours: projHours, total_cost: projCost, tasks_done: [] }];
 
                         employees.forEach(emp => {
-                            const ticketSummary = (emp.tickets || []).map(t => `${t.ticket_number || ''}: ${t.title || ''} (${t.duration_hours || 0}h)`).join('; ');
+                            const empName = emp.employee_name || emp.employeeName || 'Staff';
+                            const empRole = emp.employee_code || emp.role || 'Staff';
+                            const empRate = parseFloat(emp.hourly_rate || emp.hourlyRate || projRate);
+                            const empHours = parseFloat(emp.total_hours || emp.totalHours || 0);
+                            const empCost = parseFloat(emp.total_cost || emp.totalCost || 0);
+
+                            let tasksSummary = '';
+                            if (Array.isArray(emp.tasks_done) && emp.tasks_done.length > 0) {
+                                tasksSummary = emp.tasks_done.map(t => `${t.task_name || t.title || 'Task'} (${t.hours || 0}h)`).join('; ');
+                            } else if (Array.isArray(emp.tickets) && emp.tickets.length > 0) {
+                                tasksSummary = emp.tickets.map(t => `${t.ticket_number || ''}: ${t.title || ''} (${t.duration_hours || 0}h)`).join('; ');
+                            } else {
+                                tasksSummary = `${projName} (${empHours.toFixed(2)} hrs)`;
+                            }
 
                             rows.push([
-                                `"${(cust.name || '').replace(/"/g, '""')}"`,
-                                cust.billingRate || 1000,
-                                cust.totalHours ? cust.totalHours.toFixed(2) : '0.00',
-                                cust.totalTickets || 0,
-                                Math.round(cust.totalPayable || 0),
-                                `"${(plant.branchName || '').replace(/"/g, '""')}"`,
-                                `"${(plant.gstNo || '').replace(/"/g, '""')}"`,
-                                plant.billingRate || 1000,
-                                plant.totalHours ? plant.totalHours.toFixed(2) : '0.00',
-                                plant.totalTickets || 0,
-                                Math.round(plant.totalPayable || 0),
-                                `"${(proj.projectName || '').replace(/"/g, '""')}"`,
-                                `"${(proj.status || '').replace(/"/g, '""')}"`,
-                                proj.billingRate || 1000,
-                                proj.totalHours ? proj.totalHours.toFixed(2) : '0.00',
-                                Math.round(proj.totalCost || 0),
-                                `"${(emp.employeeName || '').replace(/"/g, '""')}"`,
-                                `"${(emp.role || '').replace(/"/g, '""')}"`,
-                                emp.hourlyRate || 1000,
-                                emp.totalHours ? emp.totalHours.toFixed(2) : '0.00',
-                                Math.round(emp.totalCost || 0),
-                                `"${ticketSummary.replace(/"/g, '""')}"`
+                                `"${custName.replace(/"/g, '""')}"`,
+                                `"${custIndustry.replace(/"/g, '""')}"`,
+                                custRate,
+                                custHours.toFixed(2),
+                                custTickets,
+                                Math.round(custPayable),
+                                `"${plantName.replace(/"/g, '""')}"`,
+                                `"${plantGst.replace(/"/g, '""')}"`,
+                                plantRate,
+                                plantHours.toFixed(2),
+                                plantTickets,
+                                Math.round(plantPayable),
+                                `"${projName.replace(/"/g, '""')}"`,
+                                `"${projStatus.replace(/"/g, '""')}"`,
+                                projRate,
+                                projHours.toFixed(2),
+                                Math.round(projCost),
+                                `"${empName.replace(/"/g, '""')}"`,
+                                `"${empRole.replace(/"/g, '""')}"`,
+                                empRate,
+                                empHours.toFixed(2),
+                                Math.round(empCost),
+                                `"${tasksSummary.replace(/"/g, '""')}"`
                             ]);
                         });
                     });
@@ -1689,6 +1736,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         });
     }
 });

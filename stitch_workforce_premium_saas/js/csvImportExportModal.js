@@ -174,15 +174,61 @@
         }
     };
 
-    window.downloadCurrentModuleTemplate = function (moduleOverride) {
+    window.downloadCurrentModuleTemplate = async function (moduleOverride) {
         const mod = moduleOverride || currentModule;
-        const token = localStorage.getItem('token');
-        window.location.href = `/api/v1/admin/import-export/template?module=${mod}&token=${token}`;
+        const token = localStorage.getItem('token') || '';
+        const url = `/api/v1/admin/import-export/template?module=${encodeURIComponent(mod)}&token=${encodeURIComponent(token)}`;
+        try {
+            const res = await fetch(url, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                credentials: 'include'
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert(`Template download failed: ${err.message || res.statusText}`);
+                return;
+            }
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `EMS_Template_${mod}_v2.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+        } catch (e) {
+            window.location.href = url;
+        }
     };
 
-    window.exportModuleDataFile = function (module, format = 'xlsx') {
-        const token = localStorage.getItem('token');
-        window.location.href = `/api/v1/admin/import-export/export?module=${module}&format=${format}&token=${token}`;
+    window.exportModuleDataFile = async function (module, format = 'xlsx') {
+        const token = localStorage.getItem('token') || '';
+        const ext = format === 'csv' ? 'csv' : 'xlsx';
+        const url = `/api/v1/admin/import-export/export?module=${encodeURIComponent(module)}&format=${encodeURIComponent(format)}&token=${encodeURIComponent(token)}`;
+        try {
+            const res = await fetch(url, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                credentials: 'include'
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert(`Data export failed: ${err.message || res.statusText}`);
+                return;
+            }
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateStr = new Date().toISOString().split('T')[0];
+            a.href = blobUrl;
+            a.download = `EMS_${module}_Export_${dateStr}.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+        } catch (e) {
+            window.location.href = url;
+        }
     };
 
     window.handleImportFileSelect = async function (e) {
