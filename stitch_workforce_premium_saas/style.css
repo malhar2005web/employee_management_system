@@ -303,7 +303,8 @@ img{display:block;}
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background-image: url('/assets/logo.jpg');
+  background-color: #ffffff;
+  background-image: url('assets/logo.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -314,6 +315,13 @@ img{display:block;}
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   border: 1.5px solid rgba(255, 255, 255, 0.4);
   overflow: hidden;
+}
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
 }
 .brand-logo i {
   display: none !important;

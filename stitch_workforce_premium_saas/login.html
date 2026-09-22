@@ -30,20 +30,28 @@
     text-align: center;
   }
   .login-logo {
-    width: 68px;
-    height: 68px;
-    border-radius: 14px;
-    background-image: url('/assets/logo.jpg');
+    width: 76px;
+    height: 76px;
+    border-radius: 18px;
+    background-color: #ffffff;
+    background-image: url('assets/logo.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 20px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-    border: 2px solid rgba(255, 255, 255, 0.4);
+    margin-bottom: 16px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.8);
     overflow: hidden;
+  }
+  .login-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 16px;
+    display: block;
   }
   .login-logo i {
     display: none !important;
@@ -460,7 +468,7 @@
 <div class="login-wrapper">
   <div class="login-card glass">
     <div class="login-logo">
-      <i class="fa-solid fa-cube"></i>
+      <img src="assets/logo.png" alt="EMS Logo" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='logo.png';}">
     </div>
     <h2 id="login-brand-title">PCS Enterprise</h2>
     <p id="login-brand-subtitle">Sign in to access the portal</p>

@@ -34,10 +34,15 @@ public static class MauiProgram
 		builder.Services.AddSingleton<MainPage>();
 
 #if ANDROID
-		Microsoft.Maui.Handlers.WebViewHandler.Mapper.AppendToMapping("AndroidGeolocation", (handler, view) =>
+		Microsoft.Maui.Handlers.WebViewHandler.Mapper.AppendToMapping("AndroidCustomWebView", (handler, view) =>
 		{
 			handler.PlatformView.Settings.SetGeolocationEnabled(true);
+			handler.PlatformView.Settings.JavaScriptEnabled = true;
+			handler.PlatformView.Settings.DomStorageEnabled = true;
+			handler.PlatformView.Settings.DatabaseEnabled = true;
 			handler.PlatformView.Settings.JavaScriptCanOpenWindowsAutomatically = true;
+			handler.PlatformView.Settings.MixedContentMode = Android.Webkit.MixedContentHandling.AlwaysAllow;
+			handler.PlatformView.SetWebChromeClient(new AndroidPermissionWebChromeClient());
 		});
 #endif
 
@@ -48,3 +53,13 @@ public static class MauiProgram
 		return builder.Build();
 	}
 }
+
+#if ANDROID
+public class AndroidPermissionWebChromeClient : Android.Webkit.WebChromeClient
+{
+	public override void OnGeolocationPermissionsShowPrompt(string? origin, Android.Webkit.GeolocationPermissions.ICallback? callback)
+	{
+		callback?.Invoke(origin, true, false);
+	}
+}
+#endif

@@ -36,15 +36,7 @@ export async function login(req, res) {
             dbName
         });
 
-        const client = req.headers['x-ems-client'];
-        const platform = req.headers['x-ems-platform'];
-
-        if (user.role === 'Employee' && (client === 'Mobile' || platform === 'Android' || platform === 'iOS')) {
-            return res.status(403).json({
-                success: false,
-                message: "Desktop Required\nEmployee accounts are restricted to desktop access for secure attendance monitoring and work tracking. Please login using your office laptop."
-            });
-        }
+        // Mobile access permitted for all roles (including field visit employees)
 
         res.status(200).json({
             success: true,
