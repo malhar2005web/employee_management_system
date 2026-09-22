@@ -1606,137 +1606,194 @@ document.addEventListener('DOMContentLoaded', () => {
     // CSV / Excel Export
     if (btnExportBillingCSV) {
         btnExportBillingCSV.addEventListener('click', async () => {
-            if (!cachedBillingReportData || cachedBillingReportData.length === 0) {
-                if (typeof loadBillingReport === 'function') {
-                    await loadBillingReport();
+            const originalHTML = btnExportBillingCSV.innerHTML;
+            btnExportBillingCSV.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Exporting Report...';
+            btnExportBillingCSV.disabled = true;
+
+            const safeStr = (v) => `"${String(v !== undefined && v !== null ? v : '').replace(/"/g, '""')}"`;
+            const dateStr = new Date().toISOString().split('T')[0];
+
+            try {
+                // Ensure data is loaded first
+                if (!cachedBillingReportData || cachedBillingReportData.length === 0) {
+                    if (typeof loadCustomerBillingReport === 'function') {
+                        await loadCustomerBillingReport();
+                    }
                 }
-            }
 
-            if (!cachedBillingReportData || cachedBillingReportData.length === 0) {
-                alert('No billing report data available to export.');
-                return;
-            }
+                const startDate = reportFilterStart ? reportFilterStart.value : '';
+                const endDate = reportFilterEnd ? reportFilterEnd.value : '';
+                const search = reportSearch ? reportSearch.value.trim() : '';
 
-            const rows = [
-                [
-                    'Customer Name',
-                    'Industry',
-                    'Customer Hourly Rate (INR)',
-                    'Customer Total Hours',
-                    'Customer Total Tickets',
-                    'Customer Total Payable (INR)',
-                    'Plant / Branch Name',
-                    'Plant GST',
-                    'Plant Hourly Rate (INR)',
-                    'Plant Total Hours',
-                    'Plant Total Tickets',
-                    'Plant Total Payable (INR)',
-                    'Project Name',
-                    'Project Status',
-                    'Project Hourly Rate (INR)',
-                    'Project Total Hours',
-                    'Project Total Cost (INR)',
-                    'Employee Name',
-                    'Employee Code / Role',
-                    'Employee Hourly Rate (INR)',
-                    'Employee Hours Logged',
-                    'Employee Total Cost (INR)',
-                    'Tickets / Tasks Handled'
-                ]
-            ];
+                const token = localStorage.getItem('token') || '';
+                const headers = {};
+                if (token && token !== 'null' && token !== 'undefined') {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
 
-            cachedBillingReportData.forEach(cust => {
-                const custName = cust.customer_name || cust.name || 'Customer';
-                const custIndustry = cust.industry || 'IT / Engineering';
-                const custRate = parseFloat(cust.billing_rate || cust.billingRate || 1000);
-                const custHours = parseFloat(cust.total_hours || cust.totalHours || 0);
-                const custTickets = parseInt(cust.total_tickets || cust.totalTickets || 0, 10);
-                const custPayable = parseFloat(cust.total_payable || cust.totalPayable || 0);
+                const params = new URLSearchParams({ format: 'xlsx' });
+                if (startDate) params.append('startDate', startDate);
+                if (endDate) params.append('endDate', endDate);
+                if (search) params.append('search', search);
+                if (token && token !== 'null' && token !== 'undefined') params.append('token', token);
 
-                const plants = (cust.plants && cust.plants.length > 0)
-                    ? cust.plants
-                    : [{ plant_name: 'General / Main', gst_no: cust.gst_no || '', hourly_rate: custRate, total_hours: custHours, total_tickets: custTickets, total_payable: custPayable, projects: [] }];
+                let downloaded = false;
+                try {
+                    const res = await fetch(`/api/v1/customers/billing-report/export?${params.toString()}`, {
+                        headers,
+                        credentials: 'include'
+                    });
 
-                plants.forEach(plant => {
-                    const plantName = plant.plant_name || plant.branchName || plant.name || 'General';
-                    const plantGst = plant.gst_no || plant.gstNo || '';
-                    const plantRate = parseFloat(plant.hourly_rate || plant.billingRate || custRate);
-                    const plantHours = parseFloat(plant.total_hours || plant.totalHours || 0);
-                    const plantTickets = parseInt(plant.total_tickets || plant.totalTickets || 0, 10);
-                    const plantPayable = parseFloat(plant.total_payable || plant.totalPayable || 0);
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = `Customer_Plant_Billing_Report_${dateStr}.xlsx`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(blobUrl);
+                        downloaded = true;
+                    }
+                } catch (fetchErr) {
+                    console.warn('[Export] Server-side XLSX export failed, fallback to client CSV:', fetchErr);
+                }
 
-                    const projects = (plant.projects && plant.projects.length > 0)
-                        ? plant.projects
-                        : [{ project_name: 'Support & General Scope', status: 'Active', hourly_rate: plantRate, total_hours: plantHours, total_cost: plantPayable, employees: [] }];
+                // Client-side CSV Fallback if server export didn't complete
+                if (!downloaded) {
+                    if (!cachedBillingReportData || cachedBillingReportData.length === 0) {
+                        alert('No billing report data available to export.');
+                        return;
+                    }
 
-                    projects.forEach(proj => {
-                        const projName = proj.project_name || proj.projectName || 'General Maintenance';
-                        const projStatus = proj.status || 'Active';
-                        const projRate = parseFloat(proj.hourly_rate || proj.billingRate || plantRate);
-                        const projHours = parseFloat(proj.total_hours || proj.totalHours || 0);
-                        const projCost = parseFloat(proj.total_cost || proj.totalCost || 0);
+                    const rows = [
+                        [
+                            'Customer Name',
+                            'Industry',
+                            'Customer Hourly Rate (INR)',
+                            'Customer Total Hours',
+                            'Customer Total Tickets',
+                            'Customer Total Payable (INR)',
+                            'Plant / Branch Name',
+                            'Plant GST',
+                            'Plant Hourly Rate (INR)',
+                            'Plant Total Hours',
+                            'Plant Total Tickets',
+                            'Plant Total Payable (INR)',
+                            'Project Name',
+                            'Project Status',
+                            'Project Hourly Rate (INR)',
+                            'Project Total Hours',
+                            'Project Total Cost (INR)',
+                            'Employee Name',
+                            'Employee Code / Role',
+                            'Employee Hourly Rate (INR)',
+                            'Employee Hours Logged',
+                            'Employee Total Cost (INR)',
+                            'Tickets / Tasks Handled'
+                        ]
+                    ];
 
-                        const employees = (proj.employees && proj.employees.length > 0)
-                            ? proj.employees
-                            : [{ employee_name: 'Support Staff / Team', employee_code: 'Staff', hourly_rate: projRate, total_hours: projHours, total_cost: projCost, tasks_done: [] }];
+                    cachedBillingReportData.forEach(cust => {
+                        const custName = cust.customer_name || cust.name || 'Customer';
+                        const custIndustry = cust.industry || 'IT / Engineering';
+                        const custRate = parseFloat(cust.billing_rate || cust.billingRate || 1000);
+                        const custHours = parseFloat(cust.total_hours || cust.totalHours || 0);
+                        const custTickets = parseInt(cust.total_tickets || cust.totalTickets || 0, 10);
+                        const custPayable = parseFloat(cust.total_payable || cust.totalPayable || 0);
 
-                        employees.forEach(emp => {
-                            const empName = emp.employee_name || emp.employeeName || 'Staff';
-                            const empRole = emp.employee_code || emp.role || 'Staff';
-                            const empRate = parseFloat(emp.hourly_rate || emp.hourlyRate || projRate);
-                            const empHours = parseFloat(emp.total_hours || emp.totalHours || 0);
-                            const empCost = parseFloat(emp.total_cost || emp.totalCost || 0);
+                        const plants = (cust.plants && cust.plants.length > 0)
+                            ? cust.plants
+                            : [{ plant_name: 'General / Main', gst_no: cust.gst_no || '', hourly_rate: custRate, total_hours: custHours, total_tickets: custTickets, total_payable: custPayable, projects: [] }];
 
-                            let tasksSummary = '';
-                            if (Array.isArray(emp.tasks_done) && emp.tasks_done.length > 0) {
-                                tasksSummary = emp.tasks_done.map(t => `${t.task_name || t.title || 'Task'} (${t.hours || 0}h)`).join('; ');
-                            } else if (Array.isArray(emp.tickets) && emp.tickets.length > 0) {
-                                tasksSummary = emp.tickets.map(t => `${t.ticket_number || ''}: ${t.title || ''} (${t.duration_hours || 0}h)`).join('; ');
-                            } else {
-                                tasksSummary = `${projName} (${empHours.toFixed(2)} hrs)`;
-                            }
+                        plants.forEach(plant => {
+                            const plantName = plant.plant_name || plant.branchName || plant.name || 'General';
+                            const plantGst = plant.gst_no || plant.gstNo || '';
+                            const plantRate = parseFloat(plant.hourly_rate || plant.billingRate || custRate);
+                            const plantHours = parseFloat(plant.total_hours || plant.totalHours || 0);
+                            const plantTickets = parseInt(plant.total_tickets || plant.totalTickets || 0, 10);
+                            const plantPayable = parseFloat(plant.total_payable || plant.totalPayable || 0);
 
-                            rows.push([
-                                `"${custName.replace(/"/g, '""')}"`,
-                                `"${custIndustry.replace(/"/g, '""')}"`,
-                                custRate,
-                                custHours.toFixed(2),
-                                custTickets,
-                                Math.round(custPayable),
-                                `"${plantName.replace(/"/g, '""')}"`,
-                                `"${plantGst.replace(/"/g, '""')}"`,
-                                plantRate,
-                                plantHours.toFixed(2),
-                                plantTickets,
-                                Math.round(plantPayable),
-                                `"${projName.replace(/"/g, '""')}"`,
-                                `"${projStatus.replace(/"/g, '""')}"`,
-                                projRate,
-                                projHours.toFixed(2),
-                                Math.round(projCost),
-                                `"${empName.replace(/"/g, '""')}"`,
-                                `"${empRole.replace(/"/g, '""')}"`,
-                                empRate,
-                                empHours.toFixed(2),
-                                Math.round(empCost),
-                                `"${tasksSummary.replace(/"/g, '""')}"`
-                            ]);
+                            const projects = (plant.projects && plant.projects.length > 0)
+                                ? plant.projects
+                                : [{ project_name: 'Support & General Scope', status: 'Active', hourly_rate: plantRate, total_hours: plantHours, total_cost: plantPayable, employees: [] }];
+
+                            projects.forEach(proj => {
+                                const projName = proj.project_name || proj.projectName || 'General Maintenance';
+                                const projStatus = proj.status || 'Active';
+                                const projRate = parseFloat(proj.hourly_rate || proj.billingRate || plantRate);
+                                const projHours = parseFloat(proj.total_hours || proj.totalHours || 0);
+                                const projCost = parseFloat(proj.total_cost || proj.totalCost || 0);
+
+                                const employees = (proj.employees && proj.employees.length > 0)
+                                    ? proj.employees
+                                    : [{ employee_name: 'Support Staff / Team', employee_code: 'Staff', hourly_rate: projRate, total_hours: projHours, total_cost: projCost, tasks_done: [] }];
+
+                                employees.forEach(emp => {
+                                    const empName = emp.employee_name || emp.employeeName || 'Staff';
+                                    const empRole = emp.employee_code || emp.role || 'Staff';
+                                    const empRate = parseFloat(emp.hourly_rate || emp.hourlyRate || projRate);
+                                    const empHours = parseFloat(emp.total_hours || emp.totalHours || 0);
+                                    const empCost = parseFloat(emp.total_cost || emp.totalCost || 0);
+
+                                    let tasksSummary = '';
+                                    if (Array.isArray(emp.tasks_done) && emp.tasks_done.length > 0) {
+                                        tasksSummary = emp.tasks_done.map(t => `${t.code || t.task_name || t.title || 'Task'} (${t.hours || 0}h)`).join('; ');
+                                    } else if (Array.isArray(emp.tickets) && emp.tickets.length > 0) {
+                                        tasksSummary = emp.tickets.map(t => `${t.ticket_number || ''}: ${t.title || ''} (${t.duration_hours || 0}h)`).join('; ');
+                                    } else {
+                                        tasksSummary = `${projName} (${empHours.toFixed(2)} hrs)`;
+                                    }
+
+                                    rows.push([
+                                        safeStr(custName),
+                                        safeStr(custIndustry),
+                                        custRate,
+                                        custHours.toFixed(2),
+                                        custTickets,
+                                        Math.round(custPayable),
+                                        safeStr(plantName),
+                                        safeStr(plantGst),
+                                        plantRate,
+                                        plantHours.toFixed(2),
+                                        plantTickets,
+                                        Math.round(plantPayable),
+                                        safeStr(projName),
+                                        safeStr(projStatus),
+                                        projRate,
+                                        projHours.toFixed(2),
+                                        Math.round(projCost),
+                                        safeStr(empName),
+                                        safeStr(empRole),
+                                        empRate,
+                                        empHours.toFixed(2),
+                                        Math.round(empCost),
+                                        safeStr(tasksSummary)
+                                    ]);
+                                });
+                            });
                         });
                     });
-                });
-            });
 
-            const csvContent = '\uFEFF' + rows.map(e => e.join(',')).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            const dateStr = new Date().toISOString().split('T')[0];
-            link.setAttribute('href', url);
-            link.setAttribute('download', `Customer_Plant_Billing_Report_${dateStr}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+                    const csvContent = '\uFEFF' + rows.map(e => e.join(',')).join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `Customer_Plant_Billing_Report_${dateStr}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }
+            } catch (err) {
+                console.error('Error exporting billing report:', err);
+                alert('Export failed: ' + (err.message || 'Unknown error'));
+            } finally {
+                btnExportBillingCSV.innerHTML = originalHTML;
+                btnExportBillingCSV.disabled = false;
+            }
         });
     }
 });

@@ -4,9 +4,15 @@ import { ENV_VARS } from '../config/envVars.js';
 
 export const protectRoute = async (req, res, next) => {
     try {
-        let token = req.cookies["jwt-moma"] || req.query.token;
-        if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+        let token = null;
+        if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
             token = req.headers.authorization.split(" ")[1];
+        }
+        if (!token && req.cookies && req.cookies["jwt-moma"]) {
+            token = req.cookies["jwt-moma"];
+        }
+        if (!token && req.query.token && req.query.token !== 'null' && req.query.token !== 'undefined' && req.query.token.trim() !== '') {
+            token = req.query.token.trim();
         }
 
         if (!token) {
@@ -41,6 +47,9 @@ export const protectRoute = async (req, res, next) => {
         next();
     } catch (error) {
         console.log("Error in protectRoute middleware:", error.message);
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+            return res.status(401).json({ success: false, message: "Unauthorized - token expired or invalid" });
+        }
         return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 };

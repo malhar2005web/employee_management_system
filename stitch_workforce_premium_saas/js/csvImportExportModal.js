@@ -177,10 +177,17 @@
     window.downloadCurrentModuleTemplate = async function (moduleOverride) {
         const mod = moduleOverride || currentModule;
         const token = localStorage.getItem('token') || '';
-        const url = `/api/v1/admin/import-export/template?module=${encodeURIComponent(mod)}&token=${encodeURIComponent(token)}`;
+        let url = `/api/v1/admin/import-export/template?module=${encodeURIComponent(mod)}`;
+        if (token && token !== 'null' && token !== 'undefined') {
+            url += `&token=${encodeURIComponent(token)}`;
+        }
         try {
+            const headers = {};
+            if (token && token !== 'null' && token !== 'undefined') {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
             const res = await fetch(url, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                headers,
                 credentials: 'include'
             });
             if (!res.ok) {
@@ -198,17 +205,35 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(blobUrl);
         } catch (e) {
-            window.location.href = url;
+            console.error('Template download error:', e);
+            alert('Failed to download template: ' + (e.message || 'Network error'));
         }
     };
 
     window.exportModuleDataFile = async function (module, format = 'xlsx') {
         const token = localStorage.getItem('token') || '';
         const ext = format === 'csv' ? 'csv' : 'xlsx';
-        const url = `/api/v1/admin/import-export/export?module=${encodeURIComponent(module)}&format=${encodeURIComponent(format)}&token=${encodeURIComponent(token)}`;
+        let url = `/api/v1/admin/import-export/export?module=${encodeURIComponent(module)}&format=${encodeURIComponent(format)}`;
+        if (token && token !== 'null' && token !== 'undefined') {
+            url += `&token=${encodeURIComponent(token)}`;
+        }
+
+        // Visual feedback on button if available
+        const exportBtn = document.querySelector('.btn-pill-export');
+        let origContent = '';
+        if (exportBtn) {
+            origContent = exportBtn.innerHTML;
+            exportBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Exporting...`;
+            exportBtn.disabled = true;
+        }
+
         try {
+            const headers = {};
+            if (token && token !== 'null' && token !== 'undefined') {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
             const res = await fetch(url, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                headers,
                 credentials: 'include'
             });
             if (!res.ok) {
@@ -227,7 +252,13 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(blobUrl);
         } catch (e) {
-            window.location.href = url;
+            console.error('Data export error:', e);
+            alert('Data export failed: ' + (e.message || 'Network error'));
+        } finally {
+            if (exportBtn) {
+                exportBtn.innerHTML = origContent;
+                exportBtn.disabled = false;
+            }
         }
     };
 

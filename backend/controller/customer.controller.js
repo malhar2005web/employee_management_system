@@ -1,4 +1,5 @@
 import { pool } from '../config/db.js';
+import ExcelJS from 'exceljs';
 
 export async function getCustomers(req, res) {
     try {
@@ -345,398 +346,664 @@ export async function deleteCustomer(req, res) {
     }
 }
 
-export async function getCustomerBillingReport(req, res) {
-    try {
-        const { startDate, endDate, month, year, search } = req.query;
+export async function buildCustomerBillingReportData(queryParams = {}) {
+    const { startDate, endDate, month, year, search } = queryParams;
 
-        // 1. Determine Date Range filter
-        let startDateStr = null;
-        let endDateStr = null;
+    // 1. Determine Date Range filter
+    let startDateStr = null;
+    let endDateStr = null;
 
-        if (startDate && endDate) {
-            startDateStr = startDate;
-            endDateStr = endDate;
-        } else if (month && month !== 'all') {
-            const cleanMonth = String(month).replace(/[^0-9]/g, '');
-            let y = year ? parseInt(String(year).replace(/[^0-9]/g, ''), 10) : new Date().getFullYear();
-            let m = 1;
-            if (cleanMonth.length === 6) {
-                y = parseInt(cleanMonth.slice(0, 4), 10);
-                m = parseInt(cleanMonth.slice(4, 6), 10);
-            } else if (cleanMonth.length <= 2) {
-                m = parseInt(cleanMonth, 10);
-            } else {
-                const now = new Date();
-                y = now.getFullYear();
-                m = now.getMonth() + 1;
-            }
-            if (isNaN(y) || y < 2000 || y > 2100) y = new Date().getFullYear();
-            if (isNaN(m) || m < 1 || m > 12) m = new Date().getMonth() + 1;
-            startDateStr = `${y}-${String(m).padStart(2, '0')}-01`;
-            const daysInM = new Date(y, m, 0).getDate();
-            endDateStr = `${y}-${String(m).padStart(2, '0')}-${String(daysInM).padStart(2, '0')}`;
-        } else if (year) {
-            const cleanYear = parseInt(String(year).replace(/[^0-9]/g, ''), 10) || new Date().getFullYear();
-            startDateStr = `${cleanYear}-01-01`;
-            endDateStr = `${cleanYear}-12-31`;
+    if (startDate && endDate) {
+        startDateStr = startDate;
+        endDateStr = endDate;
+    } else if (month && month !== 'all') {
+        const cleanMonth = String(month).replace(/[^0-9]/g, '');
+        let y = year ? parseInt(String(year).replace(/[^0-9]/g, ''), 10) : new Date().getFullYear();
+        let m = 1;
+        if (cleanMonth.length === 6) {
+            y = parseInt(cleanMonth.slice(0, 4), 10);
+            m = parseInt(cleanMonth.slice(4, 6), 10);
+        } else if (cleanMonth.length <= 2) {
+            m = parseInt(cleanMonth, 10);
+        } else {
+            const now = new Date();
+            y = now.getFullYear();
+            m = now.getMonth() + 1;
         }
+        if (isNaN(y) || y < 2000 || y > 2100) y = new Date().getFullYear();
+        if (isNaN(m) || m < 1 || m > 12) m = new Date().getMonth() + 1;
+        startDateStr = `${y}-${String(m).padStart(2, '0')}-01`;
+        const daysInM = new Date(y, m, 0).getDate();
+        endDateStr = `${y}-${String(m).padStart(2, '0')}-${String(daysInM).padStart(2, '0')}`;
+    } else if (year) {
+        const cleanYear = parseInt(String(year).replace(/[^0-9]/g, ''), 10) || new Date().getFullYear();
+        startDateStr = `${cleanYear}-01-01`;
+        endDateStr = `${cleanYear}-12-31`;
+    }
 
-        // 2. Query all active Customers
-        let custSql = `SELECT * FROM customers WHERE 1=1`;
-        const custParams = [];
-        if (search) {
-            custSql += ` AND (name ILIKE $1 OR branch ILIKE $1)`;
-            custParams.push(`%${search}%`);
-        }
-        custSql += ` ORDER BY name ASC;`;
-        const custRes = await pool.query(custSql, custParams);
-        const customers = custRes.rows;
+    // 2. Query all active Customers
+    let custSql = `SELECT * FROM customers WHERE 1=1`;
+    const custParams = [];
+    if (search) {
+        custSql += ` AND (name ILIKE $1 OR branch ILIKE $1)`;
+        custParams.push(`%${search}%`);
+    }
+    custSql += ` ORDER BY name ASC;`;
+    const custRes = await pool.query(custSql, custParams);
+    const customers = custRes.rows;
 
-        if (customers.length === 0) {
-            return res.status(200).json({
-                success: true,
-                summary: { total_customers: 0, total_plants: 0, total_projects: 0, total_tickets: 0, total_hours: "0.00", total_payable: 0 },
-                data: []
-            });
-        }
-
-        const customerIds = customers.map(c => c.id);
-
-        // 3. Query all projects, tasks, support_tickets, employees, and plant rates
-        const projRes = await pool.query(
-            `SELECT * FROM projects WHERE customer_id = ANY($1) ORDER BY id ASC;`,
-            [customerIds]
-        );
-        const projects = projRes.rows;
-
-        let taskSql = `SELECT * FROM tasks WHERE customer_id = ANY($1) OR project_id = ANY($2)`;
-        const taskParams = [customerIds, projects.map(p => p.id)];
-        if (startDateStr && endDateStr) {
-            taskSql += ` AND created_at >= $3::timestamp AND created_at <= ($4::timestamp + INTERVAL '1 day')`;
-            taskParams.push(startDateStr, endDateStr);
-        }
-        const taskRes = await pool.query(taskSql, taskParams);
-        const tasks = taskRes.rows;
-
-        let ticketSql = `SELECT * FROM support_tickets WHERE customer_id = ANY($1) OR project_id = ANY($2)`;
-        const ticketParams = [customerIds, projects.map(p => p.id)];
-        if (startDateStr && endDateStr) {
-            ticketSql += ` AND created_at >= $3::timestamp AND created_at <= ($4::timestamp + INTERVAL '1 day')`;
-            ticketParams.push(startDateStr, endDateStr);
-        }
-        const ticketRes = await pool.query(ticketSql, ticketParams);
-        const tickets = ticketRes.rows;
-
-        const empRes = await pool.query(`SELECT id, full_name, employee_code, hourly_rate FROM employees;`);
-        const employeesMap = new Map();
-        empRes.rows.forEach(e => employeesMap.set(e.id, e));
-
-        const ratesRes = await pool.query(`SELECT * FROM customer_plant_billing_rates WHERE customer_id = ANY($1);`, [customerIds]);
-        const plantRatesMap = new Map(); // key: `${customer_id}_${branch_name}`
-        ratesRes.rows.forEach(r => plantRatesMap.set(`${r.customer_id}_${String(r.branch_name).toLowerCase().trim()}`, parseFloat(r.hourly_rate)));
-
-        // Helper to format hours in "X hrs Y mins" or "X.XX"
-        const calcDurationHours = (startedAt, resolvedAt, fallbackHours = 1.0) => {
-            if (!startedAt) return fallbackHours;
-            const start = new Date(startedAt).getTime();
-            const end = resolvedAt ? new Date(resolvedAt).getTime() : Date.now();
-            if (isNaN(start) || isNaN(end) || end <= start) return fallbackHours;
-            const diffHours = (end - start) / (1000 * 3600);
-            return parseFloat(diffHours.toFixed(2));
+    if (customers.length === 0) {
+        return {
+            date_range: { startDate: startDateStr, endDate: endDateStr, label: startDateStr && endDateStr ? `${startDateStr} to ${endDateStr}` : 'All Time' },
+            summary: { total_customers: 0, total_plants: 0, total_projects: 0, total_tickets: 0, total_hours: "0.00", total_payable: 0 },
+            data: []
         };
+    }
 
-        // 4. Build Hierarchical Tree
-        let grandTotalHours = 0;
-        let grandTotalTickets = 0;
-        let grandTotalPayable = 0;
-        let grandTotalProjects = 0;
-        let grandTotalPlants = 0;
+    const customerIds = customers.map(c => c.id);
 
-        const customerReport = [];
+    // 3. Query all projects, tasks, support_tickets, employees, and plant rates
+    const projRes = await pool.query(
+        `SELECT * FROM projects WHERE customer_id = ANY($1) ORDER BY id ASC;`,
+        [customerIds]
+    );
+    const projects = projRes.rows;
 
-        for (const cust of customers) {
-            const custDefaultRate = parseFloat(cust.billing_rate) || 1000.00;
-            let rawBranches = cust.branches;
-            if (typeof rawBranches === 'string') {
-                try { rawBranches = JSON.parse(rawBranches); } catch (e) { rawBranches = []; }
-            }
-            if (!Array.isArray(rawBranches) || rawBranches.length === 0) {
-                rawBranches = [{ branch: cust.branch || 'Head Office / Main Plant', gstNo: cust.gst_no || '', projects: [], assignedEmployees: cust.assigned_employees || [] }];
-            }
+    let taskSql = `SELECT * FROM tasks WHERE customer_id = ANY($1) OR project_id = ANY($2)`;
+    const taskParams = [customerIds, projects.map(p => p.id)];
+    if (startDateStr && endDateStr) {
+        taskSql += ` AND created_at >= $3::timestamp AND created_at <= ($4::timestamp + INTERVAL '1 day')`;
+        taskParams.push(startDateStr, endDateStr);
+    }
+    const taskRes = await pool.query(taskSql, taskParams);
+    const tasks = taskRes.rows;
 
-            let custTotalHours = 0;
-            let custTotalTickets = 0;
-            let custTotalPayable = 0;
-            let custProjectsCount = 0;
+    let ticketSql = `SELECT * FROM support_tickets WHERE customer_id = ANY($1) OR project_id = ANY($2)`;
+    const ticketParams = [customerIds, projects.map(p => p.id)];
+    if (startDateStr && endDateStr) {
+        ticketSql += ` AND created_at >= $3::timestamp AND created_at <= ($4::timestamp + INTERVAL '1 day')`;
+        ticketParams.push(startDateStr, endDateStr);
+    }
+    const ticketRes = await pool.query(ticketSql, ticketParams);
+    const tickets = ticketRes.rows;
 
-            const plantNodes = [];
+    const empRes = await pool.query(`SELECT id, full_name, employee_code, hourly_rate FROM employees;`);
+    const employeesMap = new Map();
+    empRes.rows.forEach(e => employeesMap.set(e.id, e));
 
-            for (const b of rawBranches) {
-                const plantName = b.branch || 'Main Plant';
-                const plantGst = b.gstNo || '';
-                const plantKey = `${cust.id}_${plantName.toLowerCase().trim()}`;
-                const plantRate = plantRatesMap.has(plantKey) ? plantRatesMap.get(plantKey) : custDefaultRate;
+    const ratesRes = await pool.query(`SELECT * FROM customer_plant_billing_rates WHERE customer_id = ANY($1);`, [customerIds]);
+    const plantRatesMap = new Map(); // key: `${customer_id}_${branch_name}`
+    ratesRes.rows.forEach(r => plantRatesMap.set(`${r.customer_id}_${String(r.branch_name).toLowerCase().trim()}`, parseFloat(r.hourly_rate)));
 
-                // Find projects under this plant
-                const custProjForPlant = projects.filter(p => p.customer_id === cust.id && (
-                    (p.branch_name && p.branch_name.toLowerCase().trim() === plantName.toLowerCase().trim()) ||
-                    (!p.branch_name && rawBranches.length === 1)
-                ));
+    // Helper to format hours in "X.XX"
+    const calcDurationHours = (startedAt, resolvedAt, fallbackHours = 1.0) => {
+        if (!startedAt) return fallbackHours;
+        const start = new Date(startedAt).getTime();
+        const end = resolvedAt ? new Date(resolvedAt).getTime() : Date.now();
+        if (isNaN(start) || isNaN(end) || end <= start) return fallbackHours;
+        const diffHours = (end - start) / (1000 * 3600);
+        return parseFloat(diffHours.toFixed(2));
+    };
 
-                // Also check if branches JSON has embedded projects not yet in projects table
-                const branchProjectNames = (b.projects && Array.isArray(b.projects)) ? b.projects.map(bp => bp.name).filter(Boolean) : [];
-                branchProjectNames.forEach(bpName => {
-                    if (!custProjForPlant.some(p => p.name.toLowerCase().trim() === bpName.toLowerCase().trim())) {
-                        custProjForPlant.push({
-                            id: null,
-                            name: bpName,
-                            customer_id: cust.id,
-                            branch_name: plantName,
-                            status: 'Active',
-                            billing_rate: plantRate
-                        });
-                    }
-                });
+    // 4. Build Hierarchical Tree
+    let grandTotalHours = 0;
+    let grandTotalTickets = 0;
+    let grandTotalPayable = 0;
+    let grandTotalProjects = 0;
+    let grandTotalPlants = 0;
 
-                if (custProjForPlant.length === 0) {
+    const customerReport = [];
+
+    for (const cust of customers) {
+        const custDefaultRate = parseFloat(cust.billing_rate) || 1000.00;
+        let rawBranches = cust.branches;
+        if (typeof rawBranches === 'string') {
+            try { rawBranches = JSON.parse(rawBranches); } catch (e) { rawBranches = []; }
+        }
+        if (!Array.isArray(rawBranches) || rawBranches.length === 0) {
+            rawBranches = [{ branch: cust.branch || 'Head Office / Main Plant', gstNo: cust.gst_no || '', projects: [], assignedEmployees: cust.assigned_employees || [] }];
+        }
+
+        let custTotalHours = 0;
+        let custTotalTickets = 0;
+        let custTotalPayable = 0;
+        let custProjectsCount = 0;
+
+        const plantNodes = [];
+
+        for (const b of rawBranches) {
+            const plantName = b.branch || 'Main Plant';
+            const plantGst = b.gstNo || '';
+            const plantKey = `${cust.id}_${plantName.toLowerCase().trim()}`;
+            const plantRate = plantRatesMap.has(plantKey) ? plantRatesMap.get(plantKey) : custDefaultRate;
+
+            // Find projects under this plant
+            const custProjForPlant = projects.filter(p => p.customer_id === cust.id && (
+                (p.branch_name && p.branch_name.toLowerCase().trim() === plantName.toLowerCase().trim()) ||
+                (!p.branch_name && rawBranches.length === 1)
+            ));
+
+            // Also check if branches JSON has embedded projects not yet in projects table
+            const branchProjectNames = (b.projects && Array.isArray(b.projects)) ? b.projects.map(bp => bp.name).filter(Boolean) : [];
+            branchProjectNames.forEach(bpName => {
+                if (!custProjForPlant.some(p => p.name.toLowerCase().trim() === bpName.toLowerCase().trim())) {
                     custProjForPlant.push({
                         id: null,
-                        name: `${cust.name} Operations`,
+                        name: bpName,
                         customer_id: cust.id,
                         branch_name: plantName,
                         status: 'Active',
                         billing_rate: plantRate
                     });
                 }
+            });
 
-                let plantTotalHours = 0;
-                let plantTotalTickets = 0;
-                let plantTotalPayable = 0;
+            if (custProjForPlant.length === 0) {
+                custProjForPlant.push({
+                    id: null,
+                    name: `${cust.name} Operations`,
+                    customer_id: cust.id,
+                    branch_name: plantName,
+                    status: 'Active',
+                    billing_rate: plantRate
+                });
+            }
 
-                const projectNodes = [];
+            let plantTotalHours = 0;
+            let plantTotalTickets = 0;
+            let plantTotalPayable = 0;
 
-                for (const proj of custProjForPlant) {
-                    const projRate = parseFloat(proj.billing_rate) || plantRate;
-                    const projName = proj.name || 'Core System';
+            const projectNodes = [];
 
-                    // Find tickets for this project/plant
-                    const projTickets = tickets.filter(t => 
-                        (t.customer_id === cust.id || (t.project_name && t.project_name.toLowerCase().includes(projName.toLowerCase()))) &&
-                        ((proj.id && t.project_id === proj.id) || (t.project_name && (t.project_name.toLowerCase().includes(projName.toLowerCase()) || t.project_name.toLowerCase().includes(plantName.toLowerCase()))))
-                    );
+            for (const proj of custProjForPlant) {
+                const projRate = parseFloat(proj.billing_rate) || plantRate;
+                const projName = proj.name || 'Core System';
 
-                    // Find tasks for this project
-                    const projTasks = tasks.filter(tk => 
-                        (proj.id && tk.project_id === proj.id) || (tk.customer_id === cust.id && !tk.project_id)
-                    );
+                // Find tickets for this project/plant
+                const projTickets = tickets.filter(t => 
+                    (t.customer_id === cust.id || (t.project_name && t.project_name.toLowerCase().includes(projName.toLowerCase()))) &&
+                    ((proj.id && t.project_id === proj.id) || (t.project_name && (t.project_name.toLowerCase().includes(projName.toLowerCase()) || t.project_name.toLowerCase().includes(plantName.toLowerCase()))))
+                );
 
-                    // Collect assigned employees
-                    const plantAssignedEmps = Array.isArray(b.assignedEmployees) ? b.assignedEmployees : (Array.isArray(cust.assigned_employees) ? cust.assigned_employees : []);
-                    const empWorkMap = new Map(); // empId -> { empObj, tasks: [], totalHours: 0 }
+                // Find tasks for this project
+                const projTasks = tasks.filter(tk => 
+                    (proj.id && tk.project_id === proj.id) || (tk.customer_id === cust.id && !tk.project_id)
+                );
 
-                    // Initialize assigned team members
-                    plantAssignedEmps.forEach(ae => {
-                        const aeId = ae.id || ae.employee_id;
-                        const empRecord = employeesMap.get(aeId) || { id: aeId, full_name: ae.full_name || 'Assigned Engineer', hourly_rate: projRate };
-                        if (!empWorkMap.has(aeId)) {
-                            empWorkMap.set(aeId, {
-                                employee_id: aeId,
-                                employee_name: empRecord.full_name || ae.full_name,
-                                employee_code: empRecord.employee_code || `EMP-${aeId}`,
-                                hourly_rate: parseFloat(empRecord.hourly_rate) || projRate,
-                                hours: 0,
-                                tasks_done: []
-                            });
-                        }
-                    });
+                // Collect assigned employees
+                const plantAssignedEmps = Array.isArray(b.assignedEmployees) ? b.assignedEmployees : (Array.isArray(cust.assigned_employees) ? cust.assigned_employees : []);
+                const empWorkMap = new Map();
 
-                    // Add work from Support Tickets
-                    projTickets.forEach(t => {
-                        const tHours = calcDurationHours(t.started_resolving_at, t.resolved_at, (t.status === 'Resolved' ? 2.5 : 1.5));
-                        const assignedEmpId = t.assigned_to || (plantAssignedEmps[0]?.id) || 9; // Fallback to Malhar/lead if unassigned
-                        const empRecord = employeesMap.get(assignedEmpId) || { id: assignedEmpId, full_name: 'Lead Engineer', hourly_rate: projRate };
-
-                        if (!empWorkMap.has(assignedEmpId)) {
-                            empWorkMap.set(assignedEmpId, {
-                                employee_id: assignedEmpId,
-                                employee_name: empRecord.full_name,
-                                employee_code: empRecord.employee_code || `EMP-${assignedEmpId}`,
-                                hourly_rate: parseFloat(empRecord.hourly_rate) || projRate,
-                                hours: 0,
-                                tasks_done: []
-                            });
-                        }
-
-                        const empEntry = empWorkMap.get(assignedEmpId);
-                        empEntry.hours += tHours;
-                        const taskCost = parseFloat((tHours * empEntry.hourly_rate).toFixed(2));
-
-                        empEntry.tasks_done.push({
-                            type: 'Support Ticket',
-                            code: t.ticket_code || `SUP-${String(t.id).padStart(6, '0')}`,
-                            title: t.title || t.description || 'Support Resolution',
-                            category: t.category || 'Bug / Issue',
-                            status: t.status || 'Resolved',
-                            hours: tHours.toFixed(2),
-                            rate: empEntry.hourly_rate,
-                            cost: taskCost,
-                            date: t.created_at ? String(t.created_at).split('T')[0] : null
+                // Initialize assigned team members
+                plantAssignedEmps.forEach(ae => {
+                    const aeId = ae.id || ae.employee_id;
+                    const empRecord = employeesMap.get(aeId) || { id: aeId, full_name: ae.full_name || 'Assigned Engineer', hourly_rate: projRate };
+                    if (!empWorkMap.has(aeId)) {
+                        empWorkMap.set(aeId, {
+                            employee_id: aeId,
+                            employee_name: empRecord.full_name || ae.full_name,
+                            employee_code: empRecord.employee_code || `EMP-${aeId}`,
+                            hourly_rate: parseFloat(empRecord.hourly_rate) || projRate,
+                            hours: 0,
+                            tasks_done: []
                         });
-                    });
+                    }
+                });
 
-                    // Add work from Tasks
-                    projTasks.forEach(tk => {
-                        const tkHours = parseFloat(tk.actual_hours) || parseFloat(tk.estimated_hours) || 2.0;
-                        const assignees = Array.isArray(tk.assigned_to) && tk.assigned_to.length > 0 ? tk.assigned_to : [plantAssignedEmps[0]?.id || 9];
+                // Add work from Support Tickets
+                projTickets.forEach(t => {
+                    const tHours = calcDurationHours(t.started_resolving_at, t.resolved_at, (t.status === 'Resolved' ? 2.5 : 1.5));
+                    const assignedEmpId = t.assigned_to || (plantAssignedEmps[0]?.id) || 9;
+                    const empRecord = employeesMap.get(assignedEmpId) || { id: assignedEmpId, full_name: 'Lead Engineer', hourly_rate: projRate };
 
-                        assignees.forEach(empId => {
-                            const empRecord = employeesMap.get(empId) || { id: empId, full_name: 'Project Engineer', hourly_rate: projRate };
-                            if (!empWorkMap.has(empId)) {
-                                empWorkMap.set(empId, {
-                                    employee_id: empId,
-                                    employee_name: empRecord.full_name,
-                                    employee_code: empRecord.employee_code || `EMP-${empId}`,
-                                    hourly_rate: parseFloat(empRecord.hourly_rate) || projRate,
-                                    hours: 0,
-                                    tasks_done: []
-                                });
-                            }
-                            const empEntry = empWorkMap.get(empId);
-                            const splitHours = parseFloat((tkHours / assignees.length).toFixed(2));
-                            empEntry.hours += splitHours;
-                            const taskCost = parseFloat((splitHours * empEntry.hourly_rate).toFixed(2));
-
-                            empEntry.tasks_done.push({
-                                type: 'Project Task',
-                                code: `TSK-${String(tk.id).padStart(4, '0')}`,
-                                title: tk.title || 'Development & Maintenance Task',
-                                category: 'Task Execution',
-                                status: tk.status || 'Completed',
-                                hours: splitHours.toFixed(2),
-                                rate: empEntry.hourly_rate,
-                                cost: taskCost,
-                                date: tk.created_at ? String(tk.created_at).split('T')[0] : null
-                            });
-                        });
-                    });
-
-                    // If no explicit tickets or tasks, simulate baseline operational maintenance support hours
-                    if (empWorkMap.size === 0) {
-                        const defaultEmp = employeesMap.get(9) || { id: 9, full_name: 'Malhar Kulkarni', hourly_rate: projRate };
-                        empWorkMap.set(9, {
-                            employee_id: 9,
-                            employee_name: defaultEmp.full_name,
-                            employee_code: defaultEmp.employee_code || 'EMP-0009',
-                            hourly_rate: parseFloat(defaultEmp.hourly_rate) || projRate,
-                            hours: 5.0,
-                            tasks_done: [
-                                {
-                                    type: 'Routine Maintenance',
-                                    code: 'MAINT-01',
-                                    title: 'Plant System Health Check & Server Monitoring',
-                                    category: 'Maintenance',
-                                    status: 'Completed',
-                                    hours: '5.00',
-                                    rate: projRate,
-                                    cost: 5.0 * projRate,
-                                    date: new Date().toISOString().split('T')[0]
-                                }
-                            ]
+                    if (!empWorkMap.has(assignedEmpId)) {
+                        empWorkMap.set(assignedEmpId, {
+                            employee_id: assignedEmpId,
+                            employee_name: empRecord.full_name,
+                            employee_code: empRecord.employee_code || `EMP-${assignedEmpId}`,
+                            hourly_rate: parseFloat(empRecord.hourly_rate) || projRate,
+                            hours: 0,
+                            tasks_done: []
                         });
                     }
 
-                    // Compute project aggregate numbers
-                    const employeeNodes = Array.from(empWorkMap.values()).map(e => {
-                        const totalCost = parseFloat((e.hours * e.hourly_rate).toFixed(2));
-                        return {
-                            employee_id: e.employee_id,
-                            employee_name: e.employee_name,
-                            employee_code: e.employee_code,
-                            hourly_rate: e.hourly_rate,
-                            total_hours: e.hours.toFixed(2),
-                            total_cost: totalCost,
-                            tasks_done: e.tasks_done
-                        };
+                    const empEntry = empWorkMap.get(assignedEmpId);
+                    empEntry.hours += tHours;
+                    const taskCost = parseFloat((tHours * empEntry.hourly_rate).toFixed(2));
+
+                    empEntry.tasks_done.push({
+                        type: 'Support Ticket',
+                        code: t.ticket_code || `SUP-${String(t.id).padStart(6, '0')}`,
+                        title: t.title || t.description || 'Support Resolution',
+                        category: t.category || 'Bug / Issue',
+                        status: t.status || 'Resolved',
+                        hours: tHours.toFixed(2),
+                        rate: empEntry.hourly_rate,
+                        cost: taskCost,
+                        date: t.created_at ? String(t.created_at).split('T')[0] : null
                     });
-
-                    const projTotalHours = employeeNodes.reduce((acc, e) => acc + parseFloat(e.total_hours), 0);
-                    const projTotalCost = employeeNodes.reduce((acc, e) => acc + e.total_cost, 0);
-                    const projTotalTickets = projTickets.length;
-
-                    projectNodes.push({
-                        project_id: proj.id,
-                        project_name: projName,
-                        branch_name: plantName,
-                        status: proj.status || 'In Progress',
-                        hourly_rate: projRate,
-                        total_hours: projTotalHours.toFixed(2),
-                        total_tickets: projTotalTickets,
-                        total_tasks: projTasks.length,
-                        total_cost: projTotalCost,
-                        employees: employeeNodes
-                    });
-
-                    plantTotalHours += projTotalHours;
-                    plantTotalTickets += projTotalTickets;
-                    plantTotalPayable += projTotalCost;
-                    custProjectsCount++;
-                }
-
-                plantNodes.push({
-                    plant_name: plantName,
-                    gst_no: plantGst,
-                    hourly_rate: plantRate,
-                    total_hours: plantTotalHours.toFixed(2),
-                    total_tickets: plantTotalTickets,
-                    total_payable: plantTotalPayable,
-                    projects: projectNodes
                 });
 
-                plantTotalHours = parseFloat(plantTotalHours.toFixed(2));
-                custTotalHours += plantTotalHours;
-                custTotalTickets += plantTotalTickets;
-                custTotalPayable += plantTotalPayable;
-                grandTotalPlants++;
+                // Add work from Tasks
+                projTasks.forEach(tk => {
+                    const tkHours = parseFloat(tk.actual_hours) || parseFloat(tk.estimated_hours) || 2.0;
+                    const assignees = Array.isArray(tk.assigned_to) && tk.assigned_to.length > 0 ? tk.assigned_to : [plantAssignedEmps[0]?.id || 9];
+
+                    assignees.forEach(empId => {
+                        const empRecord = employeesMap.get(empId) || { id: empId, full_name: 'Project Engineer', hourly_rate: projRate };
+                        if (!empWorkMap.has(empId)) {
+                            empWorkMap.set(empId, {
+                                employee_id: empId,
+                                employee_name: empRecord.full_name,
+                                employee_code: empRecord.employee_code || `EMP-${empId}`,
+                                hourly_rate: parseFloat(empRecord.hourly_rate) || projRate,
+                                hours: 0,
+                                tasks_done: []
+                            });
+                        }
+                        const empEntry = empWorkMap.get(empId);
+                        const splitHours = parseFloat((tkHours / assignees.length).toFixed(2));
+                        empEntry.hours += splitHours;
+                        const taskCost = parseFloat((splitHours * empEntry.hourly_rate).toFixed(2));
+
+                        empEntry.tasks_done.push({
+                            type: 'Project Task',
+                            code: `TSK-${String(tk.id).padStart(4, '0')}`,
+                            title: tk.title || 'Development & Maintenance Task',
+                            category: 'Task Execution',
+                            status: tk.status || 'Completed',
+                            hours: splitHours.toFixed(2),
+                            rate: empEntry.hourly_rate,
+                            cost: taskCost,
+                            date: tk.created_at ? String(tk.created_at).split('T')[0] : null
+                        });
+                    });
+                });
+
+                // If no explicit tickets or tasks, simulate baseline operational maintenance support hours
+                if (empWorkMap.size === 0) {
+                    const defaultEmp = employeesMap.get(9) || { id: 9, full_name: 'Malhar Kulkarni', hourly_rate: projRate };
+                    empWorkMap.set(9, {
+                        employee_id: 9,
+                        employee_name: defaultEmp.full_name,
+                        employee_code: defaultEmp.employee_code || 'EMP-0009',
+                        hourly_rate: parseFloat(defaultEmp.hourly_rate) || projRate,
+                        hours: 5.0,
+                        tasks_done: [
+                            {
+                                type: 'Routine Maintenance',
+                                code: 'MAINT-01',
+                                title: 'Plant System Health Check & Server Monitoring',
+                                category: 'Maintenance',
+                                status: 'Completed',
+                                hours: '5.00',
+                                rate: projRate,
+                                cost: 5.0 * projRate,
+                                date: new Date().toISOString().split('T')[0]
+                            }
+                        ]
+                    });
+                }
+
+                // Compute project aggregate numbers
+                const employeeNodes = Array.from(empWorkMap.values()).map(e => {
+                    const totalCost = parseFloat((e.hours * e.hourly_rate).toFixed(2));
+                    return {
+                        employee_id: e.employee_id,
+                        employee_name: e.employee_name,
+                        employee_code: e.employee_code,
+                        hourly_rate: e.hourly_rate,
+                        total_hours: e.hours.toFixed(2),
+                        total_cost: totalCost,
+                        tasks_done: e.tasks_done
+                    };
+                });
+
+                const projTotalHours = employeeNodes.reduce((acc, e) => acc + parseFloat(e.total_hours), 0);
+                const projTotalCost = employeeNodes.reduce((acc, e) => acc + e.total_cost, 0);
+                const projTotalTickets = projTickets.length;
+
+                projectNodes.push({
+                    project_id: proj.id,
+                    project_name: projName,
+                    branch_name: plantName,
+                    status: proj.status || 'In Progress',
+                    hourly_rate: projRate,
+                    total_hours: projTotalHours.toFixed(2),
+                    total_tickets: projTotalTickets,
+                    total_tasks: projTasks.length,
+                    total_cost: projTotalCost,
+                    employees: employeeNodes
+                });
+
+                plantTotalHours += projTotalHours;
+                plantTotalTickets += projTotalTickets;
+                plantTotalPayable += projTotalCost;
+                custProjectsCount++;
             }
 
-            customerReport.push({
-                customer_id: cust.id,
-                customer_name: cust.name,
-                industry: cust.industry || 'IT / Engineering',
-                billing_rate: custDefaultRate,
-                total_hours: custTotalHours.toFixed(2),
-                total_tickets: custTotalTickets,
-                total_projects: custProjectsCount,
-                total_payable: custTotalPayable,
-                plants: plantNodes
+            plantNodes.push({
+                plant_name: plantName,
+                gst_no: plantGst,
+                hourly_rate: plantRate,
+                total_hours: plantTotalHours.toFixed(2),
+                total_tickets: plantTotalTickets,
+                total_payable: plantTotalPayable,
+                projects: projectNodes
             });
 
-            grandTotalHours += custTotalHours;
-            grandTotalTickets += custTotalTickets;
-            grandTotalPayable += custTotalPayable;
-            grandTotalProjects += custProjectsCount;
+            plantTotalHours = parseFloat(plantTotalHours.toFixed(2));
+            custTotalHours += plantTotalHours;
+            custTotalTickets += plantTotalTickets;
+            custTotalPayable += plantTotalPayable;
+            grandTotalPlants++;
         }
 
-        res.status(200).json({
-            success: true,
-            date_range: {
-                startDate: startDateStr,
-                endDate: endDateStr,
-                label: startDateStr && endDateStr ? `${startDateStr} to ${endDateStr}` : 'All Time'
-            },
-            summary: {
-                total_customers: customers.length,
-                total_plants: grandTotalPlants,
-                total_projects: grandTotalProjects,
-                total_tickets: grandTotalTickets,
-                total_hours: grandTotalHours.toFixed(2),
-                total_payable: parseFloat(grandTotalPayable.toFixed(2))
-            },
-            data: customerReport
+        customerReport.push({
+            customer_id: cust.id,
+            customer_name: cust.name,
+            industry: cust.industry || 'IT / Engineering',
+            billing_rate: custDefaultRate,
+            total_hours: custTotalHours.toFixed(2),
+            total_tickets: custTotalTickets,
+            total_projects: custProjectsCount,
+            total_payable: custTotalPayable,
+            plants: plantNodes
         });
+
+        grandTotalHours += custTotalHours;
+        grandTotalTickets += custTotalTickets;
+        grandTotalPayable += custTotalPayable;
+        grandTotalProjects += custProjectsCount;
+    }
+
+    return {
+        date_range: {
+            startDate: startDateStr,
+            endDate: endDateStr,
+            label: startDateStr && endDateStr ? `${startDateStr} to ${endDateStr}` : 'All Time'
+        },
+        summary: {
+            total_customers: customers.length,
+            total_plants: grandTotalPlants,
+            total_projects: grandTotalProjects,
+            total_tickets: grandTotalTickets,
+            total_hours: grandTotalHours.toFixed(2),
+            total_payable: parseFloat(grandTotalPayable.toFixed(2))
+        },
+        data: customerReport
+    };
+}
+
+export async function getCustomerBillingReport(req, res) {
+    try {
+        const report = await buildCustomerBillingReportData(req.query);
+        res.status(200).json({ success: true, ...report });
     } catch (error) {
         console.error("Error in getCustomerBillingReport:", error.message);
         res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+}
+
+export async function exportCustomerBillingReport(req, res) {
+    try {
+        const { format = 'xlsx' } = req.query;
+        const report = await buildCustomerBillingReportData(req.query);
+        const { data, summary, date_range } = report;
+        const dateStr = new Date().toISOString().split('T')[0];
+
+        if (format === 'csv') {
+            const rows = [
+                [
+                    'Hierarchy Level',
+                    'Customer Name',
+                    'Plant / Branch',
+                    'Project Name',
+                    'Employee / Staff',
+                    'Location / GST / Code',
+                    'Status',
+                    'Tickets / Tasks Count',
+                    'Billable Hours',
+                    'Hourly Rate (INR)',
+                    'Payable Amount / Cost (INR)',
+                    'Details / Tasks Done'
+                ]
+            ];
+
+            const safeStr = (v) => `"${String(v !== undefined && v !== null ? v : '').replace(/"/g, '""')}"`;
+
+            data.forEach(cust => {
+                rows.push([
+                    safeStr('[Customer]'),
+                    safeStr(cust.customer_name),
+                    safeStr(''),
+                    safeStr(''),
+                    safeStr(''),
+                    safeStr(cust.industry || ''),
+                    safeStr('Active'),
+                    cust.total_tickets || 0,
+                    cust.total_hours || '0.00',
+                    cust.billing_rate || 0,
+                    Math.round(cust.total_payable || 0),
+                    safeStr(`Total Projects: ${cust.total_projects || 0}`)
+                ]);
+
+                (cust.plants || []).forEach(plant => {
+                    rows.push([
+                        safeStr('  ↳ [Plant]'),
+                        safeStr(cust.customer_name),
+                        safeStr(plant.plant_name),
+                        safeStr(''),
+                        safeStr(''),
+                        safeStr(plant.gst_no || ''),
+                        safeStr('Operational'),
+                        plant.total_tickets || 0,
+                        plant.total_hours || '0.00',
+                        plant.hourly_rate || cust.billing_rate || 0,
+                        Math.round(plant.total_payable || 0),
+                        safeStr(`Plant Projects: ${(plant.projects || []).length}`)
+                    ]);
+
+                    (plant.projects || []).forEach(proj => {
+                        rows.push([
+                            safeStr('    ↳ [Project]'),
+                            safeStr(cust.customer_name),
+                            safeStr(plant.plant_name),
+                            safeStr(proj.project_name),
+                            safeStr(''),
+                            safeStr(proj.branch_name || ''),
+                            safeStr(proj.status || 'Active'),
+                            proj.total_tickets || 0,
+                            proj.total_hours || '0.00',
+                            proj.hourly_rate || plant.hourly_rate || 0,
+                            Math.round(proj.total_cost || 0),
+                            safeStr(`Assigned Members: ${(proj.employees || []).length}`)
+                        ]);
+
+                        (proj.employees || []).forEach(emp => {
+                            const tasksSummary = (emp.tasks_done || []).map(t => `${t.code || 'TASK'}: ${t.title || ''} (${t.hours || 0}h)`).join('; ');
+                            rows.push([
+                                safeStr('      ↳ [Employee]'),
+                                safeStr(cust.customer_name),
+                                safeStr(plant.plant_name),
+                                safeStr(proj.project_name),
+                                safeStr(emp.employee_name),
+                                safeStr(emp.employee_code || ''),
+                                safeStr('Staff'),
+                                (emp.tasks_done || []).length,
+                                emp.total_hours || '0.00',
+                                emp.hourly_rate || 0,
+                                Math.round(emp.total_cost || 0),
+                                safeStr(tasksSummary || 'General Work')
+                            ]);
+                        });
+                    });
+                });
+            });
+
+            rows.push([
+                safeStr('GRAND TOTAL'),
+                safeStr(`Total Clients: ${summary.total_customers}`),
+                safeStr(`Total Plants: ${summary.total_plants}`),
+                safeStr(`Total Projects: ${summary.total_projects}`),
+                safeStr(''),
+                safeStr(''),
+                safeStr(''),
+                summary.total_tickets || 0,
+                summary.total_hours || '0.00',
+                '',
+                Math.round(summary.total_payable || 0),
+                safeStr(`Period: ${date_range.label}`)
+            ]);
+
+            const csvContent = '\uFEFF' + rows.map(r => r.join(',')).join('\n');
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename=Customer_Billing_Report_${dateStr}.csv`);
+            return res.send(csvContent);
+        } else {
+            // Excel (.xlsx) Export using ExcelJS
+            const workbook = new ExcelJS.Workbook();
+            workbook.creator = 'PCS Workforce Enterprise';
+            workbook.created = new Date();
+
+            const sheet = workbook.addWorksheet('Customer Billing Report');
+            sheet.views = [{ state: 'frozen', ySplit: 2, showGridLines: true }];
+
+            // Title Banner Row
+            sheet.mergeCells('A1:L1');
+            const bannerCell = sheet.getCell('A1');
+            bannerCell.value = `CUSTOMER & PLANT BILLING MATRIX — ${date_range.label.toUpperCase()} (Total Payable: ₹${Math.round(summary.total_payable).toLocaleString('en-IN')})`;
+            bannerCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+            bannerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0C4A40' } };
+            bannerCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            sheet.getRow(1).height = 30;
+
+            // Column Definitions
+            sheet.columns = [
+                { header: 'LEVEL', key: 'level', width: 16 },
+                { header: 'CUSTOMER NAME', key: 'cust_name', width: 26 },
+                { header: 'PLANT / BRANCH', key: 'plant_name', width: 20 },
+                { header: 'PROJECT NAME', key: 'proj_name', width: 28 },
+                { header: 'EMPLOYEE / STAFF', key: 'emp_name', width: 24 },
+                { header: 'LOCATION / CODE', key: 'code', width: 18 },
+                { header: 'STATUS', key: 'status', width: 14 },
+                { header: 'TICKETS / TASKS', key: 'tickets', width: 16 },
+                { header: 'HOURS (HRS)', key: 'hours', width: 14 },
+                { header: 'RATE (₹/HR)', key: 'rate', width: 14 },
+                { header: 'AMOUNT (₹)', key: 'amount', width: 18 },
+                { header: 'DETAILS / TASKS DONE', key: 'details', width: 45 }
+            ];
+
+            // Header Style (Row 2)
+            const headerRow = sheet.getRow(2);
+            headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+            headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
+            headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+            headerRow.height = 24;
+
+            // Populate rows
+            data.forEach(cust => {
+                const cRow = sheet.addRow({
+                    level: '[CUSTOMER]',
+                    cust_name: cust.customer_name,
+                    plant_name: '',
+                    proj_name: '',
+                    emp_name: '',
+                    code: cust.industry || '',
+                    status: 'Active',
+                    tickets: cust.total_tickets || 0,
+                    hours: parseFloat(cust.total_hours) || 0,
+                    rate: cust.billing_rate || 0,
+                    amount: Math.round(cust.total_payable) || 0,
+                    details: `Total Projects: ${cust.total_projects || 0}`
+                });
+                cRow.font = { bold: true, size: 10.5 };
+                cRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6FFFA' } };
+
+                (cust.plants || []).forEach(plant => {
+                    const pRow = sheet.addRow({
+                        level: '  ↳ Plant',
+                        cust_name: cust.customer_name,
+                        plant_name: plant.plant_name,
+                        proj_name: '',
+                        emp_name: '',
+                        code: plant.gst_no || '',
+                        status: 'Operational',
+                        tickets: plant.total_tickets || 0,
+                        hours: parseFloat(plant.total_hours) || 0,
+                        rate: plant.hourly_rate || cust.billing_rate || 0,
+                        amount: Math.round(plant.total_payable) || 0,
+                        details: `Plant Projects: ${(plant.projects || []).length}`
+                    });
+                    pRow.font = { bold: true, size: 10 };
+                    pRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
+
+                    (plant.projects || []).forEach(proj => {
+                        const projRow = sheet.addRow({
+                            level: '    ↳ Project',
+                            cust_name: cust.customer_name,
+                            plant_name: plant.plant_name,
+                            proj_name: proj.project_name,
+                            emp_name: '',
+                            code: proj.branch_name || '',
+                            status: proj.status || 'Active',
+                            tickets: proj.total_tickets || 0,
+                            hours: parseFloat(proj.total_hours) || 0,
+                            rate: proj.hourly_rate || plant.hourly_rate || 0,
+                            amount: Math.round(proj.total_cost) || 0,
+                            details: `Assigned Staff: ${(proj.employees || []).length}`
+                        });
+                        projRow.font = { italic: false, size: 9.5 };
+                        projRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+
+                        (proj.employees || []).forEach(emp => {
+                            const tasksSummary = (emp.tasks_done || []).map(t => `${t.code || 'TASK'}: ${t.title || ''} (${t.hours || 0}h)`).join('; ');
+                            const eRow = sheet.addRow({
+                                level: '      ↳ Staff',
+                                cust_name: cust.customer_name,
+                                plant_name: plant.plant_name,
+                                proj_name: proj.project_name,
+                                emp_name: emp.employee_name,
+                                code: emp.employee_code || '',
+                                status: 'Assigned',
+                                tickets: (emp.tasks_done || []).length,
+                                hours: parseFloat(emp.total_hours) || 0,
+                                rate: emp.hourly_rate || 0,
+                                amount: Math.round(emp.total_cost) || 0,
+                                details: tasksSummary || 'Routine Support & Maintenance'
+                            });
+                            eRow.font = { size: 9 };
+                        });
+                    });
+                });
+            });
+
+            // Summary Row
+            const sumRow = sheet.addRow({
+                level: 'TOTAL',
+                cust_name: `Clients: ${summary.total_customers}`,
+                plant_name: `Plants: ${summary.total_plants}`,
+                proj_name: `Projects: ${summary.total_projects}`,
+                emp_name: '',
+                code: '',
+                status: 'ALL',
+                tickets: summary.total_tickets || 0,
+                hours: parseFloat(summary.total_hours) || 0,
+                rate: '',
+                amount: Math.round(summary.total_payable) || 0,
+                details: `Billing Period: ${date_range.label}`
+            });
+            sumRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10.5 };
+            sumRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0C4A40' } };
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=Customer_Billing_Report_${dateStr}.xlsx`);
+            await workbook.xlsx.write(res);
+            return res.end();
+        }
+    } catch (error) {
+        console.error("Error exporting billing report:", error.message);
+        res.status(500).json({ success: false, message: error.message || "Failed to export billing report" });
     }
 }
 

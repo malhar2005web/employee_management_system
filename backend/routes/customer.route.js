@@ -5,6 +5,7 @@ import {
     updateCustomer, 
     deleteCustomer,
     getCustomerBillingReport,
+    exportCustomerBillingReport,
     updateBillingRate
 } from '../controller/customer.controller.js';
 import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
@@ -14,6 +15,7 @@ const router = express.Router();
 // Apply admin RBAC check globally on all customer routes
 router.use(protectRoute, isAdmin);
 
+router.get("/billing-report/export", exportCustomerBillingReport);
 router.get("/billing-report", getCustomerBillingReport);
 router.put("/billing-rate", updateBillingRate);
 router.get("/", getCustomers);
