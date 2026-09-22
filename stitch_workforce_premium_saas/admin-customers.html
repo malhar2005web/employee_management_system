@@ -366,6 +366,7 @@
                 <th style="padding:14px 12px; font-weight:800; min-width:150px;">PROJECTS / MODULES</th>
                 <th style="padding:14px 12px; font-weight:800; min-width:240px;">CONTACT PERSONS</th>
                 <th style="padding:14px 12px; font-weight:800; min-width:160px;">SLA &amp; CONTRACT</th>
+                <th style="padding:14px 12px; font-weight:800; min-width:260px;"><i class="fa-solid fa-headset" style="margin-right:6px; color:#0d9488;"></i>SUPPORT TICKETS</th>
                 <th style="padding:14px 12px; font-weight:800; min-width:120px;">INDUSTRY</th>
                 <th style="padding:14px 12px; font-weight:800; min-width:150px;">ASSIGNED TEAM</th>
                 <th style="padding:14px 12px; text-align:right; font-weight:800; min-width:100px;">ACTIONS</th>
@@ -647,10 +648,14 @@
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;margin-bottom:15px;">
         <div class="form-group">
-          <label for="cust-deadline">Deadline</label>
+          <label for="cust-deadline">Project Deadline</label>
           <input type="date" id="cust-deadline">
+        </div>
+        <div class="form-group">
+          <label for="cust-delivery-date">Handover / Delivery Date</label>
+          <input type="date" id="cust-delivery-date" title="Date when app/project was handed over to customer">
         </div>
         <div class="form-group">
           <label for="cust-industry">Industry</label>
@@ -675,6 +680,27 @@
         <button type="submit" class="btn-primary" id="cust-modal-submit">Save Customer</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ================= CUSTOMER TICKETS HISTORY MODAL ================= -->
+<div class="modal-overlay" id="modal-customer-tickets" style="display:none; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.6); backdrop-filter:blur(6px); z-index:99999;">
+  <div class="modal-box" style="max-width:760px; width:92%; max-height:88vh; display:flex; flex-direction:column; background:#ffffff; border-radius:18px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); border:1px solid rgba(226,232,240,0.8); overflow:hidden;">
+    <div class="modal-header" style="padding:18px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
+      <div>
+        <h3 id="cust-tickets-modal-title" style="margin:0; font-size:18px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-headset" style="color:#0d9488;"></i> Support Tickets
+        </h3>
+        <p id="cust-tickets-modal-subtitle" style="margin:4px 0 0 0; font-size:12.5px; color:#64748b; font-weight:600;"></p>
+      </div>
+      <i class="fa-solid fa-xmark modal-close" id="cust-tickets-modal-close" style="cursor:pointer; font-size:20px; color:#94a3b8; transition:color 0.2s;" onclick="window.closeCustomerTicketsModal && window.closeCustomerTicketsModal()"></i>
+    </div>
+    <div id="cust-tickets-modal-body" style="padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px;">
+      <!-- Populated dynamically -->
+    </div>
+    <div style="padding:14px 24px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; background:#f8fafc;">
+      <button type="button" class="btn-secondary" onclick="window.closeCustomerTicketsModal && window.closeCustomerTicketsModal()" style="padding:8px 18px; font-weight:700; border-radius:8px; cursor:pointer;">Close</button>
+    </div>
   </div>
 </div>
 

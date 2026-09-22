@@ -13,6 +13,7 @@ export async function getCustomers(req, res) {
                                'name', p.name,
                                'description', p.description,
                                'deadline', p.deadline,
+                               'delivery_date', p.delivery_date,
                                'branch_name', p.branch_name,
                                'status', p.status
                            )
@@ -32,7 +33,33 @@ export async function getCustomers(req, res) {
                                )
                            )
                        END, '[]'::jsonb
-                   ) AS assigned_employees
+                   ) AS assigned_employees,
+                   COALESCE(
+                       (
+                           SELECT JSON_AGG(
+                               JSON_BUILD_OBJECT(
+                                   'id', st.id,
+                                   'ticket_code', st.ticket_code,
+                                   'title', st.title,
+                                   'category', st.category,
+                                   'priority', st.priority,
+                                   'status', st.status,
+                                   'project_id', st.project_id,
+                                   'project_name', st.project_name,
+                                   'reported_by', st.reported_by,
+                                   'created_at', st.created_at,
+                                   'resolved_at', st.resolved_at,
+                                   'response_deadline', st.response_deadline,
+                                   'resolution_deadline', st.resolution_deadline
+                               ) ORDER BY st.created_at DESC
+                           )
+                           FROM support_tickets st
+                           WHERE st.customer_id = c.id 
+                              OR st.project_id IN (SELECT p_sub.id FROM projects p_sub WHERE p_sub.customer_id = c.id)
+                              OR (st.customer_id IS NULL AND st.customer_email IS NOT NULL AND st.customer_email <> '' AND c.contact_persons::text ILIKE '%' || st.customer_email || '%')
+                       ),
+                       '[]'::json
+                   ) AS support_tickets
             FROM customers c
             LEFT JOIN projects p ON c.id = p.customer_id
             WHERE 1=1
@@ -65,7 +92,7 @@ export async function getCustomers(req, res) {
 export async function createCustomer(req, res) {
     const client = await pool.connect();
     try {
-        const { name, branches, contactPersons, slaType, slaResponseTime, slaResolutionTime, contractStartDate, contractEndDate, deadline, industry, assigned_employees } = req.body;
+        const { name, branches, contactPersons, slaType, slaResponseTime, slaResolutionTime, contractStartDate, contractEndDate, deadline, delivery_date, deliveryDate, industry, assigned_employees } = req.body;
         const createdBy = req.user ? req.user.id : null;
 
         if (!name) {
@@ -74,6 +101,7 @@ export async function createCustomer(req, res) {
 
         // Calculate latest deadline from projects if top-level deadline is not given
         let finalDeadline = deadline || null;
+        const finalDeliveryDate = delivery_date || deliveryDate || null;
         if (!finalDeadline && branches && Array.isArray(branches)) {
             for (const b of branches) {
                 if (b.projects && Array.isArray(b.projects)) {
@@ -91,8 +119,8 @@ export async function createCustomer(req, res) {
         await client.query("BEGIN");
 
         const query = `
-            INSERT INTO customers (name, branches, contact_persons, sla_type, sla_response_time, sla_resolution_time, contract_start_date, contract_end_date, deadline, industry, created_by, assigned_employees)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+            INSERT INTO customers (name, branches, contact_persons, sla_type, sla_response_time, sla_resolution_time, contract_start_date, contract_end_date, deadline, delivery_date, industry, created_by, assigned_employees)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
         `;
         const values = [
             name,
@@ -104,6 +132,7 @@ export async function createCustomer(req, res) {
             contractStartDate || null,
             contractEndDate || null,
             finalDeadline,
+            finalDeliveryDate,
             industry || null,
             createdBy,
             assigned_employees ? JSON.stringify(assigned_employees) : '[]'
@@ -119,9 +148,9 @@ export async function createCustomer(req, res) {
                     for (const p of b.projects) {
                         if (p.name) {
                             await client.query(
-                                `INSERT INTO projects (name, description, customer_id, branch_name, deadline, status)
-                                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                                [p.name, p.description || null, customer.id, b.branch || null, p.deadline || finalDeadline || null, 'In Progress']
+                                `INSERT INTO projects (name, description, customer_id, branch_name, deadline, delivery_date, status)
+                                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                                [p.name, p.description || null, customer.id, b.branch || null, p.deadline || finalDeadline || null, p.delivery_date || finalDeliveryDate || null, 'In Progress']
                             );
                         }
                     }
@@ -211,7 +240,7 @@ export async function updateCustomer(req, res) {
     const client = await pool.connect();
     try {
         const { id } = req.params;
-        const { name, branches, contactPersons, slaType, slaResponseTime, slaResolutionTime, contractStartDate, contractEndDate, deadline, industry, assigned_employees } = req.body;
+        const { name, branches, contactPersons, slaType, slaResponseTime, slaResolutionTime, contractStartDate, contractEndDate, deadline, delivery_date, deliveryDate, industry, assigned_employees } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, message: "Customer name is required" });
@@ -219,6 +248,7 @@ export async function updateCustomer(req, res) {
 
         // Calculate latest deadline from projects if top-level deadline is not given
         let finalDeadline = deadline || null;
+        const finalDeliveryDate = delivery_date || deliveryDate || null;
         if (!finalDeadline && branches && Array.isArray(branches)) {
             for (const b of branches) {
                 if (b.projects && Array.isArray(b.projects)) {
@@ -237,8 +267,8 @@ export async function updateCustomer(req, res) {
 
         const query = `
             UPDATE customers
-            SET name = $1, branches = $2, contact_persons = $3, sla_type = $4, sla_response_time = $5, sla_resolution_time = $6, contract_start_date = $7, contract_end_date = $8, deadline = $9, industry = $10, assigned_employees = $11, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $12 RETURNING *;
+            SET name = $1, branches = $2, contact_persons = $3, sla_type = $4, sla_response_time = $5, sla_resolution_time = $6, contract_start_date = $7, contract_end_date = $8, deadline = $9, delivery_date = $10, industry = $11, assigned_employees = $12, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $13 RETURNING *;
         `;
         const values = [
             name,
@@ -250,6 +280,7 @@ export async function updateCustomer(req, res) {
             contractStartDate || null,
             contractEndDate || null,
             finalDeadline,
+            finalDeliveryDate,
             industry || null,
             assigned_employees ? JSON.stringify(assigned_employees) : '[]',
             id
@@ -275,6 +306,7 @@ export async function updateCustomer(req, res) {
                                 name: p.name,
                                 description: p.description,
                                 deadline: p.deadline || finalDeadline || null,
+                                delivery_date: p.delivery_date || finalDeliveryDate || null,
                                 branch_name: b.branch
                             });
                         }
@@ -294,17 +326,17 @@ export async function updateCustomer(req, res) {
                 // Update existing
                 await client.query(
                     `UPDATE projects 
-                     SET name = $1, description = $2, branch_name = $3, deadline = $4, updated_at = CURRENT_TIMESTAMP
-                     WHERE id = $5 AND customer_id = $6`,
-                    [p.name, p.description || null, p.branch_name || null, p.deadline || null, p.id, id]
+                     SET name = $1, description = $2, branch_name = $3, deadline = $4, delivery_date = $5, updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $6 AND customer_id = $7`,
+                    [p.name, p.description || null, p.branch_name || null, p.deadline || null, p.delivery_date || null, p.id, id]
                 );
                 submittedProjectIds.push(parseInt(p.id, 10));
             } else {
                 // Insert new
                 const newProjRes = await client.query(
-                    `INSERT INTO projects (name, description, customer_id, branch_name, deadline, status)
-                     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-                    [p.name, p.description || null, id, p.branch_name || null, p.deadline || null, 'In Progress']
+                    `INSERT INTO projects (name, description, customer_id, branch_name, deadline, delivery_date, status)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+                    [p.name, p.description || null, id, p.branch_name || null, p.deadline || null, p.delivery_date || null, 'In Progress']
                 );
                 submittedProjectIds.push(newProjRes.rows[0].id);
             }

@@ -436,9 +436,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderCustomers = (customers) => {
         if (!customersList) return;
         customersList.innerHTML = '';
+        window.currentCustomersData = customers;
 
         if (customers.length === 0) {
-            customersList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No customer records found</td></tr>`;
+            customersList.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">No customer records found</td></tr>`;
             return;
         }
 
@@ -520,8 +521,9 @@ document.addEventListener('DOMContentLoaded', () => {
             projectsHtml += '</div>';
             contactsHtml += '</div>';
 
-            // Deadline
-            const deadlineText = cust.deadline ? new Date(cust.deadline).toLocaleDateString() : '';
+            // Deadline & Delivery
+            const deadlineText = cust.deadline ? new Date(cust.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+            const deliveryText = cust.delivery_date ? new Date(cust.delivery_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
             // Industry pill
             const industryHtml = cust.industry
@@ -546,9 +548,132 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (deadlineText) {
-                slaHtml += `<div style="font-size:12px; font-weight:700; color:#059669; margin-top:2px;"><i class="fa-regular fa-calendar-check"></i> ${deadlineText}</div>`;
+                slaHtml += `<div style="font-size:12px; font-weight:700; color:#059669; margin-top:2px;" title="Project Target Deadline"><i class="fa-regular fa-calendar-check"></i> DL: ${deadlineText}</div>`;
+            }
+            if (deliveryText) {
+                slaHtml += `<div style="font-size:11.5px; font-weight:700; color:#2563EB; margin-top:1px;" title="App Handover / Delivery Date"><i class="fa-solid fa-truck-ramp-box"></i> Handover: ${deliveryText}</div>`;
             }
             slaHtml += '</div>';
+
+            // ============ SUPPORT TICKETS COLUMN ============
+            const tickets = cust.support_tickets && Array.isArray(cust.support_tickets) ? cust.support_tickets : [];
+            const totalTickets = tickets.length;
+            let ticketsHtml = '';
+
+            if (totalTickets === 0) {
+                ticketsHtml = `
+                    <div style="display:flex; align-items:center; gap:6px; color:#94A3B8; font-size:12.5px; font-weight:600; padding:4px 0;">
+                        <i class="fa-regular fa-circle-check" style="color:#10B981; font-size:13.5px;"></i> 0 Tickets
+                    </div>
+                `;
+            } else {
+                ticketsHtml = '<div style="display:flex; flex-direction:column; gap:8px; min-width:240px;">';
+                
+                // Count header with View All trigger
+                ticketsHtml += `
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <span style="font-size:12px; font-weight:800; color:#1E293B; display:inline-flex; align-items:center; gap:5px;">
+                            <i class="fa-solid fa-headset" style="color:#0d9488;"></i> ${totalTickets} Ticket${totalTickets > 1 ? 's' : ''}
+                        </span>
+                        ${totalTickets > 2 ? `<a href="javascript:void(0)" onclick="window.viewCustomerTicketsModal(${cust.id})" style="font-size:11.5px; font-weight:700; color:#2563EB; text-decoration:none;" title="View all ${totalTickets} tickets">View All (${totalTickets}) &rarr;</a>` : ''}
+                    </div>
+                `;
+
+                // Display up to 2 most recent tickets directly in the table cell
+                const displayed = tickets.slice(0, 2);
+                displayed.forEach(t => {
+                    let statusBadge = '';
+                    const stLower = (t.status || '').toLowerCase();
+                    if (stLower.includes('resolve')) {
+                        statusBadge = `<span style="background:rgba(16,185,129,0.12); color:#059669; border:1px solid rgba(16,185,129,0.25); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-circle-check" style="font-size:9.5px;"></i> Resolved</span>`;
+                    } else if (stLower.includes('progress')) {
+                        statusBadge = `<span style="background:rgba(245,158,11,0.14); color:#b45309; border:1px solid rgba(245,158,11,0.28); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:9.5px;"></i> In Progress</span>`;
+                    } else if (stLower.includes('assign')) {
+                        statusBadge = `<span style="background:rgba(99,102,241,0.12); color:#4f46e5; border:1px solid rgba(99,102,241,0.25); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-user-check" style="font-size:9.5px;"></i> Assigned</span>`;
+                    } else if (stLower.includes('close')) {
+                        statusBadge = `<span style="background:rgba(100,116,139,0.12); color:#475569; border:1px solid rgba(100,116,139,0.25); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-lock" style="font-size:9.5px;"></i> Closed</span>`;
+                    } else {
+                        statusBadge = `<span style="background:rgba(239,68,68,0.12); color:#dc2626; border:1px solid rgba(239,68,68,0.25); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-circle-dot" style="font-size:9.5px;"></i> Open</span>`;
+                    }
+
+                    const raisedDateObj = t.created_at ? new Date(t.created_at) : null;
+                    const raisedDateStr = raisedDateObj && !isNaN(raisedDateObj.getTime())
+                        ? raisedDateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : '-';
+                    const raisedTimeStr = raisedDateObj && !isNaN(raisedDateObj.getTime())
+                        ? raisedDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : '';
+
+                    // Deadline relationship comparison
+                    let deadlineBadge = '';
+                    const targetDeadline = cust.deadline;
+                    if (targetDeadline && raisedDateObj) {
+                        const rDate = new Date(t.created_at);
+                        const dDate = new Date(targetDeadline);
+                        rDate.setHours(0,0,0,0);
+                        dDate.setHours(0,0,0,0);
+                        const diffDays = Math.round((rDate - dDate) / (1000 * 60 * 60 * 24));
+                        if (diffDays < 0) {
+                            deadlineBadge = `<span style="font-size:10.5px; font-weight:700; color:#065f46; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.28); padding:1px 6px; border-radius:5px; display:inline-flex; align-items:center; gap:3px;" title="Raised ${Math.abs(diffDays)} day(s) before target deadline (${new Date(targetDeadline).toLocaleDateString()})"><i class="fa-solid fa-clock-rotate-left"></i> Pre-Deadline (${Math.abs(diffDays)}d early)</span>`;
+                        } else if (diffDays === 0) {
+                            deadlineBadge = `<span style="font-size:10.5px; font-weight:700; color:#b45309; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.28); padding:1px 6px; border-radius:5px; display:inline-flex; align-items:center; gap:3px;" title="Raised exactly on deadline day"><i class="fa-solid fa-calendar-day"></i> On Deadline Day</span>`;
+                        } else {
+                            deadlineBadge = `<span style="font-size:10.5px; font-weight:700; color:#b91c1c; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.28); padding:1px 6px; border-radius:5px; display:inline-flex; align-items:center; gap:3px;" title="Raised ${diffDays} day(s) after target deadline (${new Date(targetDeadline).toLocaleDateString()})"><i class="fa-solid fa-triangle-exclamation"></i> Post-Deadline (+${diffDays}d)</span>`;
+                        }
+                    }
+
+                    // Handover / delivery comparison
+                    let handoverText = '';
+                    if (cust.delivery_date && raisedDateObj) {
+                        const rDate = new Date(t.created_at);
+                        const delivDate = new Date(cust.delivery_date);
+                        rDate.setHours(0,0,0,0);
+                        delivDate.setHours(0,0,0,0);
+                        const diffDeliv = Math.round((rDate - delivDate) / (1000 * 60 * 60 * 24));
+                        if (diffDeliv > 0) {
+                            handoverText = `<span style="font-size:10px; color:#475569; font-weight:600;">(+${diffDeliv}d post-handover)</span>`;
+                        } else if (diffDeliv === 0) {
+                            handoverText = `<span style="font-size:10px; color:#475569; font-weight:600;">(on handover day)</span>`;
+                        } else {
+                            handoverText = `<span style="font-size:10px; color:#475569; font-weight:600;">(${Math.abs(diffDeliv)}d pre-handover)</span>`;
+                        }
+                    }
+
+                    let resolvedText = '';
+                    if (t.resolved_at) {
+                        const resDate = new Date(t.resolved_at);
+                        resolvedText = `<span style="font-size:10.5px; color:#059669; font-weight:700; display:inline-flex; align-items:center; gap:2px;"><i class="fa-solid fa-check"></i> Res: ${resDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>`;
+                    }
+
+                    ticketsHtml += `
+                        <div style="background:rgba(248,250,252,0.95); border:1px solid rgba(226,232,240,0.95); border-radius:8px; padding:6px 9px; display:flex; flex-direction:column; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                            <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+                                <a href="admin-support.html?search=${encodeURIComponent(t.ticket_code)}" target="_blank" style="font-family:monospace; font-size:11.5px; font-weight:800; color:#0f172a; text-decoration:none; background:#e2e8f0; padding:1px 6px; border-radius:4px; border:1px solid #cbd5e1;" title="Open ticket in Support Desk">${t.ticket_code}</a>
+                                ${statusBadge}
+                            </div>
+                            <div style="font-size:11.5px; font-weight:600; color:#334155; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:230px;" title="${(t.title || '').replace(/"/g, '&quot;')}">
+                                ${t.title || 'Support Ticket'}
+                            </div>
+                            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:11px; color:#64748B;">
+                                <span><i class="fa-regular fa-calendar" style="font-size:10px; color:#94A3B8;"></i> ${raisedDateStr} ${raisedTimeStr}</span>
+                                ${handoverText}
+                                ${resolvedText}
+                            </div>
+                            ${deadlineBadge ? `<div>${deadlineBadge}</div>` : ''}
+                        </div>
+                    `;
+                });
+
+                if (totalTickets > 2) {
+                    ticketsHtml += `
+                        <button type="button" onclick="window.viewCustomerTicketsModal(${cust.id})" style="background:none; border:none; padding:0; font-size:11.5px; font-weight:700; color:#2563EB; cursor:pointer; text-align:left; display:inline-flex; align-items:center; gap:4px;">
+                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px;"></i> View all ${totalTickets} tickets...
+                        </button>
+                    `;
+                }
+
+                ticketsHtml += '</div>';
+            }
 
             // Assigned Team Head pill
             let teamHtml = '';
@@ -613,6 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding:16px 12px; vertical-align:top;">${projectsHtml}</td>
                 <td style="padding:16px 12px; vertical-align:top;">${contactsHtml}</td>
                 <td style="padding:16px 12px; vertical-align:top;">${slaHtml}</td>
+                <td style="padding:16px 12px; vertical-align:top;">${ticketsHtml}</td>
                 <td style="padding:16px 12px; vertical-align:top;">${industryHtml}</td>
                 <td style="padding:16px 12px; vertical-align:top;">${teamHtml}</td>
                 <td style="padding:16px 12px; vertical-align:top; text-align:right;">
@@ -635,7 +761,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            customersList.appendChild(tr);
         });
     };
 
@@ -722,6 +847,7 @@ document.addEventListener('DOMContentLoaded', () => {
             name: document.getElementById('cust-name').value.trim(),
             branches,
             deadline: topDeadline,
+            delivery_date: document.getElementById('cust-delivery-date') ? document.getElementById('cust-delivery-date').value || null : null,
             industry: document.getElementById('cust-industry').value || null,
             slaType: document.getElementById('cust-sla-type').value || null,
             slaResponseTime: document.getElementById('cust-sla-response').value || null,
@@ -781,7 +907,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cust.deadline) {
             const d = new Date(cust.deadline);
             document.getElementById('cust-deadline').value = d.toISOString().split('T')[0];
+        } else {
+            document.getElementById('cust-deadline').value = '';
         }
+
+        if (cust.delivery_date) {
+            const deliv = new Date(cust.delivery_date);
+            const delivEl = document.getElementById('cust-delivery-date');
+            if (delivEl) delivEl.value = deliv.toISOString().split('T')[0];
+        } else {
+            const delivEl = document.getElementById('cust-delivery-date');
+            if (delivEl) delivEl.value = '';
+        }
+
         document.getElementById('cust-industry').value = cust.industry || '';
 
         // Populate nested branches structure with Branch-Wise Assigned Employees
@@ -797,6 +935,132 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         custModal.classList.add('active');
+    };
+
+    // ============ Customer Support Tickets Modal ============
+    window.closeCustomerTicketsModal = () => {
+        const modal = document.getElementById('modal-customer-tickets');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.viewCustomerTicketsModal = (customerId) => {
+        const cust = (window.currentCustomersData || []).find(c => String(c.id) === String(customerId));
+        if (!cust) return;
+
+        const modal = document.getElementById('modal-customer-tickets');
+        const title = document.getElementById('cust-tickets-modal-title');
+        const subtitle = document.getElementById('cust-tickets-modal-subtitle');
+        const body = document.getElementById('cust-tickets-modal-body');
+        if (!modal || !body) return;
+
+        const tickets = cust.support_tickets && Array.isArray(cust.support_tickets) ? cust.support_tickets : [];
+        if (title) title.innerHTML = `<i class="fa-solid fa-headset" style="color:#0d9488;"></i> ${cust.name} &bull; Support Tickets (${tickets.length})`;
+        
+        const dlStr = cust.deadline ? new Date(cust.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '<span style="color:#94A3B8;">None</span>';
+        const delivStr = cust.delivery_date ? new Date(cust.delivery_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '<span style="color:#94A3B8;">None</span>';
+        if (subtitle) {
+            subtitle.innerHTML = `<span><strong>Target Deadline:</strong> ${dlStr}</span> &nbsp;&bull;&nbsp; <span><strong>App Handover Date:</strong> ${delivStr}</span>`;
+        }
+
+        if (tickets.length === 0) {
+            body.innerHTML = `
+                <div style="text-align:center; padding:48px 20px; color:#64748B;">
+                    <i class="fa-regular fa-circle-check" style="font-size:42px; color:#10B981; margin-bottom:12px; display:block;"></i>
+                    <div style="font-weight:800; font-size:16px; color:#1E293B;">0 Support Tickets Raised</div>
+                    <div style="font-size:13px; margin-top:6px;">No issues or support requests have been reported for this customer.</div>
+                </div>
+            `;
+        } else {
+            let html = '';
+            tickets.forEach(t => {
+                let statusBadge = '';
+                const stLower = (t.status || '').toLowerCase();
+                if (stLower.includes('resolve')) {
+                    statusBadge = `<span style="background:rgba(16,185,129,0.12); color:#059669; border:1px solid rgba(16,185,129,0.25); font-size:11.5px; font-weight:800; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check" style="font-size:10px;"></i> Resolved</span>`;
+                } else if (stLower.includes('progress')) {
+                    statusBadge = `<span style="background:rgba(245,158,11,0.14); color:#b45309; border:1px solid rgba(245,158,11,0.28); font-size:11.5px; font-weight:800; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:10px;"></i> In Progress</span>`;
+                } else if (stLower.includes('assign')) {
+                    statusBadge = `<span style="background:rgba(99,102,241,0.12); color:#4f46e5; border:1px solid rgba(99,102,241,0.25); font-size:11.5px; font-weight:800; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-user-check" style="font-size:10px;"></i> Assigned</span>`;
+                } else if (stLower.includes('close')) {
+                    statusBadge = `<span style="background:rgba(100,116,139,0.12); color:#475569; border:1px solid rgba(100,116,139,0.25); font-size:11.5px; font-weight:800; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-lock" style="font-size:10px;"></i> Closed</span>`;
+                } else {
+                    statusBadge = `<span style="background:rgba(239,68,68,0.12); color:#dc2626; border:1px solid rgba(239,68,68,0.25); font-size:11.5px; font-weight:800; padding:3px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-dot" style="font-size:10px;"></i> Open</span>`;
+                }
+
+                const raisedDateObj = t.created_at ? new Date(t.created_at) : null;
+                const raisedDateStr = raisedDateObj && !isNaN(raisedDateObj.getTime())
+                    ? raisedDateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : '-';
+
+                let deadlineBadge = '';
+                const targetDeadline = cust.deadline;
+                if (targetDeadline && raisedDateObj) {
+                    const rDate = new Date(t.created_at);
+                    const dDate = new Date(targetDeadline);
+                    rDate.setHours(0,0,0,0);
+                    dDate.setHours(0,0,0,0);
+                    const diffDays = Math.round((rDate - dDate) / (1000 * 60 * 60 * 24));
+                    if (diffDays < 0) {
+                        deadlineBadge = `<span style="font-size:11.5px; font-weight:700; color:#065f46; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.28); padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;" title="Raised ${Math.abs(diffDays)} day(s) before target deadline (${new Date(targetDeadline).toLocaleDateString()})"><i class="fa-solid fa-clock-rotate-left"></i> Raised Pre-Deadline (${Math.abs(diffDays)} day${Math.abs(diffDays) > 1 ? 's' : ''} early)</span>`;
+                    } else if (diffDays === 0) {
+                        deadlineBadge = `<span style="font-size:11.5px; font-weight:700; color:#b45309; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.28); padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-calendar-day"></i> Raised on Deadline Day</span>`;
+                    } else {
+                        deadlineBadge = `<span style="font-size:11.5px; font-weight:700; color:#b91c1c; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.28); padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;" title="Raised ${diffDays} day(s) after target deadline (${new Date(targetDeadline).toLocaleDateString()})"><i class="fa-solid fa-triangle-exclamation"></i> Raised Post-Deadline (+${diffDays} day${diffDays > 1 ? 's' : ''} late)</span>`;
+                    }
+                }
+
+                let handoverText = '';
+                if (cust.delivery_date && raisedDateObj) {
+                    const rDate = new Date(t.created_at);
+                    const delivDate = new Date(cust.delivery_date);
+                    rDate.setHours(0,0,0,0);
+                    delivDate.setHours(0,0,0,0);
+                    const diffDeliv = Math.round((rDate - delivDate) / (1000 * 60 * 60 * 24));
+                    if (diffDeliv > 0) {
+                        handoverText = `<span style="font-size:11.5px; color:#475569; font-weight:600; background:#f1f5f9; padding:2px 7px; border-radius:5px;">+${diffDeliv}d post-handover</span>`;
+                    } else if (diffDeliv === 0) {
+                        handoverText = `<span style="font-size:11.5px; color:#475569; font-weight:600; background:#f1f5f9; padding:2px 7px; border-radius:5px;">On handover date</span>`;
+                    } else {
+                        handoverText = `<span style="font-size:11.5px; color:#475569; font-weight:600; background:#f1f5f9; padding:2px 7px; border-radius:5px;">${Math.abs(diffDeliv)}d pre-handover</span>`;
+                    }
+                }
+
+                let resolvedHtml = '';
+                if (t.resolved_at) {
+                    const resDate = new Date(t.resolved_at);
+                    resolvedHtml = `
+                        <div style="font-size:12px; color:#059669; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                            <i class="fa-solid fa-check-double"></i> Resolved on: ${resDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; background:#ffffff; box-shadow:0 1px 3px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:8px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-family:monospace; font-weight:800; font-size:13px; color:#0f172a; background:#f1f5f9; padding:3px 8px; border-radius:6px; border:1px solid #cbd5e1;">${t.ticket_code}</span>
+                                ${statusBadge}
+                                ${t.priority ? `<span class="priority-pill ${String(t.priority).toLowerCase()}" style="font-size:11px; padding:2px 7px;">${t.priority}</span>` : ''}
+                            </div>
+                            <a href="admin-support.html?search=${encodeURIComponent(t.ticket_code)}" target="_blank" style="font-size:12px; font-weight:700; color:#2563EB; text-decoration:none; display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:6px; background:rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.2);">
+                                Open in Support Desk <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px;"></i>
+                            </a>
+                        </div>
+                        <div style="font-size:13.5px; font-weight:700; color:#1E293B;">${t.title || 'Support Ticket'}</div>
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; font-size:12px; color:#64748B;">
+                            <span><i class="fa-regular fa-clock" style="color:#94A3B8;"></i> <strong>Raised:</strong> ${raisedDateStr}</span>
+                            ${handoverText}
+                            ${resolvedHtml}
+                        </div>
+                        ${deadlineBadge ? `<div style="margin-top:2px;">${deadlineBadge}</div>` : ''}
+                    </div>
+                `;
+            });
+            body.innerHTML = html;
+        }
+
+        modal.style.display = 'flex';
     };
 
     // ============ Delete customer trigger ============

@@ -1053,6 +1053,17 @@ export async function runMigrations() {
             console.error('❌ Phase 19 Migration Error:', e.message);
         }
 
+        // ── STEP 21: Phase 20 Delivery Date on Customers & Projects ────────
+        try {
+            await client.query(`
+                ALTER TABLE customers ADD COLUMN IF NOT EXISTS delivery_date DATE;
+                ALTER TABLE projects ADD COLUMN IF NOT EXISTS delivery_date DATE;
+            `);
+            console.log('✅ Phase 20 Delivery Date on Customers & Projects ensured.');
+        } catch (e) {
+            console.error('❌ Phase 20 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }

@@ -10,7 +10,16 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-$rootPath = Resolve-Path ".."
+$scriptDir = $PSScriptRoot
+if (-not $scriptDir) { $scriptDir = (Get-Location).Path }
+if ((Split-Path $scriptDir -Leaf) -eq "maui") {
+    $rootPath = (Get-Item (Join-Path $scriptDir "..")).FullName
+} elseif (Test-Path (Join-Path $scriptDir "maui\EMS.Mobile\EMS.Mobile.csproj")) {
+    $rootPath = (Get-Item $scriptDir).FullName
+} else {
+    $rootPath = "D:\Desktop\New folder (103A)"
+}
+
 $publishPath = Join-Path $rootPath "publish"
 $androidPublishPath = Join-Path $publishPath "Android"
 $projectPath = Join-Path $rootPath "maui\EMS.Mobile\EMS.Mobile.csproj"
@@ -92,6 +101,22 @@ if (Test-Path $packageDir) {
         $dest = Join-Path $androidPublishPath $file.Name
         Copy-Item -Path $file.FullName -Destination $dest -Force
         Write-Host "Exported APK: $dest" -ForegroundColor Cyan
+
+        # Also copy directly into root directory for easy access
+        $rootDest = Join-Path $rootPath $file.Name
+        Copy-Item -Path $file.FullName -Destination $rootDest -Force
+        Write-Host "Exported APK to Main Root Folder: $rootDest" -ForegroundColor Green
+    }
+
+    # Create cleanly named EMS_Mobile_App.apk in main root folder
+    $signedApk = Get-ChildItem -Path $packageDir -Filter "*Signed.apk" -Recurse | Select-Object -First 1
+    if (-not $signedApk) {
+        $signedApk = Get-ChildItem -Path $packageDir -Filter "*.apk" -Recurse | Select-Object -First 1
+    }
+    if ($signedApk) {
+        $cleanApkDest = Join-Path $rootPath "EMS_Mobile_App.apk"
+        Copy-Item -Path $signedApk.FullName -Destination $cleanApkDest -Force
+        Write-Host ">>> Instant Access APK placed in root folder: $cleanApkDest <<<" -ForegroundColor Yellow
     }
 } else {
     Write-Host "Warning: Output directory not found at $packageDir" -ForegroundColor Yellow
