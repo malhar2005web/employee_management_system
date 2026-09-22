@@ -749,18 +749,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
             `;
 
-            tr.querySelector('.btn-close-customer').addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const id = e.currentTarget.dataset.id;
-                const name = e.currentTarget.dataset.name;
-                if (typeof window.openDeletionWizard === 'function') {
-                    window.openDeletionWizard('customer', id, name);
-                } else {
-                    alert('Deletion Wizard module loading... Please try again.');
-                }
-            });
+            const closeBtn = tr.querySelector('.btn-close-customer');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const id = e.currentTarget.dataset.id;
+                    const name = e.currentTarget.dataset.name;
+                    if (typeof window.openDeletionWizard === 'function') {
+                        window.openDeletionWizard('customer', id, name);
+                    } else {
+                        alert('Deletion Wizard module loading... Please try again.');
+                    }
+                });
+            }
 
+            customersList.appendChild(tr);
         });
     };
 
