@@ -14,6 +14,43 @@ public partial class MainPage : ContentPage
         Unloaded += (s, e) => _bridgeHost.Dispose();
     }
 
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        await RequestEssentialPermissionsAsync();
+    }
+
+    private async Task RequestEssentialPermissionsAsync()
+    {
+        try
+        {
+            // 1. Request Location Permission (Fine & Coarse for client visits and attendance tracking)
+            var locStatus = await Microsoft.Maui.ApplicationModel.Permissions.CheckStatusAsync<Microsoft.Maui.ApplicationModel.Permissions.LocationWhenInUse>();
+            if (locStatus != PermissionStatus.Granted)
+            {
+                await Microsoft.Maui.ApplicationModel.Permissions.RequestAsync<Microsoft.Maui.ApplicationModel.Permissions.LocationWhenInUse>();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[EMS.Mobile] Location permission request error: {ex.Message}");
+        }
+
+        try
+        {
+            // 2. Request Notification Permission (Android 13+ push notifications, task alerts, and OTP)
+            var notifStatus = await Microsoft.Maui.ApplicationModel.Permissions.CheckStatusAsync<Microsoft.Maui.ApplicationModel.Permissions.PostNotifications>();
+            if (notifStatus != PermissionStatus.Granted)
+            {
+                await Microsoft.Maui.ApplicationModel.Permissions.RequestAsync<Microsoft.Maui.ApplicationModel.Permissions.PostNotifications>();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[EMS.Mobile] Notification permission request error: {ex.Message}");
+        }
+    }
+
     private async void OnWebViewNavigated(object? sender, WebNavigatedEventArgs e)
     {
         if (e.Result == WebNavigationResult.Success)

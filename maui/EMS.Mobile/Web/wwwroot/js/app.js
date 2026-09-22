@@ -5,20 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
         window.EMS.Theme.Initialize();
     }
     
-    // Check Employee access block on Mobile
+    // User authentication state check
     const userJson = localStorage.getItem("ems_user") || localStorage.getItem("user");
-    if (userJson) {
-        try {
-            const user = JSON.parse(userJson);
-            if (user.role === 'Employee') {
-                localStorage.removeItem("ems_user");
-                localStorage.removeItem("user");
-                localStorage.removeItem("token");
-                RenderBlockedScreen();
-                return;
-            }
-        } catch (e) {}
-    }
     
     if (window.EMS.Navigation && window.EMS.Navigation.Initialize) {
         window.EMS.Navigation.Initialize();

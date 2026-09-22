@@ -33,6 +33,14 @@ public static class MauiProgram
 		// Register Pages
 		builder.Services.AddSingleton<MainPage>();
 
+#if ANDROID
+		Microsoft.Maui.Handlers.WebViewHandler.Mapper.AppendToMapping("AndroidGeolocation", (handler, view) =>
+		{
+			handler.PlatformView.Settings.SetGeolocationEnabled(true);
+			handler.PlatformView.Settings.JavaScriptCanOpenWindowsAutomatically = true;
+		});
+#endif
+
 #if DEBUG
 		builder.Logging.AddDebug();
 #endif
