@@ -118,10 +118,11 @@ export async function getAttendanceLogs(req, res) {
             }
         }
 
-        if (endDateStr >= '2026-08-01') {
-            // Fetch from Teramind Live API (Aug-Sep 2026+)
+        const curMonthStart = todayIST.slice(0, 7) + '-01';
+        if (endDateStr >= curMonthStart) {
+            // Fetch from Teramind Live API (only for current active month)
             const allCompIds = employees.map(e => e.computer_id).filter(Boolean).map(id => parseInt(id, 10));
-            const tmStart = Math.max(Math.floor(new Date(`${startDateStr}T00:00:00+05:30`).getTime() / 1000), Math.floor(new Date('2026-08-01T00:00:00+05:30').getTime() / 1000));
+            const tmStart = Math.max(Math.floor(new Date(`${startDateStr}T00:00:00+05:30`).getTime() / 1000), Math.floor(new Date(`${curMonthStart}T00:00:00+05:30`).getTime() / 1000));
             const tmEnd = Math.floor(new Date(`${endDateStr}T23:59:59+05:30`).getTime() / 1000);
 
             try {
@@ -735,9 +736,10 @@ export async function getEmployeeAttendanceHistory(req, res) {
             });
         }
 
-        // 2. Fetch from Teramind API (dates on/after 2026-08-01)
-        if (endDateStr >= '2026-08-01' && emp.computer_id) {
-            const tmStart = Math.max(Math.floor(new Date(`${startDateStr}T00:00:00+05:30`).getTime() / 1000), Math.floor(new Date('2026-08-01T00:00:00+05:30').getTime() / 1000));
+        // 2. Fetch from Teramind API (only for current active month)
+        const curMonthLimit = todayIST.slice(0, 7) + '-01';
+        if (endDateStr >= curMonthLimit && emp.computer_id) {
+            const tmStart = Math.max(Math.floor(new Date(`${startDateStr}T00:00:00+05:30`).getTime() / 1000), Math.floor(new Date(`${curMonthLimit}T00:00:00+05:30`).getTime() / 1000));
             const tmEnd = Math.floor(new Date(`${endDateStr}T23:59:59+05:30`).getTime() / 1000);
 
             try {

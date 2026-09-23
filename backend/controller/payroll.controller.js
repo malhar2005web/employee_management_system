@@ -157,12 +157,13 @@ export async function getMonthlyPayroll(req, res) {
             }
         }
 
-        // 5b. Live Teramind API dataset (Aug-Sep 2026+)
-        if (endDate >= '2026-08-01') {
+        // 5b. Live Teramind API dataset (only for current active month to protect historical closed months)
+        const currentMonthStart = todayIST.slice(0, 7) + '-01';
+        if (endDate >= currentMonthStart) {
             const allCompIds = employees.map(e => e.computer_id).filter(Boolean).map(id => parseInt(id, 10));
             const tmStart = Math.max(
                 Math.floor(new Date(`${startDate}T00:00:00+05:30`).getTime() / 1000),
-                Math.floor(new Date('2026-08-01T00:00:00+05:30').getTime() / 1000)
+                Math.floor(new Date(`${currentMonthStart}T00:00:00+05:30`).getTime() / 1000)
             );
             const tmEnd = Math.floor(new Date(`${endDate}T23:59:59+05:30`).getTime() / 1000);
 
