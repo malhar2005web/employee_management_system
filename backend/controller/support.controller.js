@@ -462,6 +462,9 @@ export const getTicketById = async (req, res) => {
             SELECT 
                 t.*,
                 c.name AS customer_name,
+                c.contact_persons AS customer_contact_persons,
+                c.branches AS customer_branches,
+                c.branch AS customer_main_branch,
                 COALESCE(t.project_name, p.name, 'General') AS project_name,
                 w.name AS workflow_title,
                 wt.title AS task_name,
@@ -482,6 +485,95 @@ export const getTicketById = async (req, res) => {
         }
 
         const ticket = ticketRes.rows[0];
+
+        // Resolve rich Contact Person details (Raised By)
+        let contactPerson = {
+            name: ticket.reported_by || 'Customer Representative',
+            email: ticket.customer_email || '',
+            phone: ticket.customer_phone || '',
+            branch: '',
+            designation: 'Contact Person',
+            source: ticket.source || 'Web'
+        };
+
+        // Extract email or phone from reported_by e.g. "Test (svj8161308@gmail.com)"
+        if (ticket.reported_by) {
+            const emailMatch = ticket.reported_by.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+            if (emailMatch && !contactPerson.email) {
+                contactPerson.email = emailMatch[1];
+            }
+            const phoneMatch = ticket.reported_by.match(/(\+?\d{10,13})/);
+            if (phoneMatch && !contactPerson.phone) {
+                contactPerson.phone = phoneMatch[1];
+            }
+            const cleanName = ticket.reported_by.replace(/\(.*?\)/g, '').trim();
+            if (cleanName) {
+                contactPerson.name = cleanName;
+            }
+        }
+
+        // Cross-match with customer branches or contact_persons
+        let branches = ticket.customer_branches;
+        if (typeof branches === 'string') {
+            try { branches = JSON.parse(branches); } catch (e) { branches = []; }
+        }
+        let contactPersonsList = ticket.customer_contact_persons;
+        if (typeof contactPersonsList === 'string') {
+            try { contactPersonsList = JSON.parse(contactPersonsList); } catch (e) { contactPersonsList = []; }
+        }
+
+        if (Array.isArray(branches)) {
+            for (const b of branches) {
+                const bContacts = b.contacts || [];
+                for (const c of bContacts) {
+                    const matchEmail = contactPerson.email && c.email && contactPerson.email.toLowerCase() === c.email.toLowerCase();
+                    const matchPhone = contactPerson.phone && c.phone && (contactPerson.phone.includes(c.phone) || c.phone.includes(contactPerson.phone));
+                    const matchName = contactPerson.name && c.name && contactPerson.name.toLowerCase() === c.name.toLowerCase();
+
+                    if (matchEmail || matchPhone || matchName) {
+                        if (c.name) contactPerson.name = c.name;
+                        if (!contactPerson.phone && c.phone) contactPerson.phone = c.phone;
+                        if (!contactPerson.email && c.email) contactPerson.email = c.email;
+                        if (b.branch) contactPerson.branch = b.branch;
+                        if (c.designation) contactPerson.designation = c.designation;
+                        break;
+                    }
+                }
+                if (contactPerson.branch) break;
+            }
+
+            // Fallback match project to branch
+            if (!contactPerson.branch && ticket.project_name) {
+                for (const b of branches) {
+                    const bProjects = b.projects || [];
+                    if (bProjects.some(bp => (bp.name || '').toLowerCase() === (ticket.project_name || '').toLowerCase())) {
+                        contactPerson.branch = b.branch;
+                        if (!contactPerson.phone && b.contacts?.[0]?.phone) contactPerson.phone = b.contacts[0].phone;
+                        if (!contactPerson.email && b.contacts?.[0]?.email) contactPerson.email = b.contacts[0].email;
+                        if ((!contactPerson.name || contactPerson.name === 'Customer Representative') && b.contacts?.[0]?.name) {
+                            contactPerson.name = b.contacts[0].name;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (Array.isArray(contactPersonsList) && contactPersonsList.length > 0) {
+            for (const cp of contactPersonsList) {
+                const matchEmail = contactPerson.email && cp.email && contactPerson.email.toLowerCase() === cp.email.toLowerCase();
+                const matchName = contactPerson.name && cp.name && contactPerson.name.toLowerCase() === cp.name.toLowerCase();
+                if (matchEmail || matchName) {
+                    if (cp.name) contactPerson.name = cp.name;
+                    if (!contactPerson.phone && cp.phone) contactPerson.phone = cp.phone;
+                    if (!contactPerson.email && cp.email) contactPerson.email = cp.email;
+                    if (cp.designation) contactPerson.designation = cp.designation;
+                    break;
+                }
+            }
+        }
+
+        ticket.contact_person = contactPerson;
 
         // Fetch subtasks
         const subtasksRes = await pool.query(`
@@ -774,26 +866,35 @@ export const updateTicketStatus = async (req, res) => {
         const ticket = ticketRes.rows[0];
         const oldStatus = ticket.status;
 
-        let respondedAt = ticket.responded_at;
-        let resolvedAt = ticket.resolved_at;
-        let startedResolvingAt = ticket.started_resolving_at;
+        let setClauses = ['status = $1', 'updated_at = NOW()'];
+        let queryParams = [status];
+        let pIdx = 2;
 
-        if (status !== 'Open' && !respondedAt) {
-            respondedAt = new Date();
+        if (status !== 'Open' && !ticket.responded_at) {
+            setClauses.push('responded_at = COALESCE(responded_at, NOW())');
         }
-        if (status === 'In Progress' && !startedResolvingAt) {
-            startedResolvingAt = new Date();
-        }
-        if ((status === 'Resolved' || status === 'Closed') && !resolvedAt) {
-            resolvedAt = new Date();
+        if (status === 'Open' || status === 'Assigned') {
+            setClauses.push('started_resolving_at = NULL');
+            setClauses.push('resolved_at = NULL');
+        } else if (status === 'In Progress') {
+            if (!ticket.started_resolving_at || oldStatus === 'Open' || oldStatus === 'Assigned') {
+                setClauses.push('started_resolving_at = NOW()');
+            }
+            setClauses.push('resolved_at = NULL');
+        } else if (status === 'Resolved' || status === 'Closed') {
+            if (!ticket.started_resolving_at) {
+                setClauses.push('started_resolving_at = COALESCE(started_resolving_at, NOW())');
+            }
+            setClauses.push('resolved_at = COALESCE(resolved_at, NOW())');
         }
 
+        queryParams.push(id);
         const updateRes = await pool.query(`
             UPDATE support_tickets 
-            SET status = $1, responded_at = $2, resolved_at = $3, started_resolving_at = $4, updated_at = NOW()
-            WHERE id = $5
-            RETURNING *, EXTRACT(EPOCH FROM (NOW() - COALESCE(started_resolving_at, created_at))) AS elapsed_seconds
-        `, [status, respondedAt, resolvedAt, startedResolvingAt, id]);
+            SET ${setClauses.join(', ')}
+            WHERE id = $${pIdx}
+            RETURNING *, EXTRACT(EPOCH FROM (COALESCE(resolved_at, NOW()) - COALESCE(started_resolving_at, created_at))) AS elapsed_seconds
+        `, queryParams);
 
         if (status === 'Resolved' && oldStatus !== 'Resolved') {
             const elapsedSec = Number(updateRes.rows[0]?.elapsed_seconds);
@@ -1138,6 +1239,16 @@ export const transferTicket = async (req, res) => {
         const handoverNotes = notes || 'Transferred by colleague for resolution.';
         const historyDetail = `Transferred from ${oldAssigneeName} to ${newAssigneeName}. Reason: [${reasonCat}] ${handoverNotes}`;
 
+        let prevHist = ticket.transfer_history;
+        if (typeof prevHist === 'string') {
+            try { prevHist = JSON.parse(prevHist); } catch (e) { prevHist = []; }
+        }
+        if (!Array.isArray(prevHist)) prevHist = [];
+
+        const lastTransfer = prevHist.length > 0 ? prevHist[prevHist.length - 1] : null;
+        const segmentStartTime = lastTransfer?.transferred_at || ticket.started_resolving_at || ticket.created_at;
+        const segmentSpentMs = Math.max(0, Date.now() - new Date(segmentStartTime).getTime());
+
         const transferEntry = {
             from_id: oldAssigneeId,
             from_name: oldAssigneeName,
@@ -1146,7 +1257,9 @@ export const transferTicket = async (req, res) => {
             transferred_at: new Date().toISOString(),
             transferred_by: senderName,
             reason: reasonCat,
-            notes: handoverNotes
+            notes: handoverNotes,
+            time_spent_ms: segmentSpentMs,
+            time_spent_formatted: formatTurnaroundTime(segmentSpentMs)
         };
 
         // Update ticket assignment, timestamp, and append to transfer_history

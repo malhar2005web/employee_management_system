@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   });
 
-  // ── Hide removed modules from sidebar ──
+  // ── Hide/Remove discarded modules from sidebar ──
   const removedPages = [
     'employee-timesheets', 'employee-goals', 'employee-trainings',
     'admin-timesheets', 'admin-goals', 'admin-trainings', 'admin-workload', 'admin-reports',
@@ -370,9 +370,15 @@ document.addEventListener('DOMContentLoaded', () => {
     'admin-leaves', 'admin-audit-logs'
   ];
   document.querySelectorAll('.nav-list .nav-item').forEach(item => {
-    const onclick = item.getAttribute('onclick') || '';
-    if (removedPages.some(p => onclick.includes(p))) {
-      item.style.display = 'none';
+    const onclick = (item.getAttribute('onclick') || '').toLowerCase();
+    const text = (item.textContent || '').trim().toLowerCase();
+    if (
+      removedPages.some(p => onclick.includes(p)) ||
+      text.includes('timesheet') ||
+      text.includes('goal') ||
+      text.includes('training')
+    ) {
+      item.remove();
     }
   });
 
@@ -678,6 +684,27 @@ document.addEventListener('click', (e) => {
       document.body.appendChild(backdrop);
     }
 
+    // Dynamically manage DOM position: on mobile, place backdrop and sidebar directly under <body>
+    // so no parent (.app-shell) stacking context or overflow-x can ever trap or blur the sidebar!
+    function syncSidebarAttachment() {
+      if (isMobileMode()) {
+        if (backdrop.parentElement !== document.body) {
+          document.body.appendChild(backdrop);
+        }
+        if (sidebar.parentElement !== document.body) {
+          sidebar._origParent = sidebar.parentElement;
+          sidebar._origNext = sidebar.nextElementSibling;
+          document.body.appendChild(sidebar);
+        }
+      } else {
+        // Desktop restore: place sidebar back in its exact original spot inside .app-shell
+        if (sidebar._origParent && sidebar.parentElement === document.body) {
+          sidebar._origParent.insertBefore(sidebar, sidebar._origNext || null);
+        }
+        closeSidebar();
+      }
+    }
+
     // 2. Ensure Close Button exists inside sidebar brand
     const brand = sidebar.querySelector('.brand');
     let closeBtn = sidebar.querySelector('.sidebar-close-btn');
@@ -715,6 +742,18 @@ document.addEventListener('click', (e) => {
     }
 
     function openSidebar() {
+      syncSidebarAttachment();
+      sidebar.querySelectorAll('.nav-item').forEach(item => {
+        const onclick = (item.getAttribute('onclick') || '').toLowerCase();
+        const text = (item.textContent || '').trim().toLowerCase();
+        if (
+          text.includes('timesheet') ||
+          text.includes('goal') ||
+          text.includes('training')
+        ) {
+          item.remove();
+        }
+      });
       sidebar.classList.add('open');
       backdrop.classList.add('active');
       document.body.classList.add('sidebar-drawer-open');
@@ -755,30 +794,35 @@ document.addEventListener('click', (e) => {
     if (closeBtn) closeBtn.onclick = closeHandler;
     backdrop.onclick = closeHandler;
 
-    // Close drawer when clicking any nav item on mobile
+    // Close drawer when clicking any nav item on mobile with a short delay for smooth navigation
     sidebar.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
         if (isMobileMode()) {
-          closeSidebar();
+          setTimeout(closeSidebar, 150);
         }
       });
     });
+
+    // Make sidebar profile interactive
+    const sidebarProf = sidebar.querySelector('.sidebar-profile');
+    if (sidebarProf && !sidebarProf.getAttribute('onclick')) {
+      sidebarProf.style.cursor = 'pointer';
+      sidebarProf.addEventListener('click', () => {
+        window.location.href = window.location.pathname.includes('admin') ? '/admin-profile.html' : '/employee-profile.html';
+      });
+    }
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeSidebar();
     });
 
-    // Auto-close on resize back to desktop
+    // Handle resize
     window.addEventListener('resize', () => {
-      if (!isMobileMode()) {
-        closeSidebar();
-      }
+      syncSidebarAttachment();
     });
 
-    // Clean initial state for desktop
-    if (!isMobileMode()) {
-      closeSidebar();
-    }
+    // Initial sync
+    syncSidebarAttachment();
   }
 
   if (document.readyState === 'loading') {

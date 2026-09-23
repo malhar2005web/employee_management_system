@@ -530,6 +530,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (log.status === 'Half Day') {
                     statusClass = 'todo';
                     statusBadgeStyle = 'background:#f3e8ff; color:#7e22ce; font-weight:700;';
+                } else if (log.status === 'Out Entry' || log.punch_source === 'OUT_ENTRY' || log.status === 'Client Visit' || log.status === 'Official Duty') {
+                    statusClass = 'pending';
+                    statusBadgeStyle = 'background:#ffedd5; color:#c2410c; font-weight:700;';
                 }
 
                 let sourceBadge = '';
@@ -541,6 +544,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#0369a1; background:#e0f2fe; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-desktop"></i> Workstation Auto</span></div>`;
                 } else if (log.punch_source === 'LEAVE_MANAGEMENT') {
                     sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#b45309; background:#fef3c7; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-umbrella-beach"></i> Approved Leave</span></div>`;
+                } else if (log.punch_source === 'OUT_ENTRY') {
+                    sourceBadge = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#c2410c; background:#ffedd5; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-person-walking-arrow-right"></i> Out Entry</span></div>`;
                 }
 
                 // Break column calculation (Start - End & Duration)
@@ -608,6 +613,19 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
                                     <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${totalMin} mins
                                 </div>
+                            </div>
+                        `;
+                    }
+
+                    if (l.out_entry) {
+                        const oe = l.out_entry;
+                        const dest = oe.destination ? (oe.destination.length > 25 ? oe.destination.substring(0, 22) + '...' : oe.destination) : '';
+                        return `
+                            <div>
+                                <span style="background:#ffedd5; color:#c2410c; font-weight:800; font-size:11px; padding:2px 7px; border-radius:5px; display:inline-flex; align-items:center; gap:4px; border:1px solid #fed7aa;">
+                                    <i class="fa-solid fa-person-walking-arrow-right"></i> ${oe.purpose || 'Out Entry'}
+                                </span>
+                                ${dest && dest !== '-' ? `<div style="font-size:10.5px; color:#9a3412; font-weight:700; margin-top:2px;" title="${escapeQuote(oe.destination)}">${dest}</div>` : ''}
                             </div>
                         `;
                     }
@@ -1119,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (countOutPersonal) countOutPersonal.textContent = stats.personal_today || 0;
 
         if (outEntriesCache.length === 0) {
-            outEntriesList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted);">No out entry / gate pass records found</td></tr>`;
+            outEntriesList.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text-muted);">No out entry / gate pass records found</td></tr>`;
         } else {
             outEntriesCache.forEach(entry => {
                 const tr = document.createElement('tr');
@@ -1148,6 +1166,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     purposeBadge = `<span class="badge" style="background:rgba(59,130,246,0.15); color:#2563eb; font-weight:700; padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-briefcase"></i> ${entry.purpose}</span>`;
                 } else {
                     purposeBadge = `<span class="badge" style="background:rgba(168,85,247,0.15); color:#9333ea; font-weight:700; padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-user"></i> ${entry.purpose}</span>`;
+                }
+
+                // Format Live Location / GPS cell
+                let locationCellHtml = '<span style="color:#94a3b8; font-size:12px; font-style:italic;">No GPS data</span>';
+                if (entry.last_latitude && entry.last_longitude) {
+                    const lat = parseFloat(entry.last_latitude).toFixed(4);
+                    const lng = parseFloat(entry.last_longitude).toFixed(4);
+                    const addr = entry.last_location_address ? escapeQuote(entry.last_location_address) : '';
+                    
+                    let timeAgoStr = '';
+                    if (entry.last_tracked_at) {
+                        const diffMs = Date.now() - new Date(entry.last_tracked_at).getTime();
+                        const diffMins = Math.floor(diffMs / 60000);
+                        timeAgoStr = diffMins <= 1 ? 'Just now' : `${diffMins}m ago`;
+                    }
+
+                    let visitBadge = '';
+                    if (entry.visit_started_at) {
+                        visitBadge = `<span class="badge" style="background:#e0f2fe; color:#0284c7; font-weight:700; font-size:10.5px; padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-business-time"></i> In Meeting</span>`;
+                    } else if (entry.visit_otp && !entry.otp_verified_at) {
+                        visitBadge = `<span class="badge" style="background:#fef3c7; color:#b45309; font-weight:700; font-size:10.5px; padding:2px 6px; border-radius:4px;" title="Visit OTP: ${entry.visit_otp}"><i class="fa-solid fa-key"></i> OTP: ${entry.visit_otp}</span>`;
+                    }
+
+                    locationCellHtml = `
+                        <div>
+                            <div style="font-weight:700; font-size:12px; color:#0f766e; display:flex; align-items:center; gap:5px;">
+                                <i class="fa-solid fa-location-dot" style="color:#0d9488;"></i> ${lat}, ${lng}
+                                <a href="https://maps.google.com/?q=${entry.last_latitude},${entry.last_longitude}" target="_blank" rel="noopener noreferrer" style="color:#0284c7; font-size:11px; margin-left:4px;" title="Open in Google Maps"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                            </div>
+                            ${addr ? `<div style="font-size:11px; color:#475569; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${addr}">${addr}</div>` : ''}
+                            <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                                ${timeAgoStr ? `<span style="font-size:10.5px; color:#94a3b8;"><i class="fa-regular fa-clock" style="font-size:9.5px;"></i> ${timeAgoStr}</span>` : ''}
+                                ${visitBadge}
+                            </div>
+                        </div>
+                    `;
+                } else if (entry.visit_otp && !entry.otp_verified_at) {
+                    locationCellHtml = `
+                        <div>
+                            <span style="color:#94a3b8; font-size:11.5px; font-style:italic;">En route...</span>
+                            <div style="margin-top:2px;">
+                                <span class="badge" style="background:#fef3c7; color:#b45309; font-weight:700; font-size:10.5px; padding:2px 6px; border-radius:4px;" title="Client Visit OTP: ${entry.visit_otp}"><i class="fa-solid fa-key"></i> OTP: ${entry.visit_otp}</span>
+                            </div>
+                        </div>
+                    `;
                 }
 
                 let actionBtns = `
@@ -1179,6 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-weight:600; font-size:12.5px;">${entry.destination || '—'}</div>
                         <div style="font-size:11px; color:var(--text-muted);">${entry.reason || ''}</div>
                     </td>
+                    <td>${locationCellHtml}</td>
                     <td>${statusBadge}</td>
                     <td><span style="font-size:12px; color:var(--text-muted);">${entry.approver_name || '—'}</span></td>
                     <td>
@@ -1677,6 +1741,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const histKpiTotal = document.getElementById('hist-kpi-total');
     const histKpiPresent = document.getElementById('hist-kpi-present');
     const histKpiLate = document.getElementById('hist-kpi-late');
+    const histKpiOut = document.getElementById('hist-kpi-out');
     const histKpiAbsent = document.getElementById('hist-kpi-absent');
     const histKpiHours = document.getElementById('hist-kpi-hours');
 
@@ -1828,6 +1893,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (histKpiTotal) histKpiTotal.textContent = summary.totalDays || currentHistoryData.length;
             if (histKpiPresent) histKpiPresent.textContent = summary.present || 0;
             if (histKpiLate) histKpiLate.textContent = summary.late || 0;
+            if (histKpiOut) histKpiOut.textContent = summary.outEntry || 0;
             if (histKpiAbsent) histKpiAbsent.textContent = summary.absent || 0;
             if (histKpiHours) histKpiHours.textContent = formatHoursMins(summary.totalHours, false);
 
@@ -1854,7 +1920,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let list = currentHistoryData;
         if (filterQuery) {
             const q = filterQuery.toLowerCase();
-            list = list.filter(r => (r.date && r.date.toLowerCase().includes(q)) || (r.status && r.status.toLowerCase().includes(q)) || (r.source && r.source.toLowerCase().includes(q)));
+            list = list.filter(r => (r.date && r.date.toLowerCase().includes(q)) || 
+                                    (r.status && r.status.toLowerCase().includes(q)) || 
+                                    (r.source && r.source.toLowerCase().includes(q)) ||
+                                    (r.out_entry && (
+                                        (r.out_entry.purpose && r.out_entry.purpose.toLowerCase().includes(q)) ||
+                                        (r.out_entry.destination && r.out_entry.destination.toLowerCase().includes(q))
+                                    )));
         }
 
         if (list.length === 0) {
@@ -1875,6 +1947,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusBadge = '<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800; padding:4px 10px; border-radius:6px;">Late</span>';
             } else if (r.status === 'On Leave' || r.status === 'Half Day') {
                 statusBadge = `<span class="status-pill todo" style="background:#e0f2fe; color:#0369a1; font-weight:800; padding:4px 10px; border-radius:6px;">${r.status}</span>`;
+            } else if (r.status === 'Out Entry' || r.source === 'OUT_ENTRY' || r.status === 'Client Visit' || r.status === 'Official Duty') {
+                const label = r.out_entry?.purpose || r.status || 'Out Entry';
+                statusBadge = `<span class="status-pill" style="background:#ffedd5; color:#c2410c; font-weight:800; padding:4px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-person-walking-arrow-right"></i> ${label}</span>`;
             }
 
             let srcBadge = '<span style="font-size:11px; background:#e0f2fe; color:#0369a1; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-desktop"></i> Workstation</span>';
@@ -1884,6 +1959,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 srcBadge = '<span style="font-size:11px; background:#f3e8ff; color:#7e22ce; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-pen-fancy"></i> HR Approved</span>';
             } else if (r.source === 'LEAVE_MANAGEMENT') {
                 srcBadge = '<span style="font-size:11px; background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-umbrella-beach"></i> Leave</span>';
+            } else if (r.source === 'OUT_ENTRY' || r.punch_source === 'OUT_ENTRY') {
+                srcBadge = '<span style="font-size:11px; background:#ffedd5; color:#c2410c; padding:3px 8px; border-radius:6px; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-person-walking-arrow-right"></i> Out Entry</span>';
             }
 
             const getModalBreakHtml = (l) => {
@@ -1950,6 +2027,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
                                 <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${totalMin} mins
                             </div>
+                        </div>
+                    `;
+                }
+
+                if (l.out_entry) {
+                    const oe = l.out_entry;
+                    const dest = oe.destination ? (oe.destination.length > 25 ? oe.destination.substring(0, 22) + '...' : oe.destination) : '';
+                    return `
+                        <div>
+                            <span style="background:#ffedd5; color:#c2410c; font-weight:800; font-size:11px; padding:2px 7px; border-radius:5px; display:inline-flex; align-items:center; gap:4px; border:1px solid #fed7aa;">
+                                <i class="fa-solid fa-person-walking-arrow-right"></i> ${oe.purpose || 'Out Entry'}
+                            </span>
+                            ${dest && dest !== '-' ? `<div style="font-size:10.5px; color:#9a3412; font-weight:700; margin-top:2px;" title="${escapeQuote(oe.destination)}">${dest}</div>` : ''}
                         </div>
                     `;
                 }

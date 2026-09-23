@@ -495,7 +495,154 @@
         if (elResolved) elResolved.textContent = supportTickets.filter(t => t.status === 'Resolved' || t.status === 'Closed').length;
     }
 
+    // Helper: Format Duration in human-readable string (Xh Ym or Z min or S s)
+    function formatDurationMs(ms) {
+        if (!ms || ms < 1000) return '0 min';
+        const totalSec = Math.round(ms / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        if (h > 0 && m > 0) return `${h}h ${m}m`;
+        if (h > 0) return `${h}h`;
+        if (m > 0) return `${m} min`;
+        return `${s}s`;
+    }
+
+    // Helper: Compute exact time spent by each employee on ticket with 100% total duration match
+    function calculateEmployeeTimeBreakdown(ticket) {
+        let list = ticket.transfer_history;
+        if (typeof list === 'string') {
+            try { list = JSON.parse(list); } catch (e) { list = []; }
+        }
+        if (!Array.isArray(list)) list = [];
+
+        const isDone = ticket.status === 'Resolved' || ticket.status === 'Closed';
+        const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
+        const endTimeRaw = isDone ? (ticket.resolved_at || ticket.updated_at) : new Date().toISOString();
+
+        const startMs = startTimeRaw ? new Date(startTimeRaw).getTime() : Date.now();
+        const endMs = endTimeRaw ? new Date(endTimeRaw).getTime() : Date.now();
+
+        // If ticket is Open/Assigned and never started resolving, actual work time is 0
+        if (!ticket.started_resolving_at && (ticket.status === 'Open' || ticket.status === 'Assigned')) {
+            return {
+                totalMs: 0,
+                totalFormatted: '0 min',
+                isStarted: false,
+                breakdown: [{
+                    name: ticket.assigned_to_name || 'Assigned Staff',
+                    timeMs: 0,
+                    formatted: '0 min',
+                    percent: 100
+                }]
+            };
+        }
+
+        const totalMs = Math.max(1000, endMs - startMs);
+
+        // If no transfers, 100% of duration belongs to the assigned staff
+        if (list.length === 0) {
+            const empName = ticket.assigned_to_name || ticket.reported_by || 'Assigned Staff';
+            return {
+                totalMs,
+                totalFormatted: formatDurationMs(totalMs),
+                isStarted: true,
+                breakdown: [{
+                    name: empName,
+                    timeMs: totalMs,
+                    formatted: formatDurationMs(totalMs),
+                    percent: 100
+                }]
+            };
+        }
+
+        // Multi-employee transfer chain
+        const empChain = [];
+        empChain.push(list[0].from_name || 'Initial Assignee');
+        for (const tr of list) {
+            const toName = tr.to_name || 'Staff';
+            if (empChain[empChain.length - 1] !== toName) {
+                empChain.push(toName);
+            }
+        }
+
+        let segments = [];
+        let prevMs = startMs;
+        let allValid = true;
+
+        for (let i = 0; i < list.length; i++) {
+            const trMs = new Date(list[i].transferred_at).getTime();
+            const diff = trMs - prevMs;
+            if (isNaN(trMs) || diff < 0 || trMs > endMs) {
+                allValid = false;
+                break;
+            }
+            segments.push({
+                name: list[i].from_name || empChain[i] || 'Staff',
+                timeMs: diff
+            });
+            prevMs = trMs;
+        }
+
+        if (allValid) {
+            const finalDiff = Math.max(0, endMs - prevMs);
+            const finalName = list[list.length - 1].to_name || ticket.assigned_to_name || 'Final Assignee';
+            segments.push({
+                name: finalName,
+                timeMs: finalDiff
+            });
+        }
+
+        if (!allValid || segments.length === 0) {
+            segments = [];
+            const count = empChain.length;
+            const eachMs = Math.floor(totalMs / count);
+            let rem = totalMs - (eachMs * count);
+
+            empChain.forEach((name, idx) => {
+                const segMs = eachMs + (idx === count - 1 ? rem : 0);
+                segments.push({
+                    name,
+                    timeMs: segMs
+                });
+            });
+        }
+
+        const empMap = new Map();
+        for (const seg of segments) {
+            const current = empMap.get(seg.name) || 0;
+            empMap.set(seg.name, current + seg.timeMs);
+        }
+
+        let sumMs = 0;
+        const breakdown = [];
+        for (const [name, ms] of empMap.entries()) {
+            sumMs += ms;
+            const pct = totalMs > 0 ? Math.round((ms / totalMs) * 100) : 0;
+            breakdown.push({
+                name,
+                timeMs: ms,
+                formatted: formatDurationMs(ms),
+                percent: pct
+            });
+        }
+
+        const pctSum = breakdown.reduce((acc, b) => acc + b.percent, 0);
+        if (pctSum !== 100 && breakdown.length > 0) {
+            breakdown[breakdown.length - 1].percent += (100 - pctSum);
+        }
+
+        return {
+            totalMs,
+            totalFormatted: formatDurationMs(totalMs),
+            isStarted: true,
+            breakdown
+        };
+    }
+
     function getSlaElapsedTimerHtml(ticket) {
+        const tb = calculateEmployeeTimeBreakdown(ticket);
+
         if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
             let resDateStr = '';
             const resTimeRaw = ticket.resolved_at || ticket.updated_at;
@@ -505,23 +652,21 @@
                              resD.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
             }
 
-            let durText = '';
-            const startMsRaw = ticket.started_resolving_at || ticket.created_at;
-            if (ticket.resolved_at && startMsRaw) {
-                const diff = Math.abs(new Date(ticket.resolved_at).getTime() - new Date(startMsRaw).getTime());
-                const rH = Math.floor(diff / 3600000);
-                const rM = Math.floor((diff % 3600000) / 60000);
-                const rS = Math.floor((diff % 60000) / 1000);
-                if (rH > 0) durText = `${rH}h ${rM}m`;
-                else if (rM > 0) durText = `${rM} min`;
-                else durText = `${Math.max(1, rS)}s`;
+            let breakdownBadges = '';
+            if (tb.breakdown && tb.breakdown.length > 1) {
+                breakdownBadges = `
+                    <div style="font-size:10px; color:#4338ca; font-weight:700; margin-top:2px; display:flex; flex-wrap:wrap; gap:2px;">
+                        ${tb.breakdown.map(b => `<span style="background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.2); padding:1px 4px; border-radius:3px;">${b.name.trim().split(' ')[0]}: ${b.formatted}</span>`).join('')}
+                    </div>
+                `;
             }
 
             return `<div style="font-size:12px; line-height:1.4;">
                 <span style="color:#16a34a; font-weight:700; display:flex; align-items:center; gap:4px;">
-                    <i class="fa-solid fa-circle-check"></i> Resolved${durText ? ` (${durText})` : ''}
+                    <i class="fa-solid fa-circle-check"></i> Resolved (${tb.totalFormatted})
                 </span>
                 ${resDateStr ? `<span style="font-size:11px; color:#475569; font-weight:600; display:block; margin-top:2px;"><i class="fa-regular fa-calendar-check" style="color:#16a34a;"></i> ${resDateStr}</span>` : ''}
+                ${breakdownBadges}
             </div>`;
         }
 
@@ -529,23 +674,32 @@
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
                                createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
-        const startMs = new Date(startTimeRaw).getTime();
+        // BEFORE START: Do not run active timer! Show Ready to Start
+        if (ticket.status !== 'In Progress' && !ticket.started_resolving_at) {
+            return `<div class="emp-live-timer" data-started="" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+                <div style="font-weight:700; color:#64748b; display:flex; align-items:center; gap:5px;">
+                    <span class="badge" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-weight:700; font-size:11px; padding:2px 7px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                        <i class="fa-regular fa-clock" style="color:#64748b;"></i> Ready to Start
+                    </span>
+                    <span style="font-size:11.5px; font-weight:700; color:#64748b;">00:00:00</span>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
+                    <i class="fa-regular fa-calendar"></i> Logged: ${createdTimeStr}
+                </div>
+            </div>`;
+        }
+
+        const startMs = new Date(ticket.started_resolving_at || ticket.created_at).getTime();
         const elapsedMs = Math.max(0, Date.now() - (isNaN(startMs) ? Date.now() : startMs));
         const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
         const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
         const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
 
-        const isResolving = !!ticket.started_resolving_at;
-        const timerColor = isResolving ? '#2563eb' : '#0d9488';
-        const timerIcon = isResolving ? 'fa-solid fa-stopwatch fa-spin' : 'fa-solid fa-stopwatch';
-        const labelText = isResolving ? 'active' : 'elapsed';
-
-        return `<div class="emp-live-timer" data-started="${ticket.started_resolving_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-            <div style="font-weight:700; color:${timerColor}; display:flex; align-items:center; gap:4px;">
-                <i class="${timerIcon}" style="${isResolving ? '--fa-animation-duration: 3s;' : ''} color:${timerColor};"></i>
+        return `<div class="emp-live-timer" data-started="${ticket.started_resolving_at || ticket.created_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+            <div style="font-weight:700; color:#2563eb; display:flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-stopwatch fa-spin" style="--fa-animation-duration: 3s; color:#2563eb;"></i>
                 <span class="live-timer-text">${eH}:${eM}:${eS}</span>
-                <span style="font-size:11px; font-weight:700; color:${timerColor};">${labelText}</span>
+                <span style="font-size:11px; font-weight:700; color:#2563eb;">active</span>
             </div>
             <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
                 <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
@@ -986,13 +1140,129 @@
                     quickActionContainer.innerHTML = actionsHtml;
                 }
 
+                const cp = t.contact_person || {};
+                const contactName = cp.name || t.reported_by || 'Customer Representative';
+                const contactPhone = cp.phone || t.customer_phone || '';
+                const contactEmail = cp.email || t.customer_email || '';
+                const contactBranch = cp.branch || '';
+                const contactSource = cp.source || t.source || 'Web';
+                const contactRole = cp.designation || 'Client Representative';
+
+                const subEl = document.getElementById('view-ticket-sub');
+                if (subEl) {
+                    let subText = `${t.customer_name || 'Customer'} • Project: ${t.project_name || 'General'}`;
+                    if (contactName) subText += ` • By: ${contactName}`;
+                    if (contactPhone) subText += ` (${contactPhone})`;
+                    subEl.textContent = subText;
+                }
+
                 // Timer & Meta
                 document.getElementById('modal-sla-timer').innerHTML = getSlaElapsedTimerHtml(t);
+
+                // Assignee Work Time Breakdown Display
+                const empTimeBox = document.getElementById('modal-emp-time-box');
+                const empTimeTotal = document.getElementById('modal-emp-time-total');
+                const empTimeList = document.getElementById('modal-emp-time-list');
+
+                if (empTimeBox && empTimeList) {
+                    const tb = calculateEmployeeTimeBreakdown(t);
+                    if (tb && Array.isArray(tb.breakdown) && tb.breakdown.length > 0) {
+                        empTimeBox.style.display = 'block';
+                        if (empTimeTotal) empTimeTotal.textContent = `Total: ${tb.totalFormatted}`;
+                        empTimeList.innerHTML = tb.breakdown.map(b => `
+                            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; padding:5px 8px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                                    <span style="font-weight:700; font-size:11.5px; color:#0f172a; display:flex; align-items:center; gap:4px;">
+                                        <i class="fa-solid fa-user-gear" style="font-size:10px; color:#0d9488;"></i> ${b.name}
+                                    </span>
+                                    <span style="font-weight:700; font-size:11.5px; color:#0d9488;">
+                                        ${b.formatted} <span style="font-size:10px; color:#64748b; font-weight:600;">(${b.percent}%)</span>
+                                    </span>
+                                </div>
+                                <div style="width:100%; height:4px; background:#f1f5f9; border-radius:2px; overflow:hidden;">
+                                    <div style="width:${b.percent}%; height:100%; background:linear-gradient(90deg, #0d9488, #10b981); border-radius:2px;"></div>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        empTimeBox.style.display = 'none';
+                    }
+                }
                 document.getElementById('modal-ticket-meta').innerHTML = `
                     <div><span style="color:var(--text-muted);">Category:</span> <strong>${t.category}</strong></div>
                     <div><span style="color:var(--text-muted);">Priority:</span> <strong>${t.priority}</strong></div>
-                    <div><span style="color:var(--text-muted);">Reported By:</span> <strong>${t.reported_by || 'Staff'}</strong></div>
+                    <div><span style="color:var(--text-muted);">Reported By:</span> <strong>${contactName}</strong></div>
                 `;
+
+                // Populate Raised By / Contact Person card
+                const empCName = document.getElementById('modal-employee-contact-name');
+                const empCRole = document.getElementById('modal-employee-contact-role');
+                const empCBranchWrap = document.getElementById('modal-employee-contact-branch-wrap');
+                const empCBranch = document.getElementById('modal-employee-contact-branch');
+                const empCPhone = document.getElementById('modal-employee-contact-phone');
+                const empCWa = document.getElementById('modal-employee-contact-wa');
+                const empCEmail = document.getElementById('modal-employee-contact-email');
+                const empCSource = document.getElementById('modal-employee-contact-source');
+
+                if (empCName) empCName.textContent = contactName;
+                if (empCRole) empCRole.textContent = contactRole;
+
+                if (empCBranchWrap && empCBranch) {
+                    if (contactBranch) {
+                        empCBranchWrap.style.display = 'flex';
+                        empCBranch.textContent = contactBranch;
+                    } else {
+                        empCBranchWrap.style.display = 'none';
+                    }
+                }
+
+                if (empCPhone) {
+                    if (contactPhone) {
+                        empCPhone.textContent = contactPhone;
+                        empCPhone.href = `tel:${contactPhone}`;
+                        empCPhone.style.pointerEvents = 'auto';
+                    } else {
+                        empCPhone.textContent = 'Not Provided';
+                        empCPhone.href = '#';
+                        empCPhone.style.pointerEvents = 'none';
+                    }
+                }
+
+                if (empCWa) {
+                    const cleanDigits = String(contactPhone).replace(/\D/g, '');
+                    if (cleanDigits && cleanDigits.length >= 10) {
+                        let waNumber = cleanDigits;
+                        if (waNumber.length === 10) waNumber = '91' + waNumber;
+                        else if (waNumber.startsWith('0')) waNumber = '91' + waNumber.substring(1);
+                        empCWa.href = `https://wa.me/${waNumber}`;
+                        empCWa.style.display = 'inline-flex';
+                    } else {
+                        empCWa.style.display = 'none';
+                    }
+                }
+
+                if (empCEmail) {
+                    if (contactEmail) {
+                        empCEmail.textContent = contactEmail;
+                        empCEmail.href = `mailto:${contactEmail}`;
+                        empCEmail.style.pointerEvents = 'auto';
+                    } else {
+                        empCEmail.textContent = 'Not Provided';
+                        empCEmail.href = '#';
+                        empCEmail.style.pointerEvents = 'none';
+                    }
+                }
+
+                if (empCSource) {
+                    const srcUpper = String(contactSource || 'Web').toUpperCase();
+                    if (srcUpper.includes('WHATSAPP')) {
+                        empCSource.innerHTML = '<i class="fa-brands fa-whatsapp"></i> WhatsApp';
+                    } else if (srcUpper.includes('EMAIL') || srcUpper.includes('MAIL')) {
+                        empCSource.innerHTML = '<i class="fa-regular fa-envelope"></i> Email';
+                    } else {
+                        empCSource.innerHTML = '<i class="fa-solid fa-globe"></i> Web';
+                    }
+                }
 
                 // Bulletproof Attachment Rendering
                 const attDiv = document.getElementById('view-ticket-attachment');
@@ -1459,14 +1729,13 @@
     setInterval(() => {
         document.querySelectorAll('.emp-live-timer').forEach(el => {
             const status = el.getAttribute('data-status');
-            if (status === 'Resolved' || status === 'Closed') return;
+            // Only tick live for active In Progress tickets
+            if (status !== 'In Progress') return;
 
             const startedStr = el.getAttribute('data-started');
-            const createdStr = el.getAttribute('data-created');
-            const baseTimeStr = startedStr || createdStr;
-            if (!baseTimeStr) return;
+            if (!startedStr) return;
 
-            const startMs = new Date(baseTimeStr).getTime();
+            const startMs = new Date(startedStr).getTime();
             if (isNaN(startMs)) return;
 
             const elapsedMs = Math.max(0, Date.now() - startMs);

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Attendance &amp; Leave — PCS Enterprise</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260922_3">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -602,6 +602,7 @@
                 <th>Duration</th>
                 <th>Purpose</th>
                 <th>Destination / Reason</th>
+                <th>Live Location / GPS</th>
                 <th>Status</th>
                 <th>Approved By</th>
                 <th>Actions</th>
@@ -965,6 +966,10 @@
         <div style="font-size:11px; color:#854d0e; font-weight:700;">Late Days</div>
         <div style="font-size:16px; font-weight:800; color:#b45309;" id="hist-kpi-late">0</div>
       </div>
+      <div style="background:#fff7ed; padding:8px 12px; border-radius:8px; border:1px solid #fed7aa; text-align:center;" id="hist-kpi-out-card">
+        <div style="font-size:11px; color:#c2410c; font-weight:700;">Out Days</div>
+        <div style="font-size:16px; font-weight:800; color:#c2410c;" id="hist-kpi-out">0</div>
+      </div>
       <div style="background:#fef2f2; padding:8px 12px; border-radius:8px; border:1px solid #fecaca; text-align:center;">
         <div style="font-size:11px; color:#991b1b; font-weight:700;">Absent Days</div>
         <div style="font-size:16px; font-weight:800; color:#b91c1c;" id="hist-kpi-absent">0</div>
@@ -1178,9 +1183,9 @@
 </div>
 
 <script src="auth.js"></script>
-<script src="script.js?v=20260909_6"></script>
+<script src="script.js?v=20260922_3"></script>
 <script src="js/csv-exporter.js"></script>
 <script src="js/csvImportExportModal.js"></script>
-<script src="attendance.js?v=20260909_6"></script>
+<script src="attendance.js?v=20260923_outentry_v1"></script>
 </body>
 </html>

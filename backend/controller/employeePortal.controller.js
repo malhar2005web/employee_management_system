@@ -526,6 +526,32 @@ export async function getAttendanceLogs(req, res) {
             console.warn("Holiday query warning:", hErr.message);
         }
 
+        // 4.5. Fetch Out Entries
+        const outEntryMap = new Map();
+        try {
+            const oeRes = await pool.query(`
+                SELECT oe.id, oe.employee_id, oe.date, 
+                       TO_CHAR(oe.out_time, 'HH24:MI') as out_time, 
+                       TO_CHAR(oe.in_time, 'HH24:MI') as in_time, 
+                       oe.duration_minutes, oe.purpose, oe.destination, oe.reason, oe.status,
+                       oe.customer_id, oe.branch_name, oe.target_address,
+                       c.name as customer_name
+                FROM out_entries oe
+                LEFT JOIN customers c ON oe.customer_id = c.id
+                WHERE oe.employee_id = $1 AND oe.date >= $2::date AND oe.date <= $3::date
+                ORDER BY oe.date ASC, oe.out_time ASC;
+            `, [employeeId, startDateStr, endDateStr]);
+
+            oeRes.rows.forEach(oe => {
+                const dStr = oe.date instanceof Date
+                    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(oe.date)
+                    : String(oe.date).slice(0, 10);
+                outEntryMap.set(dStr, oe);
+            });
+        } catch (oeErr) {
+            console.warn("Out entries query warning:", oeErr.message);
+        }
+
         // 5. Fetch Workstation Activity Telemetry (Historical Jan-Jul vs Live Teramind Aug+)
         const compActivityMap = new Map();
 
@@ -806,6 +832,24 @@ export async function getAttendanceLogs(req, res) {
                     punch_source: 'UPCOMING'
                 };
             }
+            // Tier 7.5: Out Entry (Client Visit / Official Duty / Field Duty)
+            else if (outEntryMap.has(targetDateStr)) {
+                const oe = outEntryMap.get(targetDateStr);
+                finalRecord = {
+                    id: dbRecord?.id || null,
+                    employee_id: employeeId,
+                    date: targetDateStr,
+                    login_time: oe.out_time ? `${targetDateStr}T${oe.out_time}:00+05:30` : null,
+                    logout_time: oe.in_time ? `${targetDateStr}T${oe.in_time}:00+05:30` : null,
+                    total_working_hours: oe.duration_minutes ? (oe.duration_minutes / 60).toFixed(2) : '0.00',
+                    overtime: null,
+                    status: 'Out Entry',
+                    calculated_status: 'Out Entry',
+                    is_late_login: false,
+                    punch_source: 'OUT_ENTRY',
+                    out_entry: oe
+                };
+            }
             // Tier 8: Absent
             else {
                 finalRecord = {
@@ -821,6 +865,10 @@ export async function getAttendanceLogs(req, res) {
                     is_late_login: false,
                     punch_source: 'AUTO'
                 };
+            }
+
+            if (!finalRecord.out_entry && outEntryMap.has(targetDateStr)) {
+                finalRecord.out_entry = outEntryMap.get(targetDateStr);
             }
 
             // --- Robust Calculation of Total Login Time (loginHr) & Overtime (OvTHrs) ---

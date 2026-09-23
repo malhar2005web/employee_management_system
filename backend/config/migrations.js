@@ -1074,6 +1074,30 @@ export async function runMigrations() {
             console.error('❌ Phase 21 Migration Error:', e.message);
         }
 
+        // ── STEP 23: Phase 22 Out Entry Location Tracking, Geofencing & Visit OTP ────
+        try {
+            await client.query(`
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS visit_otp VARCHAR(10);
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS otp_sent_to VARCHAR(100);
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS otp_verified_at TIMESTAMP;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS visit_started_at TIMESTAMP;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS customer_id INT REFERENCES customers(id) ON DELETE SET NULL;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS branch_name VARCHAR(150);
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS target_latitude NUMERIC;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS target_longitude NUMERIC;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS target_address TEXT;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS last_latitude NUMERIC;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS last_longitude NUMERIC;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS last_location_address TEXT;
+                ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS last_tracked_at TIMESTAMP;
+
+                CREATE INDEX IF NOT EXISTS idx_out_entries_tracked ON out_entries(last_tracked_at);
+            `);
+            console.log('✅ Phase 22 Out Entry Location Tracking & Visit OTP columns ensured.');
+        } catch (e) {
+            console.error('❌ Phase 22 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }

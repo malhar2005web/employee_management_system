@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============ Branch Row Builder (Nested Layout with Branch-Wise Assigned Employees) ============
-    const createBranchRowElement = (branch = '', gstNo = '', contacts = [], projects = [], assignedEmployees = []) => {
+    const createBranchRowElement = (branch = '', gstNo = '', contacts = [], projects = [], assignedEmployees = [], address = '', latitude = '', longitude = '') => {
         const card = document.createElement('div');
         card.className = 'branch-card';
         card.style.border = '1px solid rgba(255,255,255,0.25)';
@@ -232,6 +232,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 <input type="text" placeholder="Branch Name (e.g. Accounts)" class="branch-name" value="${branch}" required style="padding:6px;font-size:12.5px;">
                 <input type="text" placeholder="GST No" class="branch-gst" value="${gstNo}" style="padding:6px;font-size:12.5px;">
                 <i class="fa-regular fa-trash-can btn-remove-branch" style="color:var(--red);cursor:pointer;padding:6px;font-size:14px;"></i>
+            </div>
+
+            <!-- Branch Office Address & GPS for Geofencing -->
+            <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:8px; align-items: center; background:rgba(15,118,110,0.06); padding:8px 10px; border-radius:6px; border:1px dashed rgba(15,118,110,0.3);">
+                <div>
+                    <label style="font-size:10.5px; font-weight:800; color:#0f766e; text-transform:uppercase; display:block; margin-bottom:2px;"><i class="fa-solid fa-map-location-dot"></i> Address (For Branch)</label>
+                    <input type="text" placeholder="e.g. 5th Floor, Trade Star, Andheri East, Mumbai" class="branch-address" value="${address || ''}" style="padding:6px 8px; font-size:12.5px; width:100%; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:10.5px; font-weight:800; color:#0f766e; text-transform:uppercase; display:block; margin-bottom:2px;">Latitude</label>
+                    <input type="number" step="any" placeholder="19.1136" class="branch-lat" value="${latitude || ''}" style="padding:6px 8px; font-size:12px; width:100%; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:10.5px; font-weight:800; color:#0f766e; text-transform:uppercase; display:block; margin-bottom:2px;">Longitude</label>
+                    <input type="number" step="any" placeholder="72.8697" class="branch-lng" value="${longitude || ''}" style="padding:6px 8px; font-size:12px; width:100%; box-sizing:border-box;">
+                </div>
+                <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                    <button type="button" class="btn-secondary btn-geocode-branch" title="Auto-fetch Lat/Lng from Address" style="padding:6px 8px; font-size:11px; white-space:nowrap; margin-top:14px; background:#fff; border:1px solid #0f766e; color:#0f766e; cursor:pointer;"><i class="fa-solid fa-crosshairs"></i> Fetch GPS</button>
+                </div>
             </div>
             
             <!-- Nested Contacts -->
@@ -270,6 +289,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const projectsContainer = card.querySelector('.nested-projects-container');
         const branchCheckboxesContainer = card.querySelector('.branch-assignee-checkboxes');
         const branchAssignAllEmp = card.querySelector('.branch-assign-all-emp');
+
+        // Geocoding button helper
+        const geocodeBtn = card.querySelector('.btn-geocode-branch');
+        if (geocodeBtn) {
+            geocodeBtn.addEventListener('click', async () => {
+                const addrInput = card.querySelector('.branch-address');
+                const latInput = card.querySelector('.branch-lat');
+                const lngInput = card.querySelector('.branch-lng');
+                const query = (addrInput?.value || '').trim();
+                if (!query) {
+                    alert("Please enter a branch address first to fetch GPS coordinates.");
+                    return;
+                }
+                geocodeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        latInput.value = parseFloat(data[0].lat).toFixed(6);
+                        lngInput.value = parseFloat(data[0].lon).toFixed(6);
+                        if (typeof showToast === 'function') showToast("GPS coordinates fetched successfully!", "success");
+                    } else {
+                        alert("Could not automatically locate coordinates for this address. You can manually enter Latitude and Longitude if known.");
+                    }
+                } catch (e) {
+                    console.error("Geocoding error:", e);
+                    alert("Geocoding service unavailable. You may manually enter Latitude & Longitude.");
+                } finally {
+                    geocodeBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i> Fetch GPS';
+                }
+            });
+        }
 
         // Helpers to add nested rows
         const addNestedContact = (cName = '', cEmail = '', cPhone = '') => {
@@ -388,9 +439,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return card;
     };
 
-    const addBranchRow = (branch = '', gstNo = '', contacts = [], projects = [], assignedEmployees = []) => {
+    const addBranchRow = (branch = '', gstNo = '', contacts = [], projects = [], assignedEmployees = [], address = '', latitude = '', longitude = '') => {
         if (branchEntryContainer) {
-            branchEntryContainer.appendChild(createBranchRowElement(branch, gstNo, contacts, projects, assignedEmployees));
+            branchEntryContainer.appendChild(createBranchRowElement(branch, gstNo, contacts, projects, assignedEmployees, address, latitude, longitude));
         }
     };
 
@@ -528,6 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="min-height:46px; display:flex; flex-direction:column; justify-content:center; ${borderDivider}">
                             <strong style="font-size:15px; color:#1E293B; font-weight:800;">${b.branch || '-'}</strong>
                             <span style="color:#64748B; font-size:13px; font-weight:600;">${b.gstNo ? 'GST: ' + b.gstNo : 'No GST'}</span>
+                            ${b.address ? `<span style="color:#0f766e; font-size:11.5px; font-weight:600; margin-top:2px; display:inline-flex; align-items:center; gap:4px;" title="${b.address}"><i class="fa-solid fa-location-dot"></i> ${b.address}</span>` : ''}
                         </div>
                     `;
 
@@ -895,9 +947,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return empObj;
             });
 
+            const branchAddress = card.querySelector('.branch-address') ? card.querySelector('.branch-address').value.trim() : '';
+            const branchLat = card.querySelector('.branch-lat') ? card.querySelector('.branch-lat').value.trim() : '';
+            const branchLng = card.querySelector('.branch-lng') ? card.querySelector('.branch-lng').value.trim() : '';
+
             branches.push({
                 branch: branchName,
                 gstNo: branchGst,
+                address: branchAddress,
+                latitude: branchLat ? parseFloat(branchLat) : null,
+                longitude: branchLng ? parseFloat(branchLng) : null,
                 contacts,
                 projects,
                 assignedEmployees
@@ -1006,7 +1065,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Find projects belonging to this branch from customer_projects list
                 const branchProjects = (cust.customer_projects || []).filter(p => p.branch_name === b.branch);
                 const branchAssignedEmps = b.assignedEmployees || b.assigned_employees || [];
-                addBranchRow(b.branch, b.gstNo, b.contacts || [], branchProjects, branchAssignedEmps);
+                addBranchRow(b.branch, b.gstNo, b.contacts || [], branchProjects, branchAssignedEmps, b.address || '', b.latitude || '', b.longitude || '');
             });
         } else {
             addBranchRow();

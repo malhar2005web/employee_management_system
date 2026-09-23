@@ -3,7 +3,8 @@ import { protectRoute, isEmployee, isEmployeeOrAdmin } from '../middleware/prote
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getOutEntries, createOutEntry, markReturnInTime } from '../controller/outEntry.controller.js';
+import { getOutEntries, createOutEntry, markReturnInTime, trackLocation, verifyVisitOtp } from '../controller/outEntry.controller.js';
+import { getCustomers } from '../controller/customer.controller.js';
 import {
     getDashboardSummary,
     getAttendanceStatus,
@@ -70,8 +71,8 @@ const chatUpload = multer({
 
 const router = express.Router();
 
-// Apply session checks and employee role validation globally on these routes
-router.use(protectRoute, isEmployee);
+// Apply session checks and employee/admin role validation globally on these routes
+router.use(protectRoute, isEmployeeOrAdmin);
 
 // Dashboard
 router.get("/dashboard/summary", getDashboardSummary);
@@ -100,6 +101,9 @@ router.get("/leaves/history", getLeaveHistory);
 router.get("/out-entries", getOutEntries);
 router.post("/out-entries", createOutEntry);
 router.put("/out-entries/:id/return", markReturnInTime);
+router.post("/out-entries/:id/track-location", trackLocation);
+router.post("/out-entries/:id/verify-visit-otp", verifyVisitOtp);
+router.get("/customers", getCustomers);
 
 // Tasks
 router.get("/tasks", getTasks);

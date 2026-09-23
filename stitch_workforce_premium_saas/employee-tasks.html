@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260922_3">
 <style>
   .nav-tabs-pill {
     display: inline-flex;
@@ -131,11 +131,11 @@
       <li class="nav-item active"><i class="fa-regular fa-square-check"></i> My Tasks</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-attendance.html'"><i class="fa-regular fa-calendar"></i> Attendance</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-leave.html'"><i class="fa-solid fa-person-walking-luggage"></i> Leave</li>
-      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-timesheets.html'"><i class="fa-regular fa-file-lines"></i> Timesheets</li>
-      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-goals.html'"><i class="fa-regular fa-circle-dot"></i> Goals</li>
+      
+      
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-dsr.html'"><i class="fa-regular fa-clipboard"></i> Daily Report</li>
       <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-organization.html'"><i class="fa-solid fa-people-group"></i> Organization</li>
-      <li class="nav-item" style="cursor:pointer;" onclick="window.location.href='/employee-trainings.html'"><i class="fa-solid fa-graduation-cap"></i> Training</li>
+      
     </ul>
 
     <div class="sidebar-profile" id="sidebar-profile">
@@ -585,11 +585,52 @@
         <div>
           <div style="font-size:11.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Time Elapsed &amp; SLA</div>
           <div id="modal-sla-timer" style="font-size:13px; font-weight:700; color:var(--teal-900);">Calculating...</div>
+          
+          <!-- Employee Work Time Breakdown Box -->
+          <div id="modal-emp-time-box" style="display:none; margin-top:8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <span style="font-size:10.5px; font-weight:800; color:#0f766e; text-transform:uppercase; display:flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-user-clock"></i> Time Breakdown
+              </span>
+              <span id="modal-emp-time-total" style="font-size:10px; font-weight:800; color:#0f172a; background:#e2e8f0; padding:1px 6px; border-radius:4px;">Total: 0m</span>
+            </div>
+            <div id="modal-emp-time-list" style="display:flex; flex-direction:column; gap:4px;"></div>
+          </div>
         </div>
 
         <div>
           <div style="font-size:11.5px; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Category &amp; Priority</div>
           <div id="modal-ticket-meta" style="font-size:12.5px; font-weight:700; color:var(--text-dark); display:flex; flex-direction:column; gap:4px;">-</div>
+        </div>
+
+        <!-- Raised By / Contact Person Card -->
+        <div id="modal-employee-contact-card" style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:12px;">
+          <div style="font-size:11px; font-weight:800; color:#0f766e; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+            <span><i class="fa-solid fa-user-tie"></i> Raised By / Contact</span>
+            <span id="modal-employee-contact-source" class="badge" style="background:#f0fdfa; color:#0f766e; border:1px solid #99f6e4; font-size:9.5px; padding:1px 5px; border-radius:4px;">Web</span>
+          </div>
+          <div style="font-size:13px; font-weight:800; color:#0f172a;" id="modal-employee-contact-name">-</div>
+          <div style="font-size:11px; color:#64748b; font-weight:600; margin-bottom:6px;" id="modal-employee-contact-role">Contact Person</div>
+          
+          <div id="modal-employee-contact-branch-wrap" style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:#334155; margin-bottom:4px;">
+            <i class="fa-solid fa-industry" style="color:#64748b; width:13px; text-align:center;"></i>
+            <span id="modal-employee-contact-branch" style="font-weight:700;">-</span>
+          </div>
+
+          <div id="modal-employee-contact-phone-wrap" style="display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:11.5px; margin-bottom:4px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-phone" style="color:#0d9488; width:13px; text-align:center;"></i>
+              <a id="modal-employee-contact-phone" href="#" style="color:#0f172a; font-weight:700; text-decoration:none;">-</a>
+            </div>
+            <a id="modal-employee-contact-wa" href="#" target="_blank" rel="noopener noreferrer" style="background:#22c55e; color:#fff; border-radius:4px; padding:1px 6px; font-size:10px; font-weight:700; text-decoration:none; display:none; align-items:center; gap:3px;">
+              <i class="fa-brands fa-whatsapp"></i> Chat
+            </a>
+          </div>
+
+          <div id="modal-employee-contact-email-wrap" style="display:flex; align-items:center; gap:6px; font-size:11.5px;">
+            <i class="fa-solid fa-envelope" style="color:#0284c7; width:13px; text-align:center;"></i>
+            <a id="modal-employee-contact-email" href="#" style="color:#0284c7; font-weight:700; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">-</a>
+          </div>
         </div>
 
         <div>
@@ -763,7 +804,7 @@
   </div>
 </div>
 
-<script src="script.js"></script>
+<script src="script.js?v=20260922_3"></script>
 <script src="js/employee-tasks.js"></script>
 <script src="js/trackingService.js"></script>
 <script src="js/taskHandoverModal.js"></script>

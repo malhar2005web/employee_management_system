@@ -47,12 +47,168 @@ document.addEventListener('DOMContentLoaded', () => {
     const esc = (str) => (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
     // Helper: Ticket Transfer Trail Formatter
+    // Helper: Format Duration in human-readable string (Xh Ym or Z min or S s)
+    function formatDurationMs(ms) {
+        if (!ms || ms < 1000) return '0 min';
+        const totalSec = Math.round(ms / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        if (h > 0 && m > 0) return `${h}h ${m}m`;
+        if (h > 0) return `${h}h`;
+        if (m > 0) return `${m} min`;
+        return `${s}s`;
+    }
+
+    // Helper: Compute exact time spent by each employee on ticket with 100% total duration match
+    function calculateEmployeeTimeBreakdown(ticket) {
+        let list = ticket.transfer_history;
+        if (typeof list === 'string') {
+            try { list = JSON.parse(list); } catch (e) { list = []; }
+        }
+        if (!Array.isArray(list)) list = [];
+
+        const isDone = ticket.status === 'Resolved' || ticket.status === 'Closed';
+        const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
+        const endTimeRaw = isDone ? (ticket.resolved_at || ticket.updated_at) : new Date().toISOString();
+
+        const startMs = startTimeRaw ? new Date(startTimeRaw).getTime() : Date.now();
+        const endMs = endTimeRaw ? new Date(endTimeRaw).getTime() : Date.now();
+
+        // If ticket is Open/Assigned and never started resolving, actual work time is 0
+        if (!ticket.started_resolving_at && (ticket.status === 'Open' || ticket.status === 'Assigned')) {
+            return {
+                totalMs: 0,
+                totalFormatted: '0 min',
+                isStarted: false,
+                breakdown: [{
+                    name: ticket.assigned_to_name || 'Assigned Staff',
+                    timeMs: 0,
+                    formatted: '0 min',
+                    percent: 100
+                }]
+            };
+        }
+
+        const totalMs = Math.max(1000, endMs - startMs);
+
+        // If no transfers, 100% of the duration belongs to the assigned staff
+        if (list.length === 0) {
+            const empName = ticket.assigned_to_name || ticket.reported_by || 'Assigned Staff';
+            return {
+                totalMs,
+                totalFormatted: formatDurationMs(totalMs),
+                isStarted: true,
+                breakdown: [{
+                    name: empName,
+                    timeMs: totalMs,
+                    formatted: formatDurationMs(totalMs),
+                    percent: 100
+                }]
+            };
+        }
+
+        // Multi-employee transfer chain
+        const empChain = [];
+        empChain.push(list[0].from_name || 'Initial Assignee');
+        for (const tr of list) {
+            const toName = tr.to_name || 'Staff';
+            if (empChain[empChain.length - 1] !== toName) {
+                empChain.push(toName);
+            }
+        }
+
+        let segments = [];
+        let prevMs = startMs;
+        let allValid = true;
+
+        for (let i = 0; i < list.length; i++) {
+            const trMs = new Date(list[i].transferred_at).getTime();
+            const diff = trMs - prevMs;
+            if (isNaN(trMs) || diff < 0 || trMs > endMs) {
+                allValid = false;
+                break;
+            }
+            segments.push({
+                name: list[i].from_name || empChain[i] || 'Staff',
+                timeMs: diff
+            });
+            prevMs = trMs;
+        }
+
+        if (allValid) {
+            const finalDiff = Math.max(0, endMs - prevMs);
+            const finalName = list[list.length - 1].to_name || ticket.assigned_to_name || 'Final Assignee';
+            segments.push({
+                name: finalName,
+                timeMs: finalDiff
+            });
+        }
+
+        // If timestamps were invalid/mocked (e.g. seeded with future dates), apportion totalMs proportionally
+        if (!allValid || segments.length === 0) {
+            segments = [];
+            const count = empChain.length;
+            const eachMs = Math.floor(totalMs / count);
+            let rem = totalMs - (eachMs * count);
+
+            empChain.forEach((name, idx) => {
+                const segMs = eachMs + (idx === count - 1 ? rem : 0);
+                segments.push({
+                    name,
+                    timeMs: segMs
+                });
+            });
+        }
+
+        // Aggregate by employee name
+        const empMap = new Map();
+        for (const seg of segments) {
+            const current = empMap.get(seg.name) || 0;
+            empMap.set(seg.name, current + seg.timeMs);
+        }
+
+        let sumMs = 0;
+        const breakdown = [];
+        for (const [name, ms] of empMap.entries()) {
+            sumMs += ms;
+            const pct = totalMs > 0 ? Math.round((ms / totalMs) * 100) : 0;
+            breakdown.push({
+                name,
+                timeMs: ms,
+                formatted: formatDurationMs(ms),
+                percent: pct
+            });
+        }
+
+        // Normalize percentage sum to 100%
+        const pctSum = breakdown.reduce((acc, b) => acc + b.percent, 0);
+        if (pctSum !== 100 && breakdown.length > 0) {
+            breakdown[breakdown.length - 1].percent += (100 - pctSum);
+        }
+
+        return {
+            totalMs,
+            totalFormatted: formatDurationMs(totalMs),
+            isStarted: true,
+            breakdown
+        };
+    }
+
     function formatTicketTransferTrail(transferHistory, options = {}) {
         let list = transferHistory;
         if (typeof list === 'string') {
             try { list = JSON.parse(list); } catch (e) { list = []; }
         }
         if (!Array.isArray(list) || list.length === 0) return '';
+
+        const tb = options.ticket ? calculateEmployeeTimeBreakdown(options.ticket) : null;
+        const empTimeMap = {};
+        if (tb && Array.isArray(tb.breakdown)) {
+            tb.breakdown.forEach(b => {
+                empTimeMap[b.name.toLowerCase()] = b.formatted;
+            });
+        }
 
         const chainNodes = [];
         const tooltipParts = [];
@@ -63,16 +219,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const fromShort = options.fullName ? fromFullName : (item.from_name ? item.from_name.trim().split(' ')[0] : 'Staff');
             const toShort = options.fullName ? toFullName : (item.to_name ? item.to_name.trim().split(' ')[0] : 'Staff');
 
+            const fromTime = empTimeMap[fromFullName.toLowerCase()] ? ` (${empTimeMap[fromFullName.toLowerCase()]})` : '';
+            const toTime = (idx === list.length - 1 && empTimeMap[toFullName.toLowerCase()]) ? ` (${empTimeMap[toFullName.toLowerCase()]})` : '';
+
             if (idx === 0) {
-                chainNodes.push(fromShort);
-            } else if (chainNodes[chainNodes.length - 1] !== fromShort) {
-                chainNodes.push(fromShort);
+                chainNodes.push(fromShort + fromTime);
+            } else if (chainNodes[chainNodes.length - 1] && !chainNodes[chainNodes.length - 1].startsWith(fromShort)) {
+                chainNodes.push(fromShort + fromTime);
             }
-            chainNodes.push(toShort);
+            chainNodes.push(toShort + toTime);
 
             const timeStr = item.transferred_at ? new Date(item.transferred_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
             const reasonStr = item.reason ? `[${item.reason}]` : '';
-            tooltipParts.push(`Transfer #${idx + 1}: ${fromFullName} ➔ ${toFullName} ${reasonStr} ${timeStr ? '(' + timeStr + ')' : ''}`);
+            const spentStr = item.time_spent_formatted ? `• Spent: ${item.time_spent_formatted}` : '';
+            tooltipParts.push(`Transfer #${idx + 1}: ${fromFullName} ➔ ${toFullName} ${reasonStr} ${spentStr} ${timeStr ? '(' + timeStr + ')' : ''}`);
         });
 
         const chainHtml = chainNodes.join(` <i class="fa-solid fa-arrow-right" style="font-size:${options.arrowSize || '8px'}; color:#6366f1; opacity:0.85; margin:0 2px;"></i> `);
@@ -84,18 +244,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="font-size:12px; font-weight:700; color:#4338ca; display:flex; align-items:center; gap:5px;">
                         <i class="fa-solid fa-shuffle"></i> <span>${chainHtml}</span>
                     </div>
-                    <div style="display:flex; flex-direction:column; gap:4px; border-left:2px solid #a5b4fc; padding-left:8px; margin-left:2px;">
+                    <div style="display:flex; flex-direction:column; gap:5px; border-left:2px solid #a5b4fc; padding-left:8px; margin-left:2px;">
             `;
             list.forEach((item, idx) => {
                 const timeStr = item.transferred_at ? new Date(item.transferred_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                const spentBadge = item.time_spent_formatted ? `<span style="background:rgba(13,148,136,0.12); color:#0f766e; font-weight:800; font-size:10.5px; padding:1px 6px; border-radius:4px; margin-left:4px;"><i class="fa-regular fa-clock"></i> Spent: ${item.time_spent_formatted}</span>` : '';
                 detailsHtml += `
                     <div style="font-size:11.5px; color:#475569; line-height:1.4;">
                         <span style="font-weight:700; color:#1e293b;">${item.from_name || 'Staff'}</span>
                         <i class="fa-solid fa-arrow-right" style="font-size:8.5px; color:#6366f1; margin:0 3px;"></i>
                         <span style="font-weight:700; color:#0f766e;">${item.to_name || 'Staff'}</span>
+                        ${spentBadge}
                         ${item.reason ? `<span style="background:rgba(99,102,241,0.12); color:#4338ca; font-weight:700; font-size:10.5px; padding:1px 5px; border-radius:4px; margin-left:4px;">${item.reason}</span>` : ''}
-                        ${timeStr ? `<span style="color:#94a3b8; font-size:10.5px; margin-left:4px;"><i class="fa-regular fa-clock" style="font-size:9.5px;"></i> ${timeStr}</span>` : ''}
-                        ${item.notes ? `<div style="font-size:11px; color:#64748b; font-style:italic; margin-top:1px;">Note: "${item.notes}"</div>` : ''}
+                        ${timeStr ? `<span style="color:#94a3b8; font-size:10.5px; margin-left:4px;"><i class="fa-regular fa-calendar"></i> ${timeStr}</span>` : ''}
+                        ${item.notes ? `<div style="font-size:11px; color:#64748b; font-style:italic; margin-top:2px;">Note: "${item.notes}"</div>` : ''}
                     </div>
                 `;
             });
@@ -111,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    // Helper: Format Priority Badge
+    // Helper: Priority Badge
     const getPriorityBadge = (priority) => {
         const pri = (priority || 'Medium').toLowerCase();
         if (pri === 'critical') return '<span class="badge badge-critical"><i class="fa-solid fa-fire"></i> Critical</span>';
@@ -120,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return '<span class="badge badge-low"><i class="fa-solid fa-minus"></i> Low</span>';
     };
 
-    // Helper: Format Status Badge
+    // Helper: Status Badge
     const getStatusBadge = (status) => {
         const st = status || 'Open';
         if (st === 'Open') return '<span class="badge" style="background:rgba(245,158,11,0.15); color:#d97706; border:1px solid rgba(245,158,11,0.3); font-weight:700;"><i class="fa-solid fa-circle-dot"></i> Open</span>';
@@ -133,6 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper: Compute SLA & Elapsed Live Timer display
     const getSlaTimerHtml = (ticket) => {
+        const tb = calculateEmployeeTimeBreakdown(ticket);
+
         if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
             let resDateStr = '';
             const resTimeRaw = ticket.resolved_at || ticket.updated_at;
@@ -142,23 +306,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     resD.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
             }
 
-            let durText = '';
-            const startMsRaw = ticket.started_resolving_at || ticket.created_at;
-            if (ticket.resolved_at && startMsRaw) {
-                const diff = Math.abs(new Date(ticket.resolved_at).getTime() - new Date(startMsRaw).getTime());
-                const rH = Math.floor(diff / 3600000);
-                const rM = Math.floor((diff % 3600000) / 60000);
-                const rS = Math.floor((diff % 60000) / 1000);
-                if (rH > 0) durText = `${rH}h ${rM}m`;
-                else if (rM > 0) durText = `${rM} min`;
-                else durText = `${Math.max(1, rS)}s`;
+            let breakdownBadges = '';
+            if (tb.breakdown && tb.breakdown.length > 1) {
+                breakdownBadges = `
+                    <div style="font-size:10.5px; color:#4338ca; font-weight:700; margin-top:3px; display:flex; flex-wrap:wrap; gap:3px;">
+                        ${tb.breakdown.map(b => `<span style="background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.2); padding:1px 5px; border-radius:4px;" title="${b.name}: ${b.formatted} (${b.percent}%)">${b.name.trim().split(' ')[0]}: ${b.formatted}</span>`).join('')}
+                    </div>
+                `;
             }
 
             return `<div style="font-size:12px; line-height:1.4;">
                 <span style="color:#16a34a; font-weight:700; display:flex; align-items:center; gap:4px;">
-                    <i class="fa-solid fa-circle-check"></i> Resolved${durText ? ` (${durText})` : ''}
+                    <i class="fa-solid fa-circle-check"></i> Resolved (${tb.totalFormatted})
                 </span>
                 ${resDateStr ? `<span style="font-size:11px; color:#475569; font-weight:600; display:block; margin-top:2px;"><i class="fa-regular fa-calendar-check" style="color:#16a34a;"></i> ${resDateStr}</span>` : ''}
+                ${breakdownBadges}
             </div>`;
         }
 
@@ -166,23 +328,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
             createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
-        const startMs = new Date(startTimeRaw).getTime();
+        // BEFORE START: Do not run active timer! Show Ready to Start
+        if (ticket.status !== 'In Progress' && !ticket.started_resolving_at) {
+            return `<div class="live-ticket-timer" data-started="" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+                <div style="font-weight:700; color:#64748b; display:flex; align-items:center; gap:5px;">
+                    <span class="badge" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-weight:700; font-size:11px; padding:2px 7px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                        <i class="fa-regular fa-clock" style="color:#64748b;"></i> Ready to Start
+                    </span>
+                    <span style="font-size:11.5px; font-weight:700; color:#64748b;">00:00:00</span>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
+                    <i class="fa-regular fa-calendar"></i> Logged: ${createdTimeStr}
+                </div>
+            </div>`;
+        }
+
+        // IN PROGRESS: Resolution timer is actively ticking
+        const startMs = new Date(ticket.started_resolving_at || ticket.created_at).getTime();
         const elapsedMs = Math.max(0, Date.now() - (isNaN(startMs) ? Date.now() : startMs));
         const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
         const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
         const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
 
-        const isResolving = !!ticket.started_resolving_at;
-        const timerColor = isResolving ? '#2563eb' : '#0d9488';
-        const timerIcon = isResolving ? 'fa-solid fa-stopwatch fa-spin' : 'fa-solid fa-stopwatch';
-        const labelText = isResolving ? 'active' : 'elapsed';
-
-        return `<div class="live-ticket-timer" data-started="${ticket.started_resolving_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
-            <div style="font-weight:700; color:${timerColor}; display:flex; align-items:center; gap:4px;">
-                <i class="${timerIcon}" style="${isResolving ? '--fa-animation-duration: 3s;' : ''} color:${timerColor};"></i>
+        return `<div class="live-ticket-timer" data-started="${ticket.started_resolving_at || ticket.created_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+            <div style="font-weight:700; color:#2563eb; display:flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-stopwatch fa-spin" style="--fa-animation-duration: 3s; color:#2563eb;"></i>
                 <span class="live-timer-text">${eH}:${eM}:${eS}</span>
-                <span style="font-size:11px; font-weight:700; color:${timerColor};">${labelText}</span>
+                <span style="font-size:11px; font-weight:700; color:#2563eb;">active</span>
             </div>
             <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
                 <i class="fa-regular fa-clock"></i> Logged: ${createdTimeStr}
@@ -557,7 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const createdDate = new Date(t.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const customerName = t.customer_name || 'Customer';
                 const projName = t.project_name ? `<span style="font-size:11px; color:var(--text-muted); display:block;"><i class="fa-solid fa-diagram-project"></i> ${t.project_name}</span>` : '';
-                const transferTrailBadge = formatTicketTransferTrail(t.transfer_history);
+                const transferTrailBadge = formatTicketTransferTrail(t.transfer_history, { ticket: t });
                 const assigneeColHtml = `
                     <div style="display:flex; flex-direction:column; gap:3px; align-items:flex-start;">
                         ${t.assigned_to_name 
@@ -584,10 +756,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     const badgeBorder = isAllDone ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.3)';
                     chunkBadge = `<span class="badge" style="background:${badgeBg}; color:${badgeColor}; font-size:10.5px; border:1px solid ${badgeBorder}; margin-left:4px; font-weight:700;"><i class="fa-solid fa-layer-group"></i> ${doneChunks}/${totalChunks} Chunks</span>`;
                 }
+                let statusActionBtn = '';
+                if (t.status === 'Open' || t.status === 'Assigned') {
+                    statusActionBtn = `
+                        <button type="button" class="support-tbl-btn tbl-btn-start" onclick="window.startResolvingTicket(${t.id})" title="Start Resolving Ticket">
+                            <i class="fa-solid fa-play"></i> Start
+                        </button>
+                    `;
+                } else if (t.status === 'In Progress') {
+                    statusActionBtn = `
+                        <button type="button" class="support-tbl-btn tbl-btn-resolve" onclick="window.quickResolveTicket(${t.id})" title="Mark Ticket as Resolved">
+                            <i class="fa-solid fa-circle-check"></i> Resolve
+                        </button>
+                    `;
+                } else if (t.status === 'Resolved' || t.status === 'Closed') {
+                    statusActionBtn = `
+                        <button type="button" class="support-tbl-btn tbl-btn-reopen" onclick="window.reopenTicket(${t.id})" title="Reopen Support Ticket">
+                            <i class="fa-solid fa-rotate-left"></i> Reopen
+                        </button>
+                    `;
+                }
 
                 html += `
                     <tr>
-                        <td>
+                        <td style="white-space:nowrap;">
                             <strong style="color:var(--teal-700); font-weight:800; font-size:13px;">${t.ticket_code}</strong>
                             <div style="font-size:11px; color:var(--text-muted);">${createdDate}</div>
                         </td>
@@ -596,7 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${projName}
                         </td>
                         <td>
-                            <div style="font-weight:700; color:var(--teal-950); font-size:13px; margin-bottom:3px;">${t.title}</div>
+                            <div style="font-weight:700; color:var(--teal-950); font-size:13px; margin-bottom:3px; max-width:240px; word-break:break-word;">${t.title}</div>
                             <span class="badge" style="background:rgba(6,182,212,0.12); color:#0891b2; font-size:10.5px; border:1px solid rgba(6,182,212,0.25);">${t.category || 'Bug'}</span>
                             ${sourceBadge}
                             ${attBadge}
@@ -608,31 +800,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         </td>
                         <td>${getStatusBadge(t.status)}</td>
                         <td>${assigneeColHtml}</td>
-                        <td style="white-space:nowrap;">
-                            <div style="display:inline-flex; gap:4px; align-items:center; flex-wrap:nowrap;">
-                                <button type="button" class="btn-secondary" onclick="window.openTicketWorkspace(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Open Ticket Workspace">
-                                    <i class="fa-solid fa-folder-open" style="color:var(--teal-600); font-size:11px;"></i> Open
+                        <td style="white-space:nowrap; text-align:right;">
+                            <div style="display:inline-flex; gap:4px; align-items:center; justify-content:flex-end;">
+                                <button type="button" class="support-tbl-btn tbl-btn-open" onclick="window.openTicketWorkspace(${t.id})" title="Open Ticket Workspace">
+                                    <i class="fa-solid fa-folder-open"></i> Open
                                 </button>
-                                <button type="button" class="btn-secondary" onclick="window.openTransferTicketModal(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(13,148,136,0.1); color:#0f766e; border:1px solid rgba(13,148,136,0.3); height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1;" title="Transfer / Handover Ticket">
-                                    <i class="fa-solid fa-share-nodes" style="font-size:10px;"></i> Transfer
+                                <button type="button" class="support-tbl-btn tbl-btn-transfer" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                                    <i class="fa-solid fa-share-nodes"></i> Transfer
                                 </button>
-                                ${t.status === 'Open' || t.status === 'Assigned' ? `
-                                <button type="button" class="btn-primary" style="padding:4px 8px; font-size:11px; font-weight:800; background:#0d9488; border-color:#0d9488; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.startResolvingTicket(${t.id})">
-                                    <i class="fa-solid fa-play" style="font-size:10px;"></i> Start
-                                </button>` : ''}
-                                ${t.status === 'In Progress' ? `
-                                <button type="button" class="btn-primary" style="padding:4px 8px; font-size:11px; font-weight:800; background:#16a34a; border-color:#16a34a; height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" onclick="window.quickResolveTicket(${t.id})">
-                                    <i class="fa-solid fa-circle-check" style="font-size:11px;"></i> Resolve
-                                </button>` : ''}
-                                ${t.status === 'Resolved' || t.status === 'Closed' ? `
-                                <button type="button" class="btn-secondary" onclick="window.reopenTicket(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:800; background:rgba(234,88,12,0.12); color:#ea580c; border:1px solid rgba(234,88,12,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Reopen Support Ticket">
-                                    <i class="fa-solid fa-rotate-left" style="font-size:10.5px;"></i> Reopen
-                                </button>` : ''}
-                                <button type="button" class="btn-secondary" onclick="window.openEditTicketModal(${t.id})" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(217,119,6,0.1); color:#d97706; border:1px solid rgba(217,119,6,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Edit Support Ticket">
-                                    <i class="fa-solid fa-pen-to-square" style="font-size:10.5px;"></i> Edit
+                                ${statusActionBtn}
+                                <button type="button" class="support-tbl-btn support-tbl-btn-icon tbl-btn-edit" onclick="window.openEditTicketModal(${t.id})" title="Edit Support Ticket">
+                                    <i class="fa-solid fa-pen-to-square"></i>
                                 </button>
-                                <button type="button" class="btn-secondary" onclick="window.deleteSupportTicket(${t.id}, '${t.ticket_code}')" style="padding:4px 8px; font-size:11px; font-weight:700; background:rgba(239,68,68,0.12); color:#dc2626; border:1px solid rgba(239,68,68,0.3); height:26px; display:inline-flex; align-items:center; gap:3.5px; border-radius:6px; line-height:1;" title="Delete Ticket">
-                                    <i class="fa-solid fa-trash" style="font-size:10.5px;"></i>
+                                <button type="button" class="support-tbl-btn support-tbl-btn-icon tbl-btn-delete" onclick="window.deleteSupportTicket(${t.id}, '${t.ticket_code}')" title="Delete Ticket">
+                                    <i class="fa-solid fa-trash"></i>
                                 </button>
                             </div>
                         </td>
@@ -1071,13 +1252,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const t = data.data;
 
-            // Header info
+            // Header info & Contact Person extraction
             const codeEl = document.getElementById('view-ticket-code');
             const titleEl = document.getElementById('view-ticket-title');
             const subEl = document.getElementById('view-ticket-sub');
             if (codeEl) codeEl.textContent = t.ticket_code;
             if (titleEl) titleEl.textContent = t.title;
-            if (subEl) subEl.textContent = `Reported by ${t.reported_by || 'Customer'} on ${new Date(t.created_at).toLocaleString()}`;
+
+            const cp = t.contact_person || {};
+            const contactName = cp.name || t.reported_by || 'Customer Representative';
+            const contactPhone = cp.phone || t.customer_phone || '';
+            const contactEmail = cp.email || t.customer_email || '';
+            const contactBranch = cp.branch || '';
+            const contactSource = cp.source || t.source || 'Web';
+            const contactRole = cp.designation || 'Client Representative';
+
+            if (subEl) {
+                let subHtml = `Reported by <strong style="color:#0f172a;">${contactName}</strong>`;
+                if (contactPhone) {
+                    subHtml += ` • <i class="fa-solid fa-phone" style="font-size:11px; color:#0d9488;"></i> <a href="tel:${contactPhone}" style="color:#0f172a; text-decoration:none; font-weight:700;">${contactPhone}</a>`;
+                }
+                if (contactEmail) {
+                    subHtml += ` • <i class="fa-solid fa-envelope" style="font-size:11px; color:#0284c7;"></i> <a href="mailto:${contactEmail}" style="color:#0284c7; text-decoration:none; font-weight:700;">${contactEmail}</a>`;
+                }
+                subHtml += ` on ${new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+                subEl.innerHTML = subHtml;
+            }
 
             // Details & Attachments
             const descEl = document.getElementById('view-ticket-description');
@@ -1168,7 +1368,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (Array.isArray(thList) && thList.length > 0) {
                     trailBox.style.display = 'block';
                     if (trailCountBadge) trailCountBadge.textContent = `${thList.length} transfer${thList.length > 1 ? 's' : ''}`;
-                    trailContent.innerHTML = formatTicketTransferTrail(thList, { layout: 'details' });
+                    trailContent.innerHTML = formatTicketTransferTrail(thList, { layout: 'details', ticket: t });
                 } else {
                     trailBox.style.display = 'none';
                 }
@@ -1183,6 +1383,87 @@ document.addEventListener('DOMContentLoaded', () => {
             if (metaProj) metaProj.textContent = t.project_name || 'None / General';
             if (metaCat) metaCat.innerHTML = `<span class="badge" style="background:#f0fdfa; color:#0f766e; border:1.5px solid #99f6e4; font-weight:700; font-size:12px; padding:3px 8px; border-radius:6px;">${t.category || 'Bug'}</span>`;
             if (metaPri) metaPri.innerHTML = getPriorityBadge(t.priority);
+
+            // Populate Raised By / Contact Person Card
+            const cNameEl = document.getElementById('meta-contact-name');
+            const cRoleEl = document.getElementById('meta-contact-role');
+            const cAvatarEl = document.getElementById('meta-contact-avatar');
+            const cBranchWrap = document.getElementById('meta-contact-branch-wrap');
+            const cBranchVal = document.getElementById('meta-contact-branch-val');
+            const cPhoneLink = document.getElementById('meta-contact-phone-link');
+            const cWaLink = document.getElementById('meta-contact-wa-link');
+            const cEmailLink = document.getElementById('meta-contact-email-link');
+            const cSourceBadge = document.getElementById('meta-contact-source-badge');
+
+            if (cNameEl) cNameEl.textContent = contactName;
+            if (cRoleEl) cRoleEl.textContent = contactRole;
+            if (cAvatarEl) cAvatarEl.textContent = (contactName.trim().charAt(0) || 'C').toUpperCase();
+
+            if (cBranchWrap && cBranchVal) {
+                if (contactBranch) {
+                    cBranchWrap.style.display = 'flex';
+                    cBranchVal.textContent = contactBranch;
+                } else {
+                    cBranchWrap.style.display = 'none';
+                }
+            }
+
+            if (cPhoneLink) {
+                if (contactPhone) {
+                    cPhoneLink.textContent = contactPhone;
+                    cPhoneLink.href = `tel:${contactPhone}`;
+                    cPhoneLink.style.pointerEvents = 'auto';
+                } else {
+                    cPhoneLink.textContent = 'Not Provided';
+                    cPhoneLink.href = '#';
+                    cPhoneLink.style.pointerEvents = 'none';
+                }
+            }
+
+            if (cWaLink) {
+                const cleanDigits = String(contactPhone).replace(/\D/g, '');
+                if (cleanDigits && cleanDigits.length >= 10) {
+                    let waNumber = cleanDigits;
+                    if (waNumber.length === 10) waNumber = '91' + waNumber;
+                    else if (waNumber.startsWith('0')) waNumber = '91' + waNumber.substring(1);
+                    cWaLink.href = `https://wa.me/${waNumber}`;
+                    cWaLink.style.display = 'inline-flex';
+                } else {
+                    cWaLink.style.display = 'none';
+                }
+            }
+
+            if (cEmailLink) {
+                if (contactEmail) {
+                    cEmailLink.textContent = contactEmail;
+                    cEmailLink.href = `mailto:${contactEmail}`;
+                    cEmailLink.style.pointerEvents = 'auto';
+                } else {
+                    cEmailLink.textContent = 'Not Provided';
+                    cEmailLink.href = '#';
+                    cEmailLink.style.pointerEvents = 'none';
+                }
+            }
+
+            if (cSourceBadge) {
+                const srcUpper = String(contactSource || 'Web').toUpperCase();
+                if (srcUpper.includes('WHATSAPP')) {
+                    cSourceBadge.innerHTML = '<i class="fa-brands fa-whatsapp"></i> WhatsApp';
+                    cSourceBadge.style.background = '#dcfce7';
+                    cSourceBadge.style.color = '#15803d';
+                    cSourceBadge.style.borderColor = '#86efac';
+                } else if (srcUpper.includes('EMAIL') || srcUpper.includes('MAIL')) {
+                    cSourceBadge.innerHTML = '<i class="fa-regular fa-envelope"></i> Email';
+                    cSourceBadge.style.background = '#e0f2fe';
+                    cSourceBadge.style.color = '#0369a1';
+                    cSourceBadge.style.borderColor = '#7dd3fc';
+                } else {
+                    cSourceBadge.innerHTML = '<i class="fa-solid fa-globe"></i> Web Portal';
+                    cSourceBadge.style.background = '#f0fdfa';
+                    cSourceBadge.style.color = '#0f766e';
+                    cSourceBadge.style.borderColor = '#99f6e4';
+                }
+            }
 
             // Wire up Admin Transfer Ticket buttons
             const btnTransferAdmin = document.getElementById('btn-transfer-ticket-admin');
@@ -1221,6 +1502,36 @@ document.addEventListener('DOMContentLoaded', () => {
             // SLA Timer Display
             const slaEl = document.getElementById('meta-sla-countdown');
             if (slaEl) slaEl.innerHTML = getSlaTimerHtml(t);
+
+            // Assignee Work Time Breakdown Display
+            const empTimeBox = document.getElementById('meta-employee-time-box');
+            const empTimeTotal = document.getElementById('meta-employee-time-total');
+            const empTimeList = document.getElementById('meta-employee-time-list');
+
+            if (empTimeBox && empTimeList) {
+                const tb = calculateEmployeeTimeBreakdown(t);
+                if (tb && Array.isArray(tb.breakdown) && tb.breakdown.length > 0) {
+                    empTimeBox.style.display = 'block';
+                    if (empTimeTotal) empTimeTotal.textContent = `Total: ${tb.totalFormatted}`;
+                    empTimeList.innerHTML = tb.breakdown.map(b => `
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:7px 10px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-weight:800; font-size:12px; color:#0f172a; display:flex; align-items:center; gap:5px;">
+                                    <i class="fa-solid fa-user-gear" style="font-size:11px; color:#0d9488;"></i> ${b.name}
+                                </span>
+                                <span style="font-weight:800; font-size:12px; color:#0d9488;">
+                                    ${b.formatted} <span style="font-size:10.5px; color:#64748b; font-weight:600;">(${b.percent}%)</span>
+                                </span>
+                            </div>
+                            <div style="width:100%; height:5px; background:#f1f5f9; border-radius:3px; overflow:hidden;">
+                                <div style="width:${b.percent}%; height:100%; background:linear-gradient(90deg, #0d9488, #10b981); border-radius:3px;"></div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    empTimeBox.style.display = 'none';
+                }
+            }
 
             // Render Conversation Thread
             const commentsContainer = document.getElementById('workspace-comments-list');
@@ -2196,14 +2507,13 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(() => {
             document.querySelectorAll('.live-ticket-timer').forEach(el => {
                 const status = el.getAttribute('data-status');
-                if (status === 'Resolved' || status === 'Closed') return;
+                // Only tick live for active In Progress tickets
+                if (status !== 'In Progress') return;
 
                 const startedStr = el.getAttribute('data-started');
-                const createdStr = el.getAttribute('data-created');
-                const effectiveTimeStr = startedStr || createdStr;
-                if (!effectiveTimeStr) return;
+                if (!startedStr) return;
 
-                const startMs = new Date(effectiveTimeStr).getTime();
+                const startMs = new Date(startedStr).getTime();
                 if (isNaN(startMs)) return;
 
                 const elapsedMs = Math.max(0, Date.now() - startMs);

@@ -107,6 +107,22 @@ export async function getMonthlyPayroll(req, res) {
             console.warn("Payroll holidays fetch warning:", hErr.message);
         }
 
+        // 4b. Fetch Out Entries for this month
+        const outEntryMap = new Map(); // key: `${empId}_${date_str}`
+        try {
+            const outRes = await pool.query(`
+                SELECT employee_id, date::text as d_str, purpose, destination, status
+                FROM out_entries
+                WHERE date >= $1 AND date <= $2;
+            `, [startDate, endDate]);
+            outRes.rows.forEach(oe => {
+                const dStr = oe.d_str.split('T')[0];
+                outEntryMap.set(`${oe.employee_id}_${dStr}`, oe);
+            });
+        } catch (oeErr) {
+            console.warn("Payroll out_entries fetch warning:", oeErr.message);
+        }
+
         // 5. Fetch Workstation Activity Telemetry (Live Teramind / Historical pcs_attendance_sheet / attendance_user_rtp)
         const compActivityMap = new Map(); // key: `${compKey}_${dateStr}` -> { totalSecs: number, count: number }
 
@@ -296,9 +312,11 @@ export async function getMonthlyPayroll(req, res) {
                         countL++;
                     }
                 }
+                const isOutEntry = outEntryMap.get(`${emp.id}_${dateStr}`);
+
                 // 4. Real Attendance from DB
-                else if (dbAtt) {
-                    if (dbAtt.status === 'Present' || dbAtt.status === 'Late' || dbAtt.status === 'Auto-Synced') {
+                if (dbAtt) {
+                    if (dbAtt.status === 'Present' || dbAtt.status === 'Late' || dbAtt.status === 'Auto-Synced' || dbAtt.status === 'Out Entry' || isOutEntry) {
                         code = 'P';
                         countP++;
                     } else if (dbAtt.status === 'Half Day') {
@@ -313,6 +331,12 @@ export async function getMonthlyPayroll(req, res) {
                     } else if (dbAtt.status === 'Absent') {
                         if (isFuture) {
                             code = '—';
+                        } else if (isOutEntry) {
+                            code = 'P';
+                            countP++;
+                        } else if ((emp.designation && emp.designation.toLowerCase().includes('board')) || emp.id === 18) {
+                            code = 'P';
+                            countP++;
                         } else {
                             code = 'A';
                             countA++;
@@ -320,6 +344,9 @@ export async function getMonthlyPayroll(req, res) {
                     } else {
                         if (isFuture) {
                             code = '—';
+                        } else if (isOutEntry) {
+                            code = 'P';
+                            countP++;
                         } else {
                             code = 'A';
                             countA++;
@@ -339,6 +366,20 @@ export async function getMonthlyPayroll(req, res) {
                         totalWorkedHours += (actData.totalSecs / 3600);
                     } else if (rtp && rtp.total_seconds > 0) {
                         totalWorkedHours += (rtp.total_seconds / 3600);
+                    }
+                }
+                // 5b. Out Entry duty movement fallback
+                else if (isOutEntry) {
+                    code = 'P';
+                    countP++;
+                }
+                // 5c. Executive Board exempt from workstation punching
+                else if ((emp.designation && emp.designation.toLowerCase().includes('board')) || emp.id === 18) {
+                    if (isFuture) {
+                        code = '—';
+                    } else {
+                        code = 'P';
+                        countP++;
                     }
                 }
                 // 6. Future Date (Not yet reached) -> Dash (—) (Zero deduction, not absent)

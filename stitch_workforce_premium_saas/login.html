@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260922_3">
 <style>
   .login-wrapper {
     display: flex;
@@ -30,20 +30,19 @@
     text-align: center;
   }
   .login-logo {
-    width: 76px;
-    height: 76px;
-    border-radius: 18px;
-    background-color: #ffffff;
-    background-image: url('assets/logo.png');
+    width: 68px;
+    height: 68px;
+    border-radius: 14px;
+    background-image: url('/assets/logo.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 16px;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
-    border: 2px solid rgba(255, 255, 255, 0.8);
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.4);
     overflow: hidden;
   }
   .login-logo img {
@@ -468,7 +467,7 @@
 <div class="login-wrapper">
   <div class="login-card glass">
     <div class="login-logo">
-      <img src="assets/logo.png" alt="EMS Logo" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='logo.png';}">
+      <img src="/assets/logo.jpg" alt="PCS Logo" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='logo.jpg';}">
     </div>
     <h2 id="login-brand-title">PCS Enterprise</h2>
     <p id="login-brand-subtitle">Sign in to access the portal</p>

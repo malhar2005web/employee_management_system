@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Support Desk &amp; Issue Resolution — PCS Enterprise</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260922_3">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
@@ -277,6 +277,156 @@
       color: #0284c7;
       border: 1px solid rgba(14, 165, 233, 0.3);
       font-weight: 600;
+    }
+
+    /* Support Table Wrapper & Responsive Card Layout Directives */
+    .card.glass-card {
+      width: 100% !important;
+      box-sizing: border-box !important;
+      overflow: hidden !important;
+    }
+
+    .table-wrapper {
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+
+    .table-wrapper::-webkit-scrollbar {
+      height: 7px;
+    }
+    .table-wrapper::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.03);
+      border-radius: 4px;
+    }
+    .table-wrapper::-webkit-scrollbar-thumb {
+      background: rgba(13, 148, 136, 0.3);
+      border-radius: 4px;
+    }
+    .table-wrapper::-webkit-scrollbar-thumb:hover {
+      background: rgba(13, 148, 136, 0.55);
+    }
+
+    #tickets-table {
+      width: 100% !important;
+      min-width: 960px;
+      border-collapse: separate !important;
+      border-spacing: 0 !important;
+    }
+
+    #tickets-table thead th {
+      padding: 12px 10px !important;
+      font-size: 11.5px !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.5px;
+      color: #475569 !important;
+      background: rgba(248, 250, 252, 0.85);
+      border-bottom: 2px solid #e2e8f0 !important;
+      white-space: nowrap;
+    }
+
+    #tickets-table tbody td {
+      padding: 9px 10px !important;
+      font-size: 13px !important;
+      border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
+      vertical-align: middle;
+    }
+
+    /* Compact, High-Precision Action Buttons (Overrides style.css !important) */
+    .support-tbl-btn {
+      padding: 4px 8px !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      height: 26px !important;
+      min-height: 26px !important;
+      line-height: 1 !important;
+      border-radius: 6px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 3.5px !important;
+      cursor: pointer !important;
+      transition: all 0.15s ease !important;
+      box-shadow: none !important;
+      white-space: nowrap !important;
+      border: 1px solid transparent !important;
+      text-decoration: none !important;
+    }
+
+    .support-tbl-btn-icon {
+      width: 26px !important;
+      min-width: 26px !important;
+      padding: 0 !important;
+    }
+
+    .tbl-btn-open {
+      background: #f1f5f9 !important;
+      color: #0f766e !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+    .tbl-btn-open:hover {
+      background: #e2e8f0 !important;
+      color: #0d9488 !important;
+    }
+
+    .tbl-btn-transfer {
+      background: rgba(13, 148, 136, 0.1) !important;
+      color: #0f766e !important;
+      border: 1px solid rgba(13, 148, 136, 0.3) !important;
+    }
+    .tbl-btn-transfer:hover {
+      background: rgba(13, 148, 136, 0.2) !important;
+    }
+
+    .tbl-btn-start {
+      background: #0d9488 !important;
+      color: #ffffff !important;
+      border: 1px solid #0d9488 !important;
+      font-weight: 800 !important;
+    }
+    .tbl-btn-start:hover {
+      background: #0f766e !important;
+    }
+
+    .tbl-btn-resolve {
+      background: #16a34a !important;
+      color: #ffffff !important;
+      border: 1px solid #16a34a !important;
+      font-weight: 800 !important;
+    }
+    .tbl-btn-resolve:hover {
+      background: #15803d !important;
+    }
+
+    .tbl-btn-reopen {
+      background: rgba(234, 88, 12, 0.12) !important;
+      color: #ea580c !important;
+      border: 1px solid rgba(234, 88, 12, 0.3) !important;
+      font-weight: 800 !important;
+    }
+    .tbl-btn-reopen:hover {
+      background: rgba(234, 88, 12, 0.22) !important;
+    }
+
+    .tbl-btn-edit {
+      background: rgba(217, 119, 6, 0.1) !important;
+      color: #d97706 !important;
+      border: 1px solid rgba(217, 119, 6, 0.3) !important;
+    }
+    .tbl-btn-edit:hover {
+      background: rgba(217, 119, 6, 0.2) !important;
+    }
+
+    .tbl-btn-delete {
+      background: rgba(239, 68, 68, 0.12) !important;
+      color: #dc2626 !important;
+      border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    }
+    .tbl-btn-delete:hover {
+      background: rgba(239, 68, 68, 0.22) !important;
     }
 
     /* HIGH CONTRAST PALETTE TOKENS DIRECTIVE */
@@ -984,7 +1134,7 @@
                 <th>Priority &amp; Time Elapsed</th>
                 <th>Status</th>
                 <th>Assigned To</th>
-                <th style="white-space:nowrap; min-width:210px;">Actions</th>
+                <th style="white-space:nowrap; text-align:right; width:230px;">Actions</th>
               </tr>
             </thead>
             <tbody id="tickets-list">
@@ -1255,6 +1405,49 @@
               <span style="color:#64748b; font-weight:600; font-size:12px;">Project:</span>
               <div id="meta-project-name" style="font-weight:700; color:#0f172a; font-size:13.5px;">-</div>
             </div>
+
+            <!-- Raised By / Contact Person Card -->
+            <div id="meta-contact-card" style="margin-top:10px; margin-bottom:12px; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border:1.5px solid #cbd5e1; border-radius:10px; padding:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:11px; font-weight:800; color:#0f766e; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:5px;">
+                  <i class="fa-solid fa-user-tie"></i> Raised By / Contact
+                </span>
+                <span id="meta-contact-source-badge" class="badge" style="background:#f0fdfa; color:#0f766e; border:1px solid #99f6e4; font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px;">Web Portal</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                <div id="meta-contact-avatar" style="width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg, #0d9488, #0f766e); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0; box-shadow:0 2px 4px rgba(13,148,136,0.25);">
+                  T
+                </div>
+                <div style="min-width:0; flex:1;">
+                  <div id="meta-contact-name" style="font-weight:800; color:#0f172a; font-size:13.5px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">-</div>
+                  <div id="meta-contact-role" style="font-size:11px; color:#64748b; font-weight:600;">Contact Person • Client Rep</div>
+                </div>
+              </div>
+              
+              <!-- Branch / Plant -->
+              <div id="meta-contact-branch-wrap" style="display:flex; align-items:center; gap:6px; font-size:12px; color:#334155; margin-bottom:6px;">
+                <i class="fa-solid fa-industry" style="color:#64748b; width:14px; text-align:center;"></i>
+                <span style="color:#64748b; font-weight:600;">Branch:</span>
+                <span id="meta-contact-branch-val" style="font-weight:700; color:#0f172a;">-</span>
+              </div>
+
+              <!-- Phone & WhatsApp -->
+              <div id="meta-contact-phone-wrap" style="display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:12px; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; text-overflow:ellipsis;">
+                  <i class="fa-solid fa-phone" style="color:#0d9488; width:14px; text-align:center;"></i>
+                  <a id="meta-contact-phone-link" href="#" style="color:#0f172a; font-weight:700; text-decoration:none;">-</a>
+                </div>
+                <a id="meta-contact-wa-link" href="#" target="_blank" rel="noopener noreferrer" style="background:#22c55e; color:#fff; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; text-decoration:none; display:none; align-items:center; gap:4px; flex-shrink:0;">
+                  <i class="fa-brands fa-whatsapp"></i> Chat
+                </a>
+              </div>
+
+              <!-- Email -->
+              <div id="meta-contact-email-wrap" style="display:flex; align-items:center; gap:6px; font-size:12px;">
+                <i class="fa-solid fa-envelope" style="color:#0284c7; width:14px; text-align:center;"></i>
+                <a id="meta-contact-email-link" href="#" style="color:#0284c7; font-weight:700; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">-</a>
+              </div>
+            </div>
             <div style="font-size:13px; margin-bottom:8px; display:flex; flex-direction:column; gap:4px;">
               <span style="color:#64748b; font-weight:600; font-size:12px;">Category:</span>
               <div id="meta-category-badge"><span class="badge"
@@ -1302,8 +1495,22 @@
               style="font-size:13px; font-weight:800; color:#0f172a; margin:0 0 10px 0; display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:0.5px;">
               <i class="fa-solid fa-stopwatch" style="color:#0f766e;"></i> Time Elapsed &amp; Resolution
             </h4>
-            <div id="meta-sla-countdown" style="font-size:13px; font-weight:700; color:#0f172a;">
+            <div id="meta-sla-countdown" style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">
               Calculating...
+            </div>
+
+            <!-- Employee Work Time Breakdown Box -->
+            <div id="meta-employee-time-box" style="display:none; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border:1.5px solid #cbd5e1; border-radius:10px; padding:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:11px; font-weight:800; color:#0f766e; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:5px;">
+                  <i class="fa-solid fa-user-clock"></i> Assignee Time Breakdown
+                </span>
+                <span id="meta-employee-time-total" style="font-size:11px; font-weight:800; color:#0f172a; background:#e2e8f0; padding:2px 8px; border-radius:6px;">Total: 0m</span>
+              </div>
+              <div id="meta-employee-time-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+              <div style="margin-top:8px; padding-top:6px; border-top:1px dashed #cbd5e1; font-size:10.5px; color:#16a34a; font-weight:700; display:flex; align-items:center; gap:4px;">
+                <i class="fa-solid fa-circle-check"></i> Total Duration matches sum of all assignee times (100%)
+              </div>
             </div>
           </div>
 
@@ -1595,7 +1802,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=2.3"></script>
+  <script src="script.js?v=20260922_3"></script>
   <script src="support.js?v=2.3"></script>
 </body>
 

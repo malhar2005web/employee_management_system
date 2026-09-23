@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-import { sendWhatsAppTemplate, sanitizePhoneNumber } from '../services/whatsapp.service.js';
+import { sendWhatsAppTemplate, sendWhatsAppText, sanitizePhoneNumber } from '../services/whatsapp.service.js';
 
 async function notifyOutEntryWhatsApp(employeeId, purpose, outTime, reason, destination) {
     try {
@@ -30,7 +30,7 @@ async function notifyOutEntryWhatsApp(employeeId, purpose, outTime, reason, dest
 }
 
 /**
- * Get out entries / gate passes with filtering and live metrics
+ * Get out entries / gate passes with filtering, live metrics and location tracking
  */
 export async function getOutEntries(req, res) {
     try {
@@ -86,6 +86,20 @@ export async function getOutEntries(req, res) {
                 oe.approved_by,
                 oe.remarks,
                 oe.created_at,
+                oe.visit_otp,
+                oe.otp_sent_to,
+                oe.otp_verified_at,
+                oe.visit_started_at,
+                oe.customer_id,
+                oe.branch_name,
+                oe.target_latitude,
+                oe.target_longitude,
+                oe.target_address,
+                oe.last_latitude,
+                oe.last_longitude,
+                oe.last_location_address,
+                oe.last_tracked_at,
+                COALESCE(c.name, '') as customer_name,
                 COALESCE(e.full_name, 'Unknown') as employee_name,
                 e.employee_code,
                 COALESCE(d.name, 'General') as department,
@@ -96,6 +110,7 @@ export async function getOutEntries(req, res) {
             LEFT JOIN departments d ON e.department_id = d.id
             LEFT JOIN designations des ON e.designation_id = des.id
             LEFT JOIN employees app ON oe.approved_by = app.id
+            LEFT JOIN customers c ON oe.customer_id = c.id
             ${whereSql}
             ORDER BY oe.date DESC, oe.out_time DESC, oe.id DESC;
         `;
@@ -145,7 +160,10 @@ export async function getOutEntries(req, res) {
  */
 export async function createOutEntry(req, res) {
     try {
-        const { employeeId, date, outTime, inTime, purpose, destination, reason, remarks } = req.body;
+        const { 
+            employeeId, date, outTime, inTime, purpose, destination, reason, remarks,
+            customerId, branchName, targetLatitude, targetLongitude, targetAddress 
+        } = req.body;
         const user = req.user;
 
         let targetEmployeeId = employeeId ? parseInt(employeeId, 10) : null;
@@ -176,8 +194,9 @@ export async function createOutEntry(req, res) {
         const query = `
             INSERT INTO out_entries (
                 employee_id, date, out_time, in_time, duration_minutes,
-                purpose, destination, reason, status, approved_by, remarks
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                purpose, destination, reason, status, approved_by, remarks,
+                customer_id, branch_name, target_latitude, target_longitude, target_address
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING *;
         `;
 
@@ -192,7 +211,12 @@ export async function createOutEntry(req, res) {
             reason || null,
             status,
             approvedBy,
-            remarks || null
+            remarks || null,
+            customerId ? parseInt(customerId, 10) : null,
+            branchName || null,
+            targetLatitude ? parseFloat(targetLatitude) : null,
+            targetLongitude ? parseFloat(targetLongitude) : null,
+            targetAddress || null
         ];
 
         const { rows } = await pool.query(query, values);
@@ -260,7 +284,7 @@ export async function markReturnInTime(req, res) {
 }
 
 /**
- * Approve or Reject Out Entry
+ * Approve or Reject Out Entry (Generates Visit OTP on Approval & dispatches WhatsApp to Customer)
  */
 export async function updateOutEntryStatus(req, res) {
     try {
@@ -274,20 +298,82 @@ export async function updateOutEntryStatus(req, res) {
 
         const approverId = (user && user.employee_id) ? user.employee_id : (user ? user.id : null);
 
+        // Fetch existing entry details
+        const currEntryRes = await pool.query(`
+            SELECT oe.*, e.full_name as employee_name 
+            FROM out_entries oe 
+            LEFT JOIN employees e ON oe.employee_id = e.id 
+            WHERE oe.id = $1
+        `, [id]);
+        
+        if (currEntryRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Out entry not found" });
+        }
+        const currEntry = currEntryRes.rows[0];
+
+        let visitOtp = currEntry.visit_otp;
+        let otpSentTo = currEntry.otp_sent_to;
+
+        // Generate 4-digit OTP if status is Approved (or Out) and no OTP generated yet
+        if (status === 'Approved' && !visitOtp) {
+            visitOtp = String(Math.floor(1000 + Math.random() * 9000));
+
+            // If entry is linked to a customer, look up contact person for WhatsApp notification
+            if (currEntry.customer_id) {
+                try {
+                    const custRes = await pool.query(
+                        `SELECT id, name, branches, contact_persons FROM customers WHERE id = $1`, 
+                        [currEntry.customer_id]
+                    );
+                    if (custRes.rows.length > 0) {
+                        const cust = custRes.rows[0];
+                        let contactPhone = null;
+                        let contactName = null;
+
+                        // 1. Check matching branch contact first
+                        if (cust.branches && Array.isArray(cust.branches)) {
+                            const bMatch = cust.branches.find(b => b.branch === currEntry.branch_name);
+                            if (bMatch && bMatch.contacts && bMatch.contacts.length > 0) {
+                                contactPhone = bMatch.contacts[0].phone;
+                                contactName = bMatch.contacts[0].name;
+                            }
+                        }
+
+                        // 2. Fallback to top-level contact persons
+                        if (!contactPhone && cust.contact_persons && Array.isArray(cust.contact_persons) && cust.contact_persons.length > 0) {
+                            contactPhone = cust.contact_persons[0].phone;
+                            contactName = cust.contact_persons[0].name;
+                        }
+
+                        if (contactPhone) {
+                            otpSentTo = contactPhone;
+                            const empName = currEntry.employee_name || 'Our Representative';
+                            const msg = `Hello ${contactName || 'Customer'},\n\nOur representative *${empName}* from PCS Enterprise is visiting your office for *${currEntry.purpose}*.\n\nYour 4-Digit Visit Verification OTP is: *${visitOtp}*\n\nPlease share this OTP with our representative upon arrival to start the visit.\n\nBest regards,\nPCS Admin Team`;
+                            
+                            // Send WhatsApp message asynchronously
+                            sendWhatsAppText(contactPhone, msg)
+                                .then(() => console.log(`✅ Visit OTP ${visitOtp} sent to client ${contactPhone}`))
+                                .catch(err => console.warn(`⚠️ Failed to send OTP to WhatsApp (${contactPhone}):`, err.message));
+                        }
+                    }
+                } catch (cErr) {
+                    console.error("Error finding customer contact for OTP:", cErr);
+                }
+            }
+        }
+
         const updateRes = await pool.query(`
             UPDATE out_entries
             SET 
                 status = $1,
                 approved_by = $2,
                 remarks = COALESCE($3, remarks),
+                visit_otp = COALESCE($4, visit_otp),
+                otp_sent_to = COALESCE($5, otp_sent_to),
                 updated_at = NOW()
-            WHERE id = $4
+            WHERE id = $6
             RETURNING *;
-        `, [status, approverId, remarks || null, id]);
-
-        if (updateRes.rows.length === 0) {
-            return res.status(404).json({ success: false, message: "Out entry not found" });
-        }
+        `, [status, approverId, remarks || null, visitOtp, otpSentTo, id]);
 
         res.status(200).json({
             success: true,
@@ -297,6 +383,93 @@ export async function updateOutEntryStatus(req, res) {
     } catch (error) {
         console.error("Error in updateOutEntryStatus:", error);
         res.status(500).json({ success: false, message: "Failed to update status", error: error.message });
+    }
+}
+
+/**
+ * Track live employee location (called periodically every 5 minutes from mobile/web)
+ */
+export async function trackLocation(req, res) {
+    try {
+        const { id } = req.params;
+        const { latitude, longitude, address } = req.body;
+
+        if (latitude === undefined || longitude === undefined) {
+            return res.status(400).json({ success: false, message: "Latitude and longitude are required" });
+        }
+
+        const updateRes = await pool.query(`
+            UPDATE out_entries
+            SET 
+                last_latitude = $1,
+                last_longitude = $2,
+                last_location_address = COALESCE($3, last_location_address),
+                last_tracked_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $4
+            RETURNING id, employee_id, last_latitude, last_longitude, last_location_address, last_tracked_at;
+        `, [latitude, longitude, address || null, id]);
+
+        if (updateRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Out entry not found" });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Location tracked successfully",
+            data: updateRes.rows[0]
+        });
+    } catch (error) {
+        console.error("Error in trackLocation:", error);
+        res.status(500).json({ success: false, message: "Failed to track location", error: error.message });
+    }
+}
+
+/**
+ * Verify 4-Digit Visit OTP upon arriving at client location
+ */
+export async function verifyVisitOtp(req, res) {
+    try {
+        const { id } = req.params;
+        const { otp } = req.body;
+
+        if (!otp) {
+            return res.status(400).json({ success: false, message: "4-Digit OTP is required" });
+        }
+
+        const existingRes = await pool.query("SELECT * FROM out_entries WHERE id = $1;", [id]);
+        if (existingRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Out entry not found" });
+        }
+
+        const entry = existingRes.rows[0];
+
+        // Verify OTP
+        const cleanInputOtp = String(otp).trim();
+        const expectedOtp = String(entry.visit_otp || '').trim();
+
+        if (!expectedOtp || cleanInputOtp !== expectedOtp) {
+            return res.status(400).json({ success: false, message: "Invalid OTP. Please check the code provided by the client." });
+        }
+
+        const updateRes = await pool.query(`
+            UPDATE out_entries
+            SET 
+                otp_verified_at = NOW(),
+                visit_started_at = COALESCE(visit_started_at, NOW()),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *;
+        `, [id]);
+
+        res.status(200).json({
+            success: true,
+            message: "Visit OTP verified successfully! Duration timer started.",
+            data: updateRes.rows[0]
+        });
+    } catch (error) {
+        console.error("Error in verifyVisitOtp:", error);
+        res.status(500).json({ success: false, message: "Failed to verify visit OTP", error: error.message });
     }
 }
 

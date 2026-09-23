@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260922_3">
 <style>
   .grid-two-col {
     display: grid;
@@ -263,6 +263,29 @@
         </div>
       </div>
 
+      <!-- Active Client Visit Banner with Live Ticking Timer -->
+      <div id="active-visit-banner" style="display:none; margin-bottom:20px; background:linear-gradient(135deg, rgba(15,118,110,0.12), rgba(13,148,136,0.2)); border:2px solid #0d9488; border-radius:14px; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; box-shadow:0 8px 24px rgba(13,148,136,0.12);">
+        <div style="display:flex; align-items:center; gap:14px;">
+          <div style="width:48px; height:48px; border-radius:12px; background:#0d9488; color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; box-shadow:0 4px 12px rgba(13,148,136,0.35);">
+            <i class="fa-solid fa-stopwatch fa-spin" style="animation-duration: 4s;"></i>
+          </div>
+          <div>
+            <div style="font-size:11.5px; font-weight:800; color:#0f766e; text-transform:uppercase; letter-spacing:0.5px;">Client Visit In Progress</div>
+            <div style="font-size:16px; font-weight:800; color:#0f172a;" id="active-visit-client-name">Acme Corp — Main Branch</div>
+            <div style="font-size:12px; color:#64748b;" id="active-visit-address">5th Floor, Trade Star, Andheri East</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:16px;">
+          <div style="text-align:right;">
+            <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Visit Duration</div>
+            <div style="font-size:26px; font-weight:900; color:#0f766e; font-family:monospace;" id="active-visit-timer">00:00:00</div>
+          </div>
+          <button type="button" class="btn-primary" id="btn-active-visit-return" style="padding:10px 18px; font-weight:800; font-size:13px; border-radius:8px;">
+            <i class="fa-solid fa-clock-rotate-left"></i> End Visit &amp; Return
+          </button>
+        </div>
+      </div>
+
       <!-- Out Entry Table Card -->
       <div class="card table-card">
         <div class="card-head" style="display:flex; justify-content:space-between; align-items:center;">
@@ -387,6 +410,28 @@
         </select>
       </div>
     </div>
+
+    <!-- Client Visit Customer & Branch Selection (Auto Geofencing) -->
+    <div id="client-visit-fields" style="display:none; background:rgba(15,118,110,0.06); padding:10px 12px; border-radius:8px; border:1px solid rgba(15,118,110,0.25); margin-bottom:12px;">
+      <div class="grid-two-col">
+        <div class="form-group" style="margin-bottom:6px;">
+          <label style="font-size:12px; font-weight:800; color:#0f766e;"><i class="fa-solid fa-building"></i> Select Customer</label>
+          <select id="emp-out-customer" style="padding:7px; font-size:12.5px;">
+            <option value="">-- Choose Customer --</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:6px;">
+          <label style="font-size:12px; font-weight:800; color:#0f766e;"><i class="fa-solid fa-code-branch"></i> Customer Branch / Office</label>
+          <select id="emp-out-branch" style="padding:7px; font-size:12.5px;">
+            <option value="">-- Choose Branch --</option>
+          </select>
+        </div>
+      </div>
+      <div id="emp-branch-target-info" style="font-size:11.5px; color:#0f766e; font-weight:600; margin-top:4px; display:none;">
+        <i class="fa-solid fa-location-dot"></i> <span id="emp-target-address-text"></span>
+      </div>
+    </div>
+
     <div class="grid-two-col">
       <div class="form-group">
         <label>Out Time</label>
@@ -408,6 +453,41 @@
     <div class="action-btn-group">
       <button class="btn-secondary" id="close-out-modal-2">Cancel</button>
       <button class="btn-primary" id="submit-out-entry"><i class="fa-solid fa-paper-plane"></i> Submit Out Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= CLIENT VISIT 4-DIGIT OTP VERIFICATION MODAL ================= -->
+<div class="modal-overlay" id="modal-visit-otp" style="display:none; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.7); backdrop-filter:blur(8px); z-index:999999;">
+  <div class="modal-card" style="max-width:440px; width:92%; background:rgba(255,255,255,0.98); backdrop-filter:blur(16px); border-radius:18px; padding:26px; box-shadow:0 25px 60px rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.8); text-align:center;">
+    <div style="width:62px; height:62px; border-radius:50%; background:linear-gradient(135deg, #0d9488, #0f766e); color:#fff; display:flex; align-items:center; justify-content:center; font-size:26px; margin:0 auto 16px; box-shadow:0 8px 20px rgba(13,148,136,0.35);">
+      <i class="fa-solid fa-map-pin"></i>
+    </div>
+    <h3 style="font-size:19px; font-weight:800; color:#0f172a; margin-bottom:6px;">You Have Arrived!</h3>
+    <p style="font-size:13px; color:#475569; margin-bottom:18px; line-height:1.5;">
+      You are at <strong id="visit-modal-client-name" style="color:#0f766e;">Client Office</strong>.<br>
+      Please collect the <strong>4-digit OTP</strong> sent to the client's WhatsApp to initiate your visit duration.
+    </p>
+    
+    <input type="hidden" id="visit-active-entry-id">
+    
+    <!-- 4-digit input fields -->
+    <div style="display:flex; justify-content:center; gap:12px; margin-bottom:16px;">
+      <input type="text" maxlength="1" class="otp-box" id="otp-digit-1" inputmode="numeric" style="width:52px; height:58px; font-size:24px; font-weight:800; text-align:center; border:2px solid #cbd5e1; border-radius:12px; background:#fff; color:#0f766e; outline:none; transition:border-color 0.2s;">
+      <input type="text" maxlength="1" class="otp-box" id="otp-digit-2" inputmode="numeric" style="width:52px; height:58px; font-size:24px; font-weight:800; text-align:center; border:2px solid #cbd5e1; border-radius:12px; background:#fff; color:#0f766e; outline:none; transition:border-color 0.2s;">
+      <input type="text" maxlength="1" class="otp-box" id="otp-digit-3" inputmode="numeric" style="width:52px; height:58px; font-size:24px; font-weight:800; text-align:center; border:2px solid #cbd5e1; border-radius:12px; background:#fff; color:#0f766e; outline:none; transition:border-color 0.2s;">
+      <input type="text" maxlength="1" class="otp-box" id="otp-digit-4" inputmode="numeric" style="width:52px; height:58px; font-size:24px; font-weight:800; text-align:center; border:2px solid #cbd5e1; border-radius:12px; background:#fff; color:#0f766e; outline:none; transition:border-color 0.2s;">
+    </div>
+
+    <div id="visit-otp-error" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:12px; display:none;"></div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <button type="button" class="btn-primary" id="btn-submit-visit-otp" style="width:100%; padding:12px; font-size:15px; font-weight:800; border-radius:10px; display:flex; align-items:center; justify-content:center; gap:8px;">
+        <i class="fa-solid fa-stopwatch"></i> Verify &amp; Start Timer
+      </button>
+      <button type="button" class="btn-secondary" id="btn-close-visit-otp" style="width:100%; padding:9px; font-size:13px; font-weight:600; border-radius:10px;">
+        Close for now
+      </button>
     </div>
   </div>
 </div>
@@ -436,8 +516,8 @@
 </div>
 
 <!-- Scripts -->
-<script src="script.js?v=20260911_1"></script>
-<script src="js/employee-attendance.js?v=20260911_1"></script>
+<script src="script.js?v=20260922_3"></script>
+<script src="js/employee-attendance.js?v=20260923_outentry_v3"></script>
 <script src="js/employee-leave.js?v=20260911_1"></script>
 
 <script>

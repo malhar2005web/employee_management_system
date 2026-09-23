@@ -592,66 +592,87 @@ export async function syncTeramindDataToCache() {
             `, [emp.id, compId, new Date()]);
         }
 
-        // 3. Sync Recent Daily Workstation Activity into attendance table
+        // 3. Sync Current Month Workstation Activity into attendance table
         try {
             const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
-            const d7 = new Date();
-            d7.setDate(d7.getDate() - 7);
-            const startDStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d7);
-            const tmStart = Math.floor(new Date(`${startDStr}T00:00:00+05:30`).getTime() / 1000);
-            const tmEnd = Math.floor(new Date(`${todayIST}T23:59:59+05:30`).getTime() / 1000);
+            const [curYear, curMonth] = todayIST.split('-');
+            const startDStr = `${curYear}-${curMonth}-01`;
+
+            // Split into 7-day chunk intervals to guarantee no 10000 row truncation
+            const chunks = [];
+            let chunkStart = new Date(`${startDStr}T00:00:00+05:30`);
+            const chunkEndLimit = new Date(`${todayIST}T23:59:59+05:30`);
+
+            while (chunkStart <= chunkEndLimit) {
+                const chunkEnd = new Date(chunkStart);
+                chunkEnd.setDate(chunkEnd.getDate() + 6);
+                const actualEnd = chunkEnd > chunkEndLimit ? chunkEndLimit : chunkEnd;
+
+                const sStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(chunkStart);
+                const eStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(actualEnd);
+                chunks.push({
+                    startSec: Math.floor(chunkStart.getTime() / 1000),
+                    endSec: Math.floor(new Date(`${eStr}T23:59:59+05:30`).getTime() / 1000)
+                });
+
+                chunkStart.setDate(chunkStart.getDate() + 7);
+            }
 
             for (const emp of employees.rows) {
                 const mapRes = await pool.query("SELECT computer_id FROM employee_teramind_mapping WHERE employee_id = $1", [emp.id]);
                 if (mapRes.rows.length === 0 || !mapRes.rows[0].computer_id) continue;
                 const compId = parseInt(mapRes.rows[0].computer_id, 10);
 
-                try {
-                    const gridRes = await getWebPagesApplicationsGrid({
-                        computers: [compId],
-                        periodStart: String(tmStart),
-                        periodEnd: String(tmEnd),
-                        pageSize: 10000
-                    });
-                    const rows = gridRes?.rows || [];
-                    const dateMap = new Map();
-                    rows.forEach(r => {
-                        const ts = r.time || (r.timestamp?.timestamp ? r.timestamp.timestamp : null);
-                        const dur = r.duration || 0;
-                        if (!ts) return;
-                        const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(ts * 1000));
-                        if (!dateMap.has(dStr)) dateMap.set(dStr, []);
-                        dateMap.get(dStr).push({ ts, dur });
-                    });
+                for (const ch of chunks) {
+                    try {
+                        const gridRes = await getWebPagesApplicationsGrid({
+                            computers: [compId],
+                            periodStart: String(ch.startSec),
+                            periodEnd: String(ch.endSec),
+                            pageSize: 10000
+                        });
+                        const rows = gridRes?.rows || [];
+                        if (rows.length === 0) continue;
 
-                    for (const [dStr, pList] of dateMap.entries()) {
-                        const shiftRes = calculateShiftAttendanceTimes(pList, dStr);
-                        if (!shiftRes.checkInDate) continue;
+                        const dateMap = new Map();
+                        rows.forEach(r => {
+                            const ts = r.time || (r.timestamp?.timestamp ? r.timestamp.timestamp : null);
+                            const dur = r.duration || 0;
+                            if (!ts) return;
+                            const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(ts * 1000));
+                            if (!dateMap.has(dStr)) dateMap.set(dStr, []);
+                            dateMap.get(dStr).push({ ts, dur });
+                        });
 
-                        const inStr = formatISTIso(shiftRes.checkInDate);
-                        const outStr = shiftRes.checkOutDate ? formatISTIso(shiftRes.checkOutDate) : null;
-                        const hrs = (shiftRes.totalActiveSecs / 3600).toFixed(2);
-                        const status = shiftRes.isLate ? 'Late' : 'Present';
+                        for (const [dStr, pList] of dateMap.entries()) {
+                            const shiftRes = calculateShiftAttendanceTimes(pList, dStr);
+                            if (!shiftRes.checkInDate) continue;
 
-                        const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
-                        if (checkRes.rows.length > 0) {
-                            const row = checkRes.rows[0];
-                            if (row.approval_status !== 'Approved' && !row.manual_check_in && row.punch_source !== 'MANUAL_HR') {
+                            const inStr = formatISTIso(shiftRes.checkInDate);
+                            const outStr = shiftRes.checkOutDate ? formatISTIso(shiftRes.checkOutDate) : null;
+                            const hrs = (shiftRes.totalActiveSecs / 3600).toFixed(2);
+                            const status = shiftRes.isLate ? 'Late' : 'Present';
+
+                            const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
+                            if (checkRes.rows.length > 0) {
+                                const row = checkRes.rows[0];
+                                if (row.approval_status !== 'Approved' || row.punch_source === 'TERAMIND' || row.manual_check_in == null) {
+                                    await pool.query(`
+                                        UPDATE attendance
+                                        SET status = $1, login_time = $2, logout_time = $3, total_working_hours = $4,
+                                            punch_source = 'TERAMIND', approval_status = 'Auto-Synced', updated_at = NOW()
+                                        WHERE id = $5;
+                                    `, [status, inStr, outStr, hrs, row.id]);
+                                }
+                            } else {
                                 await pool.query(`
-                                    UPDATE attendance
-                                    SET status = $1, login_time = $2, logout_time = $3, total_working_hours = $4,
-                                        punch_source = 'TERAMIND', approval_status = 'Auto-Synced', updated_at = NOW()
-                                    WHERE id = $5;
-                                `, [status, inStr, outStr, hrs, row.id]);
+                                    INSERT INTO attendance (employee_id, date, status, login_time, logout_time, total_working_hours, punch_source, approval_status, created_at, updated_at)
+                                    VALUES ($1, $2, $3, $4, $5, $6, 'TERAMIND', 'Auto-Synced', NOW(), NOW());
+                                `, [emp.id, dStr, status, inStr, outStr, hrs]);
                             }
-                        } else {
-                            await pool.query(`
-                                INSERT INTO attendance (employee_id, date, status, login_time, logout_time, total_working_hours, punch_source, approval_status, created_at, updated_at)
-                                VALUES ($1, $2, $3, $4, $5, $6, 'TERAMIND', 'Auto-Synced', NOW(), NOW());
-                            `, [emp.id, dStr, status, inStr, outStr, hrs]);
                         }
-                    }
-                } catch (e) {}
+                    } catch (e) {}
+                }
             }
 
             // Clean up any future placeholder records

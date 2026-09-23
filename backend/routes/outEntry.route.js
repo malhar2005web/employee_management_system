@@ -4,7 +4,9 @@ import {
     createOutEntry,
     markReturnInTime,
     updateOutEntryStatus,
-    deleteOutEntry
+    deleteOutEntry,
+    trackLocation,
+    verifyVisitOtp
 } from '../controller/outEntry.controller.js';
 import { protectRoute } from '../middleware/protectRoute.js';
 
@@ -17,6 +19,8 @@ router.get('/', getOutEntries);
 router.post('/', createOutEntry);
 router.put('/:id/return', markReturnInTime);
 router.put('/:id/status', updateOutEntryStatus);
+router.post('/:id/track-location', trackLocation);
+router.post('/:id/verify-visit-otp', verifyVisitOtp);
 router.delete('/:id', deleteOutEntry);
 
 export default router;

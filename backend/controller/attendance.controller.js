@@ -56,6 +56,32 @@ export async function getAttendanceLogs(req, res) {
             console.warn("getAttendanceLogs leave query fallback:", lErr.message);
         }
 
+        // 3.5. Fetch Out Entries covering target range
+        const outEntryMap = new Map();
+        try {
+            const oeRes = await pool.query(`
+                SELECT oe.id, oe.employee_id, oe.date, 
+                       TO_CHAR(oe.out_time, 'HH24:MI') as out_time, 
+                       TO_CHAR(oe.in_time, 'HH24:MI') as in_time, 
+                       oe.duration_minutes, oe.purpose, oe.destination, oe.reason, oe.status,
+                       oe.customer_id, oe.branch_name, oe.target_address,
+                       c.name as customer_name
+                FROM out_entries oe
+                LEFT JOIN customers c ON oe.customer_id = c.id
+                WHERE oe.date >= $1::date AND oe.date <= $2::date
+                ORDER BY oe.date ASC, oe.out_time ASC;
+            `, [startDateStr, endDateStr]);
+
+            oeRes.rows.forEach(oe => {
+                const dStr = oe.date instanceof Date
+                    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(oe.date)
+                    : String(oe.date).slice(0, 10);
+                outEntryMap.set(`${oe.employee_id}_${dStr}`, oe);
+            });
+        } catch (oeErr) {
+            console.warn("getAttendanceLogs out_entries query fallback:", oeErr.message);
+        }
+
         // 4. Fetch Workstation Activity Telemetry (Historical Jan-Jul 2026 vs Aug-Sep Live Teramind)
         const compActivityMap = new Map();
 
@@ -307,22 +333,47 @@ export async function getAttendanceLogs(req, res) {
                         punch_source: 'TERAMIND'
                     };
                 } else {
-                    absentCount++;
-                    finalRecord = {
-                        id: dbRecord?.id || null,
-                        employee_id: empId,
-                        full_name: emp.full_name,
-                        employee_code: emp.employee_code,
-                        workstation: emp.computer_name || '—',
-                        date: targetDateStr,
-                        login_time: null,
-                        logout_time: null,
-                        total_working_hours: '0.00',
-                        overtime: null,
-                        status: 'Absent',
-                        approval_status: 'Auto-Synced',
-                        punch_source: 'AUTO'
-                    };
+                    const outEntry = outEntryMap.get(`${empId}_${targetDateStr}`);
+                    if (outEntry) {
+                        finalRecord = {
+                            id: dbRecord?.id || null,
+                            employee_id: empId,
+                            full_name: emp.full_name,
+                            employee_code: emp.employee_code,
+                            workstation: emp.computer_name || '—',
+                            date: targetDateStr,
+                            login_time: outEntry.out_time ? `${targetDateStr}T${outEntry.out_time}:00+05:30` : null,
+                            logout_time: outEntry.in_time ? `${targetDateStr}T${outEntry.in_time}:00+05:30` : null,
+                            total_working_hours: outEntry.duration_minutes ? (outEntry.duration_minutes / 60).toFixed(2) : '0.00',
+                            overtime: null,
+                            status: 'Out Entry',
+                            approval_status: outEntry.status || 'Approved',
+                            punch_source: 'OUT_ENTRY',
+                            out_entry: outEntry
+                        };
+                    } else {
+                        absentCount++;
+                        finalRecord = {
+                            id: dbRecord?.id || null,
+                            employee_id: empId,
+                            full_name: emp.full_name,
+                            employee_code: emp.employee_code,
+                            workstation: emp.computer_name || '—',
+                            date: targetDateStr,
+                            login_time: null,
+                            logout_time: null,
+                            total_working_hours: '0.00',
+                            overtime: null,
+                            status: 'Absent',
+                            approval_status: 'Auto-Synced',
+                            punch_source: 'AUTO'
+                        };
+                    }
+                }
+
+                if (!finalRecord.out_entry) {
+                    const existingOe = outEntryMap.get(`${empId}_${targetDateStr}`);
+                    if (existingOe) finalRecord.out_entry = existingOe;
                 }
 
                 if (dbRecord) {
@@ -802,9 +853,60 @@ export async function getEmployeeAttendanceHistory(req, res) {
             }
         });
 
+        // 5. Merge Out Entries
+        try {
+            const oeRes = await pool.query(`
+                SELECT oe.id, oe.employee_id, oe.date, 
+                       TO_CHAR(oe.out_time, 'HH24:MI') as out_time, 
+                       TO_CHAR(oe.in_time, 'HH24:MI') as in_time, 
+                       oe.duration_minutes, oe.purpose, oe.destination, oe.reason, oe.status,
+                       oe.customer_id, oe.branch_name, oe.target_address,
+                       c.name as customer_name
+                FROM out_entries oe
+                LEFT JOIN customers c ON oe.customer_id = c.id
+                WHERE oe.employee_id = $1 
+                  AND oe.date >= $2::date AND oe.date <= $3::date
+                ORDER BY oe.date ASC, oe.out_time ASC;
+            `, [id, startDateStr, endDateStr]);
+
+            oeRes.rows.forEach(oe => {
+                const dStr = oe.date instanceof Date
+                    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(oe.date)
+                    : String(oe.date).slice(0, 10);
+                
+                if (historyMap.has(dStr)) {
+                    const existing = historyMap.get(dStr);
+                    // If marked Absent or has no active check-in, promote to Out Entry
+                    if (existing.status === 'Absent' || !existing.check_in || existing.check_in === '—') {
+                        existing.status = 'Out Entry';
+                        existing.source = 'OUT_ENTRY';
+                        existing.check_in = oe.out_time || '—';
+                        existing.check_out = oe.in_time || '—';
+                        if (oe.duration_minutes) {
+                            existing.working_hours = (oe.duration_minutes / 60).toFixed(2);
+                        }
+                    }
+                    existing.out_entry = oe;
+                } else {
+                    historyMap.set(dStr, {
+                        date: dStr,
+                        check_in: oe.out_time || '—',
+                        check_out: oe.in_time || '—',
+                        working_hours: oe.duration_minutes ? (oe.duration_minutes / 60).toFixed(2) : '0.00',
+                        overtime: null,
+                        status: 'Out Entry',
+                        source: 'OUT_ENTRY',
+                        out_entry: oe
+                    });
+                }
+            });
+        } catch (oeErr) {
+            console.warn("getEmployeeAttendanceHistory out_entries query fallback:", oeErr.message);
+        }
+
         const sortedLogs = Array.from(historyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 
-        let present = 0, late = 0, absent = 0, totalHours = 0;
+        let present = 0, late = 0, absent = 0, outEntryCount = 0, totalHours = 0;
         sortedLogs.forEach(l => {
             const wHours = parseFloat(l.working_hours) || 0;
             let logHrs = 0;
@@ -843,6 +945,7 @@ export async function getEmployeeAttendanceHistory(req, res) {
 
             if (l.status === 'Present') present++;
             else if (l.status === 'Late') late++;
+            else if (l.status === 'Out Entry' || l.source === 'OUT_ENTRY') outEntryCount++;
             else if (l.status === 'Absent') absent++;
             totalHours += parseFloat(l.working_hours || 0);
         });
@@ -864,6 +967,7 @@ export async function getEmployeeAttendanceHistory(req, res) {
                 present: present,
                 late: late,
                 absent: absent,
+                outEntry: outEntryCount,
                 totalHours: totalHours.toFixed(2)
             },
             data: sortedLogs
