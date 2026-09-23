@@ -470,6 +470,47 @@ export async function sendInactivityWhatsApp({ employeePhone, employeeName, idle
     }
 }
 
+// E. Project Contract Expiry Reminder (Sent when contract end date is near, e.g. within 7 days)
+export async function sendProjectContractReminderWhatsApp(phoneOrOptions, maybeOptions = {}) {
+    const opts = (typeof phoneOrOptions === 'object' && phoneOrOptions !== null)
+        ? phoneOrOptions
+        : { toPhone: phoneOrOptions, ...maybeOptions };
+
+    const { toPhone, customerName, projectName, branchName, contractEndDate, daysLeft, contactName, deadline } = opts;
+    const formattedEnd = contractEndDate ? new Date(contractEndDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Soon';
+    const formattedDeadline = deadline ? new Date(deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+    let urgency = daysLeft <= 0 ? '⚠️ Has Expired' : (daysLeft === 1 ? '⚠️ Expires Tomorrow!' : `⚠️ Expires in ${daysLeft} days`);
+    
+    const textMsg = `🔔 *Contract Expiry Reminder*\n\n` +
+        `Dear ${contactName || customerName || 'Valued Customer'},\n\n` +
+        `This is a courtesy reminder regarding the service contract for:\n` +
+        `📁 *Project:* ${projectName || 'Main Service'}\n` +
+        `🏢 *Client / Account:* ${customerName || 'N/A'}${branchName ? ` (${branchName})` : ''}\n` +
+        `📅 *Contract End Date:* ${formattedEnd}\n` +
+        `⏳ *Status:* ${urgency}` +
+        (formattedDeadline ? `\n🏁 *Project Deadline:* ${formattedDeadline}` : '') + `\n\n` +
+        `Please connect with our account team for timely contract extension or project milestone deliverables.\n\n` +
+        `Best Regards,\n*Pentasoft Consultancy Services*`;
+
+    try {
+        return await sendWhatsAppText(toPhone, textMsg);
+    } catch (e) {
+        console.warn("Direct text reminder failed, trying template fallback:", e.message);
+        try {
+            return await sendWhatsAppTemplate(toPhone, 'client_call', 'en', [
+                contactName || customerName,
+                projectName,
+                'Pentasoft Consultancy',
+                'Contract Renewal',
+                `Expires ${formattedEnd} (${urgency})`
+            ]);
+        } catch (tmplErr) {
+            console.error("❌ sendProjectContractReminderWhatsApp fallback also failed:", tmplErr.message);
+            throw e;
+        }
+    }
+}
+
 // Helper: Sanitize Phone Number (e.g. "+91 98765-43210" -> "919876543210")
 export function sanitizePhoneNumber(phone) {
     if (!phone) return '918767137790';
@@ -592,5 +633,3 @@ export async function downloadMediaUrlToDisk(directUrl, defaultName = 'attachmen
         return null;
     }
 }
-
-

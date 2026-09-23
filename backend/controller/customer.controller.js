@@ -1,5 +1,6 @@
 import { pool } from '../config/db.js';
 import ExcelJS from 'exceljs';
+import { sendProjectContractReminderWhatsApp, sanitizePhoneNumber } from '../services/whatsapp.service.js';
 
 export async function getCustomers(req, res) {
     try {
@@ -14,6 +15,9 @@ export async function getCustomers(req, res) {
                                'description', p.description,
                                'deadline', p.deadline,
                                'delivery_date', p.delivery_date,
+                               'contract_start_date', p.contract_start_date,
+                               'contract_end_date', p.contract_end_date,
+                               'last_contract_reminder_at', p.last_contract_reminder_at,
                                'branch_name', p.branch_name,
                                'status', p.status
                            )
@@ -151,9 +155,19 @@ export async function createCustomer(req, res) {
                     for (const p of b.projects) {
                         if (p.name) {
                             await client.query(
-                                `INSERT INTO projects (name, description, customer_id, branch_name, deadline, delivery_date, status)
-                                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                                [p.name, p.description || null, customer.id, b.branch || null, p.deadline || finalDeadline || null, p.delivery_date || finalDeliveryDate || null, 'In Progress']
+                                `INSERT INTO projects (name, description, customer_id, branch_name, deadline, delivery_date, contract_start_date, contract_end_date, status)
+                                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                                [
+                                    p.name, 
+                                    p.description || null, 
+                                    customer.id, 
+                                    b.branch || null, 
+                                    p.deadline || finalDeadline || null, 
+                                    p.delivery_date || finalDeliveryDate || null,
+                                    p.contract_start_date || p.contractStartDate || null,
+                                    p.contract_end_date || p.contractEndDate || null,
+                                    'In Progress'
+                                ]
                             );
                         }
                     }
@@ -310,6 +324,8 @@ export async function updateCustomer(req, res) {
                                 description: p.description,
                                 deadline: p.deadline || finalDeadline || null,
                                 delivery_date: p.delivery_date || finalDeliveryDate || null,
+                                contract_start_date: p.contract_start_date || p.contractStartDate || null,
+                                contract_end_date: p.contract_end_date || p.contractEndDate || null,
                                 branch_name: b.branch
                             });
                         }
@@ -329,17 +345,17 @@ export async function updateCustomer(req, res) {
                 // Update existing
                 await client.query(
                     `UPDATE projects 
-                     SET name = $1, description = $2, branch_name = $3, deadline = $4, delivery_date = $5, updated_at = CURRENT_TIMESTAMP
-                     WHERE id = $6 AND customer_id = $7`,
-                    [p.name, p.description || null, p.branch_name || null, p.deadline || null, p.delivery_date || null, p.id, id]
+                     SET name = $1, description = $2, branch_name = $3, deadline = $4, delivery_date = $5, contract_start_date = $6, contract_end_date = $7, updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $8 AND customer_id = $9`,
+                    [p.name, p.description || null, p.branch_name || null, p.deadline || null, p.delivery_date || null, p.contract_start_date || null, p.contract_end_date || null, p.id, id]
                 );
                 submittedProjectIds.push(parseInt(p.id, 10));
             } else {
                 // Insert new
                 const newProjRes = await client.query(
-                    `INSERT INTO projects (name, description, customer_id, branch_name, deadline, delivery_date, status)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-                    [p.name, p.description || null, id, p.branch_name || null, p.deadline || null, p.delivery_date || null, 'In Progress']
+                    `INSERT INTO projects (name, description, customer_id, branch_name, deadline, delivery_date, contract_start_date, contract_end_date, status)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+                    [p.name, p.description || null, id, p.branch_name || null, p.deadline || null, p.delivery_date || null, p.contract_start_date || null, p.contract_end_date || null, 'In Progress']
                 );
                 submittedProjectIds.push(newProjRes.rows[0].id);
             }
@@ -1078,5 +1094,188 @@ export async function updateBillingRate(req, res) {
     } catch (error) {
         console.error("Error in updateBillingRate:", error.message);
         res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+}
+
+/**
+ * Send Contract Expiry WhatsApp Reminder for a specific project
+ */
+export async function sendProjectContractReminder(req, res) {
+    try {
+        const { id } = req.params;
+        const customPhone = req.body?.phone;
+
+        const query = `
+            SELECT p.id, p.name AS project_name, p.branch_name, p.deadline, p.contract_start_date, p.contract_end_date, p.last_contract_reminder_at,
+                   c.id AS customer_id, c.name AS customer_name, c.contact_persons, c.branches
+            FROM projects p
+            JOIN customers c ON p.customer_id = c.id
+            WHERE p.id = $1;
+        `;
+        const { rows } = await pool.query(query, [id]);
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+
+        const proj = rows[0];
+        if (!proj.contract_end_date) {
+            return res.status(400).json({ success: false, message: "Project has no contract end date set" });
+        }
+
+        let phone = customPhone || null;
+        if (!phone) {
+            let contacts = proj.contact_persons;
+            if (typeof contacts === 'string') {
+                try { contacts = JSON.parse(contacts); } catch (e) { contacts = []; }
+            }
+            if (Array.isArray(contacts) && contacts.length > 0) {
+                const primary = contacts.find(c => c.isPrimary || c.is_primary) || contacts[0];
+                if (primary && primary.phone) phone = primary.phone;
+            }
+        }
+
+        if (!phone && proj.branches) {
+            let branches = proj.branches;
+            if (typeof branches === 'string') {
+                try { branches = JSON.parse(branches); } catch (e) { branches = []; }
+            }
+            if (Array.isArray(branches)) {
+                const br = branches.find(b => b.branch === proj.branch_name || b.name === proj.branch_name);
+                if (br && br.contactPersons && Array.isArray(br.contactPersons) && br.contactPersons[0]?.phone) {
+                    phone = br.contactPersons[0].phone;
+                }
+            }
+        }
+
+        if (!phone) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "No contact phone number found for this customer. Please add a phone number in Customer contacts or specify one." 
+            });
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const endDate = new Date(proj.contract_end_date);
+        endDate.setHours(0, 0, 0, 0);
+        const daysLeft = Math.round((endDate - today) / (1000 * 60 * 60 * 24));
+
+        const result = await sendProjectContractReminderWhatsApp(phone, {
+            customerName: proj.customer_name,
+            projectName: proj.project_name,
+            branchName: proj.branch_name,
+            contractEndDate: proj.contract_end_date,
+            daysLeft: daysLeft,
+            deadline: proj.deadline
+        });
+
+        await pool.query(
+            `UPDATE projects SET last_contract_reminder_at = NOW() WHERE id = $1`,
+            [proj.id]
+        );
+
+        res.status(200).json({ 
+            success: true, 
+            message: `Contract expiry reminder sent to ${phone} successfully! (${daysLeft} days remaining)`,
+            data: result 
+        });
+    } catch (error) {
+        console.error("Error in sendProjectContractReminder:", error.message);
+        res.status(500).json({ success: false, message: error.message || "Failed to send contract reminder" });
+    }
+}
+
+/**
+ * Endpoint to manually trigger contract expiry check
+ */
+export async function triggerContractExpiryCheck(req, res) {
+    try {
+        const result = await checkAndSendContractReminders();
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+/**
+ * Automated worker: Checks projects with contract_end_date within 7 days and sends WhatsApp reminder
+ */
+export async function checkAndSendContractReminders() {
+    try {
+        console.log("🔍 Checking for projects with contract end dates within 7 days...");
+        const query = `
+            SELECT p.id, p.name AS project_name, p.branch_name, p.deadline, p.contract_start_date, p.contract_end_date, p.last_contract_reminder_at,
+                   c.id AS customer_id, c.name AS customer_name, c.contact_persons, c.branches
+            FROM projects p
+            JOIN customers c ON p.customer_id = c.id
+            WHERE p.contract_end_date IS NOT NULL
+              AND p.contract_end_date >= CURRENT_DATE - INTERVAL '1 day'
+              AND p.contract_end_date <= CURRENT_DATE + INTERVAL '7 days'
+              AND (p.last_contract_reminder_at IS NULL OR p.last_contract_reminder_at < CURRENT_TIMESTAMP - INTERVAL '2 days')
+            ORDER BY p.contract_end_date ASC;
+        `;
+        const { rows } = await pool.query(query);
+        console.log(`📋 Found ${rows.length} projects due for contract expiry reminders.`);
+        
+        let sentCount = 0;
+        for (const proj of rows) {
+            let phone = null;
+            let contacts = proj.contact_persons;
+            if (typeof contacts === 'string') {
+                try { contacts = JSON.parse(contacts); } catch (e) { contacts = []; }
+            }
+            if (Array.isArray(contacts) && contacts.length > 0) {
+                const primary = contacts.find(c => c.isPrimary || c.is_primary) || contacts[0];
+                if (primary && primary.phone) phone = primary.phone;
+            }
+
+            if (!phone && proj.branches) {
+                let branches = proj.branches;
+                if (typeof branches === 'string') {
+                    try { branches = JSON.parse(branches); } catch (e) { branches = []; }
+                }
+                if (Array.isArray(branches)) {
+                    const br = branches.find(b => b.branch === proj.branch_name || b.name === proj.branch_name);
+                    if (br && br.contactPersons && Array.isArray(br.contactPersons) && br.contactPersons[0]?.phone) {
+                        phone = br.contactPersons[0].phone;
+                    }
+                }
+            }
+
+            if (!phone) {
+                console.log(`⚠️ No phone number available for customer "${proj.customer_name}" project "${proj.project_name}" (ID: ${proj.id})`);
+                continue;
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const endDate = new Date(proj.contract_end_date);
+            endDate.setHours(0, 0, 0, 0);
+            const daysLeft = Math.round((endDate - today) / (1000 * 60 * 60 * 24));
+
+            try {
+                await sendProjectContractReminderWhatsApp(phone, {
+                    customerName: proj.customer_name,
+                    projectName: proj.project_name,
+                    branchName: proj.branch_name,
+                    contractEndDate: proj.contract_end_date,
+                    daysLeft: daysLeft,
+                    deadline: proj.deadline
+                });
+
+                await pool.query(
+                    `UPDATE projects SET last_contract_reminder_at = NOW() WHERE id = $1`,
+                    [proj.id]
+                );
+                sentCount++;
+                console.log(`✅ Sent contract reminder to ${phone} for project "${proj.project_name}" (${daysLeft} days left)`);
+            } catch (sendErr) {
+                console.error(`❌ Failed to send WhatsApp contract reminder for project ${proj.id}:`, sendErr.message);
+            }
+        }
+        return { success: true, processed: rows.length, sent: sentCount };
+    } catch (err) {
+        console.error("❌ Error in checkAndSendContractReminders:", err.message);
+        return { success: false, error: err.message };
     }
 }

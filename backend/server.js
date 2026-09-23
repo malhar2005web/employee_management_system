@@ -274,6 +274,32 @@ const startTeramindSyncWorker = () => {
 };
 
 import { initEmailTicketWorker } from "./services/emailTicket.service.js";
+import { checkAndSendContractReminders } from "./controller/customer.controller.js";
+
+// Project Contract Expiry WhatsApp Reminder Worker
+let contractExpiryWorkerStarted = false;
+const startContractExpiryWorker = () => {
+    if (contractExpiryWorkerStarted) return;
+    contractExpiryWorkerStarted = true;
+
+    // Run first check after 10 seconds of startup
+    setTimeout(async () => {
+        try {
+            await checkAndSendContractReminders();
+        } catch (err) {
+            console.error('Error in initial Contract Expiry Worker run:', err.message);
+        }
+    }, 10000);
+
+    // Periodic check every 12 hours (43,200,000 ms)
+    setInterval(async () => {
+        try {
+            await checkAndSendContractReminders();
+        } catch (err) {
+            console.error('Error in Contract Expiry Worker loop:', err.message);
+        }
+    }, 12 * 60 * 60 * 1000);
+};
 
 const server = createServer(app);
 
@@ -284,12 +310,14 @@ connectDB()
     startHeartbeatMonitor();
     startDelegationExpiryWorker();
     startTeramindSyncWorker();
+    startContractExpiryWorker();
     await initEmailTicketWorker().catch(e => console.warn("Email ticket worker init notice:", e.message));
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`💓 Background Heartbeat Monitor active (120s timeout)`);
       console.log(`⏱️ Delegation Expiry & Escalation Worker active (60s loop)`);
       console.log(`📡 Teramind Telemetry Cache Sync Worker active (5m loop)`);
+      console.log(`📅 Project Contract Expiry WhatsApp Reminder Worker active (12h loop)`);
     });
   })
 

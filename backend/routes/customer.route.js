@@ -6,7 +6,9 @@ import {
     deleteCustomer,
     getCustomerBillingReport,
     exportCustomerBillingReport,
-    updateBillingRate
+    updateBillingRate,
+    sendProjectContractReminder,
+    triggerContractExpiryCheck
 } from '../controller/customer.controller.js';
 import { protectRoute, isAdmin } from '../middleware/protectRoute.js';
 
@@ -18,6 +20,8 @@ router.use(protectRoute);
 router.get("/billing-report/export", isAdmin, exportCustomerBillingReport);
 router.get("/billing-report", isAdmin, getCustomerBillingReport);
 router.put("/billing-rate", isAdmin, updateBillingRate);
+router.post("/projects/:id/send-contract-reminder", isAdmin, sendProjectContractReminder);
+router.post("/projects/contract-expiry-check", isAdmin, triggerContractExpiryCheck);
 router.get("/", getCustomers);
 router.post("/", isAdmin, createCustomer);
 router.put("/:id", isAdmin, updateCustomer);

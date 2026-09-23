@@ -319,6 +319,7 @@
         <p>Maintain customer accounts, branch locations, SLAs, and primary contacts.</p>
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
+        <button type="button" id="btn-contract-expiry-check" onclick="window.triggerAllContractReminders()" class="btn-pill-action" style="background:rgba(37,211,102,0.14); color:#065f46; border:1px solid rgba(37,211,102,0.38); font-weight:700;" title="Scan projects expiring in 7 days & send WhatsApp reminders"><i class="fa-brands fa-whatsapp" style="color:#25d366;"></i> Contract Reminders</button>
         <button type="button" onclick="window.downloadCurrentModuleTemplate('customers')" class="btn-pill-action btn-pill-template"><i class="fa-solid fa-file-download"></i> Template</button>
         <button type="button" onclick="window.exportModuleDataFile('customers', 'xlsx')" class="btn-pill-action btn-pill-export"><i class="fa-solid fa-file-export"></i> Export Data</button>
         <button type="button" onclick="window.openImportModal('customers')" class="btn-pill-action btn-pill-import"><i class="fa-solid fa-file-import"></i> Import Data</button>

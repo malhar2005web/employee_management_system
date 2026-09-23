@@ -340,19 +340,48 @@ document.addEventListener('DOMContentLoaded', () => {
             contactsContainer.appendChild(row);
         };
 
-        const addNestedProject = (pId = '', pName = '', pDesc = '', pDeadline = '') => {
+        const addNestedProject = (pId = '', pName = '', pDesc = '', pDeadline = '', pContractStart = '', pContractEnd = '') => {
             const row = document.createElement('div');
-            row.style.display = 'grid';
-            row.style.gridTemplateColumns = '1.3fr 1.3fr 1.1fr auto';
-            row.style.gap = '8px';
-            row.style.alignItems = 'center';
             row.className = 'project-entry-row-nested';
+            row.style.background = 'rgba(255,255,255,0.75)';
+            row.style.border = '1px solid #cbd5e1';
+            row.style.borderRadius = '8px';
+            row.style.padding = '8px 10px';
+            row.style.marginBottom = '8px';
+            row.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+
             row.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <span style="font-size:11.5px; font-weight:800; color:#0f766e; display:inline-flex; align-items:center; gap:4px;">
+                        <i class="fa-solid fa-diagram-project"></i> Project / Module
+                    </span>
+                    <i class="fa-regular fa-trash-can btn-remove-nested-item" style="color:var(--red); cursor:pointer; font-size:13px; padding:2px;" title="Remove Project"></i>
+                </div>
                 <input type="hidden" class="project-id" value="${pId}">
-                <input type="text" placeholder="Project Name *" class="project-name" value="${pName}" required style="padding:8px 10px; font-size:13px; width:100%; min-width:0; box-sizing:border-box;">
-                <input type="text" placeholder="Description (optional)" class="project-desc" value="${pDesc}" style="padding:8px 10px; font-size:13px; width:100%; min-width:0; box-sizing:border-box;">
-                <input type="date" placeholder="Project Deadline" class="project-deadline" value="${pDeadline}" title="Project Deadline" style="padding:7px 8px; font-size:12px; width:100%; min-width:0; box-sizing:border-box; background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.15); border-radius:var(--radius-sm);">
-                <i class="fa-regular fa-trash-can btn-remove-nested-item" style="color:var(--red); cursor:pointer; padding:4px; font-size:14px;" title="Remove Project"></i>
+                <div style="display:grid; grid-template-columns: 1.2fr 1.5fr; gap:6px; margin-bottom:6px;">
+                    <div>
+                        <label style="font-size:10.5px; font-weight:700; color:#475569; display:block; margin-bottom:2px;">Project Name *</label>
+                        <input type="text" placeholder="e.g. ERP System" class="project-name" value="${pName}" required style="padding:6px 8px; font-size:12.5px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:5px; background:#fff;">
+                    </div>
+                    <div>
+                        <label style="font-size:10.5px; font-weight:700; color:#475569; display:block; margin-bottom:2px;">Description</label>
+                        <input type="text" placeholder="Scope / Deliverables (optional)" class="project-desc" value="${pDesc}" style="padding:6px 8px; font-size:12.5px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:5px; background:#fff;">
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px;">
+                    <div>
+                        <label style="font-size:10px; font-weight:700; color:#0f766e; display:block; margin-bottom:2px;" title="Start date of project contract"><i class="fa-regular fa-calendar-check"></i> Contract Start</label>
+                        <input type="date" class="project-contract-start" value="${pContractStart}" style="padding:4px 6px; font-size:11.5px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:5px; background:#fff;">
+                    </div>
+                    <div>
+                        <label style="font-size:10px; font-weight:700; color:#b91c1c; display:block; margin-bottom:2px;" title="End date of project contract"><i class="fa-regular fa-calendar-xmark"></i> Contract End</label>
+                        <input type="date" class="project-contract-end" value="${pContractEnd}" style="padding:4px 6px; font-size:11.5px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:5px; background:#fff;">
+                    </div>
+                    <div>
+                        <label style="font-size:10px; font-weight:700; color:#d97706; display:block; margin-bottom:2px;" title="Target project completion deadline"><i class="fa-solid fa-flag-checkered"></i> Deadline</label>
+                        <input type="date" class="project-deadline" value="${pDeadline}" style="padding:4px 6px; font-size:11.5px; width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:5px; background:#fff;">
+                    </div>
+                </div>
             `;
             row.querySelector('.btn-remove-nested-item').addEventListener('click', () => row.remove());
 
@@ -428,7 +457,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (projects && projects.length > 0) {
             projects.forEach(p => {
                 const pDl = p.deadline ? (typeof p.deadline === 'string' ? p.deadline.slice(0, 10) : new Date(p.deadline).toISOString().split('T')[0]) : '';
-                addNestedProject(p.id, p.name, p.description, pDl);
+                const pStart = (p.contract_start_date || p.contractStartDate) ? (typeof (p.contract_start_date || p.contractStartDate) === 'string' ? (p.contract_start_date || p.contractStartDate).slice(0, 10) : new Date(p.contract_start_date || p.contractStartDate).toISOString().split('T')[0]) : '';
+                const pEnd = (p.contract_end_date || p.contractEndDate) ? (typeof (p.contract_end_date || p.contractEndDate) === 'string' ? (p.contract_end_date || p.contractEndDate).slice(0, 10) : new Date(p.contract_end_date || p.contractEndDate).toISOString().split('T')[0]) : '';
+                addNestedProject(p.id, p.name, p.description, pDl, pStart, pEnd);
             });
         } else {
             addNestedProject(); // Add 1 empty row initially
@@ -585,10 +616,77 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // 2. Projects for this branch
                     const branchProjects = (cust.customer_projects || []).filter(p => p.branch_name === b.branch);
-                    let bProjHtml = '<div style="display:flex; flex-wrap:wrap; gap:4px;">';
-                    if (branchProjects.length > 0) {
-                        branchProjects.forEach(p => {
-                            bProjHtml += `<span class="skill-pill" style="font-size:12.5px; font-weight:700; padding:3px 8px; margin:0; cursor:default;" title="${p.description || ''}">${p.name}</span>`;
+                    const effectiveProjects = branchProjects.length > 0 ? branchProjects : (b.projects || []);
+                    let bProjHtml = '<div style="display:flex; flex-direction:column; gap:6px; width:100%; min-width:220px;">';
+                    if (effectiveProjects.length > 0) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        effectiveProjects.forEach(p => {
+                            let contractBadge = '';
+                            let waBtn = '';
+
+                            const pStart = p.contract_start_date || p.contractStartDate;
+                            const pEnd = p.contract_end_date || p.contractEndDate;
+                            const pDl = p.deadline;
+
+                            if (pEnd) {
+                                const end = new Date(pEnd);
+                                end.setHours(0, 0, 0, 0);
+                                const diffDays = Math.round((end - today) / (1000 * 60 * 60 * 24));
+                                const formattedEnd = end.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+                                if (diffDays < 0) {
+                                    contractBadge = `<span style="background:rgba(239,68,68,0.14); color:#b91c1c; border:1px solid rgba(239,68,68,0.35); font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:8px; display:inline-flex; align-items:center; gap:3px;" title="Contract expired on ${formattedEnd}"><i class="fa-solid fa-triangle-exclamation"></i> Expired (${Math.abs(diffDays)}d ago)</span>`;
+                                } else if (diffDays <= 7) {
+                                    contractBadge = `<span style="background:rgba(245,158,11,0.2); color:#b45309; border:1px solid rgba(245,158,11,0.5); font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:8px; display:inline-flex; align-items:center; gap:3px;" title="Contract ends on ${formattedEnd}"><i class="fa-solid fa-hourglass-half"></i> Ending in ${diffDays}d</span>`;
+                                } else {
+                                    contractBadge = `<span style="background:rgba(16,185,129,0.12); color:#047857; border:1px solid rgba(16,185,129,0.3); font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:8px; display:inline-flex; align-items:center; gap:3px;" title="Contract ends on ${formattedEnd}"><i class="fa-regular fa-calendar-check"></i> ${diffDays}d left</span>`;
+                                }
+
+                                if (p.id) {
+                                    const escCust = (cust.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                                    const escProj = (p.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                                    const lastRem = p.last_contract_reminder_at 
+                                        ? `Last reminder: ${new Date(p.last_contract_reminder_at).toLocaleDateString('en-GB')}` 
+                                        : 'Send WhatsApp contract expiry reminder to client';
+
+                                    waBtn = `
+                                        <button type="button" onclick="window.triggerProjectContractWhatsapp(event, ${p.id}, '${escCust}', '${escProj}')" style="background:rgba(37,211,102,0.14); color:#065F46; border:1px solid rgba(37,211,102,0.38); padding:2px 7px; border-radius:6px; font-weight:700; font-size:10.5px; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s;" title="${lastRem}">
+                                            <i class="fa-brands fa-whatsapp" style="color:#25D366; font-size:11.5px;"></i> Remind
+                                        </button>
+                                    `;
+                                }
+                            }
+
+                            const startFormatted = pStart ? new Date(pStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : null;
+                            const endFormatted = pEnd ? new Date(pEnd).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : null;
+                            const dlFormatted = pDl ? new Date(pDl).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : null;
+
+                            let datesInfo = [];
+                            if (startFormatted && endFormatted) {
+                                datesInfo.push(`<span title="Contract: ${startFormatted} to ${endFormatted}"><i class="fa-regular fa-calendar" style="font-size:9.5px; color:#0f766e;"></i> ${startFormatted} – ${endFormatted}</span>`);
+                            } else if (endFormatted) {
+                                datesInfo.push(`<span title="Contract End: ${endFormatted}"><i class="fa-regular fa-calendar-xmark" style="font-size:9.5px; color:#b91c1c;"></i> End: ${endFormatted}</span>`);
+                            }
+                            if (dlFormatted) {
+                                datesInfo.push(`<span title="Deadline: ${dlFormatted}" style="color:#d97706; font-weight:700;"><i class="fa-solid fa-flag-checkered" style="font-size:9.5px;"></i> Due: ${dlFormatted}</span>`);
+                            }
+
+                            bProjHtml += `
+                                <div style="background:rgba(255,255,255,0.7); border:1px solid rgba(203,213,225,0.85); border-radius:6px; padding:5px 8px; display:flex; flex-direction:column; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+                                        <span class="skill-pill" style="font-size:12px; font-weight:800; padding:2px 7px; margin:0; cursor:default; background:rgba(15,118,110,0.08); color:#0f766e; border:1px solid rgba(15,118,110,0.25);" title="${p.description || ''}">${p.name}</span>
+                                        ${contractBadge}
+                                    </div>
+                                    ${(datesInfo.length > 0 || waBtn) ? `
+                                        <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:11px; color:#64748B;">
+                                            <div style="display:flex; flex-direction:column; gap:1px;">${datesInfo.join('')}</div>
+                                            ${waBtn}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
                         });
                     } else {
                         bProjHtml += '<span style="color:#94A3B8; font-size:13px; font-weight:500;">No projects</span>';
@@ -922,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Extract nested projects with deadlines
+            // Extract nested projects with deadlines and contract dates
             const projectRows = card.querySelectorAll('.project-entry-row-nested');
             const projects = [];
             projectRows.forEach(row => {
@@ -931,8 +1029,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pDesc = row.querySelector('.project-desc').value.trim();
                 const pDlInput = row.querySelector('.project-deadline');
                 const pDeadline = pDlInput && pDlInput.value ? pDlInput.value : null;
+                const pStartInput = row.querySelector('.project-contract-start');
+                const pContractStart = pStartInput && pStartInput.value ? pStartInput.value : null;
+                const pEndInput = row.querySelector('.project-contract-end');
+                const pContractEnd = pEndInput && pEndInput.value ? pEndInput.value : null;
+
                 if (pName) {
-                    projects.push({ id: pId, name: pName, description: pDesc, deadline: pDeadline });
+                    projects.push({ 
+                        id: pId, 
+                        name: pName, 
+                        description: pDesc, 
+                        deadline: pDeadline,
+                        contract_start_date: pContractStart,
+                        contract_end_date: pContractEnd
+                    });
                 }
             });
 
@@ -1062,10 +1172,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Populate nested branches structure with Branch-Wise Assigned Employees
         if (cust.branches && Array.isArray(cust.branches) && cust.branches.length > 0) {
             cust.branches.forEach(b => {
-                // Find projects belonging to this branch from customer_projects list
+                // Find projects belonging to this branch from customer_projects list, fallback to b.projects
                 const branchProjects = (cust.customer_projects || []).filter(p => p.branch_name === b.branch);
+                const finalProjects = branchProjects.length > 0 ? branchProjects : (b.projects || []);
                 const branchAssignedEmps = b.assignedEmployees || b.assigned_employees || [];
-                addBranchRow(b.branch, b.gstNo, b.contacts || [], branchProjects, branchAssignedEmps, b.address || '', b.latitude || '', b.longitude || '');
+                addBranchRow(b.branch, b.gstNo, b.contacts || [], finalProjects, branchAssignedEmps, b.address || '', b.latitude || '', b.longitude || '');
             });
         } else {
             addBranchRow();
@@ -2204,5 +2315,89 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // ============ WhatsApp Project Contract Expiry Reminders ============
+    window.triggerProjectContractWhatsapp = async (event, projectId, customerName, projectName) => {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        if (!projectId) return;
+
+        const confirmMsg = `Send WhatsApp Contract Expiry Reminder to client for:\n\n• Customer: ${customerName}\n• Project: ${projectName}\n\nProceed?`;
+        if (!confirm(confirmMsg)) return;
+
+        const btn = event?.currentTarget;
+        const origHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+        }
+
+        try {
+            const res = await fetch(`/api/v1/admin/customers/projects/${projectId}/send-contract-reminder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                if (typeof showToast === 'function') {
+                    showToast(data.message || "Contract reminder sent via WhatsApp!", "success");
+                } else {
+                    alert(data.message || "Contract reminder sent via WhatsApp!");
+                }
+                loadCustomers();
+            } else {
+                alert(data.message || "Failed to send WhatsApp reminder.");
+            }
+        } catch (err) {
+            console.error("Error sending project contract reminder:", err);
+            alert("Error sending contract reminder: " + (err.message || 'Network error'));
+        } finally {
+            if (btn) {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        }
+    };
+
+    window.triggerAllContractReminders = async () => {
+        if (!confirm("Run Contract Expiry Check now?\n\nThis will scan all active projects ending within 7 days and send WhatsApp reminders to client contact persons.")) {
+            return;
+        }
+
+        const btn = document.getElementById('btn-contract-expiry-check');
+        const origText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
+            btn.disabled = true;
+        }
+
+        try {
+            const res = await fetch(`/api/v1/admin/customers/projects/contract-expiry-check`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                const msg = `Contract Expiry Check Completed!\n\nProcessed: ${data.processed} project(s)\nReminders Sent: ${data.sent} WhatsApp message(s)`;
+                alert(msg);
+                loadCustomers();
+            } else {
+                alert("Contract check error: " + (data.message || data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error("Error triggering contract expiry check:", err);
+            alert("Network error running contract check: " + err.message);
+        } finally {
+            if (btn) {
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }
+        }
+    };
 });
+
 

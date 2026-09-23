@@ -1098,6 +1098,20 @@ export async function runMigrations() {
             console.error('❌ Phase 22 Migration Error:', e.message);
         }
 
+        // ── STEP 24: Phase 23 Per-Project Contract Dates & WhatsApp Expiry Reminders ────
+        try {
+            await client.query(`
+                ALTER TABLE projects ADD COLUMN IF NOT EXISTS contract_start_date DATE;
+                ALTER TABLE projects ADD COLUMN IF NOT EXISTS contract_end_date DATE;
+                ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_contract_reminder_at TIMESTAMP;
+
+                CREATE INDEX IF NOT EXISTS idx_projects_contract_end ON projects(contract_end_date);
+            `);
+            console.log('✅ Phase 23 Per-Project Contract Dates & Expiry Reminder columns ensured.');
+        } catch (e) {
+            console.error('❌ Phase 23 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }
