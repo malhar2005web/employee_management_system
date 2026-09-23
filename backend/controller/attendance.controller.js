@@ -277,61 +277,80 @@ export async function getAttendanceLogs(req, res) {
                     const checkInDate = shiftResult.checkInDate;
                     const checkOutDate = shiftResult.checkOutDate;
 
-                    const loginTimeStr = formatISTIso(checkInDate);
-                    const logoutTimeStr = formatISTIso(checkOutDate);
-                    const totalHoursNum = (shiftResult.totalActiveSecs / 3600).toFixed(2);
-                    const isLate = shiftResult.isLate;
+                    if (!checkInDate) {
+                        absentCount++;
+                        finalRecord = {
+                            id: dbRecord?.id || null,
+                            employee_id: empId,
+                            full_name: emp.full_name,
+                            employee_code: emp.employee_code,
+                            workstation: emp.computer_name || '—',
+                            date: targetDateStr,
+                            login_time: null,
+                            logout_time: null,
+                            total_working_hours: '0.00',
+                            overtime: null,
+                            status: 'Absent',
+                            approval_status: 'Auto-Synced',
+                            punch_source: 'AUTO'
+                        };
+                    } else {
+                        const loginTimeStr = formatISTIso(checkInDate);
+                        const logoutTimeStr = formatISTIso(checkOutDate);
+                        const totalHoursNum = (shiftResult.totalActiveSecs / 3600).toFixed(2);
+                        const isLate = shiftResult.isLate;
 
-                    let finalLogoutTimeStr = logoutTimeStr;
-                    if (isToday) {
-                        if (checkOutDate) {
-                            const outParts = new Intl.DateTimeFormat('en-GB', {
-                                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
-                            }).formatToParts(checkOutDate);
-                            const outP = {};
-                            outParts.forEach(({ type, value }) => { outP[type] = value; });
-                            const outH = parseInt(outP.hour, 10);
-                            if (currentHourIST < 19 && outH < 19) {
+                        let finalLogoutTimeStr = logoutTimeStr;
+                        if (isToday) {
+                            if (checkOutDate) {
+                                const outParts = new Intl.DateTimeFormat('en-GB', {
+                                    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                                }).formatToParts(checkOutDate);
+                                const outP = {};
+                                outParts.forEach(({ type, value }) => { outP[type] = value; });
+                                const outH = parseInt(outP.hour, 10);
+                                if (currentHourIST < 19 && outH < 19) {
+                                    finalLogoutTimeStr = null;
+                                }
+                            } else {
                                 finalLogoutTimeStr = null;
                             }
-                        } else {
-                            finalLogoutTimeStr = null;
                         }
-                    }
 
-                    let overtimeMins = null;
-                    if (checkOutDate) {
-                        const checkOutParts = new Intl.DateTimeFormat('en-GB', {
-                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).formatToParts(checkOutDate);
-                        const p = {};
-                        checkOutParts.forEach(({ type, value }) => { p[type] = value; });
-                        const outH = parseInt(p.hour, 10);
-                        const outM = parseInt(p.minute, 10);
-                        if (outH > 19 || (outH === 19 && outM > 0)) {
-                            overtimeMins = ((outH - 19) * 60) + outM;
+                        let overtimeMins = null;
+                        if (checkOutDate) {
+                            const checkOutParts = new Intl.DateTimeFormat('en-GB', {
+                                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                            }).formatToParts(checkOutDate);
+                            const p = {};
+                            checkOutParts.forEach(({ type, value }) => { p[type] = value; });
+                            const outH = parseInt(p.hour, 10);
+                            const outM = parseInt(p.minute, 10);
+                            if (outH > 19 || (outH === 19 && outM > 0)) {
+                                overtimeMins = ((outH - 19) * 60) + outM;
+                            }
                         }
+
+                        const calculatedStatus = isLate ? 'Late' : 'Present';
+                        if (isLate) lateCount++;
+                        else presentCount++;
+
+                        finalRecord = {
+                            id: dbRecord?.id || null,
+                            employee_id: empId,
+                            full_name: emp.full_name,
+                            employee_code: emp.employee_code,
+                            workstation: emp.computer_name || '—',
+                            date: targetDateStr,
+                            login_time: loginTimeStr,
+                            logout_time: finalLogoutTimeStr,
+                            total_working_hours: totalHoursNum,
+                            overtime: overtimeMins,
+                            status: calculatedStatus,
+                            approval_status: 'Auto-Synced',
+                            punch_source: 'TERAMIND'
+                        };
                     }
-
-                    const calculatedStatus = isLate ? 'Late' : 'Present';
-                    if (isLate) lateCount++;
-                    else presentCount++;
-
-                    finalRecord = {
-                        id: dbRecord?.id || null,
-                        employee_id: empId,
-                        full_name: emp.full_name,
-                        employee_code: emp.employee_code,
-                        workstation: emp.computer_name || '—',
-                        date: targetDateStr,
-                        login_time: loginTimeStr,
-                        logout_time: finalLogoutTimeStr,
-                        total_working_hours: totalHoursNum,
-                        overtime: overtimeMins,
-                        status: calculatedStatus,
-                        approval_status: 'Auto-Synced',
-                        punch_source: 'TERAMIND'
-                    };
                 } else {
                     const outEntry = outEntryMap.get(`${empId}_${targetDateStr}`);
                     if (outEntry) {
@@ -760,15 +779,27 @@ export async function getEmployeeAttendanceHistory(req, res) {
                         outStr = '—';
                     }
 
-                    historyMap.set(dStr, {
-                        date: dStr,
-                        check_in: inStr,
-                        check_out: outStr,
-                        working_hours: (shiftResult.totalActiveSecs / 3600).toFixed(2),
-                        overtime: null,
-                        status: shiftResult.isLate ? 'Late' : 'Present',
-                        source: 'TERAMIND'
-                    });
+                    if (inD) {
+                        historyMap.set(dStr, {
+                            date: dStr,
+                            check_in: inStr,
+                            check_out: outStr,
+                            working_hours: (shiftResult.totalActiveSecs / 3600).toFixed(2),
+                            overtime: null,
+                            status: shiftResult.isLate ? 'Late' : 'Present',
+                            source: 'TERAMIND'
+                        });
+                    } else {
+                        historyMap.set(dStr, {
+                            date: dStr,
+                            check_in: '—',
+                            check_out: '—',
+                            working_hours: '0.00',
+                            overtime: null,
+                            status: 'Absent',
+                            source: 'TERAMIND'
+                        });
+                    }
                 });
             } catch (tErr) {
                 console.warn("Teramind history fetch error (fallback to DB):", tErr.message);
@@ -786,6 +817,32 @@ export async function getEmployeeAttendanceHistory(req, res) {
                 ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(r.date)
                 : String(r.date).slice(0, 10);
             if (!dStr) return;
+
+            // Check if login_time is outside 09:00 - 19:00 for TERAMIND auto-synced records
+            let isOffHoursPunch = false;
+            if (r.login_time && (r.punch_source === 'TERAMIND' || r.punch_source === 'AUTO') && r.approval_status !== 'Approved') {
+                const loginD = new Date(r.login_time);
+                const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(loginD);
+                const p = {};
+                parts.forEach(({ type, value }) => { p[type] = value; });
+                const hh = parseInt(p.hour, 10);
+                if (hh < 9 || hh >= 19) {
+                    isOffHoursPunch = true;
+                }
+            }
+
+            if (isOffHoursPunch) {
+                historyMap.set(dStr, {
+                    date: dStr,
+                    check_in: '—',
+                    check_out: '—',
+                    working_hours: '0.00',
+                    overtime: null,
+                    status: 'Absent',
+                    source: 'TERAMIND'
+                });
+                return;
+            }
 
             // Only overwrite if actual login time exists or manual HR approved
             if (r.login_time || r.approval_status === 'Approved' || r.punch_source === 'MANUAL_HR') {

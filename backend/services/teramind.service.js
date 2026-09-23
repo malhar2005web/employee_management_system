@@ -646,7 +646,22 @@ export async function syncTeramindDataToCache() {
 
                         for (const [dStr, pList] of dateMap.entries()) {
                             const shiftRes = calculateShiftAttendanceTimes(pList, dStr);
-                            if (!shiftRes.checkInDate) continue;
+                            if (!shiftRes.checkInDate) {
+                                // If an attendance row was previously auto-synced with an off-hours punch, reset it to Absent
+                                const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
+                                if (checkRes.rows.length > 0) {
+                                    const row = checkRes.rows[0];
+                                    if (row.punch_source === 'TERAMIND' && row.approval_status !== 'Approved') {
+                                        await pool.query(`
+                                            UPDATE attendance
+                                            SET status = 'Absent', login_time = NULL, logout_time = NULL, total_working_hours = '0.00',
+                                                punch_source = 'TERAMIND', approval_status = 'Auto-Synced', updated_at = NOW()
+                                            WHERE id = $1;
+                                        `, [row.id]);
+                                    }
+                                }
+                                continue;
+                            }
 
                             const inStr = formatISTIso(shiftRes.checkInDate);
                             const outStr = shiftRes.checkOutDate ? formatISTIso(shiftRes.checkOutDate) : null;

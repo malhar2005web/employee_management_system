@@ -1158,6 +1158,24 @@ export async function runMigrations() {
             console.error('❌ Phase 24 Migration Error:', e.message);
         }
 
+        // ── STEP 26: Phase 25 Shift Attendance 9 AM - 7 PM Normalization ────
+        try {
+            await client.query(`
+                UPDATE attendance
+                SET status = 'Absent', login_time = NULL, logout_time = NULL, total_working_hours = '0.00'
+                WHERE punch_source = 'TERAMIND' 
+                  AND approval_status != 'Approved'
+                  AND login_time IS NOT NULL
+                  AND (
+                      login_time::TIME < '09:00:00'::TIME 
+                      OR login_time::TIME >= '19:00:00'::TIME
+                  );
+            `);
+            console.log('✅ Phase 25 Shift Attendance 9 AM - 7 PM Normalization ensured.');
+        } catch (e) {
+            console.error('❌ Phase 25 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }
