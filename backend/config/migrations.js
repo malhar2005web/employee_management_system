@@ -1112,6 +1112,52 @@ export async function runMigrations() {
             console.error('❌ Phase 23 Migration Error:', e.message);
         }
 
+        // ── STEP 25: Phase 24 Support Tickets Timestamp Synchronization with Audit Stream ────
+        try {
+            await client.query(`
+                -- Sync resolved_at for resolved/closed tickets with the latest resolve/close history event
+                UPDATE support_tickets st
+                SET resolved_at = h.res_time
+                FROM (
+                    SELECT ticket_id, MAX(created_at) as res_time
+                    FROM support_ticket_history
+                    WHERE new_status IN ('Resolved', 'Closed') 
+                       OR action ILIKE '%resolv%' 
+                       OR action ILIKE '%clos%' 
+                       OR details ILIKE '%resolved%' 
+                       OR details ILIKE '%closed%'
+                    GROUP BY ticket_id
+                ) h
+                WHERE st.id = h.ticket_id AND st.status IN ('Resolved', 'Closed');
+
+                -- Sync started_resolving_at with the earliest In Progress history event
+                UPDATE support_tickets st
+                SET started_resolving_at = h.start_time
+                FROM (
+                    SELECT ticket_id, MIN(created_at) as start_time
+                    FROM support_ticket_history
+                    WHERE new_status = 'In Progress' 
+                       OR action ILIKE '%progress%' 
+                       OR details ILIKE '%In Progress%'
+                    GROUP BY ticket_id
+                ) h
+                WHERE st.id = h.ticket_id AND st.status IN ('In Progress', 'Resolved', 'Closed');
+
+                -- Fix future created_at dates to match started_resolving_at or first history event
+                UPDATE support_tickets st
+                SET created_at = COALESCE(st.started_resolving_at, h.first_event, NOW())
+                FROM (
+                    SELECT ticket_id, MIN(created_at) as first_event
+                    FROM support_ticket_history
+                    GROUP BY ticket_id
+                ) h
+                WHERE st.id = h.ticket_id AND st.created_at > NOW();
+            `);
+            console.log('✅ Phase 24 Support Tickets Timestamp Synchronization ensured.');
+        } catch (e) {
+            console.error('❌ Phase 24 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }

@@ -766,20 +766,6 @@ export const updateTicket = async (req, res) => {
             resolutionDeadline = sla.resolutionDeadline;
         }
 
-        let respondedAt = ticket.responded_at;
-        let resolvedAt = ticket.resolved_at;
-        let startedResolvingAt = ticket.started_resolving_at;
-
-        if (status && status !== 'Open' && !respondedAt) {
-            respondedAt = new Date();
-        }
-        if (status === 'In Progress' && !startedResolvingAt) {
-            startedResolvingAt = new Date();
-        }
-        if (status && (status === 'Resolved' || status === 'Closed') && !resolvedAt) {
-            resolvedAt = new Date();
-        }
-
         const newTitle = title || ticket.title;
         const newDesc = description !== undefined ? description : ticket.description;
         const newCat = category || ticket.category;
@@ -791,19 +777,48 @@ export const updateTicket = async (req, res) => {
         const newProj = project_id !== undefined ? (project_id ? parseInt(project_id, 10) : null) : ticket.project_id;
         const newProjName = project_name !== undefined ? project_name : ticket.project_name;
 
+        // Use direct SQL expressions for timestamps to prevent timezone corruption
+        let startedResolvingExpr = 'started_resolving_at';
+        let resolvedExpr = 'resolved_at';
+        let respondedExpr = 'responded_at';
+
+        if (newStat === 'Open' || newStat === 'Assigned') {
+            startedResolvingExpr = 'NULL';
+            resolvedExpr = 'NULL';
+        } else if (newStat === 'In Progress') {
+            if (!ticket.started_resolving_at || oldStatus === 'Open' || oldStatus === 'Assigned') {
+                startedResolvingExpr = 'NOW()';
+            }
+            resolvedExpr = 'NULL';
+        } else if (newStat === 'Resolved' || newStat === 'Closed') {
+            if (!ticket.started_resolving_at) {
+                startedResolvingExpr = 'COALESCE(started_resolving_at, NOW())';
+            }
+            if (oldStatus !== 'Resolved' && oldStatus !== 'Closed') {
+                resolvedExpr = 'NOW()';
+            } else {
+                resolvedExpr = 'COALESCE(resolved_at, NOW())';
+            }
+        }
+        if (newStat && newStat !== 'Open' && !ticket.responded_at) {
+            respondedExpr = 'COALESCE(responded_at, NOW())';
+        }
+
         const updateRes = await pool.query(`
             UPDATE support_tickets 
             SET title = $1, description = $2, category = $3, priority = $4, status = $5,
                 assigned_to = $6, assigned_team = $7, customer_id = $8, project_id = $9, project_name = $10,
                 response_deadline = $11, resolution_deadline = $12,
-                responded_at = $13, resolved_at = $14, started_resolving_at = $15, updated_at = NOW()
-            WHERE id = $16
-            RETURNING *, EXTRACT(EPOCH FROM (NOW() - COALESCE(started_resolving_at, created_at))) AS elapsed_seconds
+                responded_at = ${respondedExpr},
+                resolved_at = ${resolvedExpr},
+                started_resolving_at = ${startedResolvingExpr},
+                updated_at = NOW()
+            WHERE id = $13
+            RETURNING *, EXTRACT(EPOCH FROM (COALESCE(resolved_at, NOW()) - COALESCE(started_resolving_at, created_at))) AS elapsed_seconds
         `, [
             newTitle, newDesc, newCat, newPri, newStat,
             newAssigned, newAssignedTeam, newCust, newProj, newProjName,
-            responseDeadline, resolutionDeadline,
-            respondedAt, resolvedAt, startedResolvingAt, id
+            responseDeadline, resolutionDeadline, id
         ]);
 
         // If newly resolved, alert engineers
@@ -885,7 +900,11 @@ export const updateTicketStatus = async (req, res) => {
             if (!ticket.started_resolving_at) {
                 setClauses.push('started_resolving_at = COALESCE(started_resolving_at, NOW())');
             }
-            setClauses.push('resolved_at = COALESCE(resolved_at, NOW())');
+            if (oldStatus !== 'Resolved' && oldStatus !== 'Closed') {
+                setClauses.push('resolved_at = NOW()');
+            } else {
+                setClauses.push('resolved_at = COALESCE(resolved_at, NOW())');
+            }
         }
 
         queryParams.push(id);

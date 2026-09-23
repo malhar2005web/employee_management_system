@@ -69,11 +69,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!Array.isArray(list)) list = [];
 
         const isDone = ticket.status === 'Resolved' || ticket.status === 'Closed';
-        const startTimeRaw = ticket.started_resolving_at || ticket.created_at;
-        const endTimeRaw = isDone ? (ticket.resolved_at || ticket.updated_at) : new Date().toISOString();
 
-        const startMs = startTimeRaw ? new Date(startTimeRaw).getTime() : Date.now();
+        // 1. Authoritative Resolution/End Time: perfectly sync with timeline audit stream event if present
+        let endTimeRaw = isDone ? (ticket.resolved_at || ticket.updated_at) : new Date().toISOString();
+        if (isDone && ticket.history && Array.isArray(ticket.history) && ticket.history.length > 0) {
+            const resEvent = ticket.history.find(h => {
+                const act = (h.action || '').toLowerCase();
+                const det = (h.details || '').toLowerCase();
+                const st = (h.new_status || '').toLowerCase();
+                return st === 'resolved' || st === 'closed' || act.includes('resolv') || act.includes('close') || det.includes('resolved') || det.includes('closed');
+            });
+            if (resEvent && resEvent.created_at) {
+                endTimeRaw = resEvent.created_at;
+            }
+        }
+
         const endMs = endTimeRaw ? new Date(endTimeRaw).getTime() : Date.now();
+
+        // 2. Authoritative Resolution Start Time: perfectly sync with first In Progress timeline event if present
+        let startTimeRaw = ticket.started_resolving_at || ticket.created_at;
+        if (ticket.history && Array.isArray(ticket.history) && ticket.history.length > 0) {
+            const progEvent = [...ticket.history].reverse().find(h => {
+                const act = (h.action || '').toLowerCase();
+                const det = (h.details || '').toLowerCase();
+                const st = (h.new_status || '').toLowerCase();
+                return st === 'in progress' || det.includes('in progress') || act.includes('progress');
+            });
+            if (progEvent && progEvent.created_at) {
+                startTimeRaw = progEvent.created_at;
+            }
+        }
+
+        let startMs = startTimeRaw ? new Date(startTimeRaw).getTime() : endMs;
+        if (isNaN(startMs) || startMs > endMs) {
+            if (ticket.history && Array.isArray(ticket.history) && ticket.history.length > 0) {
+                const earliest = ticket.history[ticket.history.length - 1];
+                if (earliest && earliest.created_at) {
+                    startMs = new Date(earliest.created_at).getTime();
+                }
+            }
+            if (isNaN(startMs) || startMs > endMs) {
+                startMs = endMs;
+            }
+        }
 
         // If ticket is Open/Assigned and never started resolving, actual work time is 0
         if (!ticket.started_resolving_at && (ticket.status === 'Open' || ticket.status === 'Assigned')) {
@@ -299,7 +337,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
             let resDateStr = '';
-            const resTimeRaw = ticket.resolved_at || ticket.updated_at;
+            let resTimeRaw = ticket.resolved_at;
+            if (ticket.history && Array.isArray(ticket.history) && ticket.history.length > 0) {
+                const resEvent = ticket.history.find(h => {
+                    const act = (h.action || '').toLowerCase();
+                    const det = (h.details || '').toLowerCase();
+                    const st = (h.new_status || '').toLowerCase();
+                    return st === 'resolved' || st === 'closed' || act.includes('resolv') || act.includes('close') || det.includes('resolved') || det.includes('closed');
+                });
+                if (resEvent && resEvent.created_at) {
+                    resTimeRaw = resEvent.created_at;
+                }
+            }
+            if (!resTimeRaw) resTimeRaw = ticket.updated_at;
+
             if (resTimeRaw) {
                 const resD = new Date(resTimeRaw);
                 resDateStr = resD.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
