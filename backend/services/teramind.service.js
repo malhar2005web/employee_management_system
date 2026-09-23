@@ -671,7 +671,7 @@ export async function syncTeramindDataToCache() {
                             const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
                             if (checkRes.rows.length > 0) {
                                 const row = checkRes.rows[0];
-                                if (row.approval_status !== 'Approved' || row.punch_source === 'TERAMIND' || row.manual_check_in == null) {
+                                if (row.approval_status !== 'Approved' && row.punch_source !== 'MANUAL_HR') {
                                     await pool.query(`
                                         UPDATE attendance
                                         SET status = $1, login_time = $2, logout_time = $3, total_working_hours = $4,

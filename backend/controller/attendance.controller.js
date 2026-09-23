@@ -557,15 +557,17 @@ export async function createManualCorrection(req, res) {
             // UPDATE
             await pool.query(
                 `UPDATE attendance
-                 SET login_time = $1, logout_time = $2, total_working_hours = $3, status = $4, overtime = $5, approval_status = 'Approved', approved_by = $6, updated_at = CURRENT_TIMESTAMP
+                 SET login_time = $1, logout_time = $2, total_working_hours = $3, status = $4, overtime = $5,
+                     approval_status = 'Approved', approved_by = $6, punch_source = 'MANUAL_HR',
+                     manual_check_in = $1, manual_check_out = $2, updated_at = CURRENT_TIMESTAMP
                  WHERE id = $7`,
                 [loginTime, logoutTime, totalHours, status, overtime ? parseInt(overtime, 10) : null, approvedBy, checkQuery.rows[0].id]
             );
         } else {
             // INSERT
             await pool.query(
-                `INSERT INTO attendance (employee_id, date, login_time, logout_time, total_working_hours, status, overtime, approval_status, approved_by)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, 'Approved', $8)`,
+                `INSERT INTO attendance (employee_id, date, login_time, logout_time, total_working_hours, status, overtime, approval_status, approved_by, punch_source, manual_check_in, manual_check_out)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, 'Approved', $8, 'MANUAL_HR', $1, $2)`,
                 [employeeId, date, loginTime, logoutTime, totalHours, status, overtime ? parseInt(overtime, 10) : null, approvedBy]
             );
         }
