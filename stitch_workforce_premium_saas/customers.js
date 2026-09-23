@@ -785,116 +785,65 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
             } else {
-                ticketsHtml = '<div style="display:flex; flex-direction:column; gap:8px; min-width:240px;">';
+                ticketsHtml = '<div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">';
                 
                 // Count header with View All trigger
                 ticketsHtml += `
-                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:2px;">
                         <span style="font-size:12px; font-weight:800; color:#1E293B; display:inline-flex; align-items:center; gap:5px;">
                             <i class="fa-solid fa-headset" style="color:#0d9488;"></i> ${totalTickets} Ticket${totalTickets > 1 ? 's' : ''}
                         </span>
-                        ${totalTickets > 2 ? `<a href="javascript:void(0)" onclick="window.viewCustomerTicketsModal(${cust.id})" style="font-size:11.5px; font-weight:700; color:#2563EB; text-decoration:none;" title="View all ${totalTickets} tickets">View All (${totalTickets}) &rarr;</a>` : ''}
+                        <a href="javascript:void(0)" onclick="window.viewCustomerTicketsModal(${cust.id})" style="font-size:11px; font-weight:700; color:#2563EB; text-decoration:none;" title="View all tickets">View All &rarr;</a>
                     </div>
                 `;
 
-                // Display up to 2 most recent tickets directly in the table cell
-                const displayed = tickets.slice(0, 2);
-                displayed.forEach(t => {
-                    let statusBadge = '';
+                // Render clean, clickable buttons: Ticket 1, Ticket 2, etc.
+                ticketsHtml += '<div style="display:flex; flex-wrap:wrap; gap:5px;">';
+                tickets.forEach((t, idx) => {
                     const stLower = (t.status || '').toLowerCase();
+                    let dotColor = '#EF4444';
+                    let borderColor = 'rgba(239,68,68,0.35)';
+                    let bgColor = 'rgba(239,68,68,0.06)';
+                    let statusLabel = 'Open';
+
                     if (stLower.includes('resolve')) {
-                        statusBadge = `<span style="background:rgba(16,185,129,0.12); color:#059669; border:1px solid rgba(16,185,129,0.25); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-circle-check" style="font-size:9.5px;"></i> Resolved</span>`;
+                        dotColor = '#10B981';
+                        borderColor = 'rgba(16,185,129,0.35)';
+                        bgColor = 'rgba(16,185,129,0.06)';
+                        statusLabel = 'Resolved';
                     } else if (stLower.includes('progress')) {
-                        statusBadge = `<span style="background:rgba(245,158,11,0.14); color:#b45309; border:1px solid rgba(245,158,11,0.28); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:9.5px;"></i> In Progress</span>`;
+                        dotColor = '#F59E0B';
+                        borderColor = 'rgba(245,158,11,0.4)';
+                        bgColor = 'rgba(245,158,11,0.06)';
+                        statusLabel = 'In Progress';
                     } else if (stLower.includes('assign')) {
-                        statusBadge = `<span style="background:rgba(99,102,241,0.12); color:#4f46e5; border:1px solid rgba(99,102,241,0.25); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-user-check" style="font-size:9.5px;"></i> Assigned</span>`;
+                        dotColor = '#6366F1';
+                        borderColor = 'rgba(99,102,241,0.35)';
+                        bgColor = 'rgba(99,102,241,0.06)';
+                        statusLabel = 'Assigned';
                     } else if (stLower.includes('close')) {
-                        statusBadge = `<span style="background:rgba(100,116,139,0.12); color:#475569; border:1px solid rgba(100,116,139,0.25); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-lock" style="font-size:9.5px;"></i> Closed</span>`;
-                    } else {
-                        statusBadge = `<span style="background:rgba(239,68,68,0.12); color:#dc2626; border:1px solid rgba(239,68,68,0.25); font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-circle-dot" style="font-size:9.5px;"></i> Open</span>`;
+                        dotColor = '#64748B';
+                        borderColor = 'rgba(100,116,139,0.35)';
+                        bgColor = 'rgba(100,116,139,0.06)';
+                        statusLabel = 'Closed';
                     }
 
-                    const raisedDateObj = t.created_at ? new Date(t.created_at) : null;
-                    const raisedDateStr = raisedDateObj && !isNaN(raisedDateObj.getTime())
-                        ? raisedDateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                        : '-';
-                    const raisedTimeStr = raisedDateObj && !isNaN(raisedDateObj.getTime())
-                        ? raisedDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        : '';
-
-                    // Deadline relationship comparison
-                    let deadlineBadge = '';
-                    const targetDeadline = cust.deadline;
-                    if (targetDeadline && raisedDateObj) {
-                        const rDate = new Date(t.created_at);
-                        const dDate = new Date(targetDeadline);
-                        rDate.setHours(0,0,0,0);
-                        dDate.setHours(0,0,0,0);
-                        const diffDays = Math.round((rDate - dDate) / (1000 * 60 * 60 * 24));
-                        if (diffDays < 0) {
-                            deadlineBadge = `<span style="font-size:10.5px; font-weight:700; color:#065f46; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.28); padding:1px 6px; border-radius:5px; display:inline-flex; align-items:center; gap:3px;" title="Raised ${Math.abs(diffDays)} day(s) before target deadline (${new Date(targetDeadline).toLocaleDateString()})"><i class="fa-solid fa-clock-rotate-left"></i> Pre-Deadline (${Math.abs(diffDays)}d early)</span>`;
-                        } else if (diffDays === 0) {
-                            deadlineBadge = `<span style="font-size:10.5px; font-weight:700; color:#b45309; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.28); padding:1px 6px; border-radius:5px; display:inline-flex; align-items:center; gap:3px;" title="Raised exactly on deadline day"><i class="fa-solid fa-calendar-day"></i> On Deadline Day</span>`;
-                        } else {
-                            deadlineBadge = `<span style="font-size:10.5px; font-weight:700; color:#b91c1c; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.28); padding:1px 6px; border-radius:5px; display:inline-flex; align-items:center; gap:3px;" title="Raised ${diffDays} day(s) after target deadline (${new Date(targetDeadline).toLocaleDateString()})"><i class="fa-solid fa-triangle-exclamation"></i> Post-Deadline (+${diffDays}d)</span>`;
-                        }
-                    }
-
-                    // Handover / delivery comparison
-                    let handoverText = '';
-                    if (cust.delivery_date && raisedDateObj) {
-                        const rDate = new Date(t.created_at);
-                        const delivDate = new Date(cust.delivery_date);
-                        rDate.setHours(0,0,0,0);
-                        delivDate.setHours(0,0,0,0);
-                        const diffDeliv = Math.round((rDate - delivDate) / (1000 * 60 * 60 * 24));
-                        if (diffDeliv > 0) {
-                            handoverText = `<span style="font-size:10px; color:#475569; font-weight:600;">(+${diffDeliv}d post-handover)</span>`;
-                        } else if (diffDeliv === 0) {
-                            handoverText = `<span style="font-size:10px; color:#475569; font-weight:600;">(on handover day)</span>`;
-                        } else {
-                            handoverText = `<span style="font-size:10px; color:#475569; font-weight:600;">(${Math.abs(diffDeliv)}d pre-handover)</span>`;
-                        }
-                    }
-
-                    let resolvedText = '';
-                    if (t.resolved_at) {
-                        const resDate = new Date(t.resolved_at);
-                        resolvedText = `<span style="font-size:10.5px; color:#059669; font-weight:700; display:inline-flex; align-items:center; gap:2px;"><i class="fa-solid fa-check"></i> Res: ${resDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>`;
-                    }
+                    const safeTitle = (t.title || 'Support Ticket').replace(/"/g, '&quot;');
+                    const tCode = t.ticket_code || `TK-${t.id}`;
 
                     ticketsHtml += `
-                        <div style="background:rgba(248,250,252,0.95); border:1px solid rgba(226,232,240,0.95); border-radius:8px; padding:6px 9px; display:flex; flex-direction:column; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
-                            <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
-                                <a href="admin-support.html?search=${encodeURIComponent(t.ticket_code)}" target="_blank" style="font-family:monospace; font-size:11.5px; font-weight:800; color:#0f172a; text-decoration:none; background:#e2e8f0; padding:1px 6px; border-radius:4px; border:1px solid #cbd5e1;" title="Open ticket in Support Desk">${t.ticket_code}</a>
-                                ${statusBadge}
-                            </div>
-                            <div style="font-size:11.5px; font-weight:600; color:#334155; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:230px;" title="${(t.title || '').replace(/"/g, '&quot;')}">
-                                ${t.title || 'Support Ticket'}
-                            </div>
-                            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:11px; color:#64748B;">
-                                <span><i class="fa-regular fa-calendar" style="font-size:10px; color:#94A3B8;"></i> ${raisedDateStr} ${raisedTimeStr}</span>
-                                ${handoverText}
-                                ${resolvedText}
-                            </div>
-                            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px; font-size:11px; margin-top:1px;">
-                                <span style="font-weight:700; color:#334155; display:inline-flex; align-items:center; gap:3.5px;" title="Assigned Engineer">
-                                    <i class="fa-solid fa-user-gear" style="color:#0d9488; font-size:10px;"></i> ${t.assigned_to_name || 'Unassigned'}
-                                </span>
-                                ${formatTicketTransferTrail(t.transfer_history)}
-                            </div>
-                            ${deadlineBadge ? `<div>${deadlineBadge}</div>` : ''}
-                        </div>
-                    `;
-                });
-
-                if (totalTickets > 2) {
-                    ticketsHtml += `
-                        <button type="button" onclick="window.viewCustomerTicketsModal(${cust.id})" style="background:none; border:none; padding:0; font-size:11.5px; font-weight:700; color:#2563EB; cursor:pointer; text-align:left; display:inline-flex; align-items:center; gap:4px;">
-                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px;"></i> View all ${totalTickets} tickets...
+                        <button type="button" onclick="window.viewCustomerTicketsModal(${cust.id}, '${tCode}')"
+                            style="background:${bgColor}; border:1.5px solid ${borderColor}; padding:3.5px 8px; border-radius:8px; font-size:11.5px; font-weight:700; color:#1e293b; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:all 0.15s ease; box-shadow:0 1px 2px rgba(0,0,0,0.03);"
+                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.08)';"
+                            onmouseout="this.style.transform='none'; this.style.boxShadow='0 1px 2px rgba(0,0,0,0.03)';"
+                            title="Ticket ${idx + 1}: ${tCode} (${statusLabel})\n${safeTitle}\nClick to view full details">
+                            <span style="width:7px; height:7px; border-radius:50%; background:${dotColor}; flex-shrink:0;"></span>
+                            <span style="color:#0f766e; font-weight:800;">Ticket ${idx + 1}</span>
+                            <span style="font-family:monospace; font-size:10px; color:#64748b; font-weight:600;">${tCode}</span>
                         </button>
                     `;
-                }
+                });
+                ticketsHtml += '</div>';
 
                 ticketsHtml += '</div>';
             }
@@ -1191,7 +1140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modal) modal.style.display = 'none';
     };
 
-    window.viewCustomerTicketsModal = (customerId) => {
+    window.viewCustomerTicketsModal = (customerId, focusedTicketCode = null) => {
         const cust = (window.currentCustomersData || []).find(c => String(c.id) === String(customerId));
         if (!cust) return;
 
@@ -1220,7 +1169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         } else {
             let html = '';
-            tickets.forEach(t => {
+            tickets.forEach((t, idx) => {
                 let statusBadge = '';
                 const stLower = (t.status || '').toLowerCase();
                 if (stLower.includes('resolve')) {
@@ -1283,13 +1232,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                 }
 
+                const isFocused = focusedTicketCode && String(t.ticket_code).toUpperCase() === String(focusedTicketCode).toUpperCase();
+                const cardBorder = isFocused ? '2px solid #0d9488' : '1px solid #e2e8f0';
+                const cardBg = isFocused ? '#f0fdfa' : '#ffffff';
+                const cardShadow = isFocused ? '0 4px 14px rgba(13,148,136,0.18)' : '0 1px 3px rgba(0,0,0,0.04)';
+
                 html += `
-                    <div style="border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; background:#ffffff; box-shadow:0 1px 3px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:8px;">
+                    <div id="ticket-card-${t.ticket_code}" style="border:${cardBorder}; border-radius:12px; padding:14px 16px; background:${cardBg}; box-shadow:${cardShadow}; display:flex; flex-direction:column; gap:8px; transition:all 0.2s;">
                         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
                             <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-size:12px; font-weight:800; color:#0f766e; background:rgba(15,118,110,0.1); padding:2px 8px; border-radius:6px;">Ticket ${idx + 1}</span>
                                 <span style="font-family:monospace; font-weight:800; font-size:13px; color:#0f172a; background:#f1f5f9; padding:3px 8px; border-radius:6px; border:1px solid #cbd5e1;">${t.ticket_code}</span>
                                 ${statusBadge}
                                 ${t.priority ? `<span class="priority-pill ${String(t.priority).toLowerCase()}" style="font-size:11px; padding:2px 7px;">${t.priority}</span>` : ''}
+                                ${isFocused ? `<span style="background:#0d9488; color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:4px;"><i class="fa-solid fa-arrow-pointer"></i> Selected</span>` : ''}
                             </div>
                             <a href="admin-support.html?search=${encodeURIComponent(t.ticket_code)}" target="_blank" style="font-size:12px; font-weight:700; color:#2563EB; text-decoration:none; display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:6px; background:rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.2);">
                                 Open in Support Desk <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px;"></i>
@@ -1313,6 +1269,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             });
             body.innerHTML = html;
+
+            if (focusedTicketCode) {
+                setTimeout(() => {
+                    const el = document.getElementById('ticket-card-' + focusedTicketCode);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 120);
+            }
         }
 
         modal.style.display = 'flex';
