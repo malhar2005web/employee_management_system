@@ -2405,16 +2405,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 let badgeClass = 'status-empty';
                 if (code === 'P') badgeClass = 'status-P';
                 else if (code === 'W') badgeClass = 'status-W';
-                else if (code === 'HL') badgeClass = 'status-HL';
+                else if (code === 'O' || code === 'HL') badgeClass = 'status-O';
                 else if (code === 'H') badgeClass = 'status-H';
                 else if (code === 'L') badgeClass = 'status-L';
                 else if (code === 'LH') badgeClass = 'status-LH';
                 else if (code === 'LP') badgeClass = 'status-LP';
                 else if (code === 'A') badgeClass = 'status-A';
+                else if (code === 'D') badgeClass = 'status-D';
+
+                let tipText = `Day ${d}: ${code}`;
+                if (code === 'W') tipText = `Day ${d}: Week Off (W)`;
+                else if (code === 'O' || code === 'HL') tipText = `Day ${d}: Public Holiday (O)`;
+                else if (code === 'L') tipText = `Day ${d}: Full Day Leave (L)`;
+                else if (code === 'LH') tipText = `Day ${d}: 1st Half Leave, 2nd Half Present (LH)`;
+                else if (code === 'H') tipText = `Day ${d}: Half Day Present, 2nd Half Absent (H)`;
+                else if (code === 'P') tipText = `Day ${d}: Present (P)`;
+                else if (code === 'A') tipText = `Day ${d}: Absent (A)`;
+                else if (code === 'D') tipText = `Day ${d}: Off Duty / Client Movement (D)`;
 
                 rowHtml += `
                     <td style="padding:3px 1px; border-right:1px solid ${isSunday ? '#e2e8f0' : '#f1f5f9'}; background:${isSunday ? 'rgba(241, 245, 249, 0.5)' : 'transparent'};">
-                        <span class="matrix-badge ${badgeClass}" title="Day ${d}: ${code}">
+                        <span class="matrix-badge ${badgeClass}" title="${tipText}">
                             ${code}
                         </span>
                     </td>
@@ -2429,7 +2440,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum';">${r.loan_deduction > 0 ? `₹${r.loan_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
                 <td style="padding:8px 6px; font-weight:600; color:#64748b; font-feature-settings:'tnum';">${r.loan_balance > 0 ? `₹${r.loan_balance.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
                 <td style="padding:8px 6px; font-weight:800; color:#059669; background:#f0fdf4; font-feature-settings:'tnum';">${r.incentive_addition > 0 ? `+₹${r.incentive_addition.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
-                <td style="padding:8px 6px; font-weight:700; color:#b45309; font-feature-settings:'tnum';">${r.late_hours_deduction > 0 ? `₹${r.late_hours_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td style="padding:6px 6px; text-align:center; font-feature-settings:'tnum';">
+                    ${(r.late_days && r.late_days > 0)
+                        ? `<span style="display:inline-block; padding:3px 8px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:9999px; font-size:11.5px; font-weight:700; white-space:nowrap; box-shadow:0 1px 2px rgba(180,83,9,0.08);">${r.late_days}(Days Late)</span>`
+                        : `<span style="font-size:11.5px; font-weight:600; color:#94a3b8; white-space:nowrap;">0(Days Late)</span>`
+                    }
+                    ${r.late_hours_deduction > 0 ? `<div style="font-size:10.5px; color:#b45309; font-weight:700; margin-top:2px;">₹${Number(r.late_hours_deduction).toLocaleString('en-IN')}</div>` : ''}
+                </td>
                 <td style="padding:8px 6px; font-weight:800; color:#dc2626; background:#fff1f2; font-feature-settings:'tnum';">${r.absent_deduction > 0 ? `₹${Number(r.absent_deduction).toLocaleString('en-IN')}` : '<span style="color:#10b981; font-weight:700;">₹0</span>'}</td>
                 <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum';">${r.mobile_deduction > 0 ? `₹${r.mobile_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
                 <td style="padding:8px 10px; font-weight:800; color:#0f172a; background:#fefce8; font-feature-settings:'tnum';">₹${Number(r.gross_salary || 0).toLocaleString('en-IN')}</td>

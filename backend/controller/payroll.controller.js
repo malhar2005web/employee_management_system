@@ -257,12 +257,14 @@ export async function getMonthlyPayroll(req, res) {
             const dailyMatrix = {};
             let countP = 0;
             let countW = 0;
-            let countHL = 0;
-            let countH = 0; // Half Day (0.5 Present, 0.5 Absent)
-            let countL = 0;
-            let countLH = 0;
-            let countA = 0;
+            let countO = 0; // Holiday (O) (formerly HL)
+            let countH = 0; // Half Day Present, Second Half Absent (0.5 Present, 0.5 Absent)
+            let countL = 0; // Full Day Leave (L)
+            let countLH = 0; // First Half Leave, Second Half Present (0.5 Present, 0.5 Leave)
+            let countA = 0; // Absent (A)
             let countLP = 0;
+            let countD = 0; // Off Duty / Out Entry Movement (D)
+            let countLateDays = 0; // Total late arrivals in month calculated from daily logs
             let totalWorkedHours = 0;
 
             for (let d = 1; d <= daysInMonth; d++) {
@@ -286,37 +288,72 @@ export async function getMonthlyPayroll(req, res) {
                 const hasTelemetry = actData && (actData.totalSecs > 0 || actData.count > 0);
                 const hasRtpPresent = rtp && (rtp.is_present === 'P' || (rtp.total_seconds && rtp.total_seconds > 0));
 
+                const isOutEntry = outEntryMap.get(`${emp.id}_${dateStr}`);
+
+                // Detect Late Arrival from Daily Logs
+                if (dbAtt) {
+                    let isLate = false;
+                    if (dbAtt.status === 'Late') {
+                        isLate = true;
+                    } else if (dbAtt.login_time || dbAtt.manual_check_in || dbAtt.portal_check_in) {
+                        try {
+                            const inD = new Date(dbAtt.login_time || dbAtt.manual_check_in || dbAtt.portal_check_in);
+                            if (!isNaN(inD.getTime())) {
+                                const inParts = new Intl.DateTimeFormat('en-GB', {
+                                    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                                }).formatToParts(inD);
+                                const ip = {};
+                                inParts.forEach(({ type, value }) => { ip[type] = value; });
+                                const hh = parseInt(ip.hour, 10);
+                                const mm = parseInt(ip.minute, 10);
+                                if (hh > 10 || (hh === 10 && mm > 15)) {
+                                    isLate = true;
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                    if (isLate) {
+                        countLateDays++;
+                    }
+                }
+
                 let code = 'A'; // default
 
-                // 1. Sunday -> Weekly Off
+                // 1. Sunday -> Weekly Off (W)
                 if (dayOfWeek === 0) {
                     code = 'W';
                     countW++;
                 }
-                // 2. Company Public Holiday -> HL (Paid Holiday)
+                // 2. Company Public Holiday -> Holiday (O)
                 else if (isHoliday) {
-                    code = 'HL';
-                    countHL++;
+                    code = 'O';
+                    countO++;
                 }
                 // 3. Approved Leave
                 else if (isLeave) {
                     const lType = (isLeave.leave_type || '').toLowerCase();
                     if (lType.includes('half')) {
-                        code = 'LH';
+                        code = 'LH'; // First Half Leave, Second Half Present
                         countLH++;
                     } else if (lType.includes('paid')) {
                         code = 'LP';
                         countLP++;
                     } else {
-                        code = 'L';
+                        code = 'L'; // Leave
                         countL++;
                     }
                 }
-                const isOutEntry = outEntryMap.get(`${emp.id}_${dateStr}`);
-
-                // 4. Real Attendance from DB
-                if (dbAtt) {
-                    if (dbAtt.status === 'Present' || dbAtt.status === 'Late' || dbAtt.status === 'Auto-Synced' || dbAtt.status === 'Out Entry' || isOutEntry) {
+                // 4. Off Duty / Out Entry Official Movement (D)
+                else if (isOutEntry || dbAtt?.status === 'Out Entry' || dbAtt?.status === 'Off Duty') {
+                    code = 'D';
+                    countD++;
+                    if (dbAtt?.total_working_hours) {
+                        totalWorkedHours += parseFloat(dbAtt.total_working_hours) || 0;
+                    }
+                }
+                // 5. Real Attendance from DB
+                else if (dbAtt) {
+                    if (dbAtt.status === 'Present' || dbAtt.status === 'Late' || dbAtt.status === 'Auto-Synced') {
                         code = 'P';
                         countP++;
                     } else if (dbAtt.status === 'Half Day') {
@@ -331,9 +368,6 @@ export async function getMonthlyPayroll(req, res) {
                     } else if (dbAtt.status === 'Absent') {
                         if (isFuture) {
                             code = '—';
-                        } else if (isOutEntry) {
-                            code = 'P';
-                            countP++;
                         } else if ((emp.designation && emp.designation.toLowerCase().includes('board')) || emp.id === 18) {
                             code = 'P';
                             countP++;
@@ -344,9 +378,6 @@ export async function getMonthlyPayroll(req, res) {
                     } else {
                         if (isFuture) {
                             code = '—';
-                        } else if (isOutEntry) {
-                            code = 'P';
-                            countP++;
                         } else {
                             code = 'A';
                             countA++;
@@ -357,7 +388,7 @@ export async function getMonthlyPayroll(req, res) {
                         totalWorkedHours += parseFloat(dbAtt.total_working_hours) || 0;
                     }
                 }
-                // 5. Workstation Telemetry Activity Fallback (if any)
+                // 6. Workstation Telemetry Activity Fallback (if any)
                 else if (hasTelemetry || hasRtpPresent) {
                     code = 'P';
                     countP++;
@@ -368,12 +399,7 @@ export async function getMonthlyPayroll(req, res) {
                         totalWorkedHours += (rtp.total_seconds / 3600);
                     }
                 }
-                // 5b. Out Entry duty movement fallback
-                else if (isOutEntry) {
-                    code = 'P';
-                    countP++;
-                }
-                // 5c. Executive Board exempt from workstation punching
+                // 7. Executive Board exempt from workstation punching
                 else if ((emp.designation && emp.designation.toLowerCase().includes('board')) || emp.id === 18) {
                     if (isFuture) {
                         code = '—';
@@ -382,11 +408,11 @@ export async function getMonthlyPayroll(req, res) {
                         countP++;
                     }
                 }
-                // 6. Future Date (Not yet reached) -> Dash (—) (Zero deduction, not absent)
+                // 8. Future Date (Not yet reached) -> Dash (—) (Zero deduction, not absent)
                 else if (isFuture) {
                     code = '—';
                 }
-                // 7. Past Weekday with zero activity -> Absent
+                // 9. Past Weekday with zero activity -> Absent (A)
                 else {
                     code = 'A';
                     countA++;
@@ -396,8 +422,8 @@ export async function getMonthlyPayroll(req, res) {
             }
 
             // Calculations strictly matching Book1.xlsx
-            // Column AI: Total Present = COUNTIF(P) + COUNTIF(H)*0.5 + COUNTIF(LH)*0.5
-            const presentDays = parseFloat((countP + (countH * 0.5) + (countLH * 0.5)).toFixed(1));
+            // Column AI: Total Present = COUNTIF(P) + COUNTIF(D) + COUNTIF(H)*0.5 + COUNTIF(LH)*0.5
+            const presentDays = parseFloat((countP + countD + (countH * 0.5) + (countLH * 0.5)).toFixed(1));
 
             // Column AK: Total Absent = COUNTIF(A) + COUNTIF(H)*0.5
             const absentDays = parseFloat((countA + (countH * 0.5)).toFixed(1));
@@ -443,6 +469,9 @@ export async function getMonthlyPayroll(req, res) {
                 absent_days: absentDays,
                 leave_days: leaveDays,
                 weekly_offs: countW,
+                holidays: countO,
+                off_duty_days: countD,
+                late_days: countLateDays,
                 base_salary: baseSalary,
                 hourly_billing_rate: hourlyRate,
                 advance_deduction: advanceDeduction,
@@ -706,7 +735,7 @@ export async function exportPayrollCSV(req, res) {
                 r.loan_deduction,
                 r.loan_balance,
                 r.incentive_addition,
-                r.late_hours_deduction,
+                r.late_days > 0 ? `"${r.late_days} Days Late${r.late_hours_deduction > 0 ? ` (₹${r.late_hours_deduction})` : ''}"` : (r.late_hours_deduction > 0 ? r.late_hours_deduction : 0),
                 30, // Month Days
                 r.absent_deduction,
                 r.mobile_deduction,
