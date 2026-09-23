@@ -793,7 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span style="font-size:12px; font-weight:800; color:#1E293B; display:inline-flex; align-items:center; gap:5px;">
                             <i class="fa-solid fa-headset" style="color:#0d9488;"></i> ${totalTickets} Ticket${totalTickets > 1 ? 's' : ''}
                         </span>
-                        <a href="javascript:void(0)" onclick="window.viewCustomerTicketsModal(${cust.id})" style="font-size:11px; font-weight:700; color:#2563EB; text-decoration:none;" title="View all tickets">View All &rarr;</a>
+                        <a href="javascript:void(0)" onclick="event.preventDefault(); event.stopPropagation(); window.viewCustomerTicketsModal('${cust.id}')" style="font-size:11px; font-weight:700; color:#2563EB; text-decoration:none; cursor:pointer;" title="View all tickets">View All &rarr;</a>
                     </div>
                 `;
 
@@ -832,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tCode = t.ticket_code || `TK-${t.id}`;
 
                     ticketsHtml += `
-                        <button type="button" onclick="window.viewCustomerTicketsModal(${cust.id}, '${tCode}')"
+                        <button type="button" onclick="event.preventDefault(); event.stopPropagation(); window.viewCustomerTicketsModal('${cust.id}', '${tCode}')"
                             style="background:${bgColor}; border:1.5px solid ${borderColor}; padding:3.5px 8px; border-radius:8px; font-size:11.5px; font-weight:700; color:#1e293b; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:all 0.15s ease; box-shadow:0 1px 2px rgba(0,0,0,0.03);"
                             onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.08)';"
                             onmouseout="this.style.transform='none'; this.style.boxShadow='0 1px 2px rgba(0,0,0,0.03)';"
@@ -1137,18 +1137,56 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============ Customer Support Tickets Modal ============
     window.closeCustomerTicketsModal = () => {
         const modal = document.getElementById('modal-customer-tickets');
-        if (modal) modal.style.display = 'none';
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.style.opacity = '0';
+        modal.style.pointerEvents = 'none';
+        setTimeout(() => {
+            modal.style.display = 'none';
+            if (!document.querySelector('.modal-overlay.active')) {
+                document.body.classList.remove('modal-open');
+            }
+        }, 220);
     };
 
-    window.viewCustomerTicketsModal = (customerId, focusedTicketCode = null) => {
-        const cust = (window.currentCustomersData || []).find(c => String(c.id) === String(customerId));
-        if (!cust) return;
+    window.viewCustomerTicketsModal = async (customerId, focusedTicketCode = null) => {
+        let cust = (window.currentCustomersData || []).find(c => String(c.id) === String(customerId));
+        
+        // Fallback: If customer not found in memory, fetch fresh from server
+        if (!cust) {
+            try {
+                const resp = await fetch('/api/v1/admin/customers');
+                const resData = await resp.json();
+                if (resData.success && Array.isArray(resData.data)) {
+                    window.currentCustomersData = resData.data;
+                    cust = window.currentCustomersData.find(c => String(c.id) === String(customerId));
+                }
+            } catch (err) {
+                console.error("Fallback customer fetch error:", err);
+            }
+        }
+
+        if (!cust) {
+            console.error("Customer record not found for id:", customerId);
+            return;
+        }
 
         const modal = document.getElementById('modal-customer-tickets');
         const title = document.getElementById('cust-tickets-modal-title');
         const subtitle = document.getElementById('cust-tickets-modal-subtitle');
         const body = document.getElementById('cust-tickets-modal-body');
-        if (!modal || !body) return;
+        if (!modal || !body) {
+            console.error("Customer tickets modal element missing!");
+            return;
+        }
+
+        // Attach backdrop dismiss click if not already attached
+        if (!modal.dataset.backdropBound) {
+            modal.dataset.backdropBound = 'true';
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) window.closeCustomerTicketsModal();
+            });
+        }
 
         const tickets = cust.support_tickets && Array.isArray(cust.support_tickets) ? cust.support_tickets : [];
         if (title) title.innerHTML = `<i class="fa-solid fa-headset" style="color:#0d9488;"></i> ${cust.name} &bull; Support Tickets (${tickets.length})`;
@@ -1274,11 +1312,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => {
                     const el = document.getElementById('ticket-card-' + focusedTicketCode);
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 120);
+                }, 150);
             }
         }
 
+        document.body.classList.add('modal-open');
         modal.style.display = 'flex';
+        modal.style.opacity = '1';
+        modal.style.pointerEvents = 'auto';
+        modal.classList.add('active');
     };
 
     // ============ Delete customer trigger ============
