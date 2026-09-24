@@ -412,22 +412,22 @@
     </div>
 
     <!-- Client Visit Customer & Branch Selection (Auto Geofencing) -->
-    <div id="client-visit-fields" style="display:none; background:rgba(15,118,110,0.06); padding:10px 12px; border-radius:8px; border:1px solid rgba(15,118,110,0.25); margin-bottom:12px;">
-      <div class="grid-two-col">
-        <div class="form-group" style="margin-bottom:6px;">
-          <label style="font-size:12px; font-weight:800; color:#0f766e;"><i class="fa-solid fa-building"></i> Select Customer</label>
-          <select id="emp-out-customer" style="padding:7px; font-size:12.5px;">
+    <div id="client-visit-fields" style="display:none; background:rgba(15,118,110,0.06); padding:10px 12px; border-radius:10px; border:1px solid rgba(15,118,110,0.25); margin-bottom:12px; box-sizing:border-box; width:100%;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%; box-sizing:border-box;">
+        <div class="form-group" style="margin-bottom:6px; min-width:0; width:100%; box-sizing:border-box;">
+          <label style="font-size:12px; font-weight:800; color:#0f766e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;"><i class="fa-solid fa-building"></i> Select Customer</label>
+          <select id="emp-out-customer" style="width:100%; max-width:100%; box-sizing:border-box; padding:7px 10px; font-size:12px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; text-overflow:ellipsis;">
             <option value="">-- Choose Customer --</option>
           </select>
         </div>
-        <div class="form-group" style="margin-bottom:6px;">
-          <label style="font-size:12px; font-weight:800; color:#0f766e;"><i class="fa-solid fa-code-branch"></i> Customer Branch / Office</label>
-          <select id="emp-out-branch" style="padding:7px; font-size:12.5px;">
+        <div class="form-group" style="margin-bottom:6px; min-width:0; width:100%; box-sizing:border-box;">
+          <label style="font-size:12px; font-weight:800; color:#0f766e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;"><i class="fa-solid fa-code-branch"></i> Customer Branch / Office</label>
+          <select id="emp-out-branch" style="width:100%; max-width:100%; box-sizing:border-box; padding:7px 10px; font-size:12px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; text-overflow:ellipsis;">
             <option value="">-- Choose Branch --</option>
           </select>
         </div>
       </div>
-      <div id="emp-branch-target-info" style="font-size:11.5px; color:#0f766e; font-weight:600; margin-top:4px; display:none;">
+      <div id="emp-branch-target-info" style="font-size:11.5px; color:#0f766e; font-weight:600; margin-top:6px; display:none; word-break:break-word;">
         <i class="fa-solid fa-location-dot"></i> <span id="emp-target-address-text"></span>
       </div>
     </div>
@@ -517,8 +517,8 @@
 
 <!-- Scripts -->
 <script src="script.js?v=20260922_3"></script>
-<script src="js/employee-attendance.js?v=20260923_outentry_v3"></script>
-<script src="js/employee-leave.js?v=20260911_1"></script>
+<script src="js/employee-attendance.js?v=20260924_oe_flow_v1"></script>
+<script src="js/employee-leave.js?v=20260924_oe_flow_v1"></script>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {

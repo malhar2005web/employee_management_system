@@ -180,23 +180,41 @@ export async function createOutEntry(req, res) {
         }
 
         const entryDate = date || new Date().toISOString().split('T')[0];
-        const status = inTime ? 'Returned' : 'Out';
-        const approvedBy = (user && (user.role === 'Admin' || user.role === 'HR')) ? user.id : null;
+        const expIn = expectedInTime || expected_in_time || null;
+        const isAdmin = user && (user.role === 'Admin' || user.role === 'HR');
 
+        let status = 'Pending Approval';
+        let approvedBy = null;
+        let finalInTime = null;
         let durationMinutes = 0;
-        if (outTime && inTime) {
-            const [outH, outM] = outTime.split(':').map(Number);
-            const [inH, inM] = inTime.split(':').map(Number);
-            durationMinutes = (inH * 60 + inM) - (outH * 60 + outM);
-            if (durationMinutes < 0) durationMinutes = 0;
+
+        if (isAdmin) {
+            // Admin manually recording an out entry
+            if (inTime) {
+                finalInTime = inTime;
+                status = 'Returned';
+                const [outH, outM] = outTime.split(':').map(Number);
+                const [inH, inM] = inTime.split(':').map(Number);
+                durationMinutes = (inH * 60 + inM) - (outH * 60 + outM);
+                if (durationMinutes < 0) durationMinutes = 0;
+            } else {
+                status = 'Approved';
+            }
+            approvedBy = user.id;
+        } else {
+            // Employee application -> ALWAYS Pending Approval, in_time is NULL!
+            status = 'Pending Approval';
+            approvedBy = null;
+            finalInTime = null;
+            durationMinutes = 0;
         }
 
         const query = `
             INSERT INTO out_entries (
-                employee_id, date, out_time, in_time, duration_minutes,
+                employee_id, date, out_time, in_time, expected_in_time, duration_minutes,
                 purpose, destination, reason, status, approved_by, remarks,
                 customer_id, branch_name, target_latitude, target_longitude, target_address
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *;
         `;
 
@@ -204,7 +222,8 @@ export async function createOutEntry(req, res) {
             targetEmployeeId,
             entryDate,
             outTime,
-            inTime || null,
+            finalInTime,
+            expIn,
             durationMinutes,
             purpose,
             destination || null,
@@ -221,12 +240,12 @@ export async function createOutEntry(req, res) {
 
         const { rows } = await pool.query(query, values);
 
-        // Asynchronously notify employee via WhatsApp
+        // Asynchronously notify employee & admin via WhatsApp
         notifyOutEntryWhatsApp(targetEmployeeId, purpose, outTime, reason, destination);
 
         res.status(201).json({
             success: true,
-            message: "Out entry recorded successfully",
+            message: isAdmin ? "Out entry recorded successfully" : "Out entry submitted for Admin approval",
             data: rows[0]
         });
     } catch (error) {
@@ -292,7 +311,7 @@ export async function updateOutEntryStatus(req, res) {
         const { status, remarks } = req.body;
         const user = req.user;
 
-        if (!['Approved', 'Rejected', 'Returned', 'Out'].includes(status)) {
+        if (!['Approved', 'Rejected', 'Returned', 'Out', 'Pending Approval'].includes(status)) {
             return res.status(400).json({ success: false, message: "Invalid status value" });
         }
 
@@ -457,6 +476,7 @@ export async function verifyVisitOtp(req, res) {
             SET 
                 otp_verified_at = NOW(),
                 visit_started_at = COALESCE(visit_started_at, NOW()),
+                status = 'Out',
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *;

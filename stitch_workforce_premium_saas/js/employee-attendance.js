@@ -751,7 +751,7 @@
                     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                     credentials: 'include',
                     body: JSON.stringify({ 
-                        date, purpose, outTime, inTime: inTime || null, destination, reason,
+                        date, purpose, outTime, expectedInTime: inTime || null, destination, reason,
                         customerId, branchName, targetLatitude, targetLongitude, targetAddress 
                     })
                 });
@@ -834,6 +834,14 @@
             setTimeout(() => document.getElementById('otp-digit-1')?.focus(), 100);
         }
     }
+
+    function escapeQuote(str) {
+        return String(str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    window.openVisitOtpModalDirect = function (entryId, customerName, branchName) {
+        openVisitOtpModal({ id: entryId, customer_name: customerName, branch_name: branchName });
+    };
 
     // Auto-advance across 4 OTP digit boxes
     for (let i = 1; i <= 4; i++) {
@@ -950,7 +958,7 @@
             if (persEl) persEl.textContent = entries.filter(e => ['Personal Work', 'Emergency / Medical'].includes(e.purpose)).length;
 
             // Check active out entry for 5-minute tracking & live ticking timer
-            const activeEntry = entries.find(e => e.status === 'Out');
+            const activeEntry = entries.find(e => (e.status === 'Out' || e.status === 'Approved') && !e.in_time);
             activeOutEntryCache = activeEntry || null;
 
             // Clear previous intervals
@@ -1011,18 +1019,24 @@
                 }
 
                 let statusBadge = '';
-                if (entry.status === 'Out') {
-                    statusBadge = `<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800;"><i class="fa-solid fa-person-walking-arrow-right"></i> OUT</span>`;
+                if (entry.status === 'Pending Approval') {
+                    statusBadge = `<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800; border:1px solid #fde68a;"><i class="fa-solid fa-hourglass-half"></i> PENDING APPROVAL</span>`;
+                } else if (entry.status === 'Out') {
+                    statusBadge = `<span class="status-pill pending" style="background:#dbeafe; color:#1d4ed8; font-weight:800; border:1px solid #bfdbfe;"><i class="fa-solid fa-person-walking-arrow-right"></i> OUT</span>`;
                 } else if (entry.status === 'Returned') {
                     statusBadge = `<span class="status-pill progress" style="background:#dcfce7; color:#15803d; font-weight:800;"><i class="fa-solid fa-clock-rotate-left"></i> RETURNED</span>`;
                 } else if (entry.status === 'Approved') {
-                    statusBadge = `<span class="status-pill progress"><i class="fa-solid fa-circle-check"></i> APPROVED</span>`;
+                    statusBadge = `<span class="status-pill progress" style="background:#ecfdf5; color:#047857; font-weight:800; border:1px solid #a7f3d0;"><i class="fa-solid fa-circle-check"></i> APPROVED</span>`;
                 } else if (entry.status === 'Rejected') {
-                    statusBadge = `<span class="status-pill delayed"><i class="fa-solid fa-circle-xmark"></i> REJECTED</span>`;
+                    statusBadge = `<span class="status-pill delayed" style="background:#fee2e2; color:#b91c1c; font-weight:800;"><i class="fa-solid fa-circle-xmark"></i> REJECTED</span>`;
                 }
 
                 let actionBtn = '—';
-                if (entry.status === 'Out') {
+                if (entry.status === 'Pending Approval') {
+                    actionBtn = `<span style="color:#d97706; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-clock"></i> Awaiting Admin</span>`;
+                } else if (entry.status === 'Approved' && entry.purpose === 'Client Visit' && !entry.otp_verified_at) {
+                    actionBtn = `<button type="button" class="btn-primary" style="padding:4px 10px; font-size:11px; background:#0284c7; border-radius:4px; font-weight:700;" onclick="window.openVisitOtpModalDirect(${entry.id}, '${escapeQuote(entry.customer_name || entry.destination || 'Client Visit')}', '${escapeQuote(entry.branch_name || '')}')"><i class="fa-solid fa-key"></i> Enter Client OTP</button>`;
+                } else if (entry.status === 'Out' || (entry.status === 'Approved' && (entry.otp_verified_at || entry.purpose !== 'Client Visit'))) {
                     actionBtn = `<button type="button" class="btn-primary" style="padding:4px 10px; font-size:11px; border-radius:4px;" onclick="window.openEmpReturnModal(${entry.id})"><i class="fa-solid fa-clock-rotate-left"></i> Mark Return</button>`;
                 }
 

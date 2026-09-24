@@ -875,6 +875,8 @@ export async function runMigrations() {
                 updated_at TIMESTAMP DEFAULT NOW()
             );
 
+            ALTER TABLE out_entries ADD COLUMN IF NOT EXISTS expected_in_time TIME WITHOUT TIME ZONE;
+
             CREATE INDEX IF NOT EXISTS idx_out_entries_emp_dt ON out_entries(employee_id, date);
             CREATE INDEX IF NOT EXISTS idx_out_entries_status ON out_entries(status);
         `);
@@ -886,10 +888,12 @@ export async function runMigrations() {
     // Phase 15: Leave Types & Leave Requests Seeding
     try {
         await client.query(`
+            UPDATE leave_types SET name = '1st Half Leave / 2nd Half Present', code = 'LH' WHERE code = 'HD' OR name ILIKE '%half day leave%';
             INSERT INTO leave_types (name, code, default_balance, carry_forward, max_carry_forward, is_active)
             VALUES 
                 ('Paid / Annual Leave', 'PL', 15.0, true, 10.0, true),
-                ('Half Day Leave', 'HD', 6.0, false, 0.0, true),
+                ('1st Half Leave / 2nd Half Present', 'LH', 6.0, false, 0.0, true),
+                ('Half Day Present / 2nd Half Leave', 'H', 6.0, false, 0.0, true),
                 ('Compensatory Off', 'CO', 5.0, false, 0.0, true)
             ON CONFLICT DO NOTHING;
         `);

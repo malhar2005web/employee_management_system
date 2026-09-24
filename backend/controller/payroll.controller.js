@@ -374,9 +374,12 @@ export async function getMonthlyPayroll(req, res) {
                 // 3. Approved Leave
                 else if (isLeave) {
                     const lType = (isLeave.leave_type || '').toLowerCase();
-                    if (lType.includes('half')) {
+                    if (lType.includes('1st') || lType.includes('first') || lType.includes('lh')) {
                         code = 'LH'; // First Half Leave, Second Half Present
                         countLH++;
+                    } else if (lType.includes('2nd') || lType.includes('second') || (lType.includes('half') && lType.includes('present')) || lType.includes('half')) {
+                        code = 'H'; // Half Day Present, Second Half Absent/Leave
+                        countH++;
                     } else if (lType.includes('paid')) {
                         code = 'LP';
                         countLP++;

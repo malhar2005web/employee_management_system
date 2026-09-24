@@ -184,20 +184,37 @@
     });
 
     // Preview days
-    ['leave-from', 'leave-to'].forEach(id => {
+    function updateLeaveDaysPreview() {
+        const from = document.getElementById('leave-from')?.value;
+        const to = document.getElementById('leave-to')?.value;
+        const typeSelect = document.getElementById('leave-type-select');
+        const selectedId = typeSelect ? typeSelect.value : '';
+        const preview = document.getElementById('leave-days-preview');
+        if (!preview) return;
+
+        if (from && to) {
+            const selectedType = leaveTypes.find(lt => String(lt.leave_type_id) === String(selectedId));
+            const isHalfDay = selectedType && (
+                selectedType.leave_type_code === 'LH' || 
+                selectedType.leave_type_code === 'H' || 
+                (selectedType.leave_type_name && selectedType.leave_type_name.toLowerCase().includes('half'))
+            );
+
+            if (isHalfDay) {
+                preview.textContent = '0.5 day will be applied (Half Day)';
+            } else {
+                const diff = Math.round((new Date(to) - new Date(from)) / (1000 * 60 * 60 * 24)) + 1;
+                preview.textContent = diff > 0 ? `${diff} day(s) will be applied` : '';
+            }
+        } else {
+            preview.textContent = '';
+        }
+    }
+
+    ['leave-from', 'leave-to', 'leave-type-select'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            el.addEventListener('change', () => {
-                const from = document.getElementById('leave-from').value;
-                const to = document.getElementById('leave-to').value;
-                if (from && to) {
-                    const diff = Math.round((new Date(to) - new Date(from)) / (1000 * 60 * 60 * 24)) + 1;
-                    const preview = document.getElementById('leave-days-preview');
-                    if (preview) {
-                        preview.textContent = diff > 0 ? `${diff} day(s) will be applied` : '';
-                    }
-                }
-            });
+            el.addEventListener('change', updateLeaveDaysPreview);
         }
     });
 

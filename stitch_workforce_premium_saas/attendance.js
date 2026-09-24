@@ -1151,14 +1151,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 let statusBadge = '';
-                if (entry.status === 'Out') {
-                    statusBadge = `<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800;"><i class="fa-solid fa-person-walking-arrow-right"></i> OUT</span>`;
+                if (entry.status === 'Pending Approval') {
+                    statusBadge = `<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800; border:1px solid #fde68a;"><i class="fa-solid fa-hourglass-half"></i> PENDING APPROVAL</span>`;
+                } else if (entry.status === 'Out') {
+                    statusBadge = `<span class="status-pill pending" style="background:#dbeafe; color:#1d4ed8; font-weight:800; border:1px solid #bfdbfe;"><i class="fa-solid fa-person-walking-arrow-right"></i> OUT</span>`;
                 } else if (entry.status === 'Returned') {
                     statusBadge = `<span class="status-pill progress" style="background:#dcfce7; color:#15803d; font-weight:800;"><i class="fa-solid fa-clock-rotate-left"></i> RETURNED</span>`;
                 } else if (entry.status === 'Approved') {
-                    statusBadge = `<span class="status-pill progress"><i class="fa-solid fa-circle-check"></i> APPROVED</span>`;
+                    statusBadge = `<span class="status-pill progress" style="background:#ecfdf5; color:#047857; font-weight:800; border:1px solid #a7f3d0;"><i class="fa-solid fa-circle-check"></i> APPROVED</span>`;
                 } else if (entry.status === 'Rejected') {
-                    statusBadge = `<span class="status-pill delayed"><i class="fa-solid fa-circle-xmark"></i> REJECTED</span>`;
+                    statusBadge = `<span class="status-pill delayed" style="background:#fee2e2; color:#b91c1c; font-weight:800;"><i class="fa-solid fa-circle-xmark"></i> REJECTED</span>`;
                 }
 
                 let purposeBadge = '';
@@ -1216,11 +1218,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 let actionBtns = `
                     <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="openEmpOutHistoryModal(${entry.employee_id}, '${escapeQuote(entry.employee_name)}', '${entry.employee_code || ''}')" title="View Out Entry History & Export"><i class="fa-solid fa-clock-rotate-left"></i></button>
                 `;
-                if (entry.status === 'Out') {
+                if (entry.status === 'Pending Approval') {
+                    actionBtns += `
+                        <button type="button" class="btn-primary" style="padding:4px 8px; font-size:11px; background:#059669; border-radius:4px; font-weight:700;" onclick="updateOutStatus(${entry.id}, 'Approved')" title="Approve & Send OTP to Client"><i class="fa-solid fa-check"></i> Approve</button>
+                        <button type="button" class="btn-primary" style="padding:4px 8px; font-size:11px; background:#dc2626; border-radius:4px; font-weight:700;" onclick="updateOutStatus(${entry.id}, 'Rejected')" title="Reject"><i class="fa-solid fa-xmark"></i> Reject</button>
+                    `;
+                } else if (entry.status === 'Out' || entry.status === 'Approved') {
                     actionBtns += `
                         <button type="button" class="btn-primary" style="padding:4px 10px; font-size:11px; border-radius:4px;" onclick="openMarkReturnModal(${entry.id}, '${entry.out_time}')" title="Mark In-Time"><i class="fa-solid fa-clock-rotate-left"></i> Return</button>
-                        <button type="button" class="btn-table-action" style="color:var(--teal-600);" onclick="updateOutStatus(${entry.id}, 'Approved')" title="Approve"><i class="fa-solid fa-check"></i></button>
-                        <button type="button" class="btn-table-action" style="color:var(--red);" onclick="updateOutStatus(${entry.id}, 'Rejected')" title="Reject"><i class="fa-solid fa-xmark"></i></button>
+                        <button type="button" class="btn-table-action" style="color:var(--red);" onclick="deleteOutEntryClick(${entry.id})" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
                     `;
                 } else {
                     actionBtns += `

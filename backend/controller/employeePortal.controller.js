@@ -1074,9 +1074,14 @@ export async function applyLeave(req, res) {
             return res.status(400).json({ success: false, message: "Missing leave registration parameters" });
         }
 
+        const ltRes = await pool.query('SELECT name, code FROM leave_types WHERE id = $1', [leaveTypeId]);
+        const ltName = ltRes.rows[0]?.name || 'Leave';
+        const ltCode = ltRes.rows[0]?.code || '';
+
         const start = new Date(startDate);
         const end = new Date(endDate);
-        const diffDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+        const isHalfDay = ltCode === 'LH' || ltCode === 'H' || ltCode === 'HD' || ltName.toLowerCase().includes('half');
+        const diffDays = isHalfDay ? 0.5 : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
         const result = await pool.query(`
             INSERT INTO leaves (employee_id, leave_type_id, start_date, end_date, total_days, reason, status)
@@ -1085,8 +1090,6 @@ export async function applyLeave(req, res) {
         `, [employeeId, leaveTypeId, startDate, endDate, diffDays, reason || ""]);
 
         try {
-            const ltRes = await pool.query('SELECT name FROM leave_types WHERE id = $1', [leaveTypeId]);
-            const ltName = ltRes.rows[0]?.name || 'Leave';
             await pool.query(`
                 INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status)
                 VALUES ($1, $2, $3, $4, $5, 'Pending');
