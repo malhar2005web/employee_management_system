@@ -216,7 +216,10 @@ export async function getCompanyModulesForTenant(req, res) {
         const query = `
             SELECT company_name, company_code, status, admin_modules, employee_modules
             FROM companies
-            WHERE LOWER(company_code) = LOWER($1) OR LOWER(subdomain) = LOWER($1)
+            WHERE LOWER(company_code) = LOWER($1) 
+               OR LOWER(subdomain) = LOWER($1) 
+               OR LOWER(company_name) = LOWER($1)
+               OR LOWER(REPLACE(company_name, ' ', '')) = LOWER($1)
             LIMIT 1;
         `;
         const result = await masterPool.query(query, [companyCode]);

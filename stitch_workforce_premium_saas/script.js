@@ -261,6 +261,51 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   }
 
+  // ── Global Tenant Module Enforcement on All Pages ──
+  (async function checkTenantModuleAccess() {
+    try {
+      const companyCode = localStorage.getItem('company_code') || 'pcs';
+      const res = await fetch(`/api/v1/super-admin/tenant-modules?code=${encodeURIComponent(companyCode)}`);
+      const data = await res.json();
+      if (!data.success) return;
+
+      let role = 'Admin';
+      try {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (user && user.role) role = user.role;
+      } catch (err) {}
+
+      const currentPath = window.location.pathname;
+
+      if (role === 'Admin') {
+        const adminMods = data.admin_modules || [];
+        const moduleMap = [
+          { key: 'monitoring', selector: 'li[onclick*="admin-monitoring"]', path: 'admin-monitoring.html' },
+          { key: 'organization', selector: 'li[onclick*="admin-organization"]', path: 'admin-organization.html' },
+          { key: 'customers', selector: 'li[onclick*="admin-customers"]', path: 'admin-customers.html' },
+          { key: 'tasks', selector: 'li[onclick*="admin-tasks"]', path: 'admin-tasks.html' },
+          { key: 'support', selector: 'li[onclick*="admin-support"]', path: 'admin-support.html' },
+          { key: 'attendance', selector: 'li[onclick*="admin-attendance"]', path: 'admin-attendance.html' },
+          { key: 'communication', selector: 'li[onclick*="admin-communication"]', path: 'admin-communication.html' },
+          { key: 'settings', selector: 'li[onclick*="admin-settings"]', path: 'admin-settings.html' }
+        ];
+
+        moduleMap.forEach(m => {
+          if (!adminMods.includes(m.key)) {
+            document.querySelectorAll(m.selector).forEach(el => el.style.display = 'none');
+          }
+        });
+
+        const disabledMatch = moduleMap.find(m => currentPath.includes(m.path) && !adminMods.includes(m.key));
+        if (disabledMatch) {
+          console.warn(`[ModuleGuard] Module '${disabledMatch.key}' is disabled for tenant '${companyCode}'. Redirecting to dashboard.`);
+          window.location.replace('/admin-dashboard.html');
+          return;
+        }
+      }
+    } catch (e) {}
+  })();
+
   // ── Global Audio Unlock & Synthesized Chime Engine ──
   let notificationAudioCtx = null;
   function getAudioContext() {
