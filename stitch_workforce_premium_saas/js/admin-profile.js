@@ -719,5 +719,112 @@
         applyAvatarImage(savedPic);
     }
 
+    // --- Password Change Handling ---
+    function initPasswordChange() {
+        const newPassInput = document.getElementById('pass-new');
+        const confirmPassInput = document.getElementById('pass-confirm');
+        const matchHint = document.getElementById('pass-match-hint');
+        const alertBox = document.getElementById('pass-alert-box');
+        const btnChangePass = document.getElementById('btn-change-password');
+        const toggleNew = document.getElementById('toggle-pass-new');
+        const toggleConfirm = document.getElementById('toggle-pass-confirm');
+
+        if (!btnChangePass) return;
+
+        // Toggle visibility handlers
+        if (toggleNew && newPassInput) {
+            toggleNew.addEventListener('click', () => {
+                const isPassword = newPassInput.type === 'password';
+                newPassInput.type = isPassword ? 'text' : 'password';
+                toggleNew.className = isPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            });
+        }
+        if (toggleConfirm && confirmPassInput) {
+            toggleConfirm.addEventListener('click', () => {
+                const isPassword = confirmPassInput.type === 'password';
+                confirmPassInput.type = isPassword ? 'text' : 'password';
+                toggleConfirm.className = isPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            });
+        }
+
+        // Live match validator
+        function checkMatch() {
+            if (!matchHint || !newPassInput || !confirmPassInput) return;
+            const p1 = newPassInput.value;
+            const p2 = confirmPassInput.value;
+            if (!p2) {
+                matchHint.style.display = 'none';
+                return;
+            }
+            matchHint.style.display = 'block';
+            if (p1 === p2) {
+                matchHint.style.color = '#10b981';
+                matchHint.innerHTML = '<i class="fa-solid fa-circle-check"></i> Passwords match';
+            } else {
+                matchHint.style.color = '#ef4444';
+                matchHint.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Passwords do not match';
+            }
+        }
+
+        if (newPassInput) newPassInput.addEventListener('input', checkMatch);
+        if (confirmPassInput) confirmPassInput.addEventListener('input', checkMatch);
+
+        function showAlert(msg, isSuccess = false) {
+            if (!alertBox) return;
+            alertBox.style.display = 'block';
+            alertBox.style.background = isSuccess ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)';
+            alertBox.style.color = isSuccess ? '#065f46' : '#991b1b';
+            alertBox.style.border = isSuccess ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)';
+            alertBox.innerHTML = `${isSuccess ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-triangle-exclamation"></i>'} ${msg}`;
+        }
+
+        btnChangePass.addEventListener('click', async () => {
+            const newPassword = newPassInput ? newPassInput.value.trim() : '';
+            const confirmPassword = confirmPassInput ? confirmPassInput.value.trim() : '';
+
+            if (!newPassword || newPassword.length < 6) {
+                showAlert('Password must be at least 6 characters long.');
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                showAlert('New password and confirm password do not match.');
+                return;
+            }
+
+            btnChangePass.disabled = true;
+            btnChangePass.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Updating...';
+
+            try {
+                const res = await fetch('/api/v1/auth/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        new_password: newPassword,
+                        confirm_password: confirmPassword
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.message || 'Failed to update password');
+                }
+
+                showAlert(data.message || 'Password changed successfully! You can now log in with your new password.', true);
+                showToast('Password updated successfully!');
+                if (newPassInput) newPassInput.value = '';
+                if (confirmPassInput) confirmPassInput.value = '';
+                if (matchHint) matchHint.style.display = 'none';
+            } catch (err) {
+                showAlert(err.message || 'Error updating password.');
+                showToast(err.message || 'Failed to update password', 'error');
+            } finally {
+                btnChangePass.disabled = false;
+                btnChangePass.innerHTML = '<i class="fa-solid fa-lock"></i> Update Password';
+            }
+        });
+    }
+
+    initPasswordChange();
     await loadProfile();
 })();

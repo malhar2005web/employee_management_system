@@ -10,6 +10,7 @@ export async function getEmployees(req, res) {
                    e.doc_cv, e.doc_offer_letter, e.doc_adhar_card, e.doc_pan_card,
                    e.anydesk_id, e.whatsapp_no,
                    u.id AS user_id, u.email, u.is_active,
+                   COALESCE(e.plain_password, u.plain_password, 'Penta@123') AS plain_password,
                    d.name AS department_name, d.id AS department_id,
                    ds.title AS designation_name, ds.id AS designation_id,
                    m.full_name AS manager_name, m.id AS manager_id
@@ -64,9 +65,9 @@ export async function createEmployee(req, res) {
 
         // Insert into users
         const userRes = await client.query(
-            `INSERT INTO users (username, email, password, role, is_active, company_id)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [username, email, hashedPassword, 'Employee', true, companyId]
+            `INSERT INTO users (username, email, password, plain_password, role, is_active, company_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+            [username, email, hashedPassword, passToHash, 'Employee', true, companyId]
         );
         const userId = userRes.rows[0].id;
 
@@ -76,9 +77,9 @@ export async function createEmployee(req, res) {
                 user_id, full_name, employee_code, department_id, designation_id, reporting_manager_id, joining_date, salary_grade, status,
                 gender, phone, dob, citizenship, address, perm_address, bank_name, bank_acc_no, bank_ifsc,
                 doc_cv, doc_offer_letter, doc_adhar_card, doc_pan_card,
-                anydesk_id, whatsapp_no, company_id
+                anydesk_id, whatsapp_no, company_id, plain_password
              )
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
             [
                 userId, 
                 fullName, 
@@ -104,7 +105,8 @@ export async function createEmployee(req, res) {
                 docPanCard ? (typeof docPanCard === 'object' ? JSON.stringify(docPanCard) : docPanCard) : '{}',
                 anydeskId || req.body.anydesk_id || null,
                 whatsappNo || req.body.whatsapp_no || null,
-                companyId
+                companyId,
+                passToHash
             ]
         );
 
@@ -148,7 +150,8 @@ export async function updateEmployee(req, res) {
         if (password && password.trim().length >= 6 && userId) {
             const salt = await bcryptjs.genSalt(10);
             const hashedPassword = await bcryptjs.hash(password.trim(), salt);
-            await client.query("UPDATE users SET password = $1 WHERE id = $2", [hashedPassword, userId]);
+            await client.query("UPDATE users SET password = $1, plain_password = $2 WHERE id = $3", [hashedPassword, password.trim(), userId]);
+            await client.query("UPDATE employees SET plain_password = $1 WHERE user_id = $2", [password.trim(), userId]);
         }
 
         // Preserve documents if not uploaded anew

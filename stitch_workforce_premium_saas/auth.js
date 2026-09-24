@@ -1,19 +1,35 @@
-// Multi-Tenant Global Fetch Interceptor: Automatically attaches X-Company-Code header
+// Multi-Tenant Global Fetch Interceptor: Automatically attaches X-Company-Code and Authorization Bearer header
 (function() {
     const originalFetch = window.fetch;
     window.fetch = function(url, options = {}) {
         options = options || {};
         options.headers = options.headers || {};
-        const companyCode = localStorage.getItem('company_code');
+        const companyCode = localStorage.getItem('company_code') || 'pcs';
+        const token = localStorage.getItem('token');
+
+        // Handle auto-clear on logout request
+        if (typeof url === 'string' && url.includes('/api/v1/auth/logout')) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+        }
+
         if (companyCode) {
             if (options.headers instanceof Headers) {
                 if (!options.headers.has('x-company-code')) options.headers.set('x-company-code', companyCode);
+                if (token && !options.headers.has('authorization')) options.headers.set('authorization', 'Bearer ' + token);
             } else if (Array.isArray(options.headers)) {
-                options.headers.push(['x-company-code', companyCode]);
+                if (!options.headers.some(h => h[0].toLowerCase() === 'x-company-code')) options.headers.push(['x-company-code', companyCode]);
+                if (token && !options.headers.some(h => h[0].toLowerCase() === 'authorization')) options.headers.push(['authorization', 'Bearer ' + token]);
             } else {
                 if (!options.headers['x-company-code']) options.headers['x-company-code'] = companyCode;
+                if (token && !options.headers['authorization'] && !options.headers['Authorization']) options.headers['Authorization'] = 'Bearer ' + token;
             }
         }
+
+        if (options.credentials === undefined) {
+            options.credentials = 'include';
+        }
+
         return originalFetch.call(this, url, options);
     };
 })();
@@ -22,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('login-form');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
-    const companyCodeInput = document.getElementById('company-code-input');
+    const rememberMeCheckbox = document.getElementById('remember-me');
     const errorAlert = document.getElementById('error-alert');
     const successAlert = document.getElementById('success-alert');
     const forgotLink = document.getElementById('forgot-link');
@@ -36,6 +52,43 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             alertEl.style.display = 'none';
         }, 6000);
+    };
+
+    // Auto-login persistence check (especially for mobile WebView where re-login is annoying)
+    const checkAutoLogin = async () => {
+        const token = localStorage.getItem('token');
+        const rememberMePref = localStorage.getItem('remember_me');
+
+        // Restore remembered email if present
+        const savedEmail = localStorage.getItem('remembered_email');
+        if (savedEmail && emailInput) {
+            emailInput.value = savedEmail;
+        }
+        if (rememberMeCheckbox) {
+            rememberMeCheckbox.checked = rememberMePref !== 'false';
+        }
+
+        // If token exists and remember_me is not disabled, try auto-login
+        if (token && rememberMePref !== 'false') {
+            try {
+                const meRes = await fetch('/api/v1/auth/me');
+                if (meRes.ok) {
+                    const meData = await meRes.json();
+                    if (meData.success && meData.data) {
+                        const role = meData.data.role;
+                        if (role === 'Admin') {
+                            window.location.replace('/admin-dashboard.html');
+                            return;
+                        } else if (role === 'Employee') {
+                            window.location.replace('/employee-dashboard.html');
+                            return;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[Auth] Auto-login check failed, continuing to login page:', err.message);
+            }
+        }
     };
 
     // Auto-detect company from Subdomain or URL query param (?org=tata or ?company=tata)
@@ -60,11 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 3. Fallback to localStorage if previously set
         if (!detectedCode) {
-            detectedCode = localStorage.getItem('company_code') || '';
+            detectedCode = localStorage.getItem('company_code') || 'pcs';
         }
 
         if (detectedCode && detectedCode !== 'pcs') {
-            if (companyCodeInput) companyCodeInput.value = detectedCode;
             localStorage.setItem('company_code', detectedCode);
             await fetchAndApplyBranding(detectedCode);
         }
@@ -89,17 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    if (companyCodeInput) {
-        companyCodeInput.addEventListener('blur', () => {
-            const code = companyCodeInput.value.trim().toLowerCase();
-            if (code) {
-                localStorage.setItem('company_code', code);
-                fetchAndApplyBranding(code);
-            }
-        });
-    }
-
     detectCompanyContext();
+    checkAutoLogin();
 
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
@@ -109,7 +152,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const email = emailInput.value.trim();
             const password = passwordInput.value;
-            const companyCode = (companyCodeInput?.value || localStorage.getItem('company_code') || 'pcs').trim().toLowerCase();
+            const companyCode = (localStorage.getItem('company_code') || 'pcs').trim().toLowerCase();
+            const isRememberMe = rememberMeCheckbox ? rememberMeCheckbox.checked : true;
+
+            const submitBtn = loginForm.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing in...';
+            }
 
             try {
                 const response = await fetch('/api/v1/auth/login', {
@@ -127,8 +177,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.token) {
                         localStorage.setItem('token', data.token);
                     }
+                    if (data.user) {
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                    }
                     const activeCode = data.user?.company_code || companyCode;
                     localStorage.setItem('company_code', activeCode);
+
+                    // Remember Me persistence
+                    if (isRememberMe) {
+                        localStorage.setItem('remember_me', 'true');
+                        localStorage.setItem('remembered_email', email);
+                    } else {
+                        localStorage.setItem('remember_me', 'false');
+                        localStorage.removeItem('remembered_email');
+                    }
 
                     // Redirect based on user role
                     const role = data.user.role;
@@ -145,6 +207,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error('Login error:', error);
                 showAlert(errorAlert, 'An error occurred during login. Please try again later.');
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Sign In';
+                }
             }
         });
     }

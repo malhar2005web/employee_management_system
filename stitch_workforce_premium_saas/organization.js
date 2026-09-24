@@ -657,7 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
             employeesList.innerHTML = '';
 
             if (employees.length === 0) {
-                employeesList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted);">No employees registered yet.</td></tr>`;
+                employeesList.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text-muted);">No employees registered yet.</td></tr>`;
                 return;
             }
 
@@ -684,6 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const anydesk = emp.anydesk_id || '';
                 const waLink = whatsapp ? `<a href="https://wa.me/${whatsapp.replace(/[^0-9]/g, '')}" target="_blank" style="color:#059669;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:6px;"><i class="fa-brands fa-whatsapp" style="font-size:16px;color:#25D366;"></i>${whatsapp}</a>` : '<span style="color:var(--text-muted);">—</span>';
                 const adDisplay = anydesk ? `<span style="font-weight:600;color:var(--text-dark);"><i class="fa-solid fa-desktop" style="margin-right:5px;color:var(--teal-600);"></i>${anydesk}</span>` : '<span style="color:var(--text-muted);">—</span>';
+                const plainPwd = emp.plain_password || 'Penta@123';
 
                 const safeEmpJson = JSON.stringify(emp).replace(/"/g, '&quot;');
 
@@ -694,6 +695,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                     <td style="font-weight:600;color:var(--teal-700);">${emp.employee_code || '-'}</td>
                     <td>${emp.email || '-'}</td>
+                    <td class="emp-pwd-cell" style="white-space:nowrap;">
+                        <div style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.7); padding:4px 8px; border-radius:6px; border:1px solid rgba(0,0,0,0.08); font-family:monospace; font-size:12.5px; font-weight:700; color:var(--teal-900);">
+                            <span class="pwd-val-text">${plainPwd}</span>
+                            <button type="button" class="btn-copy-emp-pwd" title="Copy Password" style="background:none; border:none; color:var(--teal-600); cursor:pointer; padding:2px; font-size:12px; display:inline-flex; align-items:center;">
+                                <i class="fa-regular fa-copy"></i>
+                            </button>
+                        </div>
+                    </td>
                     <td><span style="background:rgba(15,118,110,0.08);color:var(--teal-800);padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;">${emp.department_name || '-'}</span></td>
                     <td style="font-weight:600;">${emp.designation_name || '-'}</td>
                     <td>${emp.manager_name || 'None'}</td>
@@ -707,6 +716,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </td>
                 `;
+
+                // Wire up copy password button
+                const copyBtn = tr.querySelector('.btn-copy-emp-pwd');
+                if (copyBtn) {
+                    copyBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(plainPwd).then(() => {
+                            copyBtn.innerHTML = '<i class="fa-solid fa-check" style="color:#059669;"></i>';
+                            setTimeout(() => {
+                                copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+                            }, 1800);
+                        }).catch(() => {});
+                    });
+                }
 
                 // Wire up edit button
                 tr.querySelector('.btn-edit-emp').addEventListener('click', (e) => {

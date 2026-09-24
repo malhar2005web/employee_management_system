@@ -203,6 +203,8 @@ export async function runMigrations() {
             ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_offer_letter JSONB DEFAULT '{}'::jsonb;
             ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_adhar_card JSONB DEFAULT '{}'::jsonb;
             ALTER TABLE employees ADD COLUMN IF NOT EXISTS doc_pan_card JSONB DEFAULT '{}'::jsonb;
+            ALTER TABLE employees ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255);
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255);
             ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_picture TEXT;
             ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture TEXT;
             ALTER TABLE customers ADD COLUMN IF NOT EXISTS gst_no VARCHAR(100);

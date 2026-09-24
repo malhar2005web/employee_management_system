@@ -298,3 +298,59 @@ export async function getCompanyInfo(req, res) {
     }
 }
 
+export async function changePassword(req, res) {
+    try {
+        const newPassword = req.body.newPassword || req.body.new_password;
+        const confirmPassword = req.body.confirmPassword || req.body.confirm_password;
+        if (!newPassword || !confirmPassword) {
+            return res.status(400).json({ success: false, message: "Both password fields are required" });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ success: false, message: "Passwords do not match. Please re-enter." });
+        }
+
+        if (newPassword.trim().length < 6) {
+            return res.status(400).json({ success: false, message: "Password must be at least 6 characters long" });
+        }
+
+        const userId = req.user.id;
+        const cleanPassword = newPassword.trim();
+        const salt = await bcryptjs.genSalt(10);
+        const hashedPassword = await bcryptjs.hash(cleanPassword, salt);
+
+        // Update in users table
+        await pool.query("UPDATE users SET password = $1, plain_password = $2 WHERE id = $3", [hashedPassword, cleanPassword, userId]);
+
+        // Update in employees table (if user is linked to an employee record)
+        await pool.query("UPDATE employees SET plain_password = $1 WHERE user_id = $2", [cleanPassword, userId]);
+
+        // If an Employee changed their password, alert the Admin in Communication tab (Inbound Mailbox & Alerts Inbox)
+        if (req.user.role === 'Employee') {
+            const empRes = await pool.query("SELECT id, full_name, employee_code FROM employees WHERE user_id = $1", [userId]);
+            const emp = empRes.rows[0];
+            const empName = emp?.full_name || req.user.username || 'Employee';
+            const empCode = emp?.employee_code ? ` (${emp.employee_code})` : '';
+
+            await pool.query(`
+                INSERT INTO notifications (title, message, type, recipient_id, is_read, created_at)
+                VALUES ($1, $2, $3, $4, false, NOW())
+            `, [
+                'Password Changed by Employee',
+                `${empName}${empCode} changed their account login password. New password has been updated in the Organization Active Directory.`,
+                'Alert',
+                emp?.id || null
+            ]);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Password changed successfully! New password is now active."
+        });
+    } catch (error) {
+        console.error("Error in changePassword:", error.message);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+

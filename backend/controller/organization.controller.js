@@ -10,6 +10,7 @@ export async function getDirectory(req, res) {
                    e.doc_cv, e.doc_offer_letter, e.doc_adhar_card, e.doc_pan_card,
                    e.salary_grade, e.department_id, e.designation_id, e.reporting_manager_id,
                    u.email,
+                   COALESCE(e.plain_password, u.plain_password, 'Penta@123') AS plain_password,
                    d.name AS department_name,
                    ds.title AS designation_name,
                    m.full_name AS manager_name

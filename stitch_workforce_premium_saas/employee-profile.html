@@ -882,23 +882,30 @@
 
         <!-- Tab 6: Change Password -->
         <div id="panel-change-password" class="tab-panel" style="display:none;">
-          <div class="profile-content-header">
-            <h3><i class="fa-solid fa-key"></i> Security Settings</h3>
+          <div class="profile-content-header" style="margin-bottom:16px;">
+            <h3><i class="fa-solid fa-key" style="color:var(--teal-600);"></i> Change Account Password</h3>
+            <p style="font-size:12.5px; color:var(--text-muted); margin:4px 0 0;">Update your login password. Re-enter the new password to confirm.</p>
           </div>
+          <div id="pass-alert-box" style="display:none; padding:12px 14px; border-radius:10px; font-size:13px; font-weight:600; margin-bottom:18px;"></div>
           <div style="max-width: 480px;">
-            <div class="form-group">
-              <label>Current Password</label>
-              <input type="password" id="pass-current" placeholder="••••••••">
+            <div class="form-group" style="position:relative; margin-bottom:16px;">
+              <label style="display:block; font-weight:700; font-size:13px; margin-bottom:6px; color:var(--text-dark);">New Password <span style="color:#ef4444;">*</span></label>
+              <div style="position:relative; display:flex; align-items:center;">
+                <input type="password" id="pass-new" placeholder="Enter new password (min. 6 chars)" style="width:100%; box-sizing:border-box; padding:11px 40px 11px 14px; border-radius:9px; border:1px solid rgba(0,0,0,0.14); outline:none; font-size:13.5px;">
+                <i class="fa-solid fa-eye" id="toggle-pass-new" style="position:absolute; right:14px; cursor:pointer; color:#94a3b8; font-size:14px;"></i>
+              </div>
             </div>
-            <div class="form-group">
-              <label>New Password</label>
-              <input type="password" id="pass-new" placeholder="Min. 6 characters">
+            <div class="form-group" style="position:relative; margin-bottom:20px;">
+              <label style="display:block; font-weight:700; font-size:13px; margin-bottom:6px; color:var(--text-dark);">Retype New Password <span style="color:#ef4444;">*</span></label>
+              <div style="position:relative; display:flex; align-items:center;">
+                <input type="password" id="pass-confirm" placeholder="Re-enter new password" style="width:100%; box-sizing:border-box; padding:11px 40px 11px 14px; border-radius:9px; border:1px solid rgba(0,0,0,0.14); outline:none; font-size:13.5px;">
+                <i class="fa-solid fa-eye" id="toggle-pass-confirm" style="position:absolute; right:14px; cursor:pointer; color:#94a3b8; font-size:14px;"></i>
+              </div>
+              <div id="pass-match-hint" style="font-size:11.5px; margin-top:5px; font-weight:600; display:none;"></div>
             </div>
-            <div class="form-group">
-              <label>Confirm New Password</label>
-              <input type="password" id="pass-confirm" placeholder="Re-type new password">
-            </div>
-            <button class="btn-primary" id="btn-change-password" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-lock"></i> Update Password</button>
+            <button class="btn-primary" id="btn-change-password" style="width: 100%; height:46px; font-weight:700; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+              <i class="fa-solid fa-lock"></i> Update Password
+            </button>
           </div>
         </div>
 
