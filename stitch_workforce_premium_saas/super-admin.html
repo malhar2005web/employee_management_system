@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PentaTEAMBRIDGE | Super Admin Master Control</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    :root {
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+      --font-heading: 'Outfit', sans-serif;
+      --primary: #0f766e;
+      --primary-light: #14b8a6;
+      --primary-glow: rgba(20, 184, 166, 0.25);
+      --bg-gradient: linear-gradient(135deg, #091316 0%, #0d1e23 50%, #081215 100%);
+      --surface-glass: rgba(18, 32, 38, 0.82);
+      --surface-glass-border: rgba(255, 255, 255, 0.08);
+      --surface-card: rgba(23, 40, 48, 0.95);
+      --surface-card-hover: rgba(28, 50, 60, 0.95);
+      --text-main: #f0fdfa;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-blue: #38bdf8;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-glass: 0 20px 40px -15px rgba(0, 0, 0, 0.5), 0 0 1px 1px rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* Background Ambient Orbs */
+    .ambient-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.18;
+    }
+    .orb-1 { width: 500px; height: 500px; background: #0d9488; top: -100px; left: -100px; }
+    .orb-2 { width: 600px; height: 600px; background: #0369a1; bottom: -150px; right: -150px; }
+
+    /* Layout Wrapper */
+    .master-wrapper {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px 32px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Top Masthead */
+    .masthead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 18px 26px;
+      background: var(--surface-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--surface-glass-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-glass);
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-logo-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0d9488, #0f766e);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #fff;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    .brand-titles h1 {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .super-pill {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .brand-titles p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .masthead-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-provision {
+      background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-md);
+      padding: 11px 22px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 6px 20px rgba(13, 148, 136, 0.35);
+      transition: all 0.2s ease;
+    }
+
+    .btn-provision:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(13, 148, 136, 0.5);
+      background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+    }
+
+    .btn-logout {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      padding: 10px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-logout:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    /* KPI Stats Row */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .kpi-card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--surface-glass-border);
+      border-radius: var(--radius-md);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow-glass);
+      transition: transform 0.2s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .kpi-info span {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .kpi-info h2 {
+      font-family: var(--font-heading);
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
+      margin-top: 4px;
+    }
+
+    .kpi-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .kpi-icon.teal { background: rgba(13, 148, 136, 0.15); color: #2dd4bf; border: 1px solid rgba(13, 148, 136, 0.3); }
+    .kpi-icon.green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .kpi-icon.blue { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+
+    /* Main Table Container */
+    .data-container {
+      background: var(--surface-glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--surface-glass-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-glass);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* Filter & Controls */
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      max-width: 380px;
+    }
+
+    .search-box i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 14px;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--surface-glass-border);
+      border-radius: var(--radius-md);
+      padding: 10px 14px 10px 38px;
+      font-size: 13.5px;
+      color: #fff;
+      font-family: inherit;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary-light);
+    }
+
+    .status-filters {
+      display: flex;
+      gap: 8px;
+    }
+
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn.active, .filter-btn:hover {
+      background: rgba(13, 148, 136, 0.2);
+      border-color: rgba(13, 148, 136, 0.4);
+      color: #2dd4bf;
+    }
+
+    /* Table Styles */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--surface-glass-border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13.5px;
+    }
+
+    thead th {
+      background: rgba(0, 0, 0, 0.35);
+      padding: 14px 18px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--surface-glass-border);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      transition: background 0.15s ease;
+    }
+
+    tbody tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    tbody td {
+      padding: 16px 18px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    /* Cells */
+    .company-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .company-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #1e3a44, #13272e);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      color: #2dd4bf;
+    }
+
+    .company-details .c-name {
+      font-weight: 700;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    .company-details .c-code {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .db-tag {
+      font-family: monospace;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #38bdf8;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .admin-cell .adm-name {
+      font-weight: 600;
+      color: #fff;
+    }
+    .admin-cell .adm-email {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .admin-cell .adm-pass {
+      margin-top: 4px;
+      font-family: monospace;
+      font-size: 11.5px;
+      color: #fbbf24;
+      background: rgba(245, 158, 11, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pass-copy-btn {
+      background: none;
+      border: none;
+      color: #fbbf24;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .module-badges {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .module-pill {
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+    }
+
+    .module-pill.admin {
+      background: rgba(13, 148, 136, 0.15);
+      color: #2dd4bf;
+      border: 1px solid rgba(13, 148, 136, 0.3);
+    }
+
+    .module-pill.employee {
+      background: rgba(56, 189, 248, 0.15);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge.active {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-badge.suspended {
+      background: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .dot-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .actions-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .action-icon-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .action-icon-btn:hover {
+      background: rgba(13, 148, 136, 0.25);
+      border-color: rgba(13, 148, 136, 0.5);
+      color: #2dd4bf;
+      transform: translateY(-1px);
+    }
+
+    .action-icon-btn.danger:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-card {
+      background: #0f1d22;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 1px 1px rgba(20, 184, 166, 0.2);
+      width: 100%;
+      max-width: 820px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: modalPop 0.22s ease-out;
+    }
+
+    @keyframes modalPop {
+      0% { opacity: 0; transform: scale(0.96) translateY(10px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal-header {
+      padding: 20px 26px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-header h3 {
+      font-family: var(--font-heading);
+      font-size: 19px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .modal-close:hover {
+      color: #fff;
+    }
+
+    .modal-body {
+      padding: 24px 26px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .modal-footer {
+      padding: 16px 26px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    /* Form Fields */
+    .form-section-title {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #2dd4bf;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-group label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .field-input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .field-input-wrap i.prefix-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--text-dim);
+      font-size: 14px;
+      pointer-events: none;
+    }
+
+    .field-control {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px 10px 38px;
+      font-size: 13.5px;
+      color: #fff;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .field-control:focus {
+      border-color: #2dd4bf;
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
+    }
+
+    .btn-gen-pass {
+      position: absolute;
+      right: 8px;
+      background: rgba(13, 148, 136, 0.2);
+      border: 1px solid rgba(13, 148, 136, 0.4);
+      color: #2dd4bf;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-gen-pass:hover {
+      background: rgba(13, 148, 136, 0.4);
+    }
+
+    /* 2-Column Modules Matrix */
+    .modules-matrix {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-md);
+      padding: 18px;
+    }
+
+    .matrix-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .matrix-header {
+      font-size: 13px;
+      font-weight: 700;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .matrix-toggle-all {
+      font-size: 11px;
+      color: #2dd4bf;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .module-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .module-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .module-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #0d9488;
+      cursor: pointer;
+    }
+
+    .module-item span {
+      font-size: 13px;
+      font-weight: 500;
+      color: #e2e8f0;
+    }
+
+    /* Live Progress Bar */
+    .provision-progress {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 14px;
+      background: rgba(13, 148, 136, 0.1);
+      border: 1px solid rgba(13, 148, 136, 0.3);
+      border-radius: var(--radius-sm);
+    }
+
+    .provision-progress.active {
+      display: flex;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, #0d9488, #2dd4bf);
+      border-radius: 4px;
+      animation: pulseBar 1.2s infinite ease-in-out;
+    }
+
+    @keyframes pulseBar {
+      0% { width: 15%; transform: translateX(0); }
+      50% { width: 75%; transform: translateX(20%); }
+      100% { width: 15%; transform: translateX(100%); }
+    }
+
+    /* Alerts */
+    .modal-alert {
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      display: none;
+    }
+    .modal-alert.error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+    .modal-alert.success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #86efac;
+    }
+
+    @media (max-width: 768px) {
+      .master-wrapper { padding: 16px; }
+      .form-grid-2 { grid-template-columns: 1fr; }
+      .modules-matrix { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Light Orbs -->
+  <div class="ambient-orb orb-1"></div>
+  <div class="ambient-orb orb-2"></div>
+
+  <div class="master-wrapper">
+
+    <!-- Top Masthead -->
+    <header class="masthead">
+      <div class="brand-section">
+        <div class="brand-logo-badge">
+          <i class="fa-solid fa-cubes-stacked"></i>
+        </div>
+        <div class="brand-titles">
+          <h1>PentaTEAMBRIDGE <span class="super-pill"><i class="fa-solid fa-crown"></i> Super Admin Control</span></h1>
+          <p>Multi-Tenant SaaS Provisioning, Database Cloning &amp; Module Entitlements Engine</p>
+        </div>
+      </div>
+
+      <div class="masthead-actions">
+        <button type="button" class="btn-provision" id="btn-open-provision">
+          <i class="fa-solid fa-plus"></i> Provision New Organization
+        </button>
+        <button type="button" class="btn-logout" id="btn-super-logout">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
+        </button>
+      </div>
+    </header>
+
+    <!-- KPI Stats Cards -->
+    <section class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>Registered Organizations</span>
+          <h2 id="kpi-total-companies">0</h2>
+        </div>
+        <div class="kpi-icon teal">
+          <i class="fa-solid fa-building"></i>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>Active SaaS Tenants</span>
+          <h2 id="kpi-active-companies">0</h2>
+        </div>
+        <div class="kpi-icon green">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>Isolated Databases (Template Clones)</span>
+          <h2 id="kpi-provisioned-dbs">0</h2>
+        </div>
+        <div class="kpi-icon blue">
+          <i class="fa-solid fa-database"></i>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Companies Data Grid -->
+    <section class="data-container">
+      <div class="controls-row">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="input-search-companies" placeholder="Search by name, code, or email...">
+        </div>
+
+        <div class="status-filters">
+          <button type="button" class="filter-btn active" data-filter="all">All Tenants</button>
+          <button type="button" class="filter-btn" data-filter="active">Active Only</button>
+          <button type="button" class="filter-btn" data-filter="suspended">Suspended</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Company &amp; Subdomain</th>
+              <th>PostgreSQL Database</th>
+              <th>Primary Admin Credentials</th>
+              <th>Permitted Modules</th>
+              <th>Status</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="companies-table-body">
+            <tr>
+              <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size: 20px; margin-bottom: 8px;"></i>
+                <div>Loading provisioned tenants...</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ================= MODAL 1: PROVISION NEW ORGANIZATION ================= -->
+  <div class="modal-overlay" id="modal-provision">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-rocket" style="color: #2dd4bf;"></i> Provision New Organization</h3>
+        <button type="button" class="modal-close" data-close-modal="modal-provision"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="form-provision-company">
+        <div class="modal-body">
+          <div id="provision-alert-error" class="modal-alert error"></div>
+          <div id="provision-alert-success" class="modal-alert success"></div>
+
+          <!-- Section 1: Company Profile -->
+          <div>
+            <div class="form-section-title"><i class="fa-solid fa-building"></i> 1. Organization Information</div>
+            <div class="form-grid-2">
+              <div class="field-group">
+                <label for="new-comp-name">Company Name *</label>
+                <div class="field-input-wrap">
+                  <i class="fa-solid fa-signature prefix-icon"></i>
+                  <input type="text" id="new-comp-name" class="field-control" required placeholder="e.g. Acme Tech Solutions">
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="new-comp-code">Company Code / Subdomain (Unique Slug) *</label>
+                <div class="field-input-wrap">
+                  <i class="fa-solid fa-hashtag prefix-icon"></i>
+                  <input type="text" id="new-comp-code" class="field-control" required placeholder="e.g. acme" autocomplete="off" spellcheck="false">
+                </div>
+                <span style="font-size: 11px; color: #38bdf8; margin-top: 3px;" id="preview-db-name">Database will be: ems_...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Admin Credentials -->
+          <div>
+            <div class="form-section-title"><i class="fa-solid fa-user-shield"></i> 2. Master Admin Temporary Access</div>
+            <div class="form-grid-2">
+              <div class="field-group">
+                <label for="new-adm-name">Admin Full Name *</label>
+                <div class="field-input-wrap">
+                  <i class="fa-solid fa-user prefix-icon"></i>
+                  <input type="text" id="new-adm-name" class="field-control" required placeholder="e.g. Rajesh Sharma">
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="new-adm-email">Admin Login Email *</label>
+                <div class="field-input-wrap">
+                  <i class="fa-regular fa-envelope prefix-icon"></i>
+                  <input type="email" id="new-adm-email" class="field-control" required placeholder="admin@acme.com">
+                </div>
+              </div>
+            </div>
+            <div class="field-group" style="margin-top: 14px;">
+              <label for="new-adm-pass">Temporary Password *</label>
+              <div class="field-input-wrap">
+                <i class="fa-solid fa-lock prefix-icon"></i>
+                <input type="text" id="new-adm-pass" class="field-control" required placeholder="Generate or enter temporary password">
+                <button type="button" class="btn-gen-pass" id="btn-generate-password"><i class="fa-solid fa-dice"></i> Generate</button>
+              </div>
+              <span style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">
+                <i class="fa-solid fa-info-circle"></i> User will be required to change this temporary password on their first login.
+              </span>
+            </div>
+          </div>
+
+          <!-- Section 3: 2-Column Module Assignment Matrix -->
+          <div>
+            <div class="form-section-title"><i class="fa-solid fa-cubes"></i> 3. Module Permissions Matrix</div>
+            <div class="modules-matrix">
+              
+              <!-- Column A: Admin Portal Modules -->
+              <div class="matrix-col">
+                <div class="matrix-header">
+                  <span><i class="fa-solid fa-shield-halved" style="color: #2dd4bf;"></i> 🛡️ Admin Modules (8)</span>
+                  <button type="button" class="matrix-toggle-all" data-target="admin-modules">Toggle All</button>
+                </div>
+                
+                <label class="module-item">
+                  <input type="checkbox" name="admin_mod" value="monitoring" checked>
+                  <span>Workstation Monitoring</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="admin_mod" value="organization" checked>
+                  <span>Organization &amp; Directory</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="admin_mod" value="customers" checked>
+                  <span>Customers CRM</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="admin_mod" value="tasks" checked>
+                  <span>Tasks &amp; Workflows</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="admin_mod" value="support" checked>
+                  <span>Support Desk</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="admin_mod" value="attendance" checked>
+                  <span>Attendance &amp; Leave</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="admin_mod" value="communication" checked>
+                  <span>Communication &amp; Alerts</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="admin_mod" value="settings" checked>
+                  <span>Settings &amp; Config</span>
+                </label>
+              </div>
+
+              <!-- Column B: Employee Portal Modules -->
+              <div class="matrix-col">
+                <div class="matrix-header">
+                  <span><i class="fa-solid fa-user-group" style="color: #38bdf8;"></i> 👤 Employee Modules (6)</span>
+                  <button type="button" class="matrix-toggle-all" data-target="employee-modules">Toggle All</button>
+                </div>
+
+                <label class="module-item">
+                  <input type="checkbox" name="emp_mod" value="attendance" checked>
+                  <span>Attendance &amp; Punch Clock</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="emp_mod" value="leave" checked>
+                  <span>Leave Requests &amp; Quota</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="emp_mod" value="tasks" checked>
+                  <span>My Tasks &amp; Deadlines</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="emp_mod" value="dsr" checked>
+                  <span>Daily Report (DSR)</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="emp_mod" value="inbox" checked>
+                  <span>Inbox &amp; Notifications</span>
+                </label>
+                <label class="module-item">
+                  <input type="checkbox" name="emp_mod" value="organization" checked>
+                  <span>Organization Directory</span>
+                </label>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Provisioning Progress -->
+          <div class="provision-progress" id="provision-progress-box">
+            <div style="font-size: 13px; font-weight: 700; color: #2dd4bf; display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-spinner fa-spin"></i> <span id="provision-progress-text">Cloning PostgreSQL ems_template database...</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-logout" data-close-modal="modal-provision">Cancel</button>
+          <button type="submit" class="btn-provision" id="btn-submit-provision">
+            <i class="fa-solid fa-database"></i> Provision Tenant
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL 2: EDIT MODULES ================= -->
+  <div class="modal-overlay" id="modal-edit-modules">
+    <div class="modal-card" style="max-width: 720px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-sliders" style="color: #2dd4bf;"></i> Manage Permitted Modules: <span id="edit-comp-title" style="color: #38bdf8;"></span></h3>
+        <button type="button" class="modal-close" data-close-modal="modal-edit-modules"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="form-edit-modules">
+        <input type="hidden" id="edit-company-id">
+        <div class="modal-body">
+          <div id="edit-alert-error" class="modal-alert error"></div>
+          <div id="edit-alert-success" class="modal-alert success"></div>
+
+          <div class="modules-matrix">
+            <!-- Edit Admin Modules -->
+            <div class="matrix-col">
+              <div class="matrix-header">
+                <span>🛡️ Admin Modules</span>
+                <button type="button" class="matrix-toggle-all" data-target="edit-admin-modules">Toggle All</button>
+              </div>
+              <label class="module-item"><input type="checkbox" name="edit_admin_mod" value="monitoring"><span>Workstation Monitoring</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_admin_mod" value="organization"><span>Organization &amp; Directory</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_admin_mod" value="customers"><span>Customers CRM</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_admin_mod" value="tasks"><span>Tasks &amp; Workflows</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_admin_mod" value="support"><span>Support Desk</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_admin_mod" value="attendance"><span>Attendance &amp; Leave</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_admin_mod" value="communication"><span>Communication &amp; Alerts</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_admin_mod" value="settings"><span>Settings &amp; Config</span></label>
+            </div>
+
+            <!-- Edit Employee Modules -->
+            <div class="matrix-col">
+              <div class="matrix-header">
+                <span>👤 Employee Modules</span>
+                <button type="button" class="matrix-toggle-all" data-target="edit-employee-modules">Toggle All</button>
+              </div>
+              <label class="module-item"><input type="checkbox" name="edit_emp_mod" value="attendance"><span>Attendance &amp; Clock</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_emp_mod" value="leave"><span>Leave Requests &amp; Quota</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_emp_mod" value="tasks"><span>My Tasks</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_emp_mod" value="dsr"><span>Daily Report (DSR)</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_emp_mod" value="inbox"><span>Inbox &amp; Notifications</span></label>
+              <label class="module-item"><input type="checkbox" name="edit_emp_mod" value="organization"><span>Organization Directory</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-logout" data-close-modal="modal-edit-modules">Cancel</button>
+          <button type="submit" class="btn-provision" id="btn-save-modules">
+            <i class="fa-solid fa-floppy-disk"></i> Save Module Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="super-admin.js?v=20260924_v1"></script>
+</body>
+</html>

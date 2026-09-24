@@ -167,7 +167,7 @@ export async function tenantMiddleware(req, res, next) {
  * Automatically provisions a brand-new database for a registered company
  * Clones all 95 tables and 21 functions/routines in <0.5 seconds using TEMPLATE ems_template
  */
-export async function provisionNewCompanyDatabase({ companyName, companyCode, adminFullName, email, password }) {
+export async function provisionNewCompanyDatabase({ companyName, companyCode, adminFullName, email, password, adminModules, employeeModules }) {
     const cleanCode = companyCode.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
     if (!cleanCode || cleanCode.length < 2) {
         throw new Error("Company code must be at least 2 alphanumeric characters.");
@@ -199,7 +199,7 @@ export async function provisionNewCompanyDatabase({ companyName, companyCode, ad
 
         await masterClient.query(`CREATE DATABASE "${dbName}" TEMPLATE ems_template;`);
         dbCreated = true;
-        console.log(`[Provisioning] Database ${dbName} successfully cloned with all 95 tables & 21 functions!`);
+        console.log(`[Provisioning] Database ${dbName} successfully cloned with all tables & functions!`);
     } catch (err) {
         console.error(`[Provisioning] Failed to create database ${dbName}:`, err.message);
         throw new Error(`Failed to provision company database: ${err.message}`);
@@ -217,13 +217,22 @@ export async function provisionNewCompanyDatabase({ companyName, companyCode, ad
         const salt = await bcryptjs.genSalt(10);
         const hashedPassword = await bcryptjs.hash(password.trim(), salt);
         const username = trimmedEmail.split('@')[0];
+        const plainPass = password.trim();
 
-        // Create Admin user in users table
+        const defaultAdminModules = adminModules && Array.isArray(adminModules) && adminModules.length > 0 
+            ? adminModules 
+            : ["monitoring", "organization", "customers", "tasks", "support", "attendance", "communication", "settings"];
+
+        const defaultEmployeeModules = employeeModules && Array.isArray(employeeModules) && employeeModules.length > 0
+            ? employeeModules
+            : ["attendance", "leave", "tasks", "dsr", "inbox", "organization"];
+
+        // Create Admin user in users table with must_change_password and plain_password
         const userRes = await newClient.query(
-            `INSERT INTO users (username, email, password, role, is_active, created_at, updated_at)
-             VALUES ($1, $2, $3, 'Admin', true, NOW(), NOW())
+            `INSERT INTO users (username, email, password, plain_password, must_change_password, role, is_active, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, true, 'Admin', true, NOW(), NOW())
              RETURNING id, username, email, role, is_active`,
-            [username, trimmedEmail, hashedPassword]
+            [username, trimmedEmail, hashedPassword, plainPass]
         );
         const newAdmin = userRes.rows[0];
 
@@ -231,19 +240,30 @@ export async function provisionNewCompanyDatabase({ companyName, companyCode, ad
         const empCode = `ADM-${cleanCode.toUpperCase().slice(0, 4)}-001`;
         await newClient.query(
             `INSERT INTO employees (
-                user_id, full_name, employee_code, status, joining_date, created_at, updated_at
-             ) VALUES ($1, $2, $3, 'Active', CURRENT_DATE, NOW(), NOW())`,
-            [newAdmin.id, adminFullName.trim(), empCode]
+                user_id, full_name, employee_code, plain_password, status, joining_date, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, 'Active', CURRENT_DATE, NOW(), NOW())`,
+            [newAdmin.id, adminFullName.trim(), empCode, plainPass]
         );
 
         await newClient.query("COMMIT");
 
-        // 4. Record company in ems_master registry
+        // 4. Record company in ems_master registry with module lists and credentials
         const compRes = await masterPool.query(
-            `INSERT INTO companies (company_name, company_code, subdomain, db_name, admin_email, status, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, 'ACTIVE', NOW(), NOW())
-             RETURNING id, company_name, company_code, subdomain, db_name`,
-            [companyName.trim(), cleanCode, cleanCode, dbName, trimmedEmail]
+            `INSERT INTO companies (
+                company_name, company_code, subdomain, db_name, admin_email, admin_name, admin_temp_password, admin_modules, employee_modules, status, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ACTIVE', NOW(), NOW())
+             RETURNING id, company_name, company_code, subdomain, db_name, admin_email, admin_name, admin_temp_password, admin_modules, employee_modules, status`,
+            [
+                companyName.trim(), 
+                cleanCode, 
+                cleanCode, 
+                dbName, 
+                trimmedEmail, 
+                adminFullName.trim(), 
+                plainPass, 
+                JSON.stringify(defaultAdminModules), 
+                JSON.stringify(defaultEmployeeModules)
+            ]
         );
 
         companyCodeToDbMap.set(cleanCode, dbName);

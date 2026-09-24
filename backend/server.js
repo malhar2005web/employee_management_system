@@ -45,6 +45,7 @@ import outEntryRoutes from "./routes/outEntry.route.js";
 import holidayRoutes from "./routes/holiday.route.js";
 import whatsappRoutes from "./routes/whatsapp.route.js";
 import payrollRoutes from "./routes/payroll.route.js";
+import superAdminRoutes from "./routes/superAdmin.route.js";
 import { syncTeramindDataToCache } from "./services/teramind.service.js";
 
 // ESM fix
@@ -161,6 +162,12 @@ app.use("/api/v1/whatsapp", whatsappRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/v1/payroll", payrollRoutes);
 app.use("/api/v1/admin/payroll", payrollRoutes);
+app.use("/api/v1/super-admin", superAdminRoutes);
+
+// Super Admin Direct Entry Routes
+app.get(["/super-admin", "/SUPER-ADMIN", "/super-admin/"], (req, res) => {
+  res.sendFile(path.join(__dirname, "../stitch_workforce_premium_saas/super-admin.html"));
+});
 
 // Fallback to login page
 app.get("/", (req, res) => {
