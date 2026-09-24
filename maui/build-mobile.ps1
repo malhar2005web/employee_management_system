@@ -37,6 +37,9 @@ if (-not $env:ANDROID_HOME -or -not (Test-Path $env:ANDROID_HOME)) {
     if (Test-Path $defaultSdk) {
         $env:ANDROID_HOME = $defaultSdk
         Write-Host "Set ANDROID_HOME to $defaultSdk" -ForegroundColor DarkCyan
+    } elseif (Test-Path "C:\Program Files (x86)\Android\android-sdk") {
+        $env:ANDROID_HOME = "C:\Program Files (x86)\Android\android-sdk"
+        Write-Host "Set ANDROID_HOME to C:\Program Files (x86)\Android\android-sdk" -ForegroundColor DarkCyan
     }
 }
 
