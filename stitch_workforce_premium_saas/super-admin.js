@@ -117,11 +117,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr>
                     <td>
-                        <div class="company-cell">
-                            <div class="company-avatar">${initials}</div>
-                            <div class="company-details">
-                                <div class="c-name">${escapeHtml(comp.company_name)}</div>
-                                <div class="c-code">
+                        <div class="comp-avatar-pill">
+                            <div class="avatar-circ">${initials}</div>
+                            <div class="comp-meta">
+                                <div class="c-title">${escapeHtml(comp.company_name)}</div>
+                                <div class="c-slug">
                                     <i class="fa-solid fa-hashtag" style="font-size:10px;"></i> ${escapeHtml(comp.company_code)}
                                     <span style="opacity:0.4;">•</span>
                                     <span>${escapeHtml(comp.subdomain || comp.company_code)}.ems</span>
@@ -130,15 +130,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </td>
                     <td>
-                        <span class="db-tag">
+                        <span class="db-code-badge">
                             <i class="fa-solid fa-database"></i> ${escapeHtml(comp.db_name)}
                         </span>
                     </td>
                     <td>
-                        <div class="admin-cell">
-                            <div class="adm-name">${escapeHtml(comp.admin_name || 'Master Admin')}</div>
-                            <div class="adm-email">${escapeHtml(comp.admin_email || '—')}</div>
-                            <div class="adm-pass" title="Temporary Password">
+                        <div class="admin-info-col">
+                            <div class="adm-head">${escapeHtml(comp.admin_name || 'Master Admin')}</div>
+                            <div class="adm-mail">${escapeHtml(comp.admin_email || '—')}</div>
+                            <div class="pass-pill-box" title="Temporary Password">
                                 <i class="fa-solid fa-key" style="font-size:10px;"></i>
                                 <span class="pass-val">${escapeHtml(tempPass)}</span>
                                 <button type="button" class="pass-copy-btn" data-copy="${escapeHtml(tempPass)}" title="Copy password">
@@ -148,30 +148,30 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </td>
                     <td>
-                        <div class="module-badges">
-                            <span class="module-pill admin" title="Permitted Admin Modules">
+                        <div class="mod-pill-group">
+                            <span class="mod-pill admin-badge" title="Permitted Admin Modules">
                                 <i class="fa-solid fa-shield-halved"></i> 🛡️ Admin: ${adminMods.length} / 8
                             </span>
-                            <span class="module-pill employee" title="Permitted Employee Modules">
+                            <span class="mod-pill emp-badge" title="Permitted Employee Modules">
                                 <i class="fa-solid fa-user-group"></i> 👤 Employee: ${empMods.length} / 6
                             </span>
                         </div>
                     </td>
                     <td>
-                        <span class="status-badge ${isActive ? 'active' : 'suspended'}">
-                            <span class="dot-indicator"></span>
+                        <span class="stat-pill ${isActive ? 'active' : 'suspended'}">
+                            <span class="status-dot"></span>
                             ${isActive ? 'Active' : 'Suspended'}
                         </span>
                     </td>
                     <td style="text-align: right;">
-                        <div class="actions-cell" style="justify-content: flex-end;">
-                            <button type="button" class="action-icon-btn btn-edit-modules" data-id="${comp.id}" title="Manage Modules">
+                        <div class="row-actions">
+                            <button type="button" class="btn-action-icon btn-edit-modules" data-id="${comp.id}" title="Manage Modules">
                                 <i class="fa-solid fa-sliders"></i>
                             </button>
-                            <button type="button" class="action-icon-btn ${isActive ? 'danger' : ''} btn-toggle-status" data-id="${comp.id}" data-status="${isActive ? 'SUSPENDED' : 'ACTIVE'}" title="${isActive ? 'Suspend Organization' : 'Activate Organization'}">
+                            <button type="button" class="btn-action-icon ${isActive ? 'danger' : ''} btn-toggle-status" data-id="${comp.id}" data-status="${isActive ? 'SUSPENDED' : 'ACTIVE'}" title="${isActive ? 'Suspend Organization' : 'Activate Organization'}">
                                 <i class="fa-solid ${isActive ? 'fa-pause' : 'fa-play'}"></i>
                             </button>
-                            <a href="/login.html" target="_blank" class="action-icon-btn" title="Open Tenant Portal">
+                            <a href="/login.html" target="_blank" class="btn-action-icon" title="Open Tenant Portal">
                                 <i class="fa-solid fa-arrow-up-right-from-square"></i>
                             </a>
                         </div>
