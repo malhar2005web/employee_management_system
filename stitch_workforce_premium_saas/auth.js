@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const fetchAndApplyBranding = async (code) => {
         if (!code || code === 'pcs') {
-            if (brandTitle) brandTitle.textContent = 'PCS Enterprise';
+            if (brandTitle) brandTitle.textContent = 'PentaTEAMBRIDGE';
             if (brandSubtitle) brandSubtitle.textContent = 'Sign in to access the portal';
             return;
         }

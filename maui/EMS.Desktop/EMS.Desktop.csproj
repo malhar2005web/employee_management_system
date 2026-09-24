@@ -28,7 +28,7 @@
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
 		<!-- Display name -->
-		<ApplicationTitle>EMS.Desktop</ApplicationTitle>
+		<ApplicationTitle>PentaTEAMBRIDGE.Desktop</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.companyname.ems.desktop</ApplicationId>

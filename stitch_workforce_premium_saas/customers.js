@@ -142,13 +142,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!waTemplate) {
             waTemplate = globalSettingsCache?.whatsappTemplate || {
-                message: "Hello {customer_name},\n\nThis is an official communication from PCS Enterprise Suite regarding {company_name}.\n\nPlease find the requested information attached.\n\nBest regards,\nPCS Admin Team",
+                message: "Hello {customer_name},\n\nThis is an official communication from PentaTEAMBRIDGE regarding {company_name}.\n\nPlease find the requested information attached.\n\nBest regards,\nPentaTEAMBRIDGE Admin Team",
                 attachmentUrl: "",
                 attachmentName: ""
             };
         }
 
-        let msg = waTemplate.message || "Hello {customer_name},\n\nThis is an official communication from PCS Enterprise Suite regarding {company_name}.";
+        let msg = waTemplate.message || "Hello {customer_name},\n\nThis is an official communication from PentaTEAMBRIDGE regarding {company_name}.";
 
         // Replace template placeholders dynamically
         msg = msg.replace(/\{customer_name\}/gi, contactName || 'Customer')
