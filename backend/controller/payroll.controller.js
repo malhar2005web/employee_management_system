@@ -56,7 +56,7 @@ export async function getMonthlyPayroll(req, res) {
         // 2. Fetch Attendance Records from 'attendance' table
         const attRes = await pool.query(`
             SELECT employee_id, date::text as date_str, status, punch_source, login_time, logout_time, 
-                   total_working_hours, overtime, is_on_break, total_break_seconds,
+                   total_working_hours, overtime, late_seconds, overtime_seconds, is_on_break, total_break_seconds,
                    manual_check_in, manual_check_out, portal_check_in, portal_check_out, approval_status
             FROM attendance
             WHERE date >= $1 AND date <= $2;
@@ -266,6 +266,8 @@ export async function getMonthlyPayroll(req, res) {
             let countLP = 0;
             let countD = 0; // Off Duty / Out Entry Movement (D)
             let countLateDays = 0; // Total late arrivals in month calculated from daily logs
+            let totalLateMinutes = 0; // Total late arrival minutes in month
+            let totalOvertimeMinutes = 0; // Total overtime minutes in month
             let totalWorkedHours = 0;
 
             for (let d = 1; d <= daysInMonth; d++) {
@@ -291,10 +293,12 @@ export async function getMonthlyPayroll(req, res) {
 
                 const isOutEntry = outEntryMap.get(`${emp.id}_${dateStr}`);
 
-                // Detect Late Arrival from Daily Logs
+                // Detect Late Arrival & Overtime from Daily Logs
                 if (dbAtt) {
                     let isLate = false;
-                    if (dbAtt.status === 'Late') {
+                    let dayLateMins = 0;
+                    if (dbAtt.late_seconds && dbAtt.late_seconds > 0) {
+                        dayLateMins = Math.round(dbAtt.late_seconds / 60);
                         isLate = true;
                     } else if (dbAtt.login_time || dbAtt.manual_check_in || dbAtt.portal_check_in) {
                         try {
@@ -309,13 +313,50 @@ export async function getMonthlyPayroll(req, res) {
                                 const mm = parseInt(ip.minute, 10);
                                 if (hh > 10 || (hh === 10 && mm > 15)) {
                                     isLate = true;
+                                    // Official shift start is 10:00 AM (600 minutes)
+                                    dayLateMins = Math.max(0, (hh * 60 + mm) - 600);
                                 }
                             }
                         } catch (e) {}
+                    } else if (dbAtt.status === 'Late') {
+                        isLate = true;
                     }
+
                     if (isLate) {
                         countLateDays++;
+                        totalLateMinutes += dayLateMins;
                     }
+
+                    // Daily Overtime Calculation
+                    const workingHoursNum = parseFloat(dbAtt.total_working_hours) || 0;
+                    let dayOtMins = 0;
+                    const isSaturday = (dayOfWeek === 6);
+                    const isSunday = (dayOfWeek === 0);
+
+                    if (dbAtt.overtime_seconds && dbAtt.overtime_seconds > 0) {
+                        dayOtMins = Math.round(dbAtt.overtime_seconds / 60);
+                    } else if (dbAtt.overtime && typeof dbAtt.overtime === 'number' && dbAtt.overtime > 0) {
+                        dayOtMins = dbAtt.overtime;
+                    } else if (isSunday && workingHoursNum > 0) {
+                        dayOtMins = Math.round(workingHoursNum * 60);
+                    } else if (dbAtt.logout_time) {
+                        const outD = new Date(dbAtt.logout_time);
+                        if (!isNaN(outD.getTime())) {
+                            const outParts = new Intl.DateTimeFormat('en-GB', {
+                                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                            }).formatToParts(outD);
+                            const p = {};
+                            outParts.forEach(({ type, value }) => { p[type] = value; });
+                            const outH = parseInt(p.hour, 10);
+                            const outM = parseInt(p.minute, 10);
+                            const cutoffTotalMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
+                            const currentTotalMins = outH * 60 + outM;
+                            if (currentTotalMins > cutoffTotalMins) {
+                                dayOtMins = currentTotalMins - cutoffTotalMins;
+                            }
+                        }
+                    }
+                    totalOvertimeMinutes += dayOtMins;
                 }
 
                 let code = 'A'; // default
@@ -473,6 +514,8 @@ export async function getMonthlyPayroll(req, res) {
                 holidays: countO,
                 off_duty_days: countD,
                 late_days: countLateDays,
+                late_hours: parseFloat((totalLateMinutes / 60).toFixed(2)),
+                overtime_hours: parseFloat((totalOvertimeMinutes / 60).toFixed(2)),
                 base_salary: baseSalary,
                 hourly_billing_rate: hourlyRate,
                 advance_deduction: advanceDeduction,
@@ -499,8 +542,8 @@ export async function getMonthlyPayroll(req, res) {
                         base_salary, absent_deduction, advance_deduction, loan_deduction, loan_balance,
                         incentive_addition, late_hours_deduction, mobile_deduction, pt_misc_deduction,
                         gross_salary, net_salary, hourly_billing_rate, effective_hourly_cost, total_working_hours,
-                        daily_matrix, updated_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW())
+                        daily_matrix, overtime_hours, late_hours, late_days, updated_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, NOW())
                     ON CONFLICT (employee_id, year_month)
                     DO UPDATE SET
                         total_days = EXCLUDED.total_days,
@@ -522,13 +565,19 @@ export async function getMonthlyPayroll(req, res) {
                         effective_hourly_cost = EXCLUDED.effective_hourly_cost,
                         total_working_hours = EXCLUDED.total_working_hours,
                         daily_matrix = EXCLUDED.daily_matrix,
+                        overtime_hours = EXCLUDED.overtime_hours,
+                        late_hours = EXCLUDED.late_hours,
+                        late_days = EXCLUDED.late_days,
                         updated_at = NOW();
                 `, [
                     emp.id, yearMonth, daysInMonth, presentDays, absentDays, leaveDays,
                     baseSalary, absentDeduction, advanceDeduction, loanDeduction, loanBalance,
                     incentiveAddition, latePenalty, mobileDeduction, ptMiscDeduction,
                     grossSalary, netSalary, hourlyRate, effectiveHourlyCost, parseFloat(totalWorkedHours.toFixed(2)),
-                    JSON.stringify(dailyMatrix)
+                    JSON.stringify(dailyMatrix),
+                    parseFloat((totalOvertimeMinutes / 60).toFixed(2)),
+                    parseFloat((totalLateMinutes / 60).toFixed(2)),
+                    countLateDays
                 ]);
             } catch (saveErr) {
                 console.warn(`Could not cache payroll record for emp ${emp.id}:`, saveErr.message);
@@ -696,6 +745,7 @@ export async function exportPayrollCSV(req, res) {
             "Advance (AP)",
             "Loan (AR)",
             "LoanBalance (AS)",
+            "Overtime Hrs",
             "Conv/Incentive (AT)",
             "Late Hrs (AU)",
             "Month Days (AV)",
@@ -735,8 +785,9 @@ export async function exportPayrollCSV(req, res) {
                 r.advance_deduction,
                 r.loan_deduction,
                 r.loan_balance,
+                r.overtime_hours || 0,
                 r.incentive_addition,
-                r.late_days > 0 ? `"${r.late_days} Days Late${r.late_hours_deduction > 0 ? ` (₹${r.late_hours_deduction})` : ''}"` : (r.late_hours_deduction > 0 ? r.late_hours_deduction : 0),
+                r.late_hours > 0 ? `"${r.late_hours} hrs (${r.late_days || 0} days late)${r.late_hours_deduction > 0 ? ` (₹${r.late_hours_deduction})` : ''}"` : (r.late_hours_deduction > 0 ? r.late_hours_deduction : 0),
                 30, // Month Days
                 r.absent_deduction,
                 r.mobile_deduction,

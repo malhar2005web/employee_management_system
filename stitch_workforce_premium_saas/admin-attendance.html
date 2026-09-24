@@ -1155,7 +1155,7 @@
           </div>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;">
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:12px;">
           <div class="form-group" style="margin-bottom:0;">
             <label style="font-size:11.5px !important; font-weight:800 !important; color:#059669 !important; margin-bottom:4px; display:block;">+ Incentive (AT)</label>
             <input type="number" id="rate-incentive" min="0" step="50" style="width:100%; padding:7px 10px !important; border-radius:8px !important; border:1.5px solid #a7f3d0 !important; font-size:13px !important; box-sizing:border-box; color:#047857 !important; background:#f0fdf4 !important; font-weight:800 !important;">
@@ -1168,6 +1168,28 @@
             <label style="font-size:11.5px !important; font-weight:700 !important; color:#475569 !important; margin-bottom:4px; display:block;">PT / Misc (AZ)</label>
             <input type="number" id="rate-pt-misc" min="0" step="50" style="width:100%; padding:7px 10px !important; border-radius:8px !important; border:1px solid #cbd5e1 !important; font-size:13px !important; box-sizing:border-box;">
           </div>
+        </div>
+
+        <!-- ⏱️ Overtime to Incentive Live Calculator Helper -->
+        <div style="background:#eff6ff; border:1px dashed #93c5fd; border-radius:10px; padding:10px 12px; margin-top:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:12px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-calculator" style="color:#2563eb;"></i> Calculate Incentive from Overtime:
+            </span>
+            <span style="font-size:11.5px; font-weight:800; color:#1d4ed8; background:#dbeafe; padding:3px 10px; border-radius:9999px; border:1px solid #bfdbfe;" id="rate-modal-ot-display">0.00 hrs OT</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:11px; font-weight:700; color:#475569;">Quick OT Rates:</span>
+            <button type="button" class="btn-ot-preset" data-rate="100" style="padding:4px 10px; font-size:11.5px; font-weight:700; background:white; color:#1e40af; border:1.5px solid #bfdbfe; border-radius:6px; cursor:pointer; transition:all 0.15s;" title="Apply ₹100 per overtime hour">₹100/hr</button>
+            <button type="button" class="btn-ot-preset" data-rate="150" style="padding:4px 10px; font-size:11.5px; font-weight:700; background:white; color:#1e40af; border:1.5px solid #bfdbfe; border-radius:6px; cursor:pointer; transition:all 0.15s;" title="Apply ₹150 per overtime hour">₹150/hr</button>
+            <button type="button" class="btn-ot-preset" data-rate="200" style="padding:4px 10px; font-size:11.5px; font-weight:700; background:white; color:#1e40af; border:1.5px solid #bfdbfe; border-radius:6px; cursor:pointer; transition:all 0.15s;" title="Apply ₹200 per overtime hour">₹200/hr</button>
+            <div style="display:flex; align-items:center; gap:4px; margin-left:auto;">
+              <span style="font-size:11px; font-weight:600; color:#64748b;">Custom:</span>
+              <input type="number" id="rate-custom-ot-rate" placeholder="₹/hr" min="0" step="10" style="width:70px; padding:3px 8px; font-size:11.5px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+              <button type="button" id="btn-apply-custom-ot" style="padding:4px 10px; font-size:11.5px; font-weight:700; background:#2563eb; color:white; border:none; border-radius:6px; cursor:pointer;">Apply</button>
+            </div>
+          </div>
+          <div id="rate-ot-calc-status" style="font-size:11px; color:#059669; font-weight:700; margin-top:6px; display:none;"></div>
         </div>
       </div>
 
@@ -1203,6 +1225,6 @@
 <script src="script.js?v=20260922_3"></script>
 <script src="js/csv-exporter.js"></script>
 <script src="js/csvImportExportModal.js"></script>
-<script src="attendance.js?v=20260923_codes_v2"></script>
+<script src="attendance.js?v=20260924_ot_late_v1"></script>
 </body>
 </html>

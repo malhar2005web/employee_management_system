@@ -1018,9 +1018,16 @@ export async function runMigrations() {
                 effective_hourly_cost NUMERIC(10,2) DEFAULT 0.00,
                 total_working_hours NUMERIC(7,2) DEFAULT 0.00,
                 daily_matrix JSONB DEFAULT '{}'::jsonb,
+                overtime_hours NUMERIC(7,2) DEFAULT 0.00,
+                late_hours NUMERIC(7,2) DEFAULT 0.00,
+                late_days INT DEFAULT 0,
                 updated_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(employee_id, year_month)
             );
+
+            ALTER TABLE monthly_payroll_records ADD COLUMN IF NOT EXISTS overtime_hours NUMERIC(7,2) DEFAULT 0.00;
+            ALTER TABLE monthly_payroll_records ADD COLUMN IF NOT EXISTS late_hours NUMERIC(7,2) DEFAULT 0.00;
+            ALTER TABLE monthly_payroll_records ADD COLUMN IF NOT EXISTS late_days INT DEFAULT 0;
 
             CREATE INDEX IF NOT EXISTS idx_monthly_payroll_ym ON monthly_payroll_records(year_month);
             CREATE INDEX IF NOT EXISTS idx_monthly_payroll_emp ON monthly_payroll_records(employee_id);

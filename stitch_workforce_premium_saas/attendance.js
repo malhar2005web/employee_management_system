@@ -2352,8 +2352,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Advance (AP)</th>
             <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Loan (AR)</th>
             <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Loan Bal (AS)</th>
-            <th style="padding:12px 8px; min-width:90px; background:#ecfdf5; color:#047857; border-right:1px solid #a7f3d0; border-bottom:2px solid #10b981;">Incentive (AT)</th>
-            <th style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Late (AU)</th>
+            <th style="padding:12px 8px; min-width:85px; background:#eff6ff; color:#1d4ed8; border-right:1px solid #bfdbfe; border-bottom:2px solid #3b82f6;" title="Total Monthly Overtime in Hours">Overtime (Hrs)</th>
+            <th style="padding:12px 8px; min-width:90px; background:#ecfdf5; color:#047857; border-right:1px solid #a7f3d0; border-bottom:2px solid #10b981;" title="Incentive / Conveyance (AT)">Incentive (AT)</th>
+            <th style="padding:12px 8px; min-width:80px; background:#fffbeb; color:#92400e; border-right:1px solid #fde68a; border-bottom:2px solid #f59e0b;" title="Total Monthly Late Hours">Late (AU)</th>
             <th style="padding:12px 8px; min-width:90px; background:#fee2e2; color:#dc2626; border-right:1px solid #fecaca; border-bottom:2px solid #ef4444;">AbsAmt (AW)</th>
             <th style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Mobile (AX)</th>
             <th style="padding:12px 10px; min-width:115px; background:#fefce8; font-weight:800; color:#854d0e; border-right:1px solid #fef08a; border-bottom:2px solid #eab308;">Gross Sal (AY)</th>
@@ -2439,11 +2440,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum';">${r.advance_deduction > 0 ? `₹${r.advance_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
                 <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum';">${r.loan_deduction > 0 ? `₹${r.loan_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
                 <td style="padding:8px 6px; font-weight:600; color:#64748b; font-feature-settings:'tnum';">${r.loan_balance > 0 ? `₹${r.loan_balance.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td style="padding:6px 6px; text-align:center; font-feature-settings:'tnum'; background:#f8faff;">
+                    ${(r.overtime_hours && r.overtime_hours > 0)
+                        ? `<span style="display:inline-block; padding:3px 8px; background:#dbeafe; color:#1e40af; border:1px solid #bfdbfe; border-radius:9999px; font-size:11.5px; font-weight:700; white-space:nowrap; box-shadow:0 1px 2px rgba(30,64,175,0.08);" title="${r.overtime_hours} hrs total overtime in month">${r.overtime_hours} hrs</span>`
+                        : `<span style="font-size:11.5px; font-weight:600; color:#94a3b8; white-space:nowrap;">0 hrs</span>`
+                    }
+                </td>
                 <td style="padding:8px 6px; font-weight:800; color:#059669; background:#f0fdf4; font-feature-settings:'tnum';">${r.incentive_addition > 0 ? `+₹${r.incentive_addition.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
                 <td style="padding:6px 6px; text-align:center; font-feature-settings:'tnum';">
-                    ${(r.late_days && r.late_days > 0)
-                        ? `<span style="display:inline-block; padding:3px 8px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:9999px; font-size:11.5px; font-weight:700; white-space:nowrap; box-shadow:0 1px 2px rgba(180,83,9,0.08);">${r.late_days}(Days Late)</span>`
-                        : `<span style="font-size:11.5px; font-weight:600; color:#94a3b8; white-space:nowrap;">0(Days Late)</span>`
+                    ${(r.late_hours && r.late_hours > 0)
+                        ? `<span style="display:inline-block; padding:3px 8px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:9999px; font-size:11.5px; font-weight:700; white-space:nowrap; box-shadow:0 1px 2px rgba(180,83,9,0.08);" title="${r.late_days || 0} days late (${r.late_hours} total hours)">${r.late_hours} hrs</span>`
+                        : `<span style="font-size:11.5px; font-weight:600; color:#94a3b8; white-space:nowrap;">0 hrs</span>`
                     }
                     ${r.late_hours_deduction > 0 ? `<div style="font-size:10.5px; color:#b45309; font-weight:700; margin-top:2px;">₹${Number(r.late_hours_deduction).toLocaleString('en-IN')}</div>` : ''}
                 </td>
@@ -2516,6 +2523,47 @@ document.addEventListener('DOMContentLoaded', () => {
         setVal('rate-incentive', empRecord.incentive_addition || 0);
         setVal('rate-mobile', empRecord.mobile_deduction || 0);
         setVal('rate-pt-misc', empRecord.pt_misc_deduction || 200);
+
+        // Bind Overtime Display and Calculator
+        const otHours = parseFloat(empRecord.overtime_hours || 0);
+        const otDisplayEl = document.getElementById('rate-modal-ot-display');
+        if (otDisplayEl) otDisplayEl.textContent = `${otHours} hrs OT`;
+
+        const otStatusEl = document.getElementById('rate-ot-calc-status');
+        if (otStatusEl) otStatusEl.style.display = 'none';
+
+        const applyOtRate = (rate) => {
+            const calculatedIncentive = Math.round(otHours * rate);
+            const incInput = document.getElementById('rate-incentive');
+            if (incInput) {
+                incInput.value = calculatedIncentive;
+                recalcLive();
+            }
+            if (otStatusEl) {
+                otStatusEl.style.display = 'block';
+                otStatusEl.innerHTML = `✓ Applied <b>₹${rate}/hr</b>: ${otHours} hrs × ₹${rate} = <b>+₹${calculatedIncentive.toLocaleString('en-IN')}</b> added to Incentive!`;
+            }
+        };
+
+        // Wire preset buttons
+        modal.querySelectorAll('.btn-ot-preset').forEach(btn => {
+            btn.onclick = () => {
+                const r = parseFloat(btn.dataset.rate || 100);
+                applyOtRate(r);
+            };
+        });
+
+        // Wire custom rate apply button
+        const customApplyBtn = document.getElementById('btn-apply-custom-ot');
+        const customRateInput = document.getElementById('rate-custom-ot-rate');
+        if (customApplyBtn && customRateInput) {
+            customApplyBtn.onclick = () => {
+                const r = parseFloat(customRateInput.value || 0);
+                if (r > 0) {
+                    applyOtRate(r);
+                }
+            };
+        }
 
         const recalcLive = () => {
             const sal = parseFloat(document.getElementById('rate-base-salary')?.value || 0);
