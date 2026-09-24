@@ -1,4 +1,4 @@
-import { masterPool, provisionNewCompanyDatabase, deleteCompanyAndDatabase } from "../config/tenantManager.js";
+import { masterPool, provisionNewCompanyDatabase, deleteCompanyAndDatabase, getTenantPool } from "../config/tenantManager.js";
 
 /**
  * Super Admin Dashboard KPI Stats
@@ -48,9 +48,34 @@ export async function getCompanies(req, res) {
         `;
         const result = await masterPool.query(query);
 
+        // Fetch live counts for each tenant: Admin count & Employee count
+        const companiesWithCounts = await Promise.all(result.rows.map(async (comp) => {
+            let employeeCount = 0;
+            let adminCount = 1;
+            try {
+                const tenantPool = getTenantPool(comp.db_name);
+                const countRes = await tenantPool.query(
+                    `SELECT 
+                        COUNT(CASE WHEN u.role = 'Admin' THEN 1 END) AS admins,
+                        COUNT(CASE WHEN u.role = 'Employee' OR (u.role IS NULL AND e.id IS NOT NULL AND e.employee_code NOT LIKE 'ADM-%') THEN 1 END) AS employees
+                     FROM users u
+                     FULL OUTER JOIN employees e ON e.user_id = u.id`
+                );
+                adminCount = parseInt(countRes.rows[0]?.admins || 1, 10);
+                employeeCount = parseInt(countRes.rows[0]?.employees || 0, 10);
+            } catch (err) {
+                // fallback to defaults if DB sleeping
+            }
+            return {
+                ...comp,
+                admin_count: adminCount,
+                employee_count: employeeCount
+            };
+        }));
+
         return res.status(200).json({
             success: true,
-            companies: result.rows
+            companies: companiesWithCounts
         });
     } catch (error) {
         console.error("[SuperAdmin] getCompanies error:", error);

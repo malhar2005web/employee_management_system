@@ -145,15 +145,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <i class="fa-regular fa-copy"></i>
                                 </button>
                             </div>
+                            <div style="margin-top: 6px; display: flex; gap: 6px; align-items: center;">
+                                <span style="font-size: 11px; font-weight: 700; color: #0f766e; background: rgba(15, 118, 110, 0.1); border: 1px solid rgba(15, 118, 110, 0.2); padding: 2px 7px; border-radius: 4px;" title="Admins">
+                                    <i class="fa-solid fa-user-shield"></i> Admin: ${comp.admin_count !== undefined ? comp.admin_count : 1}
+                                </span>
+                                <span style="font-size: 11px; font-weight: 700; color: #475569; background: rgba(100, 116, 139, 0.1); border: 1px solid rgba(100, 116, 139, 0.2); padding: 2px 7px; border-radius: 4px;" title="Created Employees">
+                                    <i class="fa-solid fa-users"></i> Employees: ${comp.employee_count !== undefined ? comp.employee_count : 0}
+                                </span>
+                            </div>
                         </div>
                     </td>
                     <td>
                         <div class="mod-pill-group">
-                            <span class="mod-pill admin-badge" title="Permitted Admin Modules">
-                                <i class="fa-solid fa-shield-halved"></i> 🛡️ Admin: ${adminMods.length} / 8
+                            <span class="mod-pill admin-badge" title="Enabled Admin Features">
+                                <i class="fa-solid fa-sliders"></i> Admin: ${adminMods.length}/8 active
                             </span>
-                            <span class="mod-pill emp-badge" title="Permitted Employee Modules">
-                                <i class="fa-solid fa-user-group"></i> 👤 Employee: ${empMods.length} / 6
+                            <span class="mod-pill emp-badge" title="Enabled Employee Features">
+                                <i class="fa-solid fa-cubes"></i> Staff: ${empMods.length}/6 active
                             </span>
                         </div>
                     </td>

@@ -227,23 +227,17 @@ export async function provisionNewCompanyDatabase({ companyName, companyCode, ad
             ? employeeModules
             : ["attendance", "leave", "tasks", "dsr", "inbox", "organization"];
 
-        // Create Admin user in users table with must_change_password and plain_password
+        // Create Master Admin user in users table with must_change_password and plain_password
         const userRes = await newClient.query(
             `INSERT INTO users (username, email, password, plain_password, must_change_password, role, is_active, created_at, updated_at)
              VALUES ($1, $2, $3, $4, true, 'Admin', true, NOW(), NOW())
              RETURNING id, username, email, role, is_active`,
-            [username, trimmedEmail, hashedPassword, plainPass]
+            [adminFullName.trim(), trimmedEmail, hashedPassword, plainPass]
         );
         const newAdmin = userRes.rows[0];
 
-        // Create Master Admin profile in employees table
-        const empCode = `ADM-${cleanCode.toUpperCase().slice(0, 4)}-001`;
-        await newClient.query(
-            `INSERT INTO employees (
-                user_id, full_name, employee_code, plain_password, status, joining_date, created_at, updated_at
-             ) VALUES ($1, $2, $3, $4, 'Active', CURRENT_DATE, NOW(), NOW())`,
-            [newAdmin.id, adminFullName.trim(), empCode, plainPass]
-        );
+        // Only 1 Admin is created at start; employees table starts at 0.
+        // Admin will log in and create employees as needed.
 
         await newClient.query("COMMIT");
 
