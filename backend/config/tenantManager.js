@@ -295,3 +295,67 @@ export async function provisionNewCompanyDatabase({ companyName, companyCode, ad
         newClient.release();
     }
 }
+
+/**
+ * Permanently deletes a tenant company, drops its PostgreSQL database, and clears cached pools
+ */
+export async function deleteCompanyAndDatabase(companyId) {
+    const compRes = await masterPool.query(
+        'SELECT id, company_name, company_code, db_name FROM companies WHERE id = $1',
+        [companyId]
+    );
+
+    if (compRes.rows.length === 0) {
+        throw new Error('Company not found.');
+    }
+
+    const company = compRes.rows[0];
+    const { company_code, db_name, company_name } = company;
+
+    // Safety guard: Protect root default database
+    if (['pcs', 'default'].includes(company_code.toLowerCase()) || ['ems', 'ems_master', 'ems_template', 'postgres'].includes(db_name.toLowerCase())) {
+        throw new Error(`Company '${company_name}' [${company_code}] is a protected root system tenant and cannot be deleted.`);
+    }
+
+    const cleanDb = db_name.toLowerCase().trim();
+
+    // 1. Close cached connection pool in Node.js
+    if (tenantPools.has(cleanDb)) {
+        try {
+            const p = tenantPools.get(cleanDb);
+            await p.end();
+        } catch (e) {
+            console.warn(`[DeleteTenant] Error closing pool for ${cleanDb}:`, e.message);
+        }
+        tenantPools.delete(cleanDb);
+    }
+    companyCodeToDbMap.delete(company_code.toLowerCase());
+
+    // 2. Terminate any active Postgres connections to the database
+    const masterClient = await masterPool.connect();
+    try {
+        await masterClient.query(`
+            SELECT pg_terminate_backend(pid) 
+            FROM pg_stat_activity 
+            WHERE datname = $1 AND pid <> pg_backend_pid();
+        `, [cleanDb]);
+
+        // 3. Drop the PostgreSQL database
+        await masterClient.query(`DROP DATABASE IF EXISTS "${cleanDb}";`);
+        console.log(`[DeleteTenant] Database ${cleanDb} successfully dropped.`);
+
+        // 4. Remove company from ems_master registry
+        await masterClient.query('DELETE FROM companies WHERE id = $1;', [companyId]);
+        console.log(`[DeleteTenant] Company '${company_name}' [${company_code}] removed from registry.`);
+
+        return {
+            companyId,
+            companyName: company_name,
+            companyCode: company_code,
+            dbName: cleanDb
+        };
+    } finally {
+        masterClient.release();
+    }
+}
+

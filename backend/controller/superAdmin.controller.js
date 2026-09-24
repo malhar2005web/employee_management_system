@@ -1,4 +1,4 @@
-import { masterPool, provisionNewCompanyDatabase } from "../config/tenantManager.js";
+import { masterPool, provisionNewCompanyDatabase, deleteCompanyAndDatabase } from "../config/tenantManager.js";
 
 /**
  * Super Admin Dashboard KPI Stats
@@ -217,5 +217,31 @@ export async function getCompanyModulesForTenant(req, res) {
     } catch (error) {
         console.error("[SuperAdmin] getCompanyModulesForTenant error:", error);
         return res.status(500).json({ success: false, message: "Failed to fetch company modules." });
+    }
+}
+
+/**
+ * Permanently delete a company and drop its isolated PostgreSQL database
+ */
+export async function deleteCompany(req, res) {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ success: false, message: "Company ID is required." });
+        }
+
+        const result = await deleteCompanyAndDatabase(id);
+
+        return res.status(200).json({
+            success: true,
+            message: `Organization '${result.companyName}' and its database '${result.dbName}' have been permanently deleted.`,
+            deleted: result
+        });
+    } catch (error) {
+        console.error("[SuperAdmin] deleteCompany error:", error);
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Failed to delete organization."
+        });
     }
 }

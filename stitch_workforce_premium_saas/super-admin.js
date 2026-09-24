@@ -171,6 +171,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="button" class="btn-action-icon ${isActive ? 'danger' : ''} btn-toggle-status" data-id="${comp.id}" data-status="${isActive ? 'SUSPENDED' : 'ACTIVE'}" title="${isActive ? 'Suspend Organization' : 'Activate Organization'}">
                                 <i class="fa-solid ${isActive ? 'fa-pause' : 'fa-play'}"></i>
                             </button>
+                            <button type="button" class="btn-action-icon danger btn-delete-company" data-id="${comp.id}" data-name="${escapeHtml(comp.company_name)}" data-code="${escapeHtml(comp.company_code)}" data-db="${escapeHtml(comp.db_name)}" title="${(comp.company_code || '').toLowerCase() === 'pcs' ? 'Protected Root Tenant' : 'Delete Organization & Database'}" ${(comp.company_code || '').toLowerCase() === 'pcs' ? 'disabled style="opacity:0.35; cursor:not-allowed;"' : ''}>
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
                             <a href="/login.html" target="_blank" class="btn-action-icon" title="Open Tenant Portal">
                                 <i class="fa-solid fa-arrow-up-right-from-square"></i>
                             </a>
@@ -215,6 +218,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (confirm(confirmMsg)) {
                     await toggleCompanyStatus(id, nextStatus);
+                }
+            });
+        });
+
+        // Wire Delete Organization buttons
+        document.querySelectorAll('.btn-delete-company').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const id = btn.getAttribute('data-id');
+                const name = btn.getAttribute('data-name');
+                const code = btn.getAttribute('data-code');
+                const db = btn.getAttribute('data-db');
+
+                if ((code || '').toLowerCase() === 'pcs') {
+                    alert('PCS Enterprise is the protected root tenant and cannot be deleted.');
+                    return;
+                }
+
+                const confirmed = confirm(
+                    `⚠️ PERMANENT DELETION WARNING\n\n` +
+                    `Are you sure you want to permanently delete '${name}' [${code}]?\n\n` +
+                    `• PostgreSQL Database '${db}' will be completely DROPPED.\n` +
+                    `• All employee records, attendance, tasks, and credentials will be permanently wiped.\n\n` +
+                    `This action CANNOT be undone.\n\nClick OK to permanently delete.`
+                );
+
+                if (!confirmed) return;
+
+                const origHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+
+                try {
+                    const res = await fetch(`/api/v1/super-admin/companies/${id}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await res.json();
+
+                    if (res.ok && data.success) {
+                        alert(`✅ ${data.message}`);
+                        await fetchStats();
+                        await fetchCompanies();
+                    } else {
+                        alert(data.message || 'Failed to delete company.');
+                        btn.disabled = false;
+                        btn.innerHTML = origHtml;
+                    }
+                } catch (err) {
+                    console.error('Delete company error:', err);
+                    alert('Network error while deleting company. Please try again.');
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
                 }
             });
         });

@@ -5,7 +5,8 @@ import {
     provisionCompany,
     updateCompanyModules,
     toggleCompanyStatus,
-    getCompanyModulesForTenant
+    getCompanyModulesForTenant,
+    deleteCompany
 } from "../controller/superAdmin.controller.js";
 
 const router = express.Router();
@@ -19,5 +20,6 @@ router.get("/companies", getCompanies);
 router.post("/companies", provisionCompany);
 router.put("/companies/:id/modules", updateCompanyModules);
 router.put("/companies/:id/status", toggleCompanyStatus);
+router.delete("/companies/:id", deleteCompany);
 
 export default router;
