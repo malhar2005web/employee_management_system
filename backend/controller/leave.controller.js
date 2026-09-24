@@ -131,7 +131,9 @@ export async function approveLeave(req, res) {
         const lr = result.rows[0];
         const start = new Date(lr.start_date);
         const end = new Date(lr.end_date);
-        const diffDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+        const lTypeStr = (lr.leave_type || '').toLowerCase();
+        const isHalfDay = lTypeStr.includes('half') || lTypeStr === 'lh' || lTypeStr === 'h' || lTypeStr === 'hd';
+        const diffDays = isHalfDay ? 0.5 : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
         try {
             const ltRes = await pool.query(`
@@ -211,7 +213,9 @@ export async function rejectLeave(req, res) {
         const lr = result.rows[0];
         const start = new Date(lr.start_date);
         const end = new Date(lr.end_date);
-        const diffDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+        const lTypeStr = (lr.leave_type || '').toLowerCase();
+        const isHalfDay = lTypeStr.includes('half') || lTypeStr === 'lh' || lTypeStr === 'h' || lTypeStr === 'hd';
+        const diffDays = isHalfDay ? 0.5 : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
         try {
             await pool.query(`

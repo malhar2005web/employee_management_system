@@ -60,7 +60,25 @@
             leaveTypes = data.data;
             const colors = ['teal', 'amber', 'blue', 'green'];
             if (grid) {
-                grid.innerHTML = data.data.map((lb, i) => `
+                const displayCards = [];
+                let halfDayCardAdded = false;
+
+                data.data.forEach(lb => {
+                    const isHalf = lb.leave_type_code === 'LH' || lb.leave_type_code === 'H' || lb.leave_type_code === 'HD' || (lb.leave_type_name && lb.leave_type_name.toLowerCase().includes('half'));
+                    if (isHalf) {
+                        if (!halfDayCardAdded) {
+                            displayCards.push({
+                                ...lb,
+                                leave_type_name: 'Half Day Leave'
+                            });
+                            halfDayCardAdded = true;
+                        }
+                    } else {
+                        displayCards.push(lb);
+                    }
+                });
+
+                grid.innerHTML = displayCards.map((lb, i) => `
                     <div class="card stat-card">
                         <div class="stat-card-top">
                             <span class="label">${lb.leave_type_name || 'Leave'}</span>

@@ -1044,6 +1044,7 @@ export async function getLeaveBalances(req, res) {
         const balances = await pool.query(`
             SELECT lt.id as leave_type_id,
                    lt.name as leave_type_name,
+                   lt.code as leave_type_code,
                    COALESCE(lb.balance, lt.default_balance, 0) as total_days,
                    COALESCE(approved.used_count, lb.used, 0) as used_days,
                    (COALESCE(lb.balance, lt.default_balance, 0) - COALESCE(approved.used_count, lb.used, 0)) as remaining_days
@@ -1058,7 +1059,31 @@ export async function getLeaveBalances(req, res) {
             WHERE lt.is_active = true
             ORDER BY lt.name;
         `, [employeeId]);
-        res.status(200).json({ success: true, data: balances.rows });
+
+        const rows = balances.rows;
+
+        // Combine all Half Day leave types (LH, H, HD) into a single shared 6.0 days quota
+        const halfDayRows = rows.filter(r => 
+            r.leave_type_code === 'LH' || 
+            r.leave_type_code === 'H' || 
+            r.leave_type_code === 'HD' || 
+            (r.leave_type_name && r.leave_type_name.toLowerCase().includes('half'))
+        );
+
+        if (halfDayRows.length > 0) {
+            const sharedTotalQuota = Math.max(...halfDayRows.map(r => parseFloat(r.total_days) || 6.0));
+            const totalHalfDaysUsed = halfDayRows.reduce((sum, r) => sum + (parseFloat(r.used_days) || 0), 0);
+            const sharedRemaining = Math.max(0, sharedTotalQuota - totalHalfDaysUsed);
+
+            halfDayRows.forEach(r => {
+                r.total_days = sharedTotalQuota;
+                r.used_days = totalHalfDaysUsed;
+                r.remaining_days = sharedRemaining;
+                r.is_shared_half_day = true;
+            });
+        }
+
+        res.status(200).json({ success: true, data: rows });
     } catch (error) {
         console.log("Error in getLeaveBalances:", error.message);
         res.status(500).json({ success: false, message: error.message || "Internal server error" });
@@ -1082,6 +1107,24 @@ export async function applyLeave(req, res) {
         const end = new Date(endDate);
         const isHalfDay = ltCode === 'LH' || ltCode === 'H' || ltCode === 'HD' || ltName.toLowerCase().includes('half');
         const diffDays = isHalfDay ? 0.5 : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+
+        if (isHalfDay) {
+            const hdCheck = await pool.query(`
+                SELECT COALESCE(SUM(l.total_days), 0) as used
+                FROM leaves l
+                JOIN leave_types lt ON l.leave_type_id = lt.id
+                WHERE l.employee_id = $1 AND l.status = 'Approved'
+                  AND (lt.code IN ('LH', 'H', 'HD') OR lt.name ILIKE '%half%');
+            `, [employeeId]);
+            const used = parseFloat(hdCheck.rows[0]?.used || 0);
+            const totalHalfQuota = 6.0;
+            if (used + 0.5 > totalHalfQuota) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `Half-day leave quota exceeded: You have already used ${used} of ${totalHalfQuota} half-day days.` 
+                });
+            }
+        }
 
         const result = await pool.query(`
             INSERT INTO leaves (employee_id, leave_type_id, start_date, end_date, total_days, reason, status)
