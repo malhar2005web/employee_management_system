@@ -182,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="button" class="btn-action-icon danger btn-delete-company" data-id="${comp.id}" data-name="${escapeHtml(comp.company_name)}" data-code="${escapeHtml(comp.company_code)}" data-db="${escapeHtml(comp.db_name)}" title="${(comp.company_code || '').toLowerCase() === 'pcs' ? 'Protected Root Tenant' : 'Delete Organization & Database'}" ${(comp.company_code || '').toLowerCase() === 'pcs' ? 'disabled style="opacity:0.35; cursor:not-allowed;"' : ''}>
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
-                            <a href="/login.html" target="_blank" class="btn-action-icon" title="Open Tenant Portal">
+                            <a href="/login.html?org=${encodeURIComponent(comp.company_code)}&switch=1" target="_blank" class="btn-action-icon" title="Open ${escapeHtml(comp.company_name)} Login Portal">
                                 <i class="fa-solid fa-arrow-up-right-from-square"></i>
                             </a>
                         </div>

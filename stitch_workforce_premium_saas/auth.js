@@ -60,6 +60,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const isLoginPage = !!loginForm || window.location.pathname.endsWith('login.html') || window.location.pathname === '/';
         if (!isLoginPage) return;
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const isSwitchingTenant = urlParams.has('org') || urlParams.has('company') || urlParams.get('switch') === '1' || urlParams.get('portal') === '1';
+
+        // When opening a specific tenant portal or explicitly requesting login, stay on login page!
+        if (isSwitchingTenant) {
+            console.log('[Auth] Specific tenant portal requested. Staying on login page and clearing old session.');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            if (emailInput) emailInput.value = '';
+            if (passwordInput) passwordInput.value = '';
+            return;
+        }
+
         const token = localStorage.getItem('token');
         const rememberMePref = localStorage.getItem('remember_me');
 
