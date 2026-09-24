@@ -1189,6 +1189,19 @@ export async function runMigrations() {
             console.error('❌ Phase 25 Migration Error:', e.message);
         }
 
+        // ── STEP 27: Phase 26 Employee Workstation, Workplace & Passwords ────
+        try {
+            await client.query(`
+                ALTER TABLE employees ADD COLUMN IF NOT EXISTS workstation VARCHAR(100) DEFAULT 'Mumbai';
+                ALTER TABLE employees ADD COLUMN IF NOT EXISTS workplace VARCHAR(100) DEFAULT 'Mumbai Office';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255);
+                ALTER TABLE employees ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255);
+            `);
+            console.log('✅ Phase 26 Employee Workstation/Workplace & Passwords ensured.');
+        } catch (e) {
+            console.error('❌ Phase 26 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }

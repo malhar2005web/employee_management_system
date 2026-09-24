@@ -114,8 +114,8 @@ export async function getMe(req, res) {
                     e.doc_cv, e.doc_offer_letter, e.doc_adhar_card, e.doc_pan_card,
                     d.name AS department_name,
                     des.title AS designation_name,
-                    COALESCE(e.workstation, 'Mumbai') AS workstation,
-                    COALESCE(e.workplace, 'Mumbai Office') AS workplace
+                    'Mumbai' AS workstation,
+                    'Mumbai Office' AS workplace
              FROM users u
              LEFT JOIN employees e ON u.id = e.user_id
              LEFT JOIN employees mgr ON e.reporting_manager_id = mgr.id
@@ -127,7 +127,11 @@ export async function getMe(req, res) {
         if (result.rows.length === 0) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
-        res.status(200).json({ success: true, data: result.rows[0] });
+        const user = result.rows[0];
+        if (!user.full_name) {
+            user.full_name = user.username;
+        }
+        res.status(200).json({ success: true, data: user });
     } catch (error) {
         console.log("Error in getMe", error.message);
         res.status(500).json({ success: false, message: "Internal server error" });
