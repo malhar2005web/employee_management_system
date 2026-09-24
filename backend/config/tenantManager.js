@@ -77,12 +77,21 @@ export async function resolveCompanyDb(codeOrSubdomain) {
 
     try {
         const res = await masterPool.query(
-            'SELECT db_name FROM companies WHERE LOWER(company_code) = $1 OR LOWER(subdomain) = $1 LIMIT 1',
+            `SELECT db_name, company_code 
+             FROM companies 
+             WHERE LOWER(company_code) = $1 
+                OR LOWER(subdomain) = $1 
+                OR LOWER(company_name) = $1 
+                OR LOWER(REPLACE(company_name, ' ', '')) = $1 
+             LIMIT 1`,
             [cleanCode]
         );
         if (res.rows.length > 0) {
             const db = res.rows[0].db_name;
             companyCodeToDbMap.set(cleanCode, db);
+            if (res.rows[0].company_code) {
+                companyCodeToDbMap.set(res.rows[0].company_code.toLowerCase(), db);
+            }
             return db;
         }
     } catch (err) {

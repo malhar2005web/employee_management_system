@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { generateTokenAndSetCookie } from '../utils/generate.Token.js';
 import { ENV_VARS } from '../config/envVars.js';
-import { provisionNewCompanyDatabase, masterPool } from '../config/tenantManager.js';
+import { provisionNewCompanyDatabase, masterPool, getTenantPool } from '../config/tenantManager.js';
 
 export async function login(req, res) {
     try {
@@ -13,7 +13,27 @@ export async function login(req, res) {
             return res.status(400).json({ success: false, message: "All fields are required" });
         }
 
-        const userQuery = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        const cleanEmail = email.toLowerCase().trim();
+        let userQuery = await pool.query("SELECT * FROM users WHERE LOWER(email) = $1", [cleanEmail]);
+        let companyCode = req.tenant?.companyCode || 'pcs';
+        let dbName = req.tenant?.dbName || 'ems';
+
+        // Smart Cross-Tenant Discovery:
+        // If user is not found in the current tenant's database, automatically find the tenant they belong to
+        if (userQuery.rows.length === 0) {
+            const masterCheck = await masterPool.query(
+                "SELECT company_code, db_name FROM companies WHERE LOWER(admin_email) = $1 LIMIT 1",
+                [cleanEmail]
+            );
+            if (masterCheck.rows.length > 0) {
+                const targetTenant = masterCheck.rows[0];
+                companyCode = targetTenant.company_code;
+                dbName = targetTenant.db_name;
+                const targetPool = getTenantPool(dbName);
+                userQuery = await targetPool.query("SELECT * FROM users WHERE LOWER(email) = $1", [cleanEmail]);
+            }
+        }
+
         if (userQuery.rows.length === 0) {
             return res.status(404).json({ success: false, message: "Invalid credentials" });
         }
@@ -27,9 +47,6 @@ export async function login(req, res) {
         if (!user.is_active) {
             return res.status(403).json({ success: false, message: "User account is suspended" });
         }
-
-        const companyCode = req.tenant?.companyCode || 'pcs';
-        const dbName = req.tenant?.dbName || 'ems';
 
         const token = generateTokenAndSetCookie(user.id, res, {
             companyCode,
@@ -285,9 +302,16 @@ export async function getCompanyInfo(req, res) {
         const { code } = req.params;
         if (!code) return res.status(400).json({ success: false, message: "Company code required" });
 
+        const clean = code.toLowerCase().trim();
         const resDb = await masterPool.query(
-            "SELECT company_name, company_code, subdomain, status FROM companies WHERE LOWER(company_code) = $1 OR LOWER(subdomain) = $1 LIMIT 1",
-            [code.toLowerCase().trim()]
+            `SELECT company_name, company_code, subdomain, status 
+             FROM companies 
+             WHERE LOWER(company_code) = $1 
+                OR LOWER(subdomain) = $1 
+                OR LOWER(company_name) = $1 
+                OR LOWER(REPLACE(company_name, ' ', '')) = $1 
+             LIMIT 1`,
+            [clean]
         );
         if (resDb.rows.length === 0) {
             return res.status(404).json({ success: false, message: "Company not found" });
