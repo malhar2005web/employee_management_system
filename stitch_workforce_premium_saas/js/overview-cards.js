@@ -211,9 +211,9 @@
   function getSelectedCardIds() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length === MAX_CARDS) {
+        if (Array.isArray(parsed) && parsed.length <= MAX_CARDS) {
           // Verify each id exists in catalog
           const valid = parsed.every(id => CARD_CATALOG.some(c => c.id === id));
           if (valid) return parsed;
@@ -282,6 +282,22 @@
 
     grid.id = 'overview-stat-grid';
     const selectedIds = getSelectedCardIds();
+
+    if (selectedIds.length === 0) {
+      grid.style.gridTemplateColumns = '1fr';
+      grid.innerHTML = `
+        <div class="card stat-card" style="text-align:center; padding:28px 16px; color:var(--text-muted); cursor:pointer;" onclick="if(window.toggleOverviewCardPicker) window.toggleOverviewCardPicker(true);">
+          <i class="fa-solid fa-layer-group" style="font-size:26px; margin-bottom:10px; color:var(--teal-600);"></i>
+          <div style="font-weight:700; font-size:15px; color:var(--text-dark);">No overview cards active</div>
+          <div style="font-size:12.5px; margin-top:4px;">Click here or on 'Overview' above to choose up to 4 metric cards.</div>
+        </div>
+      `;
+      const countBadge = document.getElementById('overview-active-count-label');
+      if (countBadge) countBadge.textContent = `0 Cards Active`;
+      return;
+    }
+
+    grid.style.gridTemplateColumns = `repeat(${Math.min(selectedIds.length, 4)}, 1fr)`;
 
     grid.innerHTML = selectedIds.map(id => {
       const card = CARD_CATALOG.find(c => c.id === id);
@@ -425,17 +441,13 @@
     const isCurrentlySelected = selectedIds.includes(cardId);
 
     if (isCurrentlySelected) {
-      if (selectedIds.length <= 1) {
-        showToast('At least 1 overview card must remain active.', 'warn');
-        return;
-      }
       selectedIds = selectedIds.filter(id => id !== cardId);
       saveSelectedCardIds(selectedIds);
       renderOverviewDeck();
       renderDropdownOptions();
     } else {
       if (selectedIds.length >= MAX_CARDS) {
-        showToast(`You can choose up to ${MAX_CARDS} cards. Please uncheck one card first to choose this one.`, 'warn');
+        showToast(`Deck is full (${MAX_CARDS}/${MAX_CARDS}). Click any active card to uncheck it first.`, 'warn');
         return;
       }
       selectedIds.push(cardId);
@@ -515,6 +527,13 @@
     if (closeBtn) {
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        const currentSelected = getSelectedCardIds();
+        if (currentSelected.length === 0) {
+          saveSelectedCardIds([...DEFAULT_CARDS]);
+          renderOverviewDeck();
+          renderDropdownOptions();
+          showToast('No cards selected, restored default 4 overview cards.', 'info');
+        }
         toggleDropdown(false);
       });
     }
@@ -523,6 +542,12 @@
     document.addEventListener('click', (e) => {
       if (isDropdownOpen && dropdown && headerWrap) {
         if (!dropdown.contains(e.target) && !headerWrap.contains(e.target)) {
+          const currentSelected = getSelectedCardIds();
+          if (currentSelected.length === 0) {
+            saveSelectedCardIds([...DEFAULT_CARDS]);
+            renderOverviewDeck();
+            renderDropdownOptions();
+          }
           toggleDropdown(false);
         }
       }
@@ -538,6 +563,7 @@
     // Expose global methods
     window.renderOverviewDeck = renderOverviewDeck;
     window.refreshOverviewCards = fetchDashboardStats;
+    window.toggleOverviewCardPicker = toggleDropdown;
 
     // Initial fetch
     fetchDashboardStats();
