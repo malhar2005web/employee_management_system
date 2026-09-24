@@ -967,6 +967,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'todo';
     };
 
+    function showMiniToast(msg) {
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;background:#0f766e;color:#fff;padding:12px 20px;border-radius:10px;font-weight:700;font-size:13.5px;box-shadow:0 4px 16px rgba(0,0,0,0.18);transition:all 0.3s;';
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
     const renderWorkflows = () => {
         workflowsList.innerHTML = '';
         if (workflowsCache.length === 0) {
@@ -975,9 +986,66 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         workflowsCache.forEach(workflow => {
-            const graph = workflow.tasks.map((task, index) => `
-                <span class="status-pill ${task.status === 'Completed' ? 'progress' : (task.status === 'In Progress' ? 'pending' : 'todo')}" style="white-space:nowrap;margin:2px;">${index + 1}. ${task.name}</span>
-            `).join('<i class="fa-solid fa-arrow-right" style="color:var(--teal-700);margin:0 4px;"></i>');
+            // Build progressive workflow stages for the dropdown
+            const pipelineStages = (workflow.tasks && workflow.tasks.length > 1)
+                ? workflow.tasks.map((t, idx) => ({ order: idx + 1, name: t.name, status: t.status }))
+                : defaultSteps.map((name, idx) => {
+                    const existingTask = workflow.tasks ? workflow.tasks.find(t => (t.name || '').toLowerCase() === name.toLowerCase()) : null;
+                    return {
+                        order: idx + 1,
+                        name: name,
+                        status: existingTask ? existingTask.status : (idx === 0 ? 'In Progress' : 'Not Started')
+                    };
+                });
+
+            // Find current active stage
+            let activeStageOrder = 1;
+            const inProg = pipelineStages.find(s => s.status === 'In Progress');
+            if (inProg) {
+                activeStageOrder = inProg.order;
+            } else {
+                const lastCompleted = [...pipelineStages].reverse().find(s => s.status === 'Completed');
+                if (lastCompleted) {
+                    activeStageOrder = Math.min(lastCompleted.order + 1, pipelineStages.length);
+                }
+            }
+
+            const stageSelectOptions = pipelineStages.map(stage => `
+                <option value="${stage.name}" data-order="${stage.order}" ${stage.order === activeStageOrder ? 'selected' : ''}>
+                    ${stage.order}. ${stage.name}
+                </option>
+            `).join('');
+
+            const progressDropdown = `
+                <div class="wf-stage-dropdown-container" style="display:inline-flex; align-items:center; gap:6px;">
+                    <select class="wf-stage-select" data-id="${workflow.id}" data-total="${pipelineStages.length}" style="
+                        padding: 6px 12px;
+                        border-radius: 8px;
+                        font-size: 12.5px;
+                        font-weight: 700;
+                        border: 1px solid rgba(13, 148, 136, 0.35);
+                        background: rgba(255, 255, 255, 0.85);
+                        color: var(--teal-900);
+                        cursor: pointer;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+                        outline: none;
+                        max-width: 230px;
+                    ">
+                        ${stageSelectOptions}
+                    </select>
+                    <span class="wf-stage-pill" style="
+                        font-size: 11px;
+                        font-weight: 800;
+                        padding: 3px 8px;
+                        border-radius: 6px;
+                        background: ${activeStageOrder === pipelineStages.length ? 'rgba(16, 185, 129, 0.15)' : 'rgba(13, 148, 136, 0.12)'};
+                        color: ${activeStageOrder === pipelineStages.length ? '#059669' : '#0f766e'};
+                        white-space: nowrap;
+                    ">
+                        ${activeStageOrder}/${pipelineStages.length}
+                    </span>
+                </div>
+            `;
 
             const teams = workflow.teams.map(team => `<span class="skill-pill" style="font-size:11.5px;padding:3px 7px;margin:2px;">${team.name}${team.lead_name ? ` - ${team.lead_name}` : ''}</span>`).join('') || '-';
             const target = workflow.target_completion ? new Date(workflow.target_completion).toLocaleDateString() : '-';
@@ -991,7 +1059,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${workflow.project_name || '-'}</td>
                 <td style="font-weight:700;color:var(--teal-900);">${workflow.account_manager_name || '-'}</td>
                 <td>${teams}</td>
-                <td><div style="display:flex;align-items:center;overflow-x:auto;max-width:360px;padding-bottom:4px;">${graph || '-'}</div></td>
+                <td>${progressDropdown}</td>
                 <td style="font-weight:700;color:var(--teal-900);">${target}</td>
                 <td>
                     <div class="row-progress">
@@ -1026,8 +1094,71 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // Status change handler
+    // Change handler for status and progress stage
     workflowsList.addEventListener('change', async e => {
+        // 1. Stage Select handler
+        const stageSelect = e.target.closest('.wf-stage-select');
+        if (stageSelect) {
+            const workflowId = stageSelect.dataset.id;
+            const totalStages = parseInt(stageSelect.dataset.total, 10) || 10;
+            const selectedOption = stageSelect.options[stageSelect.selectedIndex];
+            const stageName = selectedOption.value;
+            const stepOrder = parseInt(selectedOption.dataset.order, 10) || 1;
+
+            const tr = stageSelect.closest('tr');
+            const progressFill = tr ? tr.querySelector('.progress-fill') : null;
+            const progressSpan = tr ? tr.querySelector('.row-progress span') : null;
+            const statusSelect = tr ? tr.querySelector('.wf-status-select') : null;
+            const stagePill = tr ? tr.querySelector('.wf-stage-pill') : null;
+
+            try {
+                stageSelect.disabled = true;
+                const res = await fetch(`/api/v1/admin/tasks/workflows/${workflowId}/progress-stage`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        stageName,
+                        stepOrder,
+                        totalStages
+                    })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.message || 'Failed to update progress');
+
+                // Update UI immediately
+                if (progressFill) progressFill.style.width = `${data.overall_completion}%`;
+                if (progressSpan) progressSpan.textContent = `${data.overall_completion}%`;
+                if (statusSelect && data.status) statusSelect.value = data.status;
+                if (stagePill) {
+                    stagePill.textContent = `${stepOrder}/${totalStages}`;
+                    if (stepOrder === totalStages) {
+                        stagePill.style.background = 'rgba(16, 185, 129, 0.15)';
+                        stagePill.style.color = '#059669';
+                    } else {
+                        stagePill.style.background = 'rgba(13, 148, 136, 0.12)';
+                        stagePill.style.color = '#0f766e';
+                    }
+                }
+
+                // Update cache
+                const wf = workflowsCache.find(w => parseInt(w.id, 10) === parseInt(workflowId, 10));
+                if (wf) {
+                    wf.overall_completion = data.overall_completion;
+                    if (data.status) wf.status = data.status;
+                }
+
+                showMiniToast(`Stage updated to ${stageName} (${data.overall_completion}%)`);
+            } catch (err) {
+                console.error('Progress stage update error:', err);
+                alert('Failed to update stage: ' + err.message);
+            } finally {
+                stageSelect.disabled = false;
+            }
+            return;
+        }
+
+        // 2. Status change handler
         const select = e.target.closest('.wf-status-select');
         if (!select) return;
         const id = select.dataset.id;

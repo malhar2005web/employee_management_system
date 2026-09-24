@@ -334,6 +334,150 @@ export async function updateWorkflowTaskStatus(req, res) {
     }
 }
 
+// ─── Update workflow overall progress stage via dropdown ───────────────────────
+export async function updateWorkflowProgressStage(req, res) {
+    const client = await pool.connect();
+    try {
+        const { id } = req.params;
+        const { stageName, stepOrder, totalStages } = req.body;
+        const workflowId = parseInt(id, 10);
+        const order = parseInt(stepOrder, 10) || 1;
+        const total = parseInt(totalStages, 10) || 10;
+
+        if (!stageName) {
+            return res.status(400).json({ success: false, message: 'Stage name is required' });
+        }
+
+        await client.query('BEGIN');
+
+        // Check if workflow exists
+        const wfCheck = await client.query('SELECT * FROM workflows WHERE id = $1', [workflowId]);
+        if (wfCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Workflow not found' });
+        }
+
+        // Fetch existing workflow tasks
+        const tasksRes = await client.query(
+            'SELECT id, step_order, name, status FROM workflow_tasks WHERE workflow_id = $1 ORDER BY step_order ASC',
+            [workflowId]
+        );
+
+        const STANDARD_WORKFLOW_STAGES = [
+            'Requirement Gathering',
+            'Database Design',
+            'Backend APIs',
+            'Frontend Development',
+            'Authentication & Security',
+            'Testing & QA',
+            'Bug Fixing & Polishing',
+            'UAT (User Acceptance Testing)',
+            'Production Deployment',
+            'Client Approval & Handover'
+        ];
+
+        // If tasks exist, update their statuses according to stepOrder
+        if (tasksRes.rows.length > 0) {
+            const existingStageTask = tasksRes.rows.find(t => 
+                t.name.toLowerCase() === stageName.toLowerCase() || t.step_order === order
+            );
+
+            if (existingStageTask) {
+                for (const t of tasksRes.rows) {
+                    if (t.step_order < order) {
+                        await client.query(
+                            `UPDATE workflow_tasks 
+                             SET status = 'Completed', completion_percentage = 100, updated_at = NOW() 
+                             WHERE id = $1`,
+                            [t.id]
+                        );
+                    } else if (t.step_order === order) {
+                        await client.query(
+                            `UPDATE workflow_tasks 
+                             SET status = 'In Progress', completion_percentage = 50, updated_at = NOW() 
+                             WHERE id = $1`,
+                            [t.id]
+                        );
+                    } else {
+                        await client.query(
+                            `UPDATE workflow_tasks 
+                             SET status = 'Not Started', completion_percentage = 0, updated_at = NOW() 
+                             WHERE id = $1`,
+                            [t.id]
+                        );
+                    }
+                }
+            } else {
+                for (let i = 1; i <= Math.min(order, STANDARD_WORKFLOW_STAGES.length); i++) {
+                    const stageTitle = STANDARD_WORKFLOW_STAGES[i - 1];
+                    const existing = tasksRes.rows.find(t => t.step_order === i || t.name.toLowerCase() === stageTitle.toLowerCase());
+                    const taskStatus = i < order ? 'Completed' : 'In Progress';
+                    const compPercent = i < order ? 100 : 50;
+
+                    if (existing) {
+                        await client.query(
+                            `UPDATE workflow_tasks 
+                             SET status = $1, completion_percentage = $2, updated_at = NOW() 
+                             WHERE id = $3`,
+                            [taskStatus, compPercent, existing.id]
+                        );
+                    } else {
+                        await client.query(
+                            `INSERT INTO workflow_tasks (
+                                workflow_id, step_order, name, status, priority, completion_percentage, created_at, updated_at
+                             ) VALUES ($1, $2, $3, $4, 'Medium', $5, NOW(), NOW())`,
+                            [workflowId, i, stageTitle, taskStatus, compPercent]
+                        );
+                    }
+                }
+            }
+        } else {
+            for (let i = 1; i <= Math.min(order, STANDARD_WORKFLOW_STAGES.length); i++) {
+                const stageTitle = STANDARD_WORKFLOW_STAGES[i - 1];
+                const taskStatus = i < order ? 'Completed' : 'In Progress';
+                const compPercent = i < order ? 100 : 50;
+                await client.query(
+                    `INSERT INTO workflow_tasks (
+                        workflow_id, step_order, name, status, priority, completion_percentage, created_at, updated_at
+                     ) VALUES ($1, $2, $3, $4, 'Medium', $5, NOW(), NOW())`,
+                    [workflowId, i, stageTitle, taskStatus, compPercent]
+                );
+            }
+        }
+
+        let overallPercent = order >= total ? 100 : Math.round(((order - 1) * 100 + 50) / total);
+        if (overallPercent > 100) overallPercent = 100;
+        if (overallPercent < 0) overallPercent = 0;
+
+        const newWfStatus = overallPercent >= 100 ? 'Completed' : 'In Progress';
+
+        await client.query(
+            `UPDATE workflows 
+             SET status = $1, updated_at = NOW() 
+             WHERE id = $2`,
+            [newWfStatus, workflowId]
+        );
+
+        await client.query('COMMIT');
+
+        return res.status(200).json({
+            success: true,
+            message: `Workflow progress updated to Step ${order}: ${stageName}`,
+            stageName,
+            stepOrder: order,
+            overall_completion: overallPercent,
+            status: newWfStatus
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error in updateWorkflowProgressStage:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+    } finally {
+        client.release();
+    }
+}
+
 // ─── Delete a workflow (cascade handled by DB FK or done manually) ────────────
 export async function deleteWorkflow(req, res) {
     const client = await pool.connect();

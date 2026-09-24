@@ -4,6 +4,7 @@ import {
     createWorkflow,
     updateWorkflowStatus,
     updateWorkflowTaskStatus,
+    updateWorkflowProgressStage,
     deleteWorkflow,
     getTasks, 
     createTask, 
@@ -23,6 +24,7 @@ router.use(protectRoute, isAdmin);
 router.get("/workflows", getWorkflows);
 router.post("/workflows", createWorkflow);
 router.put("/workflows/:id/status", updateWorkflowStatus);
+router.put("/workflows/:id/progress-stage", updateWorkflowProgressStage);
 router.put("/workflows/:id/tasks/:taskId/status", updateWorkflowTaskStatus);
 router.delete("/workflows/:id", deleteWorkflow);
 router.get("/", getTasks);
