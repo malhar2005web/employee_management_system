@@ -54,8 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 6000);
     };
 
-    // Auto-login persistence check (especially for mobile WebView where re-login is annoying)
+    // Auto-login persistence check (ONLY execute on login page to avoid dashboard reload loops)
     const checkAutoLogin = async () => {
+        // If not on login page, abort immediately
+        const isLoginPage = !!loginForm || window.location.pathname.endsWith('login.html') || window.location.pathname === '/';
+        if (!isLoginPage) return;
+
         const token = localStorage.getItem('token');
         const rememberMePref = localStorage.getItem('remember_me');
 
@@ -76,10 +80,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const meData = await meRes.json();
                     if (meData.success && meData.data) {
                         const role = meData.data.role;
-                        if (role === 'Admin') {
+                        const currentPath = window.location.pathname;
+                        if (role === 'Admin' && !currentPath.includes('admin-dashboard.html')) {
                             window.location.replace('/admin-dashboard.html');
                             return;
-                        } else if (role === 'Employee') {
+                        } else if (role === 'Employee' && !currentPath.includes('employee-dashboard.html')) {
                             window.location.replace('/employee-dashboard.html');
                             return;
                         }
