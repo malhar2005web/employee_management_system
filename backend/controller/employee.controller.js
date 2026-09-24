@@ -379,43 +379,78 @@ export async function deleteDesignation(req, res) {
 
 export async function getDashboardSummary(req, res) {
     try {
-        // 1. Count actual employees
-        const empCountRes = await pool.query("SELECT COUNT(*) FROM employees");
-        const totalEmployees = parseInt(empCountRes.rows[0].count, 10);
+        const [
+            empRes,
+            leaveRes,
+            taskRes,
+            attRes,
+            ticketRes,
+            noticeRes,
+            custRes,
+            sessRes,
+            dsrRes,
+            selfRes,
+            handoverRes
+        ] = await Promise.all([
+            pool.query("SELECT COUNT(*) FROM employees WHERE status = 'Active' OR status IS NULL OR status = 'active'"),
+            pool.query("SELECT COUNT(*) FROM leave_requests WHERE status = 'Pending'"),
+            pool.query(`
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN status = 'Completed' THEN 1 END) as completed,
+                    COUNT(CASE WHEN status = 'In Progress' OR status = 'Pending' OR status = 'Not Started' THEN 1 END) as active,
+                    COUNT(CASE WHEN deadline < CURRENT_DATE AND (status IS NULL OR status != 'Completed') THEN 1 END) as overdue
+                FROM workflow_tasks
+            `),
+            pool.query("SELECT COUNT(DISTINCT employee_id) FROM attendance_logs WHERE work_date = CURRENT_DATE"),
+            pool.query(`
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN status != 'Resolved' AND status != 'Closed' THEN 1 END) as open,
+                    COUNT(CASE WHEN priority = 'High' OR priority = 'Urgent' THEN 1 END) as urgent
+                FROM support_tickets
+            `),
+            pool.query("SELECT COUNT(*) FROM notifications WHERE type = 'Announcement'"),
+            pool.query("SELECT COUNT(*) FROM customers"),
+            pool.query("SELECT COUNT(DISTINCT employee_id) FROM task_sessions WHERE status = 'Running'"),
+            pool.query("SELECT COUNT(*) FROM dsr_reports WHERE DATE(created_at) = CURRENT_DATE"),
+            pool.query("SELECT COUNT(*) FROM self_reports WHERE date = CURRENT_DATE"),
+            pool.query("SELECT COUNT(*) FROM task_transfers WHERE status = 'Pending'")
+        ]);
 
-        // 2. Count active leaves (Pending approval)
-        const leaveCountRes = await pool.query("SELECT COUNT(*) FROM leave_requests WHERE status = 'Pending'");
-        const activeLeaves = parseInt(leaveCountRes.rows[0].count, 10);
-
-        // 3. Count total and completed workflow tasks to calculate progress rate
-        const taskStatsRes = await pool.query(`
-            SELECT 
-                COUNT(*) as total,
-                COUNT(CASE WHEN status = 'Completed' THEN 1 END) as completed
-            FROM workflow_tasks
-        `);
-        const totalTasks = parseInt(taskStatsRes.rows[0].total, 10);
-        const completedTasks = parseInt(taskStatsRes.rows[0].completed, 10);
+        const totalEmployees = parseInt(empRes.rows[0].count, 10) || 0;
+        const activeLeaves = parseInt(leaveRes.rows[0].count, 10) || 0;
+        const totalTasks = parseInt(taskRes.rows[0].total, 10) || 0;
+        const completedTasks = parseInt(taskRes.rows[0].completed, 10) || 0;
+        const activeTasks = parseInt(taskRes.rows[0].active, 10) || 0;
+        const overdueTasks = parseInt(taskRes.rows[0].overdue, 10) || 0;
         const projectCompletion = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-        // 4. Attendance rate today (default to 100% if no employees exist, or calculate: present / total)
-        let attendanceRate = 100.0;
-        if (totalEmployees > 0) {
-            const attendanceTodayRes = await pool.query(`
-                SELECT COUNT(DISTINCT employee_id) 
-                FROM attendance_logs 
-                WHERE work_date = CURRENT_DATE
-            `);
-            const presentToday = parseInt(attendanceTodayRes.rows[0].count, 10);
-            attendanceRate = Math.round((presentToday / totalEmployees) * 1000) / 10;
-        }
+        const presentToday = parseInt(attRes.rows[0].count, 10) || 0;
+        const attendanceRate = totalEmployees > 0 ? Math.round((presentToday / totalEmployees) * 1000) / 10 : 0;
 
         res.status(200).json({
             success: true,
             totalEmployees,
             activeLeaves,
             projectCompletion,
-            attendanceRate
+            attendanceRate,
+            presentToday,
+            supportTickets: {
+                total: parseInt(ticketRes.rows[0].total, 10) || 0,
+                open: parseInt(ticketRes.rows[0].open, 10) || 0,
+                urgent: parseInt(ticketRes.rows[0].urgent, 10) || 0
+            },
+            activeNotices: parseInt(noticeRes.rows[0].count, 10) || 0,
+            totalCustomers: parseInt(custRes.rows[0].count, 10) || 0,
+            tasks: {
+                total: totalTasks,
+                completed: completedTasks,
+                active: activeTasks,
+                overdue: overdueTasks
+            },
+            onlineWorkstations: parseInt(sessRes.rows[0].count, 10) || 0,
+            dsrSubmittedToday: (parseInt(dsrRes.rows[0].count, 10) || 0) + (parseInt(selfRes.rows[0].count, 10) || 0),
+            pendingHandovers: parseInt(handoverRes.rows[0].count, 10) || 0
         });
     } catch (error) {
         console.error("Error in getDashboardSummary:", error.message);

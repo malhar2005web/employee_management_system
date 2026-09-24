@@ -353,18 +353,22 @@ document.addEventListener('DOMContentLoaded', () => {
     .then(res => res.json())
     .then(data => {
       if (data.success) {
-        const totalEmp = document.getElementById('stat-total-employees');
-        if (totalEmp) totalEmp.textContent = data.totalEmployees;
-        const attRate = document.getElementById('stat-attendance-rate');
-        if (attRate) attRate.textContent = `${data.attendanceRate}%`;
-        const projComp = document.getElementById('stat-project-completion');
-        if (projComp) projComp.textContent = `${data.projectCompletion}%`;
-        const fill = document.getElementById('stat-project-completion-fill');
-        if (fill) fill.style.width = `${data.projectCompletion}%`;
-        const actLeave = document.getElementById('stat-active-leave');
-        if (actLeave) actLeave.textContent = data.activeLeaves;
-        const leaveSub = document.getElementById('stat-active-leave-sub');
-        if (leaveSub) leaveSub.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${data.activeLeaves} pending approvals`;
+        if (typeof window.renderOverviewDeck === 'function') {
+          window.renderOverviewDeck(data);
+        } else {
+          const totalEmp = document.getElementById('stat-total-employees');
+          if (totalEmp) totalEmp.textContent = data.totalEmployees;
+          const attRate = document.getElementById('stat-attendance-rate');
+          if (attRate) attRate.textContent = `${data.attendanceRate}%`;
+          const projComp = document.getElementById('stat-project-completion');
+          if (projComp) projComp.textContent = `${data.projectCompletion}%`;
+          const fill = document.getElementById('stat-project-completion-fill');
+          if (fill) fill.style.width = `${data.projectCompletion}%`;
+          const actLeave = document.getElementById('stat-active-leave');
+          if (actLeave) actLeave.textContent = data.activeLeaves;
+          const leaveSub = document.getElementById('stat-active-leave-sub');
+          if (leaveSub) leaveSub.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${data.activeLeaves} pending approvals`;
+        }
       }
     })
     .catch(err => console.error("Error loading dashboard summary:", err));
