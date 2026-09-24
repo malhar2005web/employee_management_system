@@ -120,6 +120,16 @@ if (Test-Path $packageDir) {
         $cleanApkDest = Join-Path $rootPath "EMS_Mobile_App.apk"
         Copy-Item -Path $signedApk.FullName -Destination $cleanApkDest -Force
         Write-Host ">>> Instant Access APK placed in root folder: $cleanApkDest <<<" -ForegroundColor Yellow
+
+        # Copy to Desktop for direct accessibility
+        if (Test-Path "D:\Desktop") {
+            Copy-Item -Path $signedApk.FullName -Destination "D:\Desktop\EMS_Mobile_App.apk" -Force
+            Write-Host ">>> Instant Access APK copied to D:\Desktop\EMS_Mobile_App.apk <<<" -ForegroundColor Yellow
+        }
+        if (Test-Path "$env:USERPROFILE\Desktop") {
+            Copy-Item -Path $signedApk.FullName -Destination "$env:USERPROFILE\Desktop\EMS_Mobile_App.apk" -Force
+            Write-Host ">>> Instant Access APK copied to Desktop: $env:USERPROFILE\Desktop\EMS_Mobile_App.apk <<<" -ForegroundColor Yellow
+        }
     }
 } else {
     Write-Host "Warning: Output directory not found at $packageDir" -ForegroundColor Yellow

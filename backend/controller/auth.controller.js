@@ -96,7 +96,9 @@ export async function getMe(req, res) {
                     e.perm_address, e.bank_name, e.bank_acc_no, e.bank_ifsc,
                     e.doc_cv, e.doc_offer_letter, e.doc_adhar_card, e.doc_pan_card,
                     d.name AS department_name,
-                    des.title AS designation_name
+                    des.title AS designation_name,
+                    COALESCE(e.workstation, 'Mumbai') AS workstation,
+                    COALESCE(e.workplace, 'Mumbai Office') AS workplace
              FROM users u
              LEFT JOIN employees e ON u.id = e.user_id
              LEFT JOIN employees mgr ON e.reporting_manager_id = mgr.id

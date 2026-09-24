@@ -309,6 +309,43 @@
     setupQuickButtons('report', filterReportMonth);
     setupQuickButtons('field', filterFieldMonth);
 
+    // --- Robust Modal Open/Close Helpers ---
+    function openDsrModal(id) {
+        if (typeof window.openModal === 'function') {
+            window.openModal(id);
+        } else {
+            const modal = document.getElementById(id);
+            if (modal) {
+                document.body.classList.add('modal-open');
+                modal.style.display = 'flex';
+                setTimeout(() => {
+                    modal.classList.add('active');
+                    modal.style.opacity = '1';
+                    modal.style.pointerEvents = 'auto';
+                }, 10);
+            }
+        }
+    }
+
+    function closeDsrModal(id) {
+        if (typeof window.closeModal === 'function') {
+            window.closeModal(id);
+        } else {
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.style.opacity = '0';
+                modal.classList.remove('active');
+                modal.style.pointerEvents = 'none';
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    if (!document.querySelector('.modal-overlay.active')) {
+                        document.body.classList.remove('modal-open');
+                    }
+                }, 250);
+            }
+        }
+    }
+
     // --- Self Report Modal ---
     let todayTasks = [];
     async function fetchTodayTasks() {
@@ -321,29 +358,36 @@
         }
     }
 
+    window.openSelfReportModal = async function() {
+        openDsrModal('modal-self');
+        await fetchTodayTasks();
+        const container = document.getElementById('self-report-tasks-container');
+        if (container) {
+            if (todayTasks.length === 0) {
+                container.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:10px;background:rgba(0,0,0,0.03);border-radius:8px;text-align:center;">No active tasks assigned to describe.</div>`;
+            } else {
+                container.innerHTML = todayTasks.map((t, idx) => {
+                    return `
+                      <div class="form-group" style="margin-bottom:8px;text-align:left;">
+                        <label style="font-size:13px;font-weight:700;color:var(--teal-900);display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                          <i class="fa-regular fa-square-check"></i> ${t.title || 'Untitled Task'} <span style="color:var(--red);">*</span>
+                        </label>
+                        <textarea class="sr-task-desc" data-task-id="${t.id}" data-task-title="${t.title || ''}" rows="2" placeholder="Describe task progress (e.g. Done, pending testing...)" required style="width: 100%; box-sizing: border-box;"></textarea>
+                      </div>
+                    `;
+                }).join('');
+            }
+        }
+    };
+
+    window.openFieldVisitModal = function() {
+        openDsrModal('modal-field');
+    };
+
     const btnSelfReport = document.getElementById('btn-self-report');
     if (btnSelfReport) {
-        btnSelfReport.addEventListener('click', async () => {
-            await fetchTodayTasks();
-            const container = document.getElementById('self-report-tasks-container');
-            if (container) {
-                if (todayTasks.length === 0) {
-                    container.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:10px;background:rgba(0,0,0,0.03);border-radius:8px;text-align:center;">No active tasks assigned to describe.</div>`;
-                } else {
-                    container.innerHTML = todayTasks.map((t, idx) => {
-                        return `
-                          <div class="form-group" style="margin-bottom:8px;text-align:left;">
-                            <label style="font-size:13px;font-weight:700;color:var(--teal-900);display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-                              <i class="fa-regular fa-square-check"></i> ${t.title || 'Untitled Task'} <span style="color:var(--red);">*</span>
-                            </label>
-                            <textarea class="sr-task-desc" data-task-id="${t.id}" data-task-title="${t.title}" rows="2" placeholder="Describe task progress (e.g. Done, pending testing...)" required style="width: 100%; box-sizing: border-box;"></textarea>
-                          </div>
-                        `;
-                    }).join('');
-                }
-            }
-            const modalSelf = document.getElementById('modal-self');
-            if (modalSelf) modalSelf.style.display = 'flex';
+        btnSelfReport.addEventListener('click', () => {
+            window.openSelfReportModal();
         });
     }
 
@@ -351,8 +395,7 @@
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('click', () => {
-                const modal = document.getElementById('modal-self');
-                if (modal) modal.style.display = 'none';
+                closeDsrModal('modal-self');
             });
         }
     });
@@ -405,7 +448,7 @@
                 const data = await res.json();
                 if (data.success) {
                     showToast('Daily report submitted!', 'success');
-                    document.getElementById('modal-self').style.display = 'none';
+                    closeDsrModal('modal-self');
                     document.getElementById('sr-extra-work').value = '';
                     document.getElementById('sr-tomorrow').value = '';
                     document.getElementById('sr-issues').value = '';
@@ -425,8 +468,7 @@
     const btnFieldVisit = document.getElementById('btn-field-visit');
     if (btnFieldVisit) {
         btnFieldVisit.addEventListener('click', () => {
-            const modal = document.getElementById('modal-field');
-            if (modal) modal.style.display = 'flex';
+            window.openFieldVisitModal();
         });
     }
 
@@ -434,8 +476,7 @@
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('click', () => {
-                const modal = document.getElementById('modal-field');
-                if (modal) modal.style.display = 'none';
+                closeDsrModal('modal-field');
             });
         }
     });
@@ -452,7 +493,7 @@
             const followup = document.getElementById('fv-followup').value.trim();
 
             if (!customerName) {
-                showToast('Customer name is required', 'error'); return;
+                showToast('Customer Name is required', 'error'); return;
             }
 
             try {
@@ -464,7 +505,7 @@
                 const data = await res.json();
                 if (data.success) {
                     showToast('Field visit report logged!', 'success');
-                    document.getElementById('modal-field').style.display = 'none';
+                    closeDsrModal('modal-field');
                     document.getElementById('fv-customer').value = '';
                     document.getElementById('fv-address').value = '';
                     document.getElementById('fv-site').value = '';

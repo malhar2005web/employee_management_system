@@ -532,10 +532,15 @@
         </button>
         <input type="file" id="profile-pic-input" accept="image/*" style="display:none;" />
       </div>
-      <div class="profile-header-meta">
-        <div class="profile-header-name">
-          <span id="hdr-fullname">Loading Name...</span>
-          <span class="profile-badge-active">Active</span>
+      <div class="profile-header-meta" style="flex:1;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+          <div class="profile-header-name">
+            <span id="hdr-fullname">Loading Name...</span>
+            <span class="profile-badge-active">Active</span>
+          </div>
+          <button type="button" class="btn-primary" id="btn-open-edit-profile-modal" style="display:inline-flex; align-items:center; gap:8px; padding:8px 18px; border-radius:10px; font-weight:700; font-size:13px; background:linear-gradient(135deg,var(--teal-600),var(--teal-900)); color:#fff; cursor:pointer; border:none; box-shadow:0 4px 14px rgba(15,139,115,0.25);">
+            <i class="fa-solid fa-user-pen"></i> Edit Profile
+          </button>
         </div>
         <div class="profile-header-sub">
           <span><i class="fa-regular fa-calendar"></i> Hire Date: <strong id="hdr-joining-date">—</strong></span>
@@ -544,7 +549,7 @@
         <div class="profile-tag-group">
           <span class="profile-tag"><i class="fa-solid fa-briefcase"></i> <span id="hdr-designation">—</span></span>
           <span class="profile-tag"><i class="fa-solid fa-sitemap"></i> <span id="hdr-department">—</span></span>
-          <span class="profile-tag"><i class="fa-solid fa-location-dot"></i> Mumbai</span>
+          <span class="profile-tag"><i class="fa-solid fa-location-dot"></i> <span id="hdr-workstation">Mumbai</span></span>
           <span class="profile-tag"><i class="fa-solid fa-people-group"></i> <span id="hdr-team">— Team</span></span>
         </div>
       </div>
@@ -569,60 +574,61 @@
         
         <!-- Tab 1: Public Profile -->
         <div id="panel-public-profile" class="tab-panel">
-          <div class="profile-content-header">
+          <div class="profile-content-header" style="display:flex; justify-content:space-between; align-items:center;">
             <h3><i class="fa-regular fa-eye"></i> Public Profile</h3>
+            <span style="font-size:12px; color:var(--teal-600); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Live Editable</span>
           </div>
           <div class="info-field-group">
             <div class="form-group">
-              <label>Name (preferred)</label>
-              <div class="read-only-val" id="pub-pref-name">—</div>
+              <label>Full / Preferred Name <span style="color:var(--red);">*</span></label>
+              <input type="text" id="pub-pref-name" placeholder="Enter Full Name" required>
             </div>
             <div class="form-group">
               <label>Gender</label>
-              <div class="read-only-val" id="pub-gender">Female</div>
+              <select id="pub-gender" style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid rgba(0,0,0,0.14); border-radius:8px; font-family:inherit; font-size:13.5px; background:rgba(255,255,255,0.9); outline:none;">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
           </div>
           <div class="info-field-group">
             <div class="form-group">
-              <label>First name (legal)</label>
-              <div class="read-only-val" id="pub-first-name">—</div>
+              <label>Job Title / Designation <span style="color:var(--red);">*</span></label>
+              <input type="text" id="pub-job-name" placeholder="e.g. Software programmer" required>
             </div>
             <div class="form-group">
-              <label>Last name (legal)</label>
-              <div class="read-only-val" id="pub-last-name">—</div>
+              <label>Workplace / Location <span style="color:var(--red);">*</span></label>
+              <input type="text" id="pub-workplace" placeholder="e.g. Mumbai, Pune, Remote" required>
             </div>
           </div>
           <div class="info-field-group">
             <div class="form-group">
               <label>Department</label>
-              <div class="read-only-val" id="pub-department">—</div>
+              <input type="text" id="pub-department" placeholder="e.g. Software Engineering & DevOps">
             </div>
             <div class="form-group">
-              <label>Supervisor</label>
+              <label>Supervisor / Manager</label>
               <div class="read-only-val" id="pub-supervisor">—</div>
             </div>
           </div>
           <div class="info-field-group">
             <div class="form-group">
-              <label>Email</label>
-              <div class="read-only-val" id="pub-email">—</div>
+              <label>Email Address</label>
+              <input type="email" id="pub-email" placeholder="e.g. employee@company.com">
             </div>
             <div class="form-group">
-              <label>LinkedIn</label>
-              <input type="text" id="pub-linkedin" placeholder="LinkedIn URL" value="https://linkedin.com/in/">
+              <label>Phone Number</label>
+              <input type="tel" id="pub-phone" placeholder="e.g. +91 9876543210">
             </div>
           </div>
           <div class="info-field-group">
-            <div class="form-group">
-              <label>Workplace</label>
-              <div class="read-only-val">Mumbai Office</div>
-            </div>
-            <div class="form-group">
-              <label>Job Name</label>
-              <div class="read-only-val" id="pub-job-name">—</div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>LinkedIn URL</label>
+              <input type="text" id="pub-linkedin" placeholder="LinkedIn URL" value="https://linkedin.com/in/">
             </div>
           </div>
-          <button class="btn-primary" id="btn-save-public" style="margin-top: 12px;"><i class="fa-solid fa-floppy-disk"></i> Save Public Details</button>
+          <button class="btn-primary" id="btn-save-public" style="margin-top: 14px; padding: 10px 22px; font-weight:700;"><i class="fa-solid fa-floppy-disk"></i> Save Profile Details</button>
         </div>
 
         <!-- Tab 2: HR Information -->
@@ -901,6 +907,76 @@
     </div>
 
   </main>
+<!-- Edit Profile Modal -->
+<div class="modal-overlay" id="modal-edit-profile" style="display:none;">
+  <div class="modal-card" style="max-width:580px; max-height:88vh; overflow-y:auto; padding:28px 32px; border-radius:18px;">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid rgba(0,0,0,0.08); padding-bottom:12px;">
+      <h3 style="display:flex; align-items:center; gap:10px; margin:0; font-size:18px; font-weight:800; color:var(--teal-900);">
+        <i class="fa-solid fa-user-pen" style="color:var(--teal-600);"></i> Edit Profile Details
+      </h3>
+      <i class="fa-solid fa-xmark modal-close" id="close-edit-profile-modal" style="cursor:pointer; font-size:19px; color:var(--text-muted);"></i>
+    </div>
+    <div style="font-size:13px; color:var(--text-muted); margin-bottom:18px;">
+      Edit your job title, location, department, and contact information below.
+    </div>
+    
+    <div class="form-group" style="margin-bottom:14px;">
+      <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">Full / Preferred Name <span style="color:var(--red);">*</span></label>
+      <input type="text" id="edit-modal-fullname" placeholder="Enter Full Name" required style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; outline:none;">
+    </div>
+
+    <div class="grid-two-col" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+      <div class="form-group">
+        <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">Designation / Job Title <span style="color:var(--red);">*</span></label>
+        <input type="text" id="edit-modal-designation" placeholder="e.g. Software programmer" required style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; outline:none;">
+      </div>
+      <div class="form-group">
+        <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">Location / Workplace <span style="color:var(--red);">*</span></label>
+        <input type="text" id="edit-modal-workstation" placeholder="e.g. Mumbai, Pune, Remote" required style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; outline:none;">
+      </div>
+    </div>
+
+    <div class="grid-two-col" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+      <div class="form-group">
+        <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">Department</label>
+        <input type="text" id="edit-modal-department" placeholder="e.g. Software Engineering & DevOps" style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; outline:none;">
+      </div>
+      <div class="form-group">
+        <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">Gender</label>
+        <select id="edit-modal-gender" style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; background:#fff; outline:none;">
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid-two-col" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+      <div class="form-group">
+        <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">Phone Number</label>
+        <input type="tel" id="edit-modal-phone" placeholder="e.g. +91 9876543210" style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; outline:none;">
+      </div>
+      <div class="form-group">
+        <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">WhatsApp Number</label>
+        <input type="tel" id="edit-modal-whatsapp" placeholder="e.g. +91 9876543210" style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; outline:none;">
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px;">
+      <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">Current Address</label>
+      <input type="text" id="edit-modal-address" placeholder="Residential Address" style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; outline:none;">
+    </div>
+
+    <div class="form-group" style="margin-bottom:20px;">
+      <label style="font-size:13px; font-weight:700; color:var(--teal-900); margin-bottom:6px; display:block;">LinkedIn URL</label>
+      <input type="text" id="edit-modal-linkedin" placeholder="LinkedIn URL" style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid rgba(0,0,0,0.15); border-radius:8px; font-size:13.5px; outline:none;">
+    </div>
+
+    <div class="action-btn-group" style="display:flex; justify-content:flex-end; gap:12px; border-top:1px solid rgba(0,0,0,0.08); padding-top:16px;">
+      <button type="button" class="btn-secondary" id="close-edit-profile-2" style="padding:10px 20px; font-weight:700; cursor:pointer;">Cancel</button>
+      <button type="button" class="btn-primary" id="submit-edit-profile-modal" style="padding:10px 24px; font-weight:700; cursor:pointer;"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+    </div>
+  </div>
 </div>
 
 <script src="script.js?v=20260922_3"></script>

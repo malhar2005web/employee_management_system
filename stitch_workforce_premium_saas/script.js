@@ -22,42 +22,55 @@
 
 // Renders the productivity bar+line combo chart used on both dashboards,
 // styled so the bars read as translucent glass columns rather than flat fills.
-function renderProductivityChart(canvasId, dataValues, lineValues){
-  const ctx = document.getElementById(canvasId).getContext('2d');
+function renderProductivityChart(canvasId, dataValues, lineValues, customLabels){
+  const canvasEl = document.getElementById(canvasId);
+  if (!canvasEl) return;
+  const ctx = canvasEl.getContext('2d');
+
+  // Track and clean up previous chart instance
+  window._productivityCharts = window._productivityCharts || {};
+  if (window._productivityCharts[canvasId]) {
+    try { window._productivityCharts[canvasId].destroy(); } catch (e) {}
+  }
 
   // Glass bar gradient: bright frosted highlight at the top fading into a
   // deeper translucent teal, mimicking light passing through glass.
-  const barGradient = ctx.createLinearGradient(0, 0, 0, 280);
-  barGradient.addColorStop(0, 'rgba(255, 255, 255, 0.42)');
-  barGradient.addColorStop(0.18, 'rgba(150, 214, 200, 0.36)');
-  barGradient.addColorStop(1, 'rgba(15, 139, 115, 0.26)');
+  const barGradient = ctx.createLinearGradient(0, 0, 0, 260);
+  barGradient.addColorStop(0, 'rgba(35, 184, 153, 0.55)');
+  barGradient.addColorStop(0.3, 'rgba(15, 139, 115, 0.40)');
+  barGradient.addColorStop(1, 'rgba(15, 139, 115, 0.20)');
 
-  new Chart(ctx, {
+  const chartLabels = customLabels || ['Jan','Feb','Mar','Apr','May','Jun','Jul'];
+
+  window._productivityCharts[canvasId] = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul'],
+      labels: chartLabels,
       datasets: [
         {
           type: 'bar',
+          label: 'Task Completion %',
           data: dataValues,
           backgroundColor: barGradient,
-          borderColor: 'rgba(255,255,255,0.6)',
-          borderWidth: 1.25,
+          borderColor: 'rgba(35, 184, 153, 0.8)',
+          borderWidth: 1.5,
           borderRadius: 8,
-          barThickness: 34,
+          barThickness: chartLabels.length > 7 ? 22 : 32,
           order: 2
         },
         {
           type: 'line',
+          label: 'Productivity Efficiency %',
           data: lineValues,
-          borderColor: '#a9d94c',
-          backgroundColor: '#a9d94c',
-          borderWidth: 2.5,
-          tension: 0.45,
-          pointRadius: 4,
+          borderColor: '#84cc16',
+          backgroundColor: '#84cc16',
+          borderWidth: 2.75,
+          tension: 0.35,
+          pointRadius: 4.5,
+          pointHoverRadius: 6.5,
           pointBackgroundColor: '#ffffff',
-          pointBorderColor: '#a9d94c',
-          pointBorderWidth: 2,
+          pointBorderColor: '#84cc16',
+          pointBorderWidth: 2.5,
           order: 1
         }
       ]
@@ -65,16 +78,45 @@ function renderProductivityChart(canvasId, dataValues, lineValues){
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: {
+            boxWidth: 10,
+            usePointStyle: true,
+            pointStyle: 'circle',
+            font: { size: 11, weight: '600' },
+            color: '#334155'
+          }
+        },
+        tooltip: {
+          enabled: true,
+          backgroundColor: 'rgba(15, 23, 42, 0.85)',
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(c) {
+              return ` ${c.dataset.label}: ${c.raw}%`;
+            }
+          }
+        }
+      },
       scales: {
         y: {
-          min: 0, max: 100,
-          ticks: { stepSize: 25, callback: v => v + '%', color: '#7d857c', font: { size: 12 } },
-          grid: { color: 'rgba(255,255,255,0.5)' },
+          min: 0,
+          max: 100,
+          ticks: { stepSize: 25, callback: v => v + '%', color: '#7d857c', font: { size: 11 } },
+          grid: { color: 'rgba(0,0,0,0.06)' },
           border: { display: false }
         },
         x: {
-          ticks: { color: '#7d857c', font: { size: 12 } },
+          ticks: { color: '#7d857c', font: { size: 12, weight: '600' } },
           grid: { display: false },
           border: { display: false }
         }

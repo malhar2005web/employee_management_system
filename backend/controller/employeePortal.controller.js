@@ -1342,6 +1342,17 @@ export async function updateProfile(req, res) {
     try {
         const employeeId = await getEmployeeId(req.user.id);
         const {
+            full_name,
+            designation_name,
+            job_name,
+            designation,
+            workstation,
+            workplace,
+            location,
+            department_name,
+            department,
+            gender,
+            email,
             linkedin,
             phone,
             dob,
@@ -1381,6 +1392,45 @@ export async function updateProfile(req, res) {
             await pool.query("UPDATE users SET profile_picture = $1 WHERE id = $2", [profile_picture, req.user.id]).catch(() => {});
         }
 
+        if (email) {
+            await pool.query("UPDATE users SET email = $1 WHERE id = $2", [email.trim().toLowerCase(), req.user.id]).catch(() => {});
+        }
+
+        if (full_name) {
+            await pool.query("UPDATE users SET username = $1 WHERE id = $2", [full_name.trim(), req.user.id]).catch(() => {});
+        }
+
+        // Designation handling
+        const targetDesig = designation_name || job_name || designation;
+        let desigId = null;
+        if (targetDesig && typeof targetDesig === 'string' && targetDesig.trim()) {
+            const desigTrimmed = targetDesig.trim();
+            const dRes = await pool.query("SELECT id FROM designations WHERE LOWER(title) = LOWER($1) LIMIT 1", [desigTrimmed]);
+            if (dRes.rows.length > 0) {
+                desigId = dRes.rows[0].id;
+            } else {
+                const insDesig = await pool.query("INSERT INTO designations (title, level) VALUES ($1, 1) RETURNING id", [desigTrimmed]);
+                desigId = insDesig.rows[0].id;
+            }
+        }
+
+        // Department handling
+        const targetDept = department_name || department;
+        let deptId = null;
+        if (targetDept && typeof targetDept === 'string' && targetDept.trim()) {
+            const deptTrimmed = targetDept.trim();
+            const depRes = await pool.query("SELECT id FROM departments WHERE LOWER(name) = LOWER($1) LIMIT 1", [deptTrimmed]);
+            if (depRes.rows.length > 0) {
+                deptId = depRes.rows[0].id;
+            } else {
+                const code = deptTrimmed.substring(0, 5).toUpperCase();
+                const insDept = await pool.query("INSERT INTO departments (name, code) VALUES ($1, $2) RETURNING id", [deptTrimmed, code]);
+                deptId = insDept.rows[0].id;
+            }
+        }
+
+        const targetLocation = workstation || workplace || location || null;
+
         const result = await pool.query(
             `UPDATE employees 
              SET linkedin = $1, 
@@ -1411,8 +1461,14 @@ export async function updateProfile(req, res) {
                  whatsapp_no = $26,
                  anydesk_id = $27,
                  profile_picture = COALESCE($28, profile_picture),
+                 full_name = COALESCE($29, full_name),
+                 designation_id = COALESCE($30, designation_id),
+                 department_id = COALESCE($31, department_id),
+                 workstation = COALESCE($32, workstation),
+                 workplace = COALESCE($33, workplace),
+                 gender = COALESCE($34, gender),
                  updated_at = NOW() 
-             WHERE id = $29 
+             WHERE id = $35 
              RETURNING *;`,
             [
                 linkedin || null,
@@ -1443,6 +1499,12 @@ export async function updateProfile(req, res) {
                 whatsapp_no || null,
                 anydesk_id || null,
                 profile_picture || null,
+                full_name ? full_name.trim() : null,
+                desigId,
+                deptId,
+                targetLocation ? targetLocation.trim() : null,
+                targetLocation ? targetLocation.trim() : null,
+                gender || null,
                 employeeId
             ]
         );

@@ -215,9 +215,13 @@
 
             // Set Header Information
             document.getElementById('hdr-fullname').textContent = me.full_name || 'Sarah Jenkins';
-            document.getElementById('hdr-designation').textContent = me.designation_name || 'Business Analyst';
-            document.getElementById('hdr-department').textContent = me.department_name || 'Data';
-            document.getElementById('hdr-team').textContent = (me.department_name || 'Data') + ' Team';
+            document.getElementById('hdr-designation').textContent = me.designation_name || 'Software programmer';
+            document.getElementById('hdr-department').textContent = me.department_name || 'Software Engineering & DevOps';
+            document.getElementById('hdr-team').textContent = (me.department_name || 'Software Engineering & DevOps') + ' Team';
+            const hdrWorkstation = document.getElementById('hdr-workstation');
+            if (hdrWorkstation) {
+                hdrWorkstation.textContent = me.workstation || me.workplace || 'Mumbai';
+            }
             
             const joinDate = me.joining_date ? new Date(me.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
             document.getElementById('hdr-joining-date').textContent = joinDate;
@@ -237,16 +241,25 @@
 
             // Map data to the sub-sections
             
-            // Sub-Tab 1: Public Profile
-            document.getElementById('pub-pref-name').textContent = me.full_name || '';
-            document.getElementById('pub-first-name').textContent = me.full_name ? me.full_name.split(' ')[0] : '';
-            document.getElementById('pub-last-name').textContent = me.full_name ? me.full_name.split(' ').slice(1).join(' ') : '';
-            document.getElementById('pub-department').textContent = me.department_name || 'Not Assigned';
-            document.getElementById('pub-supervisor').textContent = me.manager_name || 'Corporate Admin';
-            document.getElementById('pub-email').textContent = me.email || '';
-            document.getElementById('pub-linkedin').value = me.linkedin || 'https://linkedin.com/in/';
-            document.getElementById('pub-job-name').textContent = me.designation_name || 'Not Assigned';
-            document.getElementById('pub-gender').textContent = me.gender || 'Female';
+            // Sub-Tab 1: Public Profile (Editable)
+            const pubPrefName = document.getElementById('pub-pref-name');
+            if (pubPrefName) pubPrefName.value = me.full_name || '';
+            const pubJobName = document.getElementById('pub-job-name');
+            if (pubJobName) pubJobName.value = me.designation_name || '';
+            const pubWorkplace = document.getElementById('pub-workplace');
+            if (pubWorkplace) pubWorkplace.value = me.workstation || me.workplace || 'Mumbai';
+            const pubDept = document.getElementById('pub-department');
+            if (pubDept) pubDept.value = me.department_name || '';
+            const pubSupervisor = document.getElementById('pub-supervisor');
+            if (pubSupervisor) pubSupervisor.textContent = me.manager_name || 'Corporate Admin';
+            const pubEmail = document.getElementById('pub-email');
+            if (pubEmail) pubEmail.value = me.email || '';
+            const pubPhone = document.getElementById('pub-phone');
+            if (pubPhone) pubPhone.value = me.phone || '';
+            const pubLinkedin = document.getElementById('pub-linkedin');
+            if (pubLinkedin) pubLinkedin.value = me.linkedin || 'https://linkedin.com/in/';
+            const pubGender = document.getElementById('pub-gender');
+            if (pubGender) pubGender.value = me.gender || 'Male';
 
             // Sub-Tab 2: HR Information
             document.getElementById('hr-code').textContent = me.employee_code || '';
@@ -336,33 +349,39 @@
     async function saveProfileData(fields) {
         // Merge with current state to avoid wiping out other fields
         const payload = {
-            linkedin: currentProfileData.linkedin,
-            phone: currentProfileData.phone,
-            whatsapp_no: currentProfileData.whatsapp_no,
-            anydesk_id: currentProfileData.anydesk_id,
-            dob: currentProfileData.dob,
-            citizenship: currentProfileData.citizenship,
-            address: currentProfileData.address,
-            perm_address: currentProfileData.perm_address,
-            bank_name: currentProfileData.bank_name,
-            bank_acc_no: currentProfileData.bank_acc_no,
-            bank_ifsc: currentProfileData.bank_ifsc,
+            full_name: currentProfileData?.full_name,
+            designation_name: currentProfileData?.designation_name,
+            workstation: currentProfileData?.workstation || currentProfileData?.workplace,
+            department_name: currentProfileData?.department_name,
+            gender: currentProfileData?.gender,
+            email: currentProfileData?.email,
+            linkedin: currentProfileData?.linkedin,
+            phone: currentProfileData?.phone,
+            whatsapp_no: currentProfileData?.whatsapp_no,
+            anydesk_id: currentProfileData?.anydesk_id,
+            dob: currentProfileData?.dob,
+            citizenship: currentProfileData?.citizenship,
+            address: currentProfileData?.address,
+            perm_address: currentProfileData?.perm_address,
+            bank_name: currentProfileData?.bank_name,
+            bank_acc_no: currentProfileData?.bank_acc_no,
+            bank_ifsc: currentProfileData?.bank_ifsc,
             doc_cv: docCv,
             doc_offer_letter: docOffer,
             doc_adhar_card: docAdhar,
             doc_pan_card: docPan,
-            emergency_name: currentProfileData.emergency_name,
-            emergency_relationship: currentProfileData.emergency_relationship,
-            emergency_phone: currentProfileData.emergency_phone,
-            degree: currentProfileData.degree,
+            emergency_name: currentProfileData?.emergency_name,
+            emergency_relationship: currentProfileData?.emergency_relationship,
+            emergency_phone: currentProfileData?.emergency_phone,
+            degree: currentProfileData?.degree,
             skills: skillsList,
             certifications: certificationsList,
-            edu_10th_school: currentProfileData.edu_10th_school,
-            edu_10th_marks: currentProfileData.edu_10th_marks,
-            edu_12th_college: currentProfileData.edu_12th_college,
-            edu_12th_marks: currentProfileData.edu_12th_marks,
-            edu_grad_college: currentProfileData.edu_grad_college,
-            edu_grad_cgpa: currentProfileData.edu_grad_cgpa,
+            edu_10th_school: currentProfileData?.edu_10th_school,
+            edu_10th_marks: currentProfileData?.edu_10th_marks,
+            edu_12th_college: currentProfileData?.edu_12th_college,
+            edu_12th_marks: currentProfileData?.edu_12th_marks,
+            edu_grad_college: currentProfileData?.edu_grad_college,
+            edu_grad_cgpa: currentProfileData?.edu_grad_cgpa,
             ...fields
         };
 
@@ -387,11 +406,128 @@
 
     // Bind save triggers to each sub-panel button
     
-    // Save Public Profile (LinkedIn)
-    document.getElementById('btn-save-public').addEventListener('click', () => {
-        const linkedin = document.getElementById('pub-linkedin').value.trim();
-        saveProfileData({ linkedin });
+    // Save Public Profile (All key profile fields)
+    const btnSavePublic = document.getElementById('btn-save-public');
+    if (btnSavePublic) {
+        btnSavePublic.addEventListener('click', async () => {
+            const full_name = (document.getElementById('pub-pref-name')?.value || '').trim();
+            const designation_name = (document.getElementById('pub-job-name')?.value || '').trim();
+            const workstation = (document.getElementById('pub-workplace')?.value || '').trim();
+            const department_name = (document.getElementById('pub-department')?.value || '').trim();
+            const gender = document.getElementById('pub-gender')?.value || 'Male';
+            const email = (document.getElementById('pub-email')?.value || '').trim();
+            const phone = (document.getElementById('pub-phone')?.value || '').trim();
+            const linkedin = (document.getElementById('pub-linkedin')?.value || '').trim();
+            
+            await saveProfileData({ 
+                full_name, 
+                designation_name, 
+                workstation, 
+                department_name, 
+                gender, 
+                email, 
+                phone, 
+                linkedin 
+            });
+        });
+    }
+
+    // Modal Edit Profile listeners
+    const btnOpenEditModal = document.getElementById('btn-open-edit-profile-modal');
+    if (btnOpenEditModal) {
+        btnOpenEditModal.addEventListener('click', () => {
+            if (currentProfileData) {
+                const fn = document.getElementById('edit-modal-fullname');
+                if (fn) fn.value = currentProfileData.full_name || '';
+                const des = document.getElementById('edit-modal-designation');
+                if (des) des.value = currentProfileData.designation_name || '';
+                const ws = document.getElementById('edit-modal-workstation');
+                if (ws) ws.value = currentProfileData.workstation || currentProfileData.workplace || 'Mumbai';
+                const dep = document.getElementById('edit-modal-department');
+                if (dep) dep.value = currentProfileData.department_name || '';
+                const gen = document.getElementById('edit-modal-gender');
+                if (gen) gen.value = currentProfileData.gender || 'Male';
+                const ph = document.getElementById('edit-modal-phone');
+                if (ph) ph.value = currentProfileData.phone || '';
+                const wa = document.getElementById('edit-modal-whatsapp');
+                if (wa) wa.value = currentProfileData.whatsapp_no || '';
+                const addr = document.getElementById('edit-modal-address');
+                if (addr) addr.value = currentProfileData.address || '';
+                const lk = document.getElementById('edit-modal-linkedin');
+                if (lk) lk.value = currentProfileData.linkedin || '';
+            }
+            if (typeof window.openModal === 'function') {
+                window.openModal('modal-edit-profile');
+            } else {
+                const m = document.getElementById('modal-edit-profile');
+                if (m) {
+                    m.style.display = 'flex';
+                    m.classList.add('active');
+                    m.style.opacity = '1';
+                    m.style.pointerEvents = 'auto';
+                }
+            }
+        });
+    }
+
+    ['close-edit-profile-modal', 'close-edit-profile-2'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('click', () => {
+                if (typeof window.closeModal === 'function') {
+                    window.closeModal('modal-edit-profile');
+                } else {
+                    const m = document.getElementById('modal-edit-profile');
+                    if (m) {
+                        m.classList.remove('active');
+                        m.style.display = 'none';
+                    }
+                }
+            });
+        }
     });
+
+    const submitEditModalBtn = document.getElementById('submit-edit-profile-modal');
+    if (submitEditModalBtn) {
+        submitEditModalBtn.addEventListener('click', async () => {
+            const full_name = (document.getElementById('edit-modal-fullname')?.value || '').trim();
+            const designation_name = (document.getElementById('edit-modal-designation')?.value || '').trim();
+            const workstation = (document.getElementById('edit-modal-workstation')?.value || '').trim();
+            const department_name = (document.getElementById('edit-modal-department')?.value || '').trim();
+            const gender = document.getElementById('edit-modal-gender')?.value || 'Male';
+            const phone = (document.getElementById('edit-modal-phone')?.value || '').trim();
+            const whatsapp_no = (document.getElementById('edit-modal-whatsapp')?.value || '').trim();
+            const address = (document.getElementById('edit-modal-address')?.value || '').trim();
+            const linkedin = (document.getElementById('edit-modal-linkedin')?.value || '').trim();
+
+            if (!full_name) {
+                showToast("Please enter your name", "error");
+                return;
+            }
+
+            await saveProfileData({
+                full_name,
+                designation_name,
+                workstation,
+                department_name,
+                gender,
+                phone,
+                whatsapp_no,
+                address,
+                linkedin
+            });
+
+            if (typeof window.closeModal === 'function') {
+                window.closeModal('modal-edit-profile');
+            } else {
+                const m = document.getElementById('modal-edit-profile');
+                if (m) {
+                    m.classList.remove('active');
+                    m.style.display = 'none';
+                }
+            }
+        });
+    }
 
     // Save Personal Data
     document.getElementById('btn-save-personal').addEventListener('click', () => {
