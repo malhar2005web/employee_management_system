@@ -1,4 +1,5 @@
 import { pool } from './db.js';
+import { masterPool } from './tenantManager.js';
 
 export async function runMigrations() {
     const client = await pool.connect();
@@ -1239,6 +1240,84 @@ export async function runMigrations() {
             console.log('✅ Phase 28 Support Ticket Auto-Pause & Multi-Session Tracking ensured.');
         } catch (e) {
             console.error('❌ Phase 28 Migration Error:', e.message);
+        }
+
+        // ── STEP 30: Phase 29 Company Admin Credentials Central Registry ────
+        try {
+            const tableSql = `
+                CREATE TABLE IF NOT EXISTS company_admin_credentials (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER,
+                    company_name VARCHAR(255) NOT NULL,
+                    company_code VARCHAR(100) NOT NULL,
+                    subdomain VARCHAR(100),
+                    db_name VARCHAR(100) NOT NULL,
+                    admin_name VARCHAR(255) NOT NULL,
+                    admin_email VARCHAR(255) NOT NULL,
+                    plain_password VARCHAR(255) NOT NULL,
+                    password_hash VARCHAR(255),
+                    role VARCHAR(50) DEFAULT 'Admin',
+                    status VARCHAR(50) DEFAULT 'ACTIVE',
+                    login_url VARCHAR(500),
+                    last_login_at TIMESTAMP WITH TIME ZONE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    CONSTRAINT uq_comp_admin_email UNIQUE (company_code, admin_email)
+                );
+                CREATE INDEX IF NOT EXISTS idx_comp_admin_creds_email ON company_admin_credentials(LOWER(admin_email));
+                CREATE INDEX IF NOT EXISTS idx_comp_admin_creds_code ON company_admin_credentials(LOWER(company_code));
+            `;
+
+            await client.query(tableSql);
+
+            // Also ensure in masterPool
+            if (masterPool) {
+                await masterPool.query(tableSql);
+
+                // Sync PCS Enterprise root admins
+                await masterPool.query(`
+                    INSERT INTO company_admin_credentials (
+                        company_id, company_name, company_code, subdomain, db_name,
+                        admin_name, admin_email, plain_password, password_hash, role, status, login_url
+                    ) VALUES 
+                    (1, 'PCS Enterprise', 'pcs', 'pcs', 'ems', 'Master Admin', 'admin@ems.com', 'Admin@123', '$2a$10$w86H0x853g1Wffk/lR1eX.9v78iZ/sZ1R5xXm3K8P8ZzZzZzZzZzZ', 'Admin', 'ACTIVE', 'http://173.249.59.181:8080/login.html?org=pcs&switch=1'),
+                    (1, 'PCS Enterprise', 'pcs', 'pcs', 'ems', 'Nitin Rajguru', 'nitin.rajguru@ems.com', 'Admin@123', '$2a$10$w86H0x853g1Wffk/lR1eX.9v78iZ/sZ1R5xXm3K8P8ZzZzZzZzZzZ', 'Admin', 'ACTIVE', 'http://173.249.59.181:8080/login.html?org=pcs&switch=1')
+                    ON CONFLICT (company_code, admin_email) DO NOTHING;
+                `);
+
+                // Sync all companies registered in companies table
+                const comps = await masterPool.query("SELECT * FROM companies WHERE LOWER(company_code) != 'pcs'");
+                for (const c of comps.rows) {
+                    if (c.admin_email) {
+                        const tempPass = c.admin_temp_password || 'Admin@123';
+                        await masterPool.query(`
+                            INSERT INTO company_admin_credentials (
+                                company_id, company_name, company_code, subdomain, db_name,
+                                admin_name, admin_email, plain_password, password_hash, role, status, login_url
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '', 'Admin', $9, $10)
+                            ON CONFLICT (company_code, admin_email) DO UPDATE SET
+                                plain_password = EXCLUDED.plain_password,
+                                status = EXCLUDED.status,
+                                updated_at = NOW();
+                        `, [
+                            c.id,
+                            c.company_name,
+                            c.company_code,
+                            c.subdomain || c.company_code,
+                            c.db_name,
+                            c.admin_name || 'Master Admin',
+                            c.admin_email.toLowerCase().trim(),
+                            tempPass,
+                            c.status || 'ACTIVE',
+                            `http://173.249.59.181:8080/login.html?org=${c.company_code}&switch=1`
+                        ]);
+                    }
+                }
+            }
+
+            console.log('✅ Phase 29 Company Admin Credentials Central Registry ensured in both ems & ems_master.');
+        } catch (e) {
+            console.error('❌ Phase 29 Migration Error:', e.message);
         }
 
         client.release();

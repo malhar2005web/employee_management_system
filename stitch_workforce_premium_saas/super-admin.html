@@ -840,17 +840,46 @@
 
       <div class="kpi-box">
         <div class="kpi-titles">
-          <div class="label">Isolated Databases (Template Clones)</div>
+          <div class="label">Isolated Databases</div>
           <div class="value" id="kpi-provisioned-dbs">0</div>
         </div>
         <div class="kpi-icon-circ blue">
           <i class="fa-solid fa-database"></i>
         </div>
       </div>
+
+      <div class="kpi-box">
+        <div class="kpi-titles">
+          <div class="label">Admin Credentials Vault</div>
+          <div class="value" id="kpi-vault-admins" style="color: #d97706;">0</div>
+        </div>
+        <div class="kpi-icon-circ" style="background: rgba(217, 119, 6, 0.12); color: #d97706;">
+          <i class="fa-solid fa-key"></i>
+        </div>
+      </div>
     </section>
 
-    <!-- Central Data Card -->
-    <section class="main-table-card">
+    <!-- Navigation Switcher Tabs -->
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-top:4px;">
+      <div style="display:flex; gap:10px;">
+        <button type="button" class="tab-view-btn active" id="tab-nav-companies" style="padding:10px 18px; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; border:1px solid rgba(15,118,110,0.3); background:var(--teal-900); color:#ffffff; transition:all 0.2s;">
+          <i class="fa-solid fa-building"></i> Organizations &amp; Databases
+        </button>
+        <button type="button" class="tab-view-btn" id="tab-nav-credentials" style="padding:10px 18px; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; border:1px solid rgba(203,213,225,0.8); background:#ffffff; color:var(--text-dark); transition:all 0.2s;">
+          <i class="fa-solid fa-key" style="color:#d97706;"></i> Company Admins &amp; Credentials Vault
+          <span id="badge-vault-count" style="background:#d97706; color:#ffffff; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:800;">0</span>
+        </button>
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <button type="button" id="btn-sync-vault" style="padding:9px 16px; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; border:1px solid rgba(15,118,110,0.3); background:rgba(15,118,110,0.08); color:var(--teal-900); transition:all 0.2s;">
+          <i class="fa-solid fa-arrows-rotate"></i> Sync All DB Admins
+        </button>
+      </div>
+    </div>
+
+    <!-- Section 1: Central Organizations Data Card -->
+    <section class="main-table-card" id="section-companies-table">
       <div class="table-top-bar">
         <div class="search-input-wrap">
           <i class="fa-solid fa-magnifying-glass"></i>
@@ -882,6 +911,46 @@
               <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
                 <i class="fa-solid fa-spinner fa-spin" style="font-size: 20px; margin-bottom: 8px;"></i>
                 <div>Loading provisioned tenants...</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 2: Company Admins & Credentials Vault Table -->
+    <section class="main-table-card" id="section-credentials-vault" style="display:none;">
+      <div class="table-top-bar">
+        <div class="search-input-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="input-search-credentials" placeholder="Search by company, admin name, or email...">
+        </div>
+
+        <div class="filter-tabs">
+          <button type="button" class="filter-cred-tab active" data-cred-filter="all">All Admins</button>
+          <button type="button" class="filter-cred-tab" data-cred-filter="active">Active Tenants</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Organization &amp; Code</th>
+              <th>PostgreSQL DB</th>
+              <th>Admin Name &amp; Role</th>
+              <th>Admin Login Email</th>
+              <th>Password (Vault)</th>
+              <th>Portal Login Link</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="credentials-table-body">
+            <tr>
+              <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size: 20px; margin-bottom: 8px;"></i>
+                <div>Loading admin credentials vault...</div>
               </td>
             </tr>
           </tbody>
@@ -1106,7 +1175,45 @@
     </div>
   </div>
 
+  <!-- ================= MODAL 3: RESET ADMIN PASSWORD ================= -->
+  <div class="modal-overlay" id="modal-reset-password">
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-key" style="color: #d97706;"></i> Reset Admin Password</h3>
+        <button type="button" class="modal-close" data-close-modal="modal-reset-password"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="form-reset-password">
+        <input type="hidden" id="reset-cred-id">
+        <div id="reset-alert-error" class="modal-msg error"></div>
+        <div id="reset-alert-success" class="modal-msg success"></div>
+
+        <div style="background: rgba(255,255,255,0.7); padding: 14px 18px; border-radius: 12px; margin-bottom: 18px; border: 1px solid rgba(226,232,240,0.9); font-size: 13.5px;">
+          <div style="font-weight: 800; color: var(--text-dark); margin-bottom: 4px;" id="reset-company-name">—</div>
+          <div style="color: var(--text-muted); font-size: 13px; font-weight: 600;" id="reset-admin-email">—</div>
+        </div>
+
+        <div class="field-wrap">
+          <label for="input-new-password">New Password *</label>
+          <div class="input-with-icon">
+            <i class="fa-solid fa-lock icon-pre"></i>
+            <input type="text" id="input-new-password" class="input-clean" required placeholder="Enter or auto-generate password">
+            <button type="button" class="btn-dice-gen" id="btn-gen-reset-password"><i class="fa-solid fa-dice"></i> Generate</button>
+          </div>
+          <span style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">This will update both the tenant database and the central vault immediately.</span>
+        </div>
+
+        <div class="modal-actions-bar">
+          <button type="button" class="btn-super-logout" data-close-modal="modal-reset-password">Cancel</button>
+          <button type="submit" class="btn-super-primary" id="btn-save-reset-password" style="background: linear-gradient(135deg, #d97706, #b45309);">
+            <i class="fa-solid fa-check"></i> Save New Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Scripts -->
-  <script src="super-admin.js?v=20260924_v5"></script>
+  <script src="super-admin.js?v=20260925_vault1"></script>
 </body>
 </html>

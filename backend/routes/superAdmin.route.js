@@ -6,7 +6,10 @@ import {
     updateCompanyModules,
     toggleCompanyStatus,
     getCompanyModulesForTenant,
-    deleteCompany
+    deleteCompany,
+    getAdminCredentials,
+    resetAdminPassword,
+    syncAdminCredentials
 } from "../controller/superAdmin.controller.js";
 
 const router = express.Router();
@@ -21,5 +24,10 @@ router.post("/companies", provisionCompany);
 router.put("/companies/:id/modules", updateCompanyModules);
 router.put("/companies/:id/status", toggleCompanyStatus);
 router.delete("/companies/:id", deleteCompany);
+
+// Admin Credentials Vault routes
+router.get("/admin-credentials", getAdminCredentials);
+router.put("/admin-credentials/:id/reset-password", resetAdminPassword);
+router.post("/admin-credentials/sync", syncAdminCredentials);
 
 export default router;

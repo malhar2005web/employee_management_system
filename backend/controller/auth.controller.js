@@ -14,23 +14,51 @@ export async function login(req, res) {
         }
 
         const cleanEmail = email.toLowerCase().trim();
-        let userQuery = await pool.query("SELECT * FROM users WHERE LOWER(email) = $1", [cleanEmail]);
         let companyCode = req.tenant?.companyCode || 'pcs';
         let dbName = req.tenant?.dbName || 'ems';
+        let activePool = (req.tenant && req.tenant.pool) ? req.tenant.pool : getTenantPool(dbName);
+
+        let userQuery = await activePool.query("SELECT * FROM users WHERE LOWER(email) = $1", [cleanEmail]);
 
         // Smart Cross-Tenant Discovery:
         // If user is not found in the current tenant's database, automatically find the tenant they belong to
         if (userQuery.rows.length === 0) {
-            const masterCheck = await masterPool.query(
-                "SELECT company_code, db_name FROM companies WHERE LOWER(admin_email) = $1 LIMIT 1",
-                [cleanEmail]
-            );
-            if (masterCheck.rows.length > 0) {
-                const targetTenant = masterCheck.rows[0];
+            // 1. Check company_admin_credentials first
+            let targetTenant = null;
+            try {
+                const credCheck = await masterPool.query(
+                    "SELECT company_code, db_name FROM company_admin_credentials WHERE LOWER(admin_email) = $1 LIMIT 1",
+                    [cleanEmail]
+                );
+                if (credCheck.rows.length > 0) {
+                    targetTenant = credCheck.rows[0];
+                }
+            } catch (e) {}
+
+            // 2. Check companies registry if not found
+            if (!targetTenant) {
+                const masterCheck = await masterPool.query(
+                    "SELECT company_code, db_name FROM companies WHERE LOWER(admin_email) = $1 LIMIT 1",
+                    [cleanEmail]
+                );
+                if (masterCheck.rows.length > 0) {
+                    targetTenant = masterCheck.rows[0];
+                }
+            }
+
+            if (targetTenant) {
                 companyCode = targetTenant.company_code;
                 dbName = targetTenant.db_name;
                 const targetPool = getTenantPool(dbName);
                 userQuery = await targetPool.query("SELECT * FROM users WHERE LOWER(email) = $1", [cleanEmail]);
+            } else if (dbName !== 'ems') {
+                // Also check default ems DB as fallback
+                const emsCheck = await pool.query("SELECT * FROM users WHERE LOWER(email) = $1", [cleanEmail]);
+                if (emsCheck.rows.length > 0) {
+                    companyCode = 'pcs';
+                    dbName = 'ems';
+                    userQuery = emsCheck;
+                }
             }
         }
 

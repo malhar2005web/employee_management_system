@@ -271,6 +271,38 @@ export async function provisionNewCompanyDatabase({ companyName, companyCode, ad
 
         companyCodeToDbMap.set(cleanCode, dbName);
 
+        // 5. Record Admin Credentials in central Vault table
+        const newComp = compRes.rows[0];
+        const loginUrl = `http://173.249.59.181:8080/login.html?org=${cleanCode}&switch=1`;
+        try {
+            await masterPool.query(`
+                INSERT INTO company_admin_credentials (
+                    company_id, company_name, company_code, subdomain, db_name,
+                    admin_name, admin_email, plain_password, password_hash, role, status, login_url, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Admin', 'ACTIVE', $10, NOW(), NOW())
+                ON CONFLICT (company_code, admin_email) DO UPDATE SET
+                    plain_password = EXCLUDED.plain_password,
+                    password_hash = EXCLUDED.password_hash,
+                    admin_name = EXCLUDED.admin_name,
+                    status = EXCLUDED.status,
+                    login_url = EXCLUDED.login_url,
+                    updated_at = NOW();
+            `, [
+                newComp.id,
+                companyName.trim(),
+                cleanCode,
+                cleanCode,
+                dbName,
+                adminFullName.trim(),
+                trimmedEmail,
+                plainPass,
+                hashedPassword,
+                loginUrl
+            ]);
+        } catch (credErr) {
+            console.warn('[Provisioning] Warning saving to company_admin_credentials:', credErr.message);
+        }
+
         console.log(`[Provisioning] Company '${companyName}' [${cleanCode}] successfully registered and ready!`);
 
         return {
@@ -347,7 +379,8 @@ export async function deleteCompanyAndDatabase(companyId) {
         await masterClient.query(`DROP DATABASE IF EXISTS "${cleanDb}";`);
         console.log(`[DeleteTenant] Database ${cleanDb} successfully dropped.`);
 
-        // 4. Remove company from ems_master registry
+        // 4. Remove company from ems_master registry & admin credentials vault
+        await masterClient.query('DELETE FROM company_admin_credentials WHERE company_id = $1 OR LOWER(company_code) = LOWER($2);', [companyId, company_code]);
         await masterClient.query('DELETE FROM companies WHERE id = $1;', [companyId]);
         console.log(`[DeleteTenant] Company '${company_name}' [${company_code}] removed from registry.`);
 
