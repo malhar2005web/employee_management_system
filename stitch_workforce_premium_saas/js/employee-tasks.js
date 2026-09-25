@@ -725,6 +725,24 @@
         const createdTimeStr = createdDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) + ', ' +
                                createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
+        // PAUSED: Resolution timer is frozen/paused
+        if (ticket.status === 'Paused' || ticket.status === 'On Hold') {
+            const accSec = parseInt(ticket.accumulated_seconds || 0, 10);
+            const pH = String(Math.floor(accSec / 3600)).padStart(2, '0');
+            const pM = String(Math.floor((accSec % 3600) / 60)).padStart(2, '0');
+            const pS = String(accSec % 60).padStart(2, '0');
+            return `<div class="emp-live-timer" data-started="" data-accumulated="${accSec}" data-status="Paused" style="font-size:12px; line-height:1.35;">
+                <div style="font-weight:700; color:#d97706; display:flex; align-items:center; gap:5px;">
+                    <i class="fa-solid fa-circle-pause" style="color:#d97706;"></i>
+                    <span style="font-size:11.5px; font-weight:700; color:#d97706;">${pH}:${pM}:${pS}</span>
+                    <span class="badge" style="background:rgba(245,158,11,0.12); color:#d97706; border:1px solid rgba(245,158,11,0.3); font-weight:700; font-size:10.5px; padding:1px 5px; border-radius:4px;">paused</span>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); font-weight:500; margin-top:2px;">
+                    <i class="fa-regular fa-calendar"></i> Logged: ${createdTimeStr}
+                </div>
+            </div>`;
+        }
+
         // BEFORE START: Do not run active timer! Show Ready to Start
         if (ticket.status !== 'In Progress' && !ticket.started_resolving_at) {
             return `<div class="emp-live-timer" data-started="" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
@@ -740,13 +758,14 @@
             </div>`;
         }
 
+        const baseSec = parseInt(ticket.accumulated_seconds || 0, 10);
         const startMs = new Date(ticket.started_resolving_at || ticket.created_at).getTime();
-        const elapsedMs = Math.max(0, Date.now() - (isNaN(startMs) ? Date.now() : startMs));
+        const elapsedMs = (baseSec * 1000) + Math.max(0, Date.now() - (isNaN(startMs) ? Date.now() : startMs));
         const eH = String(Math.floor(elapsedMs / 3600000)).padStart(2, '0');
         const eM = String(Math.floor((elapsedMs % 3600000) / 60000)).padStart(2, '0');
         const eS = String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0');
 
-        return `<div class="emp-live-timer" data-started="${ticket.started_resolving_at || ticket.created_at || ''}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
+        return `<div class="emp-live-timer" data-started="${ticket.started_resolving_at || ticket.created_at || ''}" data-accumulated="${baseSec}" data-created="${ticket.created_at || ''}" data-status="${ticket.status}" style="font-size:12px; line-height:1.35;">
             <div style="font-weight:700; color:#2563eb; display:flex; align-items:center; gap:4px;">
                 <i class="fa-solid fa-stopwatch fa-spin" style="--fa-animation-duration: 3s; color:#2563eb;"></i>
                 <span class="live-timer-text">${eH}:${eM}:${eS}</span>
@@ -796,6 +815,8 @@
                 statusBadge = '<span style="font-size:12px; font-weight:700; color:#16a34a; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-circle-check"></i> Resolved</span>';
             } else if (t.status === 'In Progress') {
                 statusBadge = '<span style="font-size:12px; font-weight:700; color:#2563eb; background:rgba(37,99,235,0.15); border:1px solid rgba(37,99,235,0.3); padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-spinner fa-spin"></i> In Progress</span>';
+            } else if (t.status === 'Paused' || t.status === 'On Hold') {
+                statusBadge = '<span style="font-size:12px; font-weight:700; color:#d97706; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-pause"></i> Paused</span>';
             } else if (t.status === 'Assigned') {
                 statusBadge = '<span style="font-size:12px; font-weight:700; color:#0d9488; background:rgba(13,148,136,0.15); border:1px solid rgba(13,148,136,0.3); padding:3px 8px; border-radius:6px;"><i class="fa-solid fa-user-check"></i> Assigned</span>';
             } else {
@@ -817,8 +838,23 @@
                         <i class="fa-solid fa-share-nodes" style="font-size:10px;"></i> Transfer
                     </button>
                 `;
+            } else if (t.status === 'Paused' || t.status === 'On Hold') {
+                actionButtons += `
+                    <button class="btn-primary" style="padding:4px 7px; font-size:11px; font-weight:800; background:#059669; border-color:#059669; height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.startResolvingTicket(${t.id})" title="Resume Resolution Work">
+                        <i class="fa-solid fa-play" style="font-size:9.5px;"></i> Resume
+                    </button>
+                    <button class="btn-primary" style="padding:4px 7px; font-size:11px; font-weight:800; background:#16a34a; border-color:#16a34a; height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.quickResolveTicket(${t.id})">
+                        <i class="fa-solid fa-circle-check" style="font-size:10.5px;"></i> Resolve
+                    </button>
+                    <button class="btn-secondary" style="padding:4px 7px; font-size:11px; font-weight:700; background:rgba(13,148,136,0.1); color:#0f766e; border:1px solid rgba(13,148,136,0.3); height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.openTransferTicketModal(${t.id})" title="Transfer / Handover Ticket">
+                        <i class="fa-solid fa-share-nodes" style="font-size:10px;"></i> Transfer
+                    </button>
+                `;
             } else if (t.status === 'In Progress') {
                 actionButtons += `
+                    <button class="btn-secondary" style="padding:4px 7px; font-size:11px; font-weight:800; background:rgba(245,158,11,0.15); color:#d97706; border:1px solid rgba(245,158,11,0.35); height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.pauseResolvingTicket(${t.id})" title="Pause Resolution Work">
+                        <i class="fa-solid fa-pause" style="font-size:10px;"></i> Pause
+                    </button>
                     <button class="btn-primary" style="padding:4px 7px; font-size:11px; font-weight:800; background:#16a34a; border-color:#16a34a; height:26px; display:inline-flex; align-items:center; gap:3px; border-radius:6px; line-height:1; white-space:nowrap;" onclick="window.quickResolveTicket(${t.id})">
                         <i class="fa-solid fa-circle-check" style="font-size:10.5px;"></i> Resolve
                     </button>
@@ -1692,6 +1728,34 @@
         }
     };
 
+    // Quick Pause Ticket
+    window.pauseResolvingTicket = async function(ticketId) {
+        try {
+            const res = await fetch(`/api/v1/support/${ticketId}/status`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    status: 'Paused', 
+                    notes: 'Resolution paused by assigned engineer.' 
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Ticket paused. Live SLA timer stopped.', 'info');
+                if (activeDetailTicketId && String(activeDetailTicketId) === String(ticketId)) {
+                    await window.openTicketWorkspaceModal(ticketId);
+                }
+                await loadSupportTickets();
+                await loadMyCustomers();
+            } else {
+                showToast(data.message || 'Could not pause resolution', 'error');
+            }
+        } catch (e) {
+            showToast('Error pausing resolution', 'error');
+        }
+    };
+
     // Quick Resolve Ticket
     window.quickResolveTicket = async function(ticketId) {
         if (!confirm('Mark this support ticket as Resolved?')) return;
@@ -1789,7 +1853,8 @@
             const startMs = new Date(startedStr).getTime();
             if (isNaN(startMs)) return;
 
-            const elapsedMs = Math.max(0, Date.now() - startMs);
+            const baseSec = parseInt(el.getAttribute('data-accumulated') || '0', 10);
+            const elapsedMs = (baseSec * 1000) + Math.max(0, Date.now() - startMs);
             const textEl = el.querySelector('.live-timer-text');
             if (!textEl) return;
 

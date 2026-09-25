@@ -1215,6 +1215,32 @@ export async function runMigrations() {
             console.error('❌ Phase 27 Migration Error:', e.message);
         }
 
+        // ── STEP 29: Phase 28 Support Ticket Auto-Pause & Multi-Session Tracking ────
+        try {
+            await client.query(`
+                ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS accumulated_seconds INTEGER DEFAULT 0;
+                ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP;
+
+                -- If any employee currently has multiple In Progress tickets, keep only the latest one In Progress and pause the others
+                WITH ranked_in_progress AS (
+                    SELECT id, assigned_to, started_resolving_at,
+                           ROW_NUMBER() OVER (PARTITION BY assigned_to ORDER BY started_resolving_at DESC NULLS LAST, id DESC) as rn
+                    FROM support_tickets
+                    WHERE status = 'In Progress' AND assigned_to IS NOT NULL
+                )
+                UPDATE support_tickets st
+                SET status = 'Paused',
+                    accumulated_seconds = COALESCE(st.accumulated_seconds, 0) + GREATEST(0, EXTRACT(EPOCH FROM (NOW() - COALESCE(st.started_resolving_at, NOW())))::INT),
+                    paused_at = NOW(),
+                    updated_at = NOW()
+                FROM ranked_in_progress r
+                WHERE st.id = r.id AND r.rn > 1;
+            `);
+            console.log('✅ Phase 28 Support Ticket Auto-Pause & Multi-Session Tracking ensured.');
+        } catch (e) {
+            console.error('❌ Phase 28 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }

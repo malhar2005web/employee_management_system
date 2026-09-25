@@ -84,6 +84,53 @@ export function formatTurnaroundTime(createdAt, resolvedAt = new Date()) {
     }
 }
 
+/**
+ * 🚀 AUTO-PAUSE WORK ON TASK SWITCH
+ * Ensures an employee can only actively work on ONE ticket / task at a time.
+ * When a ticket is started or moved to In Progress, any other running tickets
+ * or task sessions for that employee are automatically paused.
+ */
+export async function autoPauseOtherWorkForEmployee(employeeId, currentTicketId = null, currentTicketCode = '', performerName = 'System') {
+    if (!employeeId) return;
+
+    try {
+        // 1. Auto-pause other In Progress support tickets for this employee
+        const otherTickets = await pool.query(`
+            SELECT id, ticket_code, started_resolving_at, accumulated_seconds 
+            FROM support_tickets 
+            WHERE assigned_to = $1 AND status = 'In Progress' AND ($2::int IS NULL OR id != $2::int)
+        `, [employeeId, currentTicketId]);
+
+        for (const t of otherTickets.rows) {
+            const segSec = t.started_resolving_at ? Math.max(0, Math.floor((Date.now() - new Date(t.started_resolving_at).getTime()) / 1000)) : 0;
+            const newAcc = (parseInt(t.accumulated_seconds || 0, 10)) + segSec;
+
+            await pool.query(`
+                UPDATE support_tickets 
+                SET status = 'Paused',
+                    accumulated_seconds = $1,
+                    paused_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $2
+            `, [newAcc, t.id]);
+
+            await pool.query(`
+                INSERT INTO support_ticket_history (ticket_id, performed_by, action, previous_status, new_status, details)
+                VALUES ($1, $2, 'Auto-Paused', 'In Progress', 'Paused', $3)
+            `, [t.id, performerName, `Auto-paused because work started on ticket ${currentTicketCode || '#' + currentTicketId}.`]);
+        }
+
+        // 2. Auto-pause any active task_sessions for this employee
+        await pool.query(`
+            UPDATE task_sessions 
+            SET status = 'Paused', ended_at = NOW(), end_reason = 'Support Ticket Started', updated_at = NOW() 
+            WHERE employee_id = $1 AND (status = 'Running' OR ended_at IS NULL)
+        `, [employeeId]);
+    } catch (err) {
+        console.error('Error in autoPauseOtherWorkForEmployee:', err.message);
+    }
+}
+
 export async function createTicketInboxNotifications({
     ticketCode,
     title,
@@ -781,18 +828,31 @@ export const updateTicket = async (req, res) => {
         let startedResolvingExpr = 'started_resolving_at';
         let resolvedExpr = 'resolved_at';
         let respondedExpr = 'responded_at';
+        let accSecExpr = 'COALESCE(accumulated_seconds, 0)';
+        let pausedAtExpr = 'paused_at';
 
         if (newStat === 'Open' || newStat === 'Assigned') {
             startedResolvingExpr = 'NULL';
+            pausedAtExpr = 'NULL';
             resolvedExpr = 'NULL';
         } else if (newStat === 'In Progress') {
-            if (!ticket.started_resolving_at || oldStatus === 'Open' || oldStatus === 'Assigned') {
-                startedResolvingExpr = 'NOW()';
+            if (newAssigned) {
+                await autoPauseOtherWorkForEmployee(newAssigned, id, ticket.ticket_code, req.user?.full_name || 'System Admin');
             }
+            startedResolvingExpr = 'NOW()';
+            pausedAtExpr = 'NULL';
+            resolvedExpr = 'NULL';
+        } else if (newStat === 'Paused') {
+            if (oldStatus === 'In Progress') {
+                const segSec = ticket.started_resolving_at ? Math.max(0, Math.floor((Date.now() - new Date(ticket.started_resolving_at).getTime()) / 1000)) : 0;
+                accSecExpr = `COALESCE(accumulated_seconds, 0) + ${segSec}`;
+            }
+            pausedAtExpr = 'NOW()';
             resolvedExpr = 'NULL';
         } else if (newStat === 'Resolved' || newStat === 'Closed') {
-            if (!ticket.started_resolving_at) {
-                startedResolvingExpr = 'COALESCE(started_resolving_at, NOW())';
+            if (oldStatus === 'In Progress') {
+                const segSec = ticket.started_resolving_at ? Math.max(0, Math.floor((Date.now() - new Date(ticket.started_resolving_at).getTime()) / 1000)) : 0;
+                accSecExpr = `COALESCE(accumulated_seconds, 0) + ${segSec}`;
             }
             if (oldStatus !== 'Resolved' && oldStatus !== 'Closed') {
                 resolvedExpr = 'NOW()';
@@ -812,9 +872,11 @@ export const updateTicket = async (req, res) => {
                 responded_at = ${respondedExpr},
                 resolved_at = ${resolvedExpr},
                 started_resolving_at = ${startedResolvingExpr},
+                accumulated_seconds = ${accSecExpr},
+                paused_at = ${pausedAtExpr},
                 updated_at = NOW()
             WHERE id = $13
-            RETURNING *, EXTRACT(EPOCH FROM (COALESCE(resolved_at, NOW()) - COALESCE(started_resolving_at, created_at))) AS elapsed_seconds
+            RETURNING *, COALESCE(accumulated_seconds, 0) AS elapsed_seconds
         `, [
             newTitle, newDesc, newCat, newPri, newStat,
             newAssigned, newAssignedTeam, newCust, newProj, newProjName,
@@ -880,6 +942,7 @@ export const updateTicketStatus = async (req, res) => {
 
         const ticket = ticketRes.rows[0];
         const oldStatus = ticket.status;
+        const performer = req.user?.full_name || 'System Admin';
 
         let setClauses = ['status = $1', 'updated_at = NOW()'];
         let queryParams = [status];
@@ -888,17 +951,30 @@ export const updateTicketStatus = async (req, res) => {
         if (status !== 'Open' && !ticket.responded_at) {
             setClauses.push('responded_at = COALESCE(responded_at, NOW())');
         }
-        if (status === 'Open' || status === 'Assigned') {
-            setClauses.push('started_resolving_at = NULL');
-            setClauses.push('resolved_at = NULL');
-        } else if (status === 'In Progress') {
-            if (!ticket.started_resolving_at || oldStatus === 'Open' || oldStatus === 'Assigned') {
-                setClauses.push('started_resolving_at = NOW()');
+
+        if (status === 'In Progress') {
+            // Auto-pause other active tickets/task sessions for this employee
+            if (ticket.assigned_to) {
+                await autoPauseOtherWorkForEmployee(ticket.assigned_to, ticket.id, ticket.ticket_code, performer);
             }
+            setClauses.push('started_resolving_at = NOW()');
+            setClauses.push('paused_at = NULL');
+            setClauses.push('resolved_at = NULL');
+        } else if (status === 'Paused') {
+            if (oldStatus === 'In Progress') {
+                const segSec = ticket.started_resolving_at ? Math.max(0, Math.floor((Date.now() - new Date(ticket.started_resolving_at).getTime()) / 1000)) : 0;
+                setClauses.push(`accumulated_seconds = COALESCE(accumulated_seconds, 0) + ${segSec}`);
+            }
+            setClauses.push('paused_at = NOW()');
+            setClauses.push('resolved_at = NULL');
+        } else if (status === 'Open' || status === 'Assigned') {
+            setClauses.push('started_resolving_at = NULL');
+            setClauses.push('paused_at = NULL');
             setClauses.push('resolved_at = NULL');
         } else if (status === 'Resolved' || status === 'Closed') {
-            if (!ticket.started_resolving_at) {
-                setClauses.push('started_resolving_at = COALESCE(started_resolving_at, NOW())');
+            if (oldStatus === 'In Progress') {
+                const segSec = ticket.started_resolving_at ? Math.max(0, Math.floor((Date.now() - new Date(ticket.started_resolving_at).getTime()) / 1000)) : 0;
+                setClauses.push(`accumulated_seconds = COALESCE(accumulated_seconds, 0) + ${segSec}`);
             }
             if (oldStatus !== 'Resolved' && oldStatus !== 'Closed') {
                 setClauses.push('resolved_at = NOW()');
@@ -912,7 +988,7 @@ export const updateTicketStatus = async (req, res) => {
             UPDATE support_tickets 
             SET ${setClauses.join(', ')}
             WHERE id = $${pIdx}
-            RETURNING *, EXTRACT(EPOCH FROM (COALESCE(resolved_at, NOW()) - COALESCE(started_resolving_at, created_at))) AS elapsed_seconds
+            RETURNING *, COALESCE(accumulated_seconds, 0) AS elapsed_seconds
         `, queryParams);
 
         if (status === 'Resolved' && oldStatus !== 'Resolved') {
@@ -1355,10 +1431,13 @@ export const reopenTicket = async (req, res) => {
         const performer = req.user?.full_name || 'Staff';
         const reopenReason = reason || notes || 'Further work required by team/customer.';
 
-        // Reopen ticket: set status to In Progress, clear resolved_at, keep or resume started_resolving_at
+        // Reopen ticket: auto-pause other work for assigned employee, then set status to In Progress
+        if (ticket.assigned_to) {
+            await autoPauseOtherWorkForEmployee(ticket.assigned_to, ticket.id, ticket.ticket_code, performer);
+        }
         const updateRes = await pool.query(`
             UPDATE support_tickets 
-            SET status = 'In Progress', resolved_at = NULL, started_resolving_at = COALESCE(started_resolving_at, NOW()), updated_at = NOW()
+            SET status = 'In Progress', resolved_at = NULL, started_resolving_at = NOW(), paused_at = NULL, updated_at = NOW()
             WHERE id = $1
             RETURNING *
         `, [id]);

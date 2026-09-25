@@ -44,6 +44,33 @@ export const startTaskSession = async (req, res) => {
             [employeeId]
         );
 
+        // Auto-pause any In Progress support tickets for this employee
+        try {
+            const runningTickets = await client.query(
+                `SELECT id, ticket_code, started_resolving_at, accumulated_seconds 
+                 FROM support_tickets 
+                 WHERE assigned_to = $1 AND status = 'In Progress'`,
+                [employeeId]
+            );
+            for (const t of runningTickets.rows) {
+                const segSec = t.started_resolving_at ? Math.max(0, Math.floor((Date.now() - new Date(t.started_resolving_at).getTime()) / 1000)) : 0;
+                const newAcc = (parseInt(t.accumulated_seconds || 0, 10)) + segSec;
+                await client.query(
+                    `UPDATE support_tickets 
+                     SET status = 'Paused', accumulated_seconds = $1, paused_at = NOW(), updated_at = NOW() 
+                     WHERE id = $2`,
+                    [newAcc, t.id]
+                );
+                await client.query(
+                    `INSERT INTO support_ticket_history (ticket_id, performed_by, action, previous_status, new_status, details)
+                     VALUES ($1, 'System', 'Auto-Paused', 'In Progress', 'Paused', $2)`,
+                    [t.id, `Auto-paused because regular task #${taskId || 'Session'} was started.`]
+                );
+            }
+        } catch (stErr) {
+            console.error('Error auto-pausing support tickets on task switch:', stErr.message);
+        }
+
         // Lock and check for existing running session for this employee
         const activeRes = await client.query(
             `SELECT id, started_at, task_id, project_id FROM task_sessions 
