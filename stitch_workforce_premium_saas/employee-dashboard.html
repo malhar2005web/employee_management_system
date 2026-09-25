@@ -114,8 +114,8 @@
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; width:100%; margin-top:auto;">
           <div style="display:flex; gap:6px; width:100%;">
-            <button class="btn-primary" id="btn-clock-in" style="flex:1; padding: 10px 4px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:5px;"><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
-            <button class="btn-primary" id="btn-clock-out" style="flex:1; padding: 10px 4px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:5px; background: linear-gradient(135deg, rgba(224,83,83,0.85), rgba(180,50,50,0.9)); border-color: rgba(224,83,83,0.3);"><i class="fa-solid fa-right-from-bracket"></i> Clock Out</button>
+            <button class="btn-primary" id="btn-clock-in" style="flex:1; padding: 10px 4px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:5px; opacity:0.6; pointer-events:none;"><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
+            <button class="btn-primary" id="btn-clock-out" style="flex:1; padding: 10px 4px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:5px; background: linear-gradient(135deg, rgba(224,83,83,0.85), rgba(180,50,50,0.9)); border-color: rgba(224,83,83,0.3); opacity:0.6; pointer-events:none;"><i class="fa-solid fa-right-from-bracket"></i> Clock Out</button>
           </div>
           <button class="btn-primary" id="btn-break" style="width:100%; padding: 8px 6px; font-size:12px; font-weight:700; border-radius: var(--radius-sm); display:inline-flex; align-items:center; justify-content:center; gap:6px; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: rgba(245,158,11,0.3); color:#fff;"><i class="fa-solid fa-mug-hot" id="icon-break"></i> <span id="label-break">Take Break (30m max)</span></button>
         </div>
@@ -656,11 +656,16 @@
           const curH = parseInt(p.hour, 10);
           const curM = parseInt(p.minute, 10);
           const curS = parseInt(p.second, 10);
-          const isSunday = (nowObj.getDay() === 0);
-          const isSaturday = (nowObj.getDay() === 6);
+          const localNow = new Date();
+          const localTotalSecs = (localNow.getHours() * 3600) + (localNow.getMinutes() * 60) + localNow.getSeconds();
+          const isSunday = (nowObj.getDay() === 0 || localNow.getDay() === 0);
+          const isSaturday = (nowObj.getDay() === 6 || localNow.getDay() === 6);
           const cutoffMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
-          const curTotalSecs = (curH * 3600) + (curM * 60) + curS;
+          const serverTotalSecs = (curH * 3600) + (curM * 60) + curS;
           const cutoffSecs = cutoffMins * 60;
+
+          // Check both server synced time and local device clock (allows testing when changing system clock)
+          const curTotalSecs = Math.max(serverTotalSecs, localTotalSecs);
 
           if (!isOnBreak && (isSunday || curTotalSecs > cutoffSecs)) {
             // Overtime active mode!
@@ -836,7 +841,10 @@
     const curM = parseInt(p.minute, 10);
     const isSaturday = (now.getDay() === 6);
     const cutoffMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
-    const curTotalMins = curH * 60 + curM;
+    const serverTotalMins = curH * 60 + curM;
+    const localNow = new Date();
+    const localTotalMins = localNow.getHours() * 60 + localNow.getMinutes();
+    const curTotalMins = Math.max(serverTotalMins, localTotalMins);
 
     const modalTitle = document.getElementById('confirm-modal-title');
     const modalMsg = document.getElementById('confirm-modal-msg');
@@ -878,7 +886,7 @@
       const res = await fetch('/api/v1/employee/attendance/clock-out', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ client_time: new Date().toISOString() })
       });
       const data = await res.json();
       if (data.success) {

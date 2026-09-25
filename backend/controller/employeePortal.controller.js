@@ -135,7 +135,11 @@ export async function getAttendanceStatus(req, res) {
                     COALESCE(total_working_hours, 0) as total_hours,
                     COALESCE(is_on_break, false) as is_on_break,
                     break_start,
-                    COALESCE(total_break_seconds, 0) as total_break_seconds
+                    COALESCE(total_break_seconds, 0) as total_break_seconds,
+                    COALESCE(overtime, 0) as overtime,
+                    COALESCE(overtime_seconds, 0) as overtime_seconds,
+                    COALESCE(is_early_logout, false) as is_early_logout,
+                    COALESCE(early_logout_seconds, 0) as early_logout_seconds
              FROM attendance 
              WHERE employee_id = $1 AND date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date;`,
             [employeeId]
@@ -353,7 +357,8 @@ export async function clockOut(req, res) {
         }
 
         const loginTime = new Date(checkRes.rows[0].login_time || checkRes.rows[0].portal_check_in);
-        const logoutTime = new Date();
+        const clientLogoutTime = req.body.client_time || req.body.client_logout_time ? new Date(req.body.client_time || req.body.client_logout_time) : null;
+        const logoutTime = (clientLogoutTime && !isNaN(clientLogoutTime.getTime())) ? clientLogoutTime : new Date();
 
         // Finalize break if clocking out during break
         let totalBreakSec = checkRes.rows[0].total_break_seconds || 0;
@@ -371,8 +376,8 @@ export async function clockOut(req, res) {
 
         const result = await pool.query(`
             UPDATE attendance 
-            SET logout_time = CURRENT_TIMESTAMP, 
-                portal_check_out = CURRENT_TIMESTAMP,
+            SET logout_time = COALESCE($10, CURRENT_TIMESTAMP), 
+                portal_check_out = COALESCE($10, CURRENT_TIMESTAMP),
                 is_on_break = false,
                 break_start = NULL,
                 total_break_seconds = $4,
@@ -396,7 +401,8 @@ export async function clockOut(req, res) {
             otEarlyRes.overtimeMins,
             otEarlyRes.overtimeSeconds,
             otEarlyRes.isEarlyLogout,
-            otEarlyRes.earlyLogoutSeconds
+            otEarlyRes.earlyLogoutSeconds,
+            clientLogoutTime ? clientLogoutTime.toISOString() : null
         ]);
 
         await pool.query(`
