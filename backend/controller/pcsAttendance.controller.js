@@ -223,6 +223,7 @@ export async function getMonthlySummary(req, res) {
             let totalLoginSecs = 0;
             let totalLateSecs = 0;
             let totalOtSecs = 0;
+            let totalEarlyOutSecs = 0;
 
             const cId = emp.computer_id ? String(emp.computer_id) : null;
             const cName = (emp.computer_name || '').toLowerCase();
@@ -295,7 +296,43 @@ export async function getMonthlySummary(req, res) {
                             } catch (e) {}
                         }
 
-                        if (dbAtt.overtime) {
+                        // Robust Overtime & Early Out calculation based on 19:00 (Mon-Fri) / 16:30 (Sat)
+                        const outDateVal = dbAtt.logout_time || dbAtt.portal_check_out || dbAtt.manual_check_out;
+                        if (outDateVal) {
+                            try {
+                                const outD = new Date(outDateVal);
+                                if (!isNaN(outD.getTime())) {
+                                    const outParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(outD);
+                                    const op = {};
+                                    outParts.forEach(({ type, value }) => { op[type] = value; });
+                                    const outH = parseInt(op.hour, 10);
+                                    const outM = parseInt(op.minute, 10);
+                                    const outS = parseInt(op.second, 10);
+
+                                    const isSaturday = (dayOfWeek === 6);
+                                    const isSunday = (dayOfWeek === 0);
+                                    const cutoffMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
+                                    const cutoffSecs = cutoffMins * 60;
+                                    const outTotalSecs = (outH * 3600) + (outM * 60) + outS;
+
+                                    if (dbAtt.overtime_seconds && dbAtt.overtime_seconds > 0) {
+                                        totalOtSecs += dbAtt.overtime_seconds;
+                                    } else if (dbAtt.overtime && dbAtt.overtime > 0) {
+                                        totalOtSecs += dbAtt.overtime * 60;
+                                    } else if (isSunday) {
+                                        totalOtSecs += Math.round(hrs * 3600);
+                                    } else if (outTotalSecs > cutoffSecs) {
+                                        totalOtSecs += (outTotalSecs - cutoffSecs);
+                                    }
+
+                                    if (dbAtt.early_logout_seconds && dbAtt.early_logout_seconds > 0) {
+                                        totalEarlyOutSecs += dbAtt.early_logout_seconds;
+                                    } else if (outTotalSecs < cutoffSecs && (dateStr < todayIST || dbAtt.is_early_logout || dbAtt.portal_check_out || dbAtt.manual_check_out)) {
+                                        totalEarlyOutSecs += (cutoffSecs - outTotalSecs);
+                                    }
+                                }
+                            } catch (e) {}
+                        } else if (dbAtt.overtime) {
                             totalOtSecs += dbAtt.overtime * 60;
                         }
                     } else if (dbAtt.status === 'Half Day') {
@@ -351,12 +388,12 @@ export async function getMonthlySummary(req, res) {
                 WEEKOFF: String(countW),
                 HOLIDAY: String(countHL),
                 TOTAL_LATE_SECONDS: String(totalLateSecs),
-                TOTAL_EARLY_OUT_SECONDS: '0',
+                TOTAL_EARLY_OUT_SECONDS: String(totalEarlyOutSecs),
                 TOTAL_OFFICE_SECONDS: String(totalOfficeSecs),
                 TOTAL_OVERTIME_SECONDS: String(totalOtSecs),
                 TOTAL_LOGIN_SECONDS: String(totalLoginSecs),
                 LATINTIME: formatSecs(totalLateSecs),
-                PREOUTTIME: '00:00',
+                PREOUTTIME: formatSecs(totalEarlyOutSecs),
                 WORKIMGHR: formatSecs(totalOfficeSecs),
                 OTHOURS: formatSecs(totalOtSecs),
                 LOGIMHOURS: formatSecs(totalLoginSecs)

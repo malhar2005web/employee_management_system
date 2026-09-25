@@ -339,8 +339,9 @@ export async function getMonthlyPayroll(req, res) {
                         dayOtMins = dbAtt.overtime;
                     } else if (isSunday && workingHoursNum > 0) {
                         dayOtMins = Math.round(workingHoursNum * 60);
-                    } else if (dbAtt.logout_time) {
-                        const outD = new Date(dbAtt.logout_time);
+                    } else if (dbAtt.logout_time || dbAtt.portal_check_out || dbAtt.manual_check_out) {
+                        const outDateVal = dbAtt.logout_time || dbAtt.portal_check_out || dbAtt.manual_check_out;
+                        const outD = new Date(outDateVal);
                         if (!isNaN(outD.getTime())) {
                             const outParts = new Intl.DateTimeFormat('en-GB', {
                                 timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false

@@ -456,7 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (filterEndDate) filterEndDate.value = endVal;
 
         if (logsList) {
-            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:18px;margin-bottom:8px;display:block;color:var(--teal-900);"></i>Syncing live attendance logs (${startVal}${startVal !== endVal ? ' to ' + endVal : ''})...</td></tr>`;
+            logsList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:18px;margin-bottom:8px;display:block;color:var(--teal-900);"></i>Syncing live attendance logs (${startVal}${startVal !== endVal ? ' to ' + endVal : ''})...</td></tr>`;
         }
 
         try {
@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let absent = 0;
 
         if (logs.length === 0) {
-            logsList.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;color:#94a3b8;"></i>No attendance records found for this period</td></tr>`;
+            logsList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;color:#94a3b8;"></i>No attendance records found for this period</td></tr>`;
         } else {
             logs.forEach(log => {
                 if (log.status === 'Present') present++;
@@ -634,6 +634,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 const ovtHours = (log.overtime_hours && parseFloat(log.overtime_hours) > 0) ? formatHoursMins(log.overtime_hours, true) : (log.overtime ? `${log.overtime} mins` : '—');
+                
+                let earlyOutDisplay = '—';
+                const earlyMins = log.early_logout_mins || (log.early_logout_seconds ? Math.round(log.early_logout_seconds / 60) : 0);
+                if (earlyMins > 0) {
+                    const earlyH = Math.floor(earlyMins / 60);
+                    const earlyRemM = earlyMins % 60;
+                    const earlyStr = earlyH > 0 ? `${earlyH}h ${earlyRemM}m` : `${earlyRemM} mins`;
+                    earlyOutDisplay = `<span style="color:#dc2626; font-weight:700; background:rgba(239,68,68,0.1); padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-person-walking-arrow-right" style="font-size:10px;"></i> ${earlyStr}</span>`;
+                }
+
                 const workingHours = (log.total_working_hours && parseFloat(log.total_working_hours) > 0) ? formatHoursMins(log.total_working_hours, true) : '—';
 
                 tr.innerHTML = `
@@ -646,7 +656,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>
                     <td><strong style="color:${logoutStr !== '—' ? '#0f172a' : '#94a3b8'};">${logoutStr}</strong></td>
                     <td>${getBreakHtml(log)}</td>
-                    <td><strong style="color:${parseFloat(log.overtime_hours || log.overtime || 0) > 0 ? '#b45309' : '#64748b'};">${ovtHours}</strong></td>
+                    <td>${earlyOutDisplay}</td>
+                    <td><strong style="color:${parseFloat(log.overtime_hours || log.overtime || 0) > 0 ? '#b45309' : '#64748b'};">${ovtHours !== '—' ? `<span style="color:#059669; font-weight:700; background:rgba(5,150,105,0.1); padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-fire" style="font-size:10px; color:#ea580c;"></i> ${ovtHours}</span>` : '—'}</strong></td>
                     <td><strong style="color:#0f172a;">${workingHours}</strong></td>
                     <td><span class="status-pill ${statusClass}" style="${statusBadgeStyle}">${log.status || 'Absent'}</span></td>
                     <td>

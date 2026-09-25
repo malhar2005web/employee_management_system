@@ -144,3 +144,76 @@ export function formatISTTime(d) {
         hour12: false
     });
 }
+
+/**
+ * Calculates Overtime and Early Out based on shift cutoff rules.
+ * Mon-Fri shift cutoff: 19:00:00 (7:00 PM). Saturday: 16:30:00 (4:30 PM). Sunday: 100% Overtime.
+ */
+export function calculateOvertimeAndEarlyOut(logoutDate, targetDateStr, options = {}) {
+    if (!logoutDate) {
+        return {
+            overtimeMins: 0,
+            overtimeSeconds: 0,
+            isEarlyLogout: false,
+            earlyLogoutMins: 0,
+            earlyLogoutSeconds: 0
+        };
+    }
+
+    const d = (logoutDate instanceof Date) ? logoutDate : new Date(logoutDate);
+    if (isNaN(d.getTime())) {
+        return {
+            overtimeMins: 0,
+            overtimeSeconds: 0,
+            isEarlyLogout: false,
+            earlyLogoutMins: 0,
+            earlyLogoutSeconds: 0
+        };
+    }
+
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).formatToParts(d);
+    const p = {};
+    parts.forEach(({ type, value }) => { p[type] = value; });
+    const outH = parseInt(p.hour, 10);
+    const outM = parseInt(p.minute, 10);
+    const outS = parseInt(p.second, 10);
+
+    const dateStr = targetDateStr || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+    const dayOfWeek = new Date(dateStr).getDay();
+    const isSunday = (dayOfWeek === 0);
+    const isSaturday = (dayOfWeek === 6);
+
+    const cutoffMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
+    const cutoffSecs = cutoffMins * 60;
+    const outTotalSecs = (outH * 3600) + (outM * 60) + outS;
+
+    let overtimeSeconds = 0;
+    let overtimeMins = 0;
+    let isEarlyLogout = false;
+    let earlyLogoutSeconds = 0;
+    let earlyLogoutMins = 0;
+
+    if (isSunday) {
+        const totalWorkingSecs = options.totalWorkingSecs || (outTotalSecs > 0 ? outTotalSecs : 0);
+        overtimeSeconds = totalWorkingSecs;
+        overtimeMins = Math.round(overtimeSeconds / 60);
+    } else if (outTotalSecs > cutoffSecs) {
+        overtimeSeconds = outTotalSecs - cutoffSecs;
+        overtimeMins = Math.round(overtimeSeconds / 60);
+    } else if (outTotalSecs < cutoffSecs) {
+        earlyLogoutSeconds = cutoffSecs - outTotalSecs;
+        earlyLogoutMins = Math.round(earlyLogoutSeconds / 60);
+        isEarlyLogout = true;
+    }
+
+    return {
+        overtimeMins,
+        overtimeSeconds,
+        isEarlyLogout,
+        earlyLogoutMins,
+        earlyLogoutSeconds
+    };
+}
+

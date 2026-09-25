@@ -438,6 +438,10 @@ export async function getAttendanceLogs(req, res) {
                     loginHoursNum = workingHoursNum;
                 }
 
+                let earlyLogoutMins = 0;
+                let earlyLogoutSecs = 0;
+                let isEarlyLogout = false;
+
                 if (dbRecord && dbRecord.overtime_seconds && dbRecord.overtime_seconds > 0) {
                     overtimeHoursNum = dbRecord.overtime_seconds / 3600;
                 } else if (dbRecord && dbRecord.overtime && typeof dbRecord.overtime === 'number' && dbRecord.overtime > 0) {
@@ -450,22 +454,40 @@ export async function getAttendanceLogs(req, res) {
                     const outD = new Date(finalRecord.logout_time);
                     if (!isNaN(outD.getTime())) {
                         const outParts = new Intl.DateTimeFormat('en-GB', {
-                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
                         }).formatToParts(outD);
                         const p = {};
                         outParts.forEach(({ type, value }) => { p[type] = value; });
                         const outH = parseInt(p.hour, 10);
                         const outM = parseInt(p.minute, 10);
+                        const outS = parseInt(p.second, 10);
                         const cutoffTotalMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
                         const currentTotalMins = outH * 60 + outM;
+                        const outTotalSecs = (outH * 3600) + (outM * 60) + outS;
+                        const cutoffSecs = cutoffTotalMins * 60;
+
                         if (currentTotalMins > cutoffTotalMins) {
                             overtimeHoursNum = (currentTotalMins - cutoffTotalMins) / 60;
+                        } else if (currentTotalMins < cutoffTotalMins && (!isToday || currentHourIST >= 19 || dbRecord?.portal_check_out || dbRecord?.manual_check_out)) {
+                            earlyLogoutSecs = cutoffSecs - outTotalSecs;
+                            earlyLogoutMins = Math.round(earlyLogoutSecs / 60);
+                            isEarlyLogout = true;
                         }
                     }
                 }
 
+                if (dbRecord && dbRecord.early_logout_seconds && dbRecord.early_logout_seconds > 0) {
+                    earlyLogoutSecs = dbRecord.early_logout_seconds;
+                    earlyLogoutMins = Math.round(earlyLogoutSecs / 60);
+                    isEarlyLogout = true;
+                }
+
                 finalRecord.login_hours = loginHoursNum > 0 ? loginHoursNum.toFixed(2) : '0.00';
                 finalRecord.overtime_hours = overtimeHoursNum > 0 ? overtimeHoursNum.toFixed(2) : '0.00';
+                finalRecord.overtime_mins = Math.round(overtimeHoursNum * 60);
+                finalRecord.is_early_logout = isEarlyLogout;
+                finalRecord.early_logout_mins = earlyLogoutMins;
+                finalRecord.early_logout_seconds = earlyLogoutSecs;
 
                 logs.push(finalRecord);
             }

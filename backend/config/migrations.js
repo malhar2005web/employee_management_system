@@ -1202,6 +1202,19 @@ export async function runMigrations() {
             console.error('❌ Phase 26 Migration Error:', e.message);
         }
 
+        // ── STEP 28: Phase 27 Attendance Overtime & Early Out Columns ────
+        try {
+            await client.query(`
+                ALTER TABLE attendance ADD COLUMN IF NOT EXISTS overtime_seconds INTEGER DEFAULT 0;
+                ALTER TABLE attendance ADD COLUMN IF NOT EXISTS early_logout_seconds INTEGER DEFAULT 0;
+                ALTER TABLE attendance ADD COLUMN IF NOT EXISTS is_early_logout BOOLEAN DEFAULT false;
+                ALTER TABLE attendance ADD COLUMN IF NOT EXISTS overtime INTEGER DEFAULT 0;
+            `);
+            console.log('✅ Phase 27 Attendance Overtime & Early Out Columns ensured.');
+        } catch (e) {
+            console.error('❌ Phase 27 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }

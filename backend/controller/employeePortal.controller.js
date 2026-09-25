@@ -1,6 +1,7 @@
 import { pool } from '../config/db.js';
 import bcryptjs from 'bcryptjs';
 import { getWebPagesApplicationsGrid } from '../services/teramind.service.js';
+import { calculateOvertimeAndEarlyOut } from '../utils/attendanceHelper.js';
 
 // Helper to get active employee ID from user session
 async function getEmployeeId(userId) {
@@ -363,6 +364,10 @@ export async function clockOut(req, res) {
 
         const diffMs = Math.max(0, logoutTime - loginTime - (totalBreakSec * 1000));
         const totalWorkingHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+        const totalWorkingSecs = Math.round(diffMs / 1000);
+
+        const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(logoutTime);
+        const otEarlyRes = calculateOvertimeAndEarlyOut(logoutTime, todayDateStr, { totalWorkingSecs });
 
         const result = await pool.query(`
             UPDATE attendance 
@@ -374,11 +379,25 @@ export async function clockOut(req, res) {
                 logout_lat = $2, 
                 logout_lng = $3, 
                 total_working_hours = $5,
+                overtime = $6,
+                overtime_seconds = $7,
+                is_early_logout = $8,
+                early_logout_seconds = $9,
                 punch_source = COALESCE(punch_source, 'PORTAL'),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
             RETURNING *;
-        `, [checkRes.rows[0].id, lat || null, lng || null, totalBreakSec, totalWorkingHours]);
+        `, [
+            checkRes.rows[0].id, 
+            lat || null, 
+            lng || null, 
+            totalBreakSec, 
+            totalWorkingHours,
+            otEarlyRes.overtimeMins,
+            otEarlyRes.overtimeSeconds,
+            otEarlyRes.isEarlyLogout,
+            otEarlyRes.earlyLogoutSeconds
+        ]);
 
         await pool.query(`
             UPDATE attendance_logs 
@@ -386,7 +405,23 @@ export async function clockOut(req, res) {
             WHERE employee_id = $1 AND work_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date AND clock_out IS NULL;
         `, [employeeId]);
 
-        res.status(200).json({ success: true, message: "Clocked out successfully", data: result.rows[0] });
+        let successMsg = "Clocked out successfully";
+        if (otEarlyRes.isEarlyLogout && otEarlyRes.earlyLogoutMins > 0) {
+            successMsg = `Clocked out (${otEarlyRes.earlyLogoutMins} mins Early Checkout)`;
+        } else if (otEarlyRes.overtimeMins > 0) {
+            successMsg = `Clocked out with ${otEarlyRes.overtimeMins} mins Overtime! 🎉`;
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            message: successMsg, 
+            data: result.rows[0],
+            overtime_minutes: otEarlyRes.overtimeMins,
+            overtime_seconds: otEarlyRes.overtimeSeconds,
+            is_early_logout: otEarlyRes.isEarlyLogout,
+            early_logout_minutes: otEarlyRes.earlyLogoutMins,
+            early_logout_seconds: otEarlyRes.earlyLogoutSeconds
+        });
     } catch (error) {
         console.log("Error in clockOut:", error.message);
         res.status(500).json({ success: false, message: error.message || "Internal server error" });

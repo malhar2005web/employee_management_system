@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-import { calculateShiftAttendanceTimes, formatISTIso } from '../utils/attendanceHelper.js';
+import { calculateShiftAttendanceTimes, formatISTIso, calculateOvertimeAndEarlyOut } from '../utils/attendanceHelper.js';
 
 // ── STRICT PRIVACY WHITELIST ──────────────────────────────────────────────────
 // Allowed BI Cubes and Endpoints only.
@@ -668,6 +668,12 @@ export async function syncTeramindDataToCache() {
                             const hrs = (shiftRes.totalActiveSecs / 3600).toFixed(2);
                             const status = shiftRes.isLate ? 'Late' : 'Present';
 
+                            const otEarly = calculateOvertimeAndEarlyOut(shiftRes.checkOutDate, dStr, { totalWorkingSecs: shiftRes.totalActiveSecs });
+                            const otSecs = otEarly.overtimeSeconds;
+                            const otMins = otEarly.overtimeMins;
+                            const isEarly = (dStr < todayIST) ? otEarly.isEarlyLogout : false;
+                            const earlySecs = (dStr < todayIST) ? otEarly.earlyLogoutSeconds : 0;
+
                             const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
                             if (checkRes.rows.length > 0) {
                                 const row = checkRes.rows[0];
@@ -675,15 +681,16 @@ export async function syncTeramindDataToCache() {
                                     await pool.query(`
                                         UPDATE attendance
                                         SET status = $1, login_time = $2, logout_time = $3, total_working_hours = $4,
+                                            overtime = $5, overtime_seconds = $6, is_early_logout = $7, early_logout_seconds = $8,
                                             punch_source = 'TERAMIND', approval_status = 'Auto-Synced', updated_at = NOW()
-                                        WHERE id = $5;
-                                    `, [status, inStr, outStr, hrs, row.id]);
+                                        WHERE id = $9;
+                                    `, [status, inStr, outStr, hrs, otMins, otSecs, isEarly, earlySecs, row.id]);
                                 }
                             } else {
                                 await pool.query(`
-                                    INSERT INTO attendance (employee_id, date, status, login_time, logout_time, total_working_hours, punch_source, approval_status, created_at, updated_at)
-                                    VALUES ($1, $2, $3, $4, $5, $6, 'TERAMIND', 'Auto-Synced', NOW(), NOW());
-                                `, [emp.id, dStr, status, inStr, outStr, hrs]);
+                                    INSERT INTO attendance (employee_id, date, status, login_time, logout_time, total_working_hours, overtime, overtime_seconds, is_early_logout, early_logout_seconds, punch_source, approval_status, created_at, updated_at)
+                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'TERAMIND', 'Auto-Synced', NOW(), NOW());
+                                `, [emp.id, dStr, status, inStr, outStr, hrs, otMins, otSecs, isEarly, earlySecs]);
                             }
                         }
                     } catch (e) {}
