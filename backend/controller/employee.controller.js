@@ -9,6 +9,8 @@ export async function getEmployees(req, res) {
                    e.bank_name, e.bank_acc_no, e.bank_ifsc,
                    e.doc_cv, e.doc_offer_letter, e.doc_adhar_card, e.doc_pan_card,
                    e.anydesk_id, e.whatsapp_no,
+                   COALESCE(NULLIF(TRIM(e.workstation), ''), NULLIF(TRIM(e.workplace), ''), 'Mumbai') AS workstation,
+                   COALESCE(NULLIF(TRIM(e.workplace), ''), NULLIF(TRIM(e.workstation), ''), 'Mumbai Office') AS workplace,
                    u.id AS user_id, u.email, u.is_active,
                    COALESCE(e.plain_password, u.plain_password, 'Penta@123') AS plain_password,
                    d.name AS department_name, d.id AS department_id,
@@ -165,14 +167,18 @@ export async function updateEmployee(req, res) {
         const parsedDesigId = (designationId !== undefined && designationId !== "" && designationId !== null) ? parseInt(designationId, 10) : null;
         const parsedManagerId = (reportingManagerId !== undefined && reportingManagerId !== "" && reportingManagerId !== null) ? parseInt(reportingManagerId, 10) : null;
 
+        const locationVal = req.body.workstation || req.body.workplace || req.body.location || null;
+
         // Update employee details
         await client.query(
             `UPDATE employees 
              SET full_name = $1, employee_code = $2, department_id = $3, designation_id = $4, reporting_manager_id = $5, joining_date = $6, salary_grade = $7,
                  gender = $8, phone = $9, dob = $10, citizenship = $11, address = $12, perm_address = $13, bank_name = $14, bank_acc_no = $15, bank_ifsc = $16,
                  doc_cv = $17, doc_offer_letter = $18, doc_adhar_card = $19, doc_pan_card = $20,
-                 anydesk_id = $21, whatsapp_no = $22
-             WHERE id = $23`,
+                 anydesk_id = $21, whatsapp_no = $22,
+                 workstation = COALESCE($23, workstation),
+                 workplace = COALESCE($24, workplace)
+             WHERE id = $25`,
             [
                 fullName || existingEmp.full_name,
                 employeeCode || existingEmp.employee_code,
@@ -196,6 +202,8 @@ export async function updateEmployee(req, res) {
                 finalDocPan || '{}',
                 anydeskId !== undefined ? anydeskId : (req.body.anydesk_id || existingEmp.anydesk_id),
                 whatsappNo !== undefined ? whatsappNo : (req.body.whatsapp_no || existingEmp.whatsapp_no),
+                locationVal ? locationVal.trim() : null,
+                locationVal ? locationVal.trim() : null,
                 id
             ]
         );

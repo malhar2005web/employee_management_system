@@ -171,6 +171,16 @@
         }
     });
 
+    function formatLocationDisplay(val) {
+        if (!val) return 'Mumbai';
+        const trimmed = String(val).trim();
+        if (!trimmed) return 'Mumbai';
+        if (trimmed === trimmed.toLowerCase()) {
+            return trimmed.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+        return trimmed;
+    }
+
     // --- Load Profile ---
     async function loadProfile() {
         try {
@@ -220,7 +230,7 @@
             document.getElementById('hdr-team').textContent = (me.department_name || 'Software Engineering & DevOps') + ' Team';
             const hdrWorkstation = document.getElementById('hdr-workstation');
             if (hdrWorkstation) {
-                hdrWorkstation.textContent = me.workstation || me.workplace || 'Mumbai';
+                hdrWorkstation.textContent = formatLocationDisplay(me.workstation || me.workplace || 'Mumbai');
             }
             
             const joinDate = me.joining_date ? new Date(me.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -247,7 +257,7 @@
             const pubJobName = document.getElementById('pub-job-name');
             if (pubJobName) pubJobName.value = me.designation_name || '';
             const pubWorkplace = document.getElementById('pub-workplace');
-            if (pubWorkplace) pubWorkplace.value = me.workstation || me.workplace || 'Mumbai';
+            if (pubWorkplace) pubWorkplace.value = formatLocationDisplay(me.workstation || me.workplace || 'Mumbai');
             const pubDept = document.getElementById('pub-department');
             if (pubDept) pubDept.value = me.department_name || '';
             const pubSupervisor = document.getElementById('pub-supervisor');
@@ -348,10 +358,13 @@
     // --- General Save Profile Data Helper ---
     async function saveProfileData(fields) {
         // Merge with current state to avoid wiping out other fields
+        const loc = fields.workstation || fields.workplace || fields.location || currentProfileData?.workstation || currentProfileData?.workplace;
         const payload = {
             full_name: currentProfileData?.full_name,
             designation_name: currentProfileData?.designation_name,
-            workstation: currentProfileData?.workstation || currentProfileData?.workplace,
+            workstation: loc,
+            workplace: loc,
+            location: loc,
             department_name: currentProfileData?.department_name,
             gender: currentProfileData?.gender,
             email: currentProfileData?.email,
@@ -384,6 +397,11 @@
             edu_grad_cgpa: currentProfileData?.edu_grad_cgpa,
             ...fields
         };
+        if (loc) {
+            payload.workstation = loc;
+            payload.workplace = loc;
+            payload.location = loc;
+        }
 
         try {
             const res = await fetch('/api/v1/employee/profile', {
@@ -423,6 +441,8 @@
                 full_name, 
                 designation_name, 
                 workstation, 
+                workplace: workstation,
+                location: workstation,
                 department_name, 
                 gender, 
                 email, 
@@ -442,7 +462,7 @@
                 const des = document.getElementById('edit-modal-designation');
                 if (des) des.value = currentProfileData.designation_name || '';
                 const ws = document.getElementById('edit-modal-workstation');
-                if (ws) ws.value = currentProfileData.workstation || currentProfileData.workplace || 'Mumbai';
+                if (ws) ws.value = formatLocationDisplay(currentProfileData.workstation || currentProfileData.workplace || 'Mumbai');
                 const dep = document.getElementById('edit-modal-department');
                 if (dep) dep.value = currentProfileData.department_name || '';
                 const gen = document.getElementById('edit-modal-gender');
@@ -509,6 +529,8 @@
                 full_name,
                 designation_name,
                 workstation,
+                workplace: workstation,
+                location: workstation,
                 department_name,
                 gender,
                 phone,
