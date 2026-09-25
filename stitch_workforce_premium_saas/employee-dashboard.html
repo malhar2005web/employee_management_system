@@ -514,8 +514,12 @@
 
   function checkClockOutReminder(isCurrentlyClockedIn) {
     if (!isCurrentlyClockedIn) return;
-    const now = new Date();
-    if (now.getHours() >= 19) {
+    const now = new Date(Date.now() + serverTimeOffsetMs);
+    const nowParts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false
+    }).formatToParts(now);
+    const h = parseInt(nowParts.find(x => x.type === 'hour')?.value || '0', 10);
+    if (h >= 19) {
       if (!clockOutAlerted) {
         showToast("It's past 7:00 PM. Please remember to clock out!", "warning");
         clockOutAlerted = true;
@@ -656,16 +660,11 @@
           const curH = parseInt(p.hour, 10);
           const curM = parseInt(p.minute, 10);
           const curS = parseInt(p.second, 10);
-          const localNow = new Date();
-          const localTotalSecs = (localNow.getHours() * 3600) + (localNow.getMinutes() * 60) + localNow.getSeconds();
-          const isSunday = (nowObj.getDay() === 0 || localNow.getDay() === 0);
-          const isSaturday = (nowObj.getDay() === 6 || localNow.getDay() === 6);
+          const isSunday = (nowObj.getDay() === 0);
+          const isSaturday = (nowObj.getDay() === 6);
           const cutoffMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
-          const serverTotalSecs = (curH * 3600) + (curM * 60) + curS;
+          const curTotalSecs = (curH * 3600) + (curM * 60) + curS;
           const cutoffSecs = cutoffMins * 60;
-
-          // Check both server synced time and local device clock (allows testing when changing system clock)
-          const curTotalSecs = Math.max(serverTotalSecs, localTotalSecs);
 
           if (!isOnBreak && (isSunday || curTotalSecs > cutoffSecs)) {
             // Overtime active mode!
@@ -841,10 +840,7 @@
     const curM = parseInt(p.minute, 10);
     const isSaturday = (now.getDay() === 6);
     const cutoffMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
-    const serverTotalMins = curH * 60 + curM;
-    const localNow = new Date();
-    const localTotalMins = localNow.getHours() * 60 + localNow.getMinutes();
-    const curTotalMins = Math.max(serverTotalMins, localTotalMins);
+    const curTotalMins = curH * 60 + curM;
 
     const modalTitle = document.getElementById('confirm-modal-title');
     const modalMsg = document.getElementById('confirm-modal-msg');
@@ -886,7 +882,7 @@
       const res = await fetch('/api/v1/employee/attendance/clock-out', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_time: new Date().toISOString() })
+        body: JSON.stringify({})
       });
       const data = await res.json();
       if (data.success) {
