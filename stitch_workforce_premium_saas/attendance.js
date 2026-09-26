@@ -23,6 +23,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function getDayOfWeekDetails(dateStr) {
+        if (!dateStr || dateStr === '—' || dateStr === '-') {
+            return { short: '—', full: '—', isSunday: false, isSaturday: false };
+        }
+        try {
+            const raw = String(dateStr).trim().slice(0, 10);
+            const parts = raw.split('-').map(Number);
+            const dateObj = parts.length === 3 ? new Date(parts[0], parts[1] - 1, parts[2]) : new Date(dateStr);
+            if (isNaN(dateObj.getTime())) {
+                return { short: '—', full: '—', isSunday: false, isSaturday: false };
+            }
+            const short = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+            const full = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+            const isSunday = dateObj.getDay() === 0;
+            const isSaturday = dateObj.getDay() === 6;
+            return { short, full, isSunday, isSaturday };
+        } catch (e) {
+            return { short: '—', full: '—', isSunday: false, isSaturday: false };
+        }
+    }
+
     // Main Top-Level Tabs (Attendance vs Leaves vs Out Entry)
     const tabBtnAttendance = document.getElementById('tab-btn-attendance');
     const tabBtnLeave = document.getElementById('tab-btn-leave');
@@ -652,7 +673,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-size:11px; color:var(--text-muted);">${log.employee_code || ''} ${log.workstation && log.workstation !== '—' ? '• ' + log.workstation : ''}</div>
                         ${sourceBadge}
                     </td>
-                    <td><strong style="color:#334155;">${log.date || today}</strong></td>
+                    <td>
+                        <strong style="color:#334155;">${log.date || today}</strong>
+                        ${(() => {
+                            const dInfo = getDayOfWeekDetails(log.date || today);
+                            if (!dInfo.short || dInfo.short === '—') return '';
+                            let badgeStyle = 'background:#f1f5f9; color:#475569;';
+                            if (dInfo.isSunday) badgeStyle = 'background:#fee2e2; color:#b91c1c; font-weight:800;';
+                            else if (dInfo.isSaturday) badgeStyle = 'background:#e0f2fe; color:#0369a1; font-weight:800;';
+                            return `<span style="font-size:11px; font-weight:700; margin-left:6px; padding:2px 6px; border-radius:4px; ${badgeStyle}">${dInfo.short}</span>`;
+                        })()}
+                    </td>
                     <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>
                     <td><strong style="color:${logoutStr !== '—' ? '#0f172a' : '#94a3b8'};">${logoutStr}</strong></td>
                     <td>${getBreakHtml(log)}</td>
@@ -1924,9 +1955,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderModalAttendanceTable(filterQuery = '') {
         if (!histTableHead || !histTableBody) return;
         histTableHead.innerHTML = `
-            <th style="padding:12px 16px; white-space:nowrap; width:130px;">Date</th>
-            <th style="padding:12px 16px; white-space:nowrap; width:120px;">Check-In</th>
-            <th style="padding:12px 16px; white-space:nowrap; width:120px;">Check-Out</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:120px;">Date</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:110px;">Day</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:110px;">Check-In</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:110px;">Check-Out</th>
             <th style="padding:12px 16px; white-space:nowrap; width:140px;">Break (Start-End)</th>
             <th style="padding:12px 16px; white-space:nowrap; width:130px;">Overtime (OVT)</th>
             <th style="padding:12px 16px; white-space:nowrap; width:130px;">Working Hours</th>
@@ -1937,17 +1969,22 @@ document.addEventListener('DOMContentLoaded', () => {
         let list = currentHistoryData;
         if (filterQuery) {
             const q = filterQuery.toLowerCase();
-            list = list.filter(r => (r.date && r.date.toLowerCase().includes(q)) || 
-                                    (r.status && r.status.toLowerCase().includes(q)) || 
-                                    (r.source && r.source.toLowerCase().includes(q)) ||
-                                    (r.out_entry && (
-                                        (r.out_entry.purpose && r.out_entry.purpose.toLowerCase().includes(q)) ||
-                                        (r.out_entry.destination && r.out_entry.destination.toLowerCase().includes(q))
-                                    )));
+            list = list.filter(r => {
+                const dInfo = getDayOfWeekDetails(r.date);
+                return (r.date && r.date.toLowerCase().includes(q)) || 
+                       (dInfo.full && dInfo.full.toLowerCase().includes(q)) ||
+                       (dInfo.short && dInfo.short.toLowerCase().includes(q)) ||
+                       (r.status && r.status.toLowerCase().includes(q)) || 
+                       (r.source && r.source.toLowerCase().includes(q)) ||
+                       (r.out_entry && (
+                           (r.out_entry.purpose && r.out_entry.purpose.toLowerCase().includes(q)) ||
+                           (r.out_entry.destination && r.out_entry.destination.toLowerCase().includes(q))
+                       ));
+            });
         }
 
         if (list.length === 0) {
-            histTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px; display:block; margin-bottom:8px; color:#94a3b8;"></i>No attendance records found for this period.</td></tr>';
+            histTableBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px; display:block; margin-bottom:8px; color:#94a3b8;"></i>No attendance records found for this period.</td></tr>';
             return;
         }
 
@@ -2067,8 +2104,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const ovtHours = (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—');
             const workingHours = (r.working_hours && parseFloat(r.working_hours) > 0) ? formatHoursMins(r.working_hours, true) : '—';
 
+            const dayInfo = getDayOfWeekDetails(r.date);
+            let dayBadge = `<span style="font-weight:700; color:#334155; background:#f1f5f9; padding:3px 9px; border-radius:6px; font-size:12px; display:inline-block;">${dayInfo.full}</span>`;
+            if (dayInfo.isSunday) {
+                dayBadge = `<span style="font-weight:800; color:#b91c1c; background:#fee2e2; padding:3px 9px; border-radius:6px; font-size:12px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-regular fa-sun" style="font-size:11px;"></i> ${dayInfo.full}</span>`;
+            } else if (dayInfo.isSaturday) {
+                dayBadge = `<span style="font-weight:800; color:#0369a1; background:#e0f2fe; padding:3px 9px; border-radius:6px; font-size:12px; display:inline-block;">${dayInfo.full}</span>`;
+            }
+
             tr.innerHTML = `
                 <td style="padding:12px 16px; font-weight:800; color:#334155;">${r.date}</td>
+                <td style="padding:12px 16px;">${dayBadge}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_in !== '—' ? '#047857' : '#94a3b8'};">${r.check_in || '—'}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_out !== '—' ? '#0f172a' : '#94a3b8'};">${r.check_out || '—'}</td>
                 <td style="padding:12px 16px;">${getModalBreakHtml(r)}</td>
@@ -2201,7 +2247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let filename = '';
 
             if (currentModalType === 'attendance') {
-                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Check-In Time", "Check-Out Time", "Break (Start-End / Duration)", "Overtime (OVT)", "Total Working Hours", "Status", "Punch Source"];
+                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Day", "Check-In Time", "Check-Out Time", "Break (Start-End / Duration)", "Overtime (OVT)", "Total Working Hours", "Status", "Punch Source"];
                 rows = currentHistoryData.map(r => {
                     let breakSummary = '—';
                     if (r.is_on_break) {
@@ -2226,6 +2272,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         r.full_name || currentEmpName,
                         r.workstation || currentEmpWorkstation || '—',
                         r.date,
+                        getDayOfWeekDetails(r.date).full,
                         r.check_in || '—',
                         r.check_out || '—',
                         breakSummary,
