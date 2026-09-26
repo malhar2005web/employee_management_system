@@ -929,12 +929,48 @@ export async function getEmployeeAttendanceHistory(req, res) {
                         check_out: '—',
                         working_hours: '0.00',
                         overtime: null,
-                        status: isHalf ? 'Half Day' : 'On Leave',
+                        status: isHalf ? 'Half Day' : (l.leave_type || 'On Leave'),
                         source: 'LEAVE_MANAGEMENT'
                     });
                 }
             }
         });
+
+        // 4.1 Merge Official Holidays
+        try {
+            const holidayRes = await pool.query(`
+                SELECT date, name, type FROM holidays WHERE date >= $1 AND date <= $2;
+            `, [startDateStr, endDateStr]);
+
+            holidayRes.rows.forEach(h => {
+                const dStr = h.date instanceof Date
+                    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(h.date)
+                    : String(h.date).slice(0, 10);
+                
+                if (historyMap.has(dStr)) {
+                    const existing = historyMap.get(dStr);
+                    // If marked Absent or has no active check-in punch, promote to official Holiday
+                    if (existing.status === 'Absent' || !existing.check_in || existing.check_in === '—') {
+                        existing.status = 'Holiday';
+                        existing.source = 'HOLIDAY';
+                        existing.holiday_name = h.name;
+                    }
+                } else {
+                    historyMap.set(dStr, {
+                        date: dStr,
+                        check_in: '—',
+                        check_out: '—',
+                        working_hours: '0.00',
+                        overtime: null,
+                        status: 'Holiday',
+                        source: 'HOLIDAY',
+                        holiday_name: h.name
+                    });
+                }
+            });
+        } catch (hErr) {
+            console.warn("Holiday query warning in getEmployeeAttendanceHistory:", hErr.message);
+        }
 
         // 5. Merge Out Entries
         try {
@@ -989,7 +1025,7 @@ export async function getEmployeeAttendanceHistory(req, res) {
 
         const sortedLogs = Array.from(historyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 
-        let present = 0, late = 0, absent = 0, outEntryCount = 0, totalHours = 0;
+        let present = 0, late = 0, absent = 0, outEntryCount = 0, leaveCount = 0, holidayCount = 0, weekOffCount = 0, totalHours = 0;
         sortedLogs.forEach(l => {
             const wHours = parseFloat(l.working_hours) || 0;
             let logHrs = 0;
@@ -1010,6 +1046,12 @@ export async function getEmployeeAttendanceHistory(req, res) {
             const isSat = targetDateObj.getDay() === 6;
             const isSun = targetDateObj.getDay() === 0;
 
+            // If Sunday and no active check-in punch, ensure status is marked Week Off (not Absent)
+            if (isSun && (!l.check_in || l.check_in === '—') && (l.status === 'Absent' || !l.status)) {
+                l.status = 'Week Off';
+                l.source = 'WEEKOFF';
+            }
+
             if (isSun && wHours > 0) {
                 ovtHrs = wHours;
             } else if (l.overtime && typeof l.overtime === 'number' && l.overtime > 0) {
@@ -1029,6 +1071,9 @@ export async function getEmployeeAttendanceHistory(req, res) {
             if (l.status === 'Present') present++;
             else if (l.status === 'Late') late++;
             else if (l.status === 'Out Entry' || l.source === 'OUT_ENTRY') outEntryCount++;
+            else if (l.status === 'On Leave' || l.status === 'Half Day' || l.source === 'LEAVE_MANAGEMENT' || (l.status && l.status.toLowerCase().includes('leave'))) leaveCount++;
+            else if (l.status === 'Holiday' || l.source === 'HOLIDAY') holidayCount++;
+            else if (l.status === 'Week Off' || l.status === 'WeekOff' || l.source === 'WEEKOFF') weekOffCount++;
             else if (l.status === 'Absent') absent++;
             totalHours += parseFloat(l.working_hours || 0);
         });
@@ -1050,6 +1095,9 @@ export async function getEmployeeAttendanceHistory(req, res) {
                 present: present,
                 late: late,
                 absent: absent,
+                leaves: leaveCount,
+                holidays: holidayCount,
+                weekOffs: weekOffCount,
                 outEntry: outEntryCount,
                 totalHours: totalHours.toFixed(2)
             },

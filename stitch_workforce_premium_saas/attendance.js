@@ -545,9 +545,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (log.status === 'Late') {
                     statusClass = 'pending';
                     statusBadgeStyle = 'background:#fef3c7; color:#b45309; font-weight:700;';
-                } else if (log.status === 'On Leave') {
+                } else if (log.status === 'On Leave' || (log.status && log.status.toLowerCase().includes('leave'))) {
                     statusClass = 'todo';
                     statusBadgeStyle = 'background:#e0f2fe; color:#0369a1; font-weight:700;';
+                } else if (log.status === 'Holiday') {
+                    statusClass = 'todo';
+                    statusBadgeStyle = 'background:#ede9fe; color:#7c3aed; font-weight:700;';
+                } else if (log.status === 'Week Off' || log.status === 'WeekOff') {
+                    statusClass = 'todo';
+                    statusBadgeStyle = 'background:#f1f5f9; color:#475569; font-weight:700;';
                 } else if (log.status === 'Half Day') {
                     statusClass = 'todo';
                     statusBadgeStyle = 'background:#f3e8ff; color:#7e22ce; font-weight:700;';
@@ -1790,6 +1796,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const histKpiPresent = document.getElementById('hist-kpi-present');
     const histKpiLate = document.getElementById('hist-kpi-late');
     const histKpiOut = document.getElementById('hist-kpi-out');
+    const histKpiLeaves = document.getElementById('hist-kpi-leaves');
+    const histKpiHolidays = document.getElementById('hist-kpi-holidays');
     const histKpiAbsent = document.getElementById('hist-kpi-absent');
     const histKpiHours = document.getElementById('hist-kpi-hours');
 
@@ -1942,6 +1950,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (histKpiPresent) histKpiPresent.textContent = summary.present || 0;
             if (histKpiLate) histKpiLate.textContent = summary.late || 0;
             if (histKpiOut) histKpiOut.textContent = summary.outEntry || 0;
+            if (histKpiLeaves) histKpiLeaves.textContent = summary.leaves || 0;
+            if (histKpiHolidays) histKpiHolidays.textContent = summary.holidays || 0;
             if (histKpiAbsent) histKpiAbsent.textContent = summary.absent || 0;
             if (histKpiHours) histKpiHours.textContent = formatHoursMins(summary.totalHours, false);
 
@@ -1975,6 +1985,7 @@ document.addEventListener('DOMContentLoaded', () => {
                        (dInfo.full && dInfo.full.toLowerCase().includes(q)) ||
                        (dInfo.short && dInfo.short.toLowerCase().includes(q)) ||
                        (r.status && r.status.toLowerCase().includes(q)) || 
+                       (r.holiday_name && r.holiday_name.toLowerCase().includes(q)) || 
                        (r.source && r.source.toLowerCase().includes(q)) ||
                        (r.out_entry && (
                            (r.out_entry.purpose && r.out_entry.purpose.toLowerCase().includes(q)) ||
@@ -1999,8 +2010,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusBadge = '<span class="status-pill progress" style="background:#dcfce7; color:#15803d; font-weight:800; padding:4px 10px; border-radius:6px;">Present</span>';
             } else if (r.status === 'Late') {
                 statusBadge = '<span class="status-pill pending" style="background:#fef3c7; color:#b45309; font-weight:800; padding:4px 10px; border-radius:6px;">Late</span>';
-            } else if (r.status === 'On Leave' || r.status === 'Half Day') {
-                statusBadge = `<span class="status-pill todo" style="background:#e0f2fe; color:#0369a1; font-weight:800; padding:4px 10px; border-radius:6px;">${r.status}</span>`;
+            } else if (r.status === 'Holiday') {
+                const hName = r.holiday_name ? ` (${r.holiday_name})` : '';
+                statusBadge = `<span class="status-pill" style="background:#ede9fe; color:#7c3aed; font-weight:800; padding:4px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;" title="${escapeQuote(r.holiday_name || 'Public Holiday')}"><i class="fa-solid fa-umbrella-beach"></i> Holiday${hName}</span>`;
+            } else if (r.status === 'Week Off' || r.status === 'WeekOff') {
+                statusBadge = `<span class="status-pill" style="background:#f1f5f9; color:#475569; font-weight:700; padding:4px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-bed"></i> Week Off</span>`;
+            } else if (r.status === 'On Leave' || r.status === 'Leave' || r.status === 'Half Day' || (r.status && r.status.toLowerCase().includes('leave'))) {
+                statusBadge = `<span class="status-pill todo" style="background:#e0f2fe; color:#0369a1; font-weight:800; padding:4px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-calendar-check"></i> ${r.status}</span>`;
             } else if (r.status === 'Out Entry' || r.source === 'OUT_ENTRY' || r.status === 'Client Visit' || r.status === 'Official Duty') {
                 const label = r.out_entry?.purpose || r.status || 'Out Entry';
                 statusBadge = `<span class="status-pill" style="background:#ffedd5; color:#c2410c; font-weight:800; padding:4px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-person-walking-arrow-right"></i> ${label}</span>`;
@@ -2013,6 +2029,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 srcBadge = '<span style="font-size:11px; background:#f3e8ff; color:#7e22ce; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-pen-fancy"></i> HR Approved</span>';
             } else if (r.source === 'LEAVE_MANAGEMENT') {
                 srcBadge = '<span style="font-size:11px; background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-umbrella-beach"></i> Leave</span>';
+            } else if (r.source === 'HOLIDAY') {
+                srcBadge = '<span style="font-size:11px; background:#ede9fe; color:#7c3aed; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-calendar-day"></i> Holiday</span>';
+            } else if (r.source === 'WEEKOFF') {
+                srcBadge = '<span style="font-size:11px; background:#f1f5f9; color:#475569; padding:3px 8px; border-radius:6px; font-weight:700;"><i class="fa-solid fa-bed"></i> Weekly Off</span>';
             } else if (r.source === 'OUT_ENTRY' || r.punch_source === 'OUT_ENTRY') {
                 srcBadge = '<span style="font-size:11px; background:#ffedd5; color:#c2410c; padding:3px 8px; border-radius:6px; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-person-walking-arrow-right"></i> Out Entry</span>';
             }
