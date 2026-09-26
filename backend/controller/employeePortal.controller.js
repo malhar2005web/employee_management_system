@@ -521,6 +521,7 @@ export async function getAttendanceLogs(req, res) {
             return res.status(200).json({ success: true, data: [] });
         }
         const emp = empRes.rows[0];
+        const shiftRules = await getCompanyShiftRules(pool);
 
         // 2. Fetch manual corrections/records from attendance table
         const dbAttRes = await pool.query(
@@ -830,7 +831,10 @@ export async function getAttendanceLogs(req, res) {
                     checkInParts.forEach(({ type, value }) => { p[type] = value; });
                     const hh = parseInt(p.hour, 10);
                     const mm = parseInt(p.minute, 10);
-                    if (hh > 10 || (hh === 10 && mm > 15)) {
+                    const inMins = hh * 60 + mm;
+                    const dow = new Date(targetDateStr).getDay();
+                    const lateCutoff = (dow === 6) ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
+                    if (inMins > lateCutoff) {
                         isLate = true;
                     }
                 }

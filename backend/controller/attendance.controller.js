@@ -652,6 +652,7 @@ export async function createManualCorrection(req, res) {
         let ovtMins = overtime ? parseInt(overtime, 10) : 0;
         if (isNaN(ovtMins)) ovtMins = 0;
 
+        const shiftRules = await getCompanyShiftRules(pool);
         let isLate = false;
         if (finalLoginTime) {
             const inDate = new Date(finalLoginTime);
@@ -662,7 +663,10 @@ export async function createManualCorrection(req, res) {
             inParts.forEach(({ type, value }) => { p[type] = value; });
             const hh = parseInt(p.hour, 10);
             const mm = parseInt(p.minute, 10);
-            if (hh > 10 || (hh === 10 && mm > 15)) {
+            const inMins = hh * 60 + mm;
+            const inDow = new Date(cleanDate).getDay();
+            const lateCutoff = (inDow === 6) ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
+            if (inMins > lateCutoff) {
                 isLate = true;
             }
         }
@@ -867,7 +871,10 @@ export async function getEmployeeAttendanceHistory(req, res) {
                 let isLate = false;
                 if (inTxt !== '—') {
                     const [h, m] = inTxt.split(':').map(Number);
-                    if (h > 10 || (h === 10 && m > 15)) isLate = true;
+                    const inMins = h * 60 + m;
+                    const dow = new Date(dStr).getDay();
+                    const lateCutoff = (dow === 6) ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
+                    if (inMins > lateCutoff) isLate = true;
                 }
 
                 historyMap.set(dStr, {
@@ -1217,7 +1224,7 @@ export async function getEmployeeAttendanceHistory(req, res) {
                 if (inH >= 7 && inH <= 23) {
                     const inTotalMins = inH * 60 + inM;
                     if (inTotalMins > histLateThresholdMins) {
-                        lateMins = inTotalMins - histShiftStartMins;
+                        lateMins = inTotalMins - histLateThresholdMins;
                     } else if (inTotalMins < histShiftStartMins) {
                         earlyInMins = histShiftStartMins - inTotalMins;
                     }

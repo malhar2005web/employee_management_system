@@ -359,8 +359,7 @@ export async function getMonthlyPayroll(req, res) {
                                 const lateThreshold = isSaturday ? rules.satLateThresholdMins : rules.lateThresholdMins;
                                 if (currentInMins > lateThreshold) {
                                     isLate = true;
-                                    const shiftStartMins = isSaturday ? rules.satStartMins : rules.startMins;
-                                    dayLateMins = Math.max(0, currentInMins - shiftStartMins);
+                                    dayLateMins = Math.max(0, currentInMins - lateThreshold);
                                 }
                             }
                         } catch (e) {}
