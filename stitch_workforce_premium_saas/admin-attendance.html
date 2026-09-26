@@ -746,9 +746,12 @@
           <label for="corr-in">Check-In Time</label>
           <input type="time" id="corr-in">
         </div>
-        <div class="form-group">
-          <label for="corr-out">Check-Out Time</label>
-          <input type="time" id="corr-out">
+        <div class="form-group" id="corr-out-group" style="transition: all 0.3s ease;">
+          <label for="corr-out" id="corr-out-label" style="transition: opacity 0.2s ease;">Check-Out Time</label>
+          <input type="time" id="corr-out" style="transition: all 0.2s ease;">
+          <div id="corr-out-today-badge" style="display:none; margin-top:6px; font-size:11px; color:#475569; background:#f1f5f9; padding:5px 8px; border-radius:6px; font-weight:600; align-items:center; gap:6px; border:1px dashed #cbd5e1;">
+            <i class="fa-solid fa-clock-rotate-left" style="color:#0284c7;"></i> Shift currently in progress (Check-out time not reached)
+          </div>
         </div>
       </div>
 

@@ -546,59 +546,138 @@ export async function getPendingCorrections(req, res) {
 
 export async function createManualCorrection(req, res) {
     try {
-        const { employeeId, date, clockIn, clockOut, status, overtime } = req.body;
+        const { employeeId, date, clockIn, clockOut, loginTime, logoutTime, status, overtime } = req.body;
         const approvedBy = req.user ? req.user.id : null;
 
         if (!employeeId || !date || !status) {
             return res.status(400).json({ success: false, message: "Employee, Date, and Status are required" });
         }
 
-        // Calculate total hours
+        // Normalize date (e.g. 26-09-2026 or 26/09/2026 -> 2026-09-26)
+        let cleanDate = String(date).trim();
+        const dmyMatch = cleanDate.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+        if (dmyMatch) {
+            const day = dmyMatch[1].padStart(2, '0');
+            const month = dmyMatch[2].padStart(2, '0');
+            const year = dmyMatch[3];
+            cleanDate = `${year}-${month}-${day}`;
+        }
+
+        // Safely verify approved_by exists in employees table to prevent foreign key errors
+        let safeApprovedBy = null;
+        if (approvedBy) {
+            try {
+                const empCheck = await pool.query("SELECT id FROM employees WHERE id = $1", [approvedBy]);
+                if (empCheck.rows.length > 0) {
+                    safeApprovedBy = empCheck.rows[0].id;
+                }
+            } catch (_) {}
+        }
+
+        const rawIn = loginTime || clockIn || null;
+        const rawOut = logoutTime || clockOut || null;
+
+        let finalLoginTime = null;
+        let finalLogoutTime = null;
         let totalHours = null;
-        let loginTime = null;
-        let logoutTime = null;
 
-        if (clockIn) {
-            loginTime = `${date}T${clockIn}:00`;
+        if (rawIn) {
+            finalLoginTime = rawIn.includes('T') ? rawIn : `${cleanDate}T${rawIn.length === 5 ? rawIn + ':00' : rawIn}`;
         }
-        if (clockOut) {
-            logoutTime = `${date}T${clockOut}:00`;
+        if (rawOut) {
+            finalLogoutTime = rawOut.includes('T') ? rawOut : `${cleanDate}T${rawOut.length === 5 ? rawOut + ':00' : rawOut}`;
         }
 
-        if (loginTime && logoutTime) {
-            const diffMs = new Date(logoutTime) - new Date(loginTime);
-            totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+        if (finalLoginTime && finalLogoutTime) {
+            let diffMs = new Date(finalLogoutTime) - new Date(finalLoginTime);
+            // If user entered 12-hour format e.g. login 10:12 and logout 06:13 (meaning 18:13 PM)
+            if (diffMs < 0 && rawIn && rawOut) {
+                const [inH] = rawIn.split(':').map(Number);
+                const [outH, outM] = rawOut.split(':').map(Number);
+                if (outH < inH && outH < 12) {
+                    const adjOutH = outH + 12;
+                    finalLogoutTime = `${cleanDate}T${String(adjOutH).padStart(2, '0')}:${String(outM || 0).padStart(2, '0')}:00`;
+                    diffMs = new Date(finalLogoutTime) - new Date(finalLoginTime);
+                }
+            }
+            if (diffMs > 0) {
+                totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+            } else {
+                totalHours = 0;
+            }
+        }
+
+        let ovtMins = overtime ? parseInt(overtime, 10) : 0;
+        if (isNaN(ovtMins)) ovtMins = 0;
+
+        let isLate = false;
+        if (finalLoginTime) {
+            const inDate = new Date(finalLoginTime);
+            const inParts = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+            }).formatToParts(inDate);
+            const p = {};
+            inParts.forEach(({ type, value }) => { p[type] = value; });
+            const hh = parseInt(p.hour, 10);
+            const mm = parseInt(p.minute, 10);
+            if (hh > 10 || (hh === 10 && mm > 15)) {
+                isLate = true;
+            }
         }
 
         // Check if row already exists
         const checkQuery = await pool.query(
             "SELECT id FROM attendance WHERE employee_id = $1 AND date = $2",
-            [employeeId, date]
+            [employeeId, cleanDate]
         );
 
         if (checkQuery.rows.length > 0) {
             // UPDATE
             await pool.query(
                 `UPDATE attendance
-                 SET login_time = $1, logout_time = $2, total_working_hours = $3, status = $4, overtime = $5,
-                     approval_status = 'Approved', approved_by = $6, punch_source = 'MANUAL_HR',
-                     manual_check_in = $1, manual_check_out = $2, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $7`,
-                [loginTime, logoutTime, totalHours, status, overtime ? parseInt(overtime, 10) : null, approvedBy, checkQuery.rows[0].id]
+                 SET login_time = $1, 
+                     logout_time = $2, 
+                     total_working_hours = $3, 
+                     status = $4, 
+                     overtime = $5,
+                     approval_status = 'Approved', 
+                     approved_by = $6, 
+                     punch_source = 'MANUAL_HR',
+                     manual_check_in = $1, 
+                     manual_check_out = $2, 
+                     is_late_login = $7,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $8`,
+                [finalLoginTime, finalLogoutTime, totalHours, status, ovtMins, safeApprovedBy, isLate, checkQuery.rows[0].id]
             );
         } else {
             // INSERT
             await pool.query(
-                `INSERT INTO attendance (employee_id, date, login_time, logout_time, total_working_hours, status, overtime, approval_status, approved_by, punch_source, manual_check_in, manual_check_out)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, 'Approved', $8, 'MANUAL_HR', $1, $2)`,
-                [employeeId, date, loginTime, logoutTime, totalHours, status, overtime ? parseInt(overtime, 10) : null, approvedBy]
+                `INSERT INTO attendance (
+                    employee_id, date, login_time, logout_time, total_working_hours, 
+                    status, overtime, approval_status, approved_by, punch_source, 
+                    manual_check_in, manual_check_out, is_late_login
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'Approved', $8, 'MANUAL_HR', $9, $10, $11)`,
+                [
+                    employeeId, 
+                    cleanDate, 
+                    finalLoginTime, 
+                    finalLogoutTime, 
+                    totalHours, 
+                    status, 
+                    ovtMins, 
+                    safeApprovedBy, 
+                    finalLoginTime, 
+                    finalLogoutTime,
+                    isLate
+                ]
             );
         }
 
         res.status(201).json({ success: true, message: "Attendance corrected successfully" });
     } catch (error) {
-        console.log("Error in createManualCorrection:", error.message);
-        res.status(500).json({ success: false, message: "Internal server error" });
+        console.error("Error in createManualCorrection:", error.message);
+        res.status(500).json({ success: false, message: error.message || "Internal server error" });
     }
 }
 

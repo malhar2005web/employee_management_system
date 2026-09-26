@@ -324,9 +324,74 @@ document.addEventListener('DOMContentLoaded', () => {
         return employeesCache;
     };
 
+    function normalizeDateForInput(val) {
+        if (!val) return '';
+        const s = String(val).trim();
+        const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+        if (dmy) {
+            return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+        }
+        return s.slice(0, 10);
+    }
+
+    function handleCorrectionDateChange() {
+        const corrDateInput = document.getElementById('corr-date');
+        const corrOutInput = document.getElementById('corr-out');
+        const corrOutLabel = document.getElementById('corr-out-label');
+        const corrOutBadge = document.getElementById('corr-out-today-badge');
+
+        if (!corrDateInput) return;
+
+        const todayISTStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        const enteredDate = normalizeDateForInput(corrDateInput.value);
+
+        const isToday = (enteredDate === todayISTStr);
+
+        if (isToday) {
+            // Fade and disable Check-Out Time field for today's ongoing shift
+            if (corrOutInput) {
+                corrOutInput.disabled = true;
+                corrOutInput.value = '';
+                corrOutInput.style.opacity = '0.35';
+                corrOutInput.style.cursor = 'not-allowed';
+                corrOutInput.style.backgroundColor = '#f8fafc';
+                corrOutInput.style.borderColor = '#cbd5e1';
+            }
+            if (corrOutLabel) {
+                corrOutLabel.style.opacity = '0.5';
+            }
+            if (corrOutBadge) {
+                corrOutBadge.style.display = 'inline-flex';
+            }
+        } else {
+            // Enable Check-Out Time field for past dates (e.g. yesterday 25th)
+            if (corrOutInput) {
+                corrOutInput.disabled = false;
+                corrOutInput.style.opacity = '1';
+                corrOutInput.style.cursor = 'auto';
+                corrOutInput.style.backgroundColor = '';
+                corrOutInput.style.borderColor = '';
+            }
+            if (corrOutLabel) {
+                corrOutLabel.style.opacity = '1';
+            }
+            if (corrOutBadge) {
+                corrOutBadge.style.display = 'none';
+            }
+        }
+    }
+
+    if (corrDate) {
+        corrDate.addEventListener('change', handleCorrectionDateChange);
+        corrDate.addEventListener('input', handleCorrectionDateChange);
+    }
+
     const openCorrectionModal = async () => {
         await ensureEmployeesLoaded();
-        if (corrDate) corrDate.value = today;
+        if (corrDate) {
+            corrDate.value = today;
+            handleCorrectionDateChange();
+        }
         populateEmployeesDropdowns();
         const m = document.getElementById('correction-modal');
         if (m) {
@@ -899,11 +964,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (correctionForm) {
         correctionForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const dateVal = normalizeDateForInput(corrDate.value);
+            const todayISTStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+            const isToday = (dateVal === todayISTStr);
+
             const payload = {
                 employeeId: corrEmployee.value,
-                date: corrDate.value,
+                date: dateVal,
                 loginTime: document.getElementById('corr-in').value || null,
-                logoutTime: document.getElementById('corr-out').value || null,
+                logoutTime: isToday ? null : (document.getElementById('corr-out').value || null),
                 status: document.getElementById('corr-status').value,
                 overtime: document.getElementById('corr-overtime').value || 0
             };
@@ -923,6 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (error) {
                 console.error("Error saving manual correction:", error);
+                alert("Error saving manual correction: " + error.message);
             }
         });
     }
@@ -935,6 +1005,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (corrDate) {
             const d = new Date(log.date);
             corrDate.value = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : today;
+            handleCorrectionDateChange();
         }
         
         if (log.login_time) {
