@@ -1003,7 +1003,9 @@ export async function getEmployeeAttendanceHistory(req, res) {
                     break_start: r.break_start || null,
                     total_break_seconds: r.total_break_seconds || 0,
                     break_history: r.break_history || [],
-                    break_time: r.break_time || null
+                    break_time: r.break_time || null,
+                    is_early_logout: r.is_early_logout || false,
+                    early_logout_seconds: r.early_logout_seconds || 0
                 });
             } else if (!historyMap.has(dStr)) {
                 // Fallback placeholder only if no Teramind record exists
@@ -1019,7 +1021,9 @@ export async function getEmployeeAttendanceHistory(req, res) {
                     break_start: r.break_start || null,
                     total_break_seconds: r.total_break_seconds || 0,
                     break_history: r.break_history || [],
-                    break_time: r.break_time || null
+                    break_time: r.break_time || null,
+                    is_early_logout: r.is_early_logout || false,
+                    early_logout_seconds: r.early_logout_seconds || 0
                 });
             }
         });
@@ -1179,6 +1183,52 @@ export async function getEmployeeAttendanceHistory(req, res) {
                     ovtHrs = (outTotal - cutoff) / 60;
                 }
             }
+
+            // Early Out calculation (Mon-Fri before 19:00, Sat before 16:30)
+            let earlyOutSecs = l.early_logout_seconds || 0;
+            if (earlyOutSecs === 0 && l.check_out && l.check_out !== '—' && !isSun) {
+                const [outH, outM] = l.check_out.split(':').map(Number);
+                const cutoffMins = isSat ? (16 * 60 + 30) : (19 * 60);
+                const outTotalMins = outH * 60 + outM;
+                if (outTotalMins < cutoffMins && (l.date < todayIST || l.is_early_logout)) {
+                    earlyOutSecs = (cutoffMins - outTotalMins) * 60;
+                }
+            }
+            l.early_logout_seconds = earlyOutSecs;
+            l.early_out_minutes = Math.round(earlyOutSecs / 60);
+            l.early_out_hours = (earlyOutSecs / 3600).toFixed(2);
+
+            // Late In / Early In calculation (Standard shift starts at 10:00 AM)
+            let lateMins = 0;
+            let earlyInMins = 0;
+            if (l.check_in && l.check_in !== '—' && !isSun) {
+                const [inH, inM] = l.check_in.split(':').map(Number);
+                if (inH >= 7 && inH <= 19) {
+                    const inTotalMins = inH * 60 + inM;
+                    const shiftStartMins = 10 * 60; // 10:00 AM
+                    if (inTotalMins > shiftStartMins) {
+                        lateMins = inTotalMins - shiftStartMins;
+                    } else if (inTotalMins < shiftStartMins) {
+                        earlyInMins = shiftStartMins - inTotalMins;
+                    }
+                }
+            }
+            l.late_minutes = lateMins;
+            l.late_hours = (lateMins / 60).toFixed(2);
+            l.early_in_minutes = earlyInMins;
+            l.early_in_hours = (earlyInMins / 60).toFixed(2);
+
+            // Break duration in hours
+            let bHours = 0;
+            if (l.total_break_seconds && l.total_break_seconds > 0) {
+                bHours = l.total_break_seconds / 3600;
+            } else if (l.break_time && parseFloat(l.break_time) > 0) {
+                bHours = parseFloat(l.break_time);
+            } else if (logHrs > wHours && (logHrs - wHours) >= 0.05) {
+                bHours = logHrs - wHours;
+            }
+            l.break_hours = bHours > 0 ? bHours.toFixed(2) : '0.00';
+            l.total_break_seconds = Math.round(bHours * 3600);
 
             l.login_hours = logHrs > 0 ? logHrs.toFixed(2) : '0.00';
             l.overtime_hours = ovtHrs > 0 ? ovtHrs.toFixed(2) : '0.00';

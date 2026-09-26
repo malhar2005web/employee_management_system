@@ -728,6 +728,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                     }
 
+                    if (l.status === 'Present' || l.status === 'Late' || (l.login_time && l.login_time !== '—')) {
+                        return `
+                            <div style="font-size:12px; font-weight:600; color:#64748b; display:flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-mug-hot" style="color:#94a3b8; font-size:11px;"></i> 0 hrs 0 mins
+                            </div>
+                        `;
+                    }
+
                     return '<span style="color:#94a3b8; font-weight:600;">—</span>';
                 };
 
@@ -2017,7 +2025,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadModalHistoryData() {
         if (!histTableBody) return;
-        histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:20px; display:block; margin-bottom:10px; color:var(--teal-900);"></i>Fetching telemetry attendance logs...</td></tr>';
+        histTableBody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:20px; display:block; margin-bottom:10px; color:var(--teal-900);"></i>Fetching telemetry attendance logs...</td></tr>';
 
         try {
             const range = histRangeSelect ? histRangeSelect.value : 'this_month';
@@ -2032,7 +2040,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await resp.json();
 
             if (!resp.ok || !data.success) {
-                histTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--red); font-size:14px;">${data.message || 'Error loading history'}</td></tr>`;
+                histTableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:32px; color:var(--red); font-size:14px;">${data.message || 'Error loading history'}</td></tr>`;
                 return;
             }
 
@@ -2051,7 +2059,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderModalAttendanceTable();
         } catch (e) {
             console.error("Modal history load error:", e);
-            histTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--red); font-size:14px;">Failed to load telemetry history.</td></tr>';
+            histTableBody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:32px; color:var(--red); font-size:14px;">Failed to load telemetry history.</td></tr>';
         }
     }
 
@@ -2062,7 +2070,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <th style="padding:12px 16px; white-space:nowrap; width:110px;">Day</th>
             <th style="padding:12px 16px; white-space:nowrap; width:110px;">Check-In</th>
             <th style="padding:12px 16px; white-space:nowrap; width:110px;">Check-Out</th>
-            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Break (Start-End)</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:140px;">Break (Hrs)</th>
+            <th style="padding:12px 16px; white-space:nowrap; width:145px;">Late / Early (Hrs)</th>
             <th style="padding:12px 16px; white-space:nowrap; width:130px;">Overtime (OVT)</th>
             <th style="padding:12px 16px; white-space:nowrap; width:130px;">Working Hours</th>
             <th style="padding:12px 16px; white-space:nowrap; text-align:center; width:110px;">Status</th>
@@ -2088,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (list.length === 0) {
-            histTableBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px; display:block; margin-bottom:8px; color:#94a3b8;"></i>No attendance records found for this period.</td></tr>';
+            histTableBody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:32px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px; display:block; margin-bottom:8px; color:#94a3b8;"></i>No attendance records found for this period.</td></tr>';
             return;
         }
 
@@ -2150,7 +2159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const totalSec = parseInt(l.total_break_seconds || 0, 10);
-                const breakTimeNum = parseFloat(l.break_time || 0);
+                const breakTimeNum = parseFloat(l.break_time || l.break_hours || 0);
 
                 let bHistory = [];
                 if (l.break_history) {
@@ -2175,24 +2184,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const startStr = formatBTime(firstBreak.start);
                     const endStr = formatBTime(lastBreak.end || lastBreak.start);
-                    const totalMin = Math.round(totalSec / 60) || Math.round(breakTimeNum);
+                    const totalMin = Math.round(totalSec / 60) || Math.round(breakTimeNum * 60);
 
                     return `
                         <div>
                             <div style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
                                 <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${startStr && endStr ? `${startStr} - ${endStr}` : (startStr || 'Break')}
                             </div>
-                            <div style="font-size:11px; color:#0f766e; font-weight:700; margin-top:1px;">${totalMin > 0 ? `${totalMin} mins` : '—'}</div>
+                            <div style="font-size:11px; color:#0f766e; font-weight:700; margin-top:1px;">${formatHoursMins(totalMin / 60, true)}</div>
                         </div>
                     `;
                 }
 
                 if (totalSec > 0 || breakTimeNum > 0) {
-                    const totalMin = Math.round(totalSec / 60) || Math.round(breakTimeNum);
+                    const totalMin = Math.round(totalSec / 60) || Math.round(breakTimeNum * 60);
                     return `
                         <div>
                             <div style="font-size:12px; font-weight:700; color:#334155; display:flex; align-items:center; gap:4px;">
-                                <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${totalMin} mins
+                                <i class="fa-solid fa-mug-hot" style="color:#d97706; font-size:11px;"></i> ${formatHoursMins(totalMin / 60, true)}
                             </div>
                         </div>
                     `;
@@ -2211,7 +2220,78 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                 }
 
+                if (l.status === 'Present' || l.status === 'Late' || (l.check_in && l.check_in !== '—' && l.check_in !== '-')) {
+                    return `
+                        <div style="font-size:12px; font-weight:600; color:#64748b; display:flex; align-items:center; gap:4px;">
+                            <i class="fa-solid fa-mug-hot" style="color:#94a3b8; font-size:11px;"></i> 0 hrs 0 mins
+                        </div>
+                    `;
+                }
+
                 return '<span style="color:#94a3b8; font-weight:600;">—</span>';
+            };
+
+            const getModalLateEarlyHtml = (l) => {
+                if (!l.check_in || l.check_in === '—' || l.check_in === '-' || l.status === 'Absent' || l.status === 'Week Off' || l.status === 'Holiday') {
+                    return '<span style="color:#94a3b8; font-weight:600;">—</span>';
+                }
+
+                let lateMins = l.late_minutes !== undefined ? parseInt(l.late_minutes, 10) : 0;
+                let earlyInMins = l.early_in_minutes !== undefined ? parseInt(l.early_in_minutes, 10) : 0;
+                let earlyOutMins = l.early_out_minutes !== undefined ? parseInt(l.early_out_minutes, 10) : (l.early_logout_seconds ? Math.round(l.early_logout_seconds / 60) : 0);
+
+                if (lateMins === 0 && earlyInMins === 0 && l.check_in && l.check_in.includes(':')) {
+                    const [inH, inM] = l.check_in.split(':').map(Number);
+                    if (inH >= 7 && inH <= 19) {
+                        const inTotal = inH * 60 + inM;
+                        const shiftStart = 10 * 60; // 10:00 AM
+                        if (inTotal > shiftStart) {
+                            lateMins = inTotal - shiftStart;
+                        } else if (inTotal < shiftStart) {
+                            earlyInMins = shiftStart - inTotal;
+                        }
+                    }
+                }
+
+                let earlyOutHtml = '';
+                if (earlyOutMins > 0) {
+                    earlyOutHtml = `
+                        <div style="font-size:10.5px; color:#b91c1c; font-weight:700; margin-top:2px; display:inline-flex; align-items:center; gap:3px;">
+                            <i class="fa-solid fa-person-walking-arrow-right" style="font-size:9.5px;"></i> ${formatHoursMins(earlyOutMins / 60, true)} Early Out
+                        </div>
+                    `;
+                }
+
+                if (lateMins > 0) {
+                    return `
+                        <div>
+                            <span style="color:#b91c1c; background:#fee2e2; font-weight:800; font-size:11.5px; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #fecaca;">
+                                <i class="fa-solid fa-clock" style="font-size:10px;"></i> ${formatHoursMins(lateMins / 60, true)} Late
+                            </span>
+                            ${earlyOutHtml}
+                        </div>
+                    `;
+                }
+
+                if (earlyInMins > 0) {
+                    return `
+                        <div>
+                            <span style="color:#15803d; background:#dcfce7; font-weight:800; font-size:11.5px; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #bbf7d0;">
+                                <i class="fa-solid fa-clock" style="font-size:10px;"></i> ${formatHoursMins(earlyInMins / 60, true)} Early
+                            </span>
+                            ${earlyOutHtml}
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div>
+                        <span style="color:#0369a1; background:#e0f2fe; font-weight:700; font-size:11.5px; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border:1px solid #bae6fd;">
+                            <i class="fa-solid fa-check" style="font-size:10px;"></i> On Time
+                        </span>
+                        ${earlyOutHtml}
+                    </div>
+                `;
             };
 
             const ovtHours = (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—');
@@ -2248,6 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_in !== '—' ? '#047857' : '#94a3b8'};">${r.check_in || '—'}</td>
                 <td style="padding:12px 16px; font-weight:800; color:${r.check_out !== '—' ? '#0f172a' : '#94a3b8'};">${r.check_out || '—'}</td>
                 <td style="padding:12px 16px;">${getModalBreakHtml(r)}</td>
+                <td style="padding:12px 16px;">${getModalLateEarlyHtml(r)}</td>
                 <td style="padding:12px 16px; font-weight:700; color:${parseFloat(r.overtime_hours || r.overtime || 0) > 0 ? '#b45309' : '#64748b'};">${ovtHours}</td>
                 <td style="padding:12px 16px; font-weight:700; color:#0f172a;">${workingHours}</td>
                 <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
@@ -2377,7 +2458,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let filename = '';
 
             if (currentModalType === 'attendance') {
-                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Day", "Check-In Time", "Check-Out Time", "Break (Start-End / Duration)", "Overtime (OVT)", "Total Working Hours", "Status", "Punch Source"];
+                headers = ["Employee Code", "Employee Name", "Workstation", "Date", "Day", "Check-In Time", "Check-Out Time", "Break (Hrs)", "Late / Early Arrival", "Overtime (OVT)", "Total Working Hours", "Status", "Punch Source"];
                 rows = currentHistoryData.map(r => {
                     let breakSummary = '—';
                     if (r.is_on_break) {
@@ -2387,14 +2468,39 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             bHist = typeof r.break_history === 'string' ? JSON.parse(r.break_history) : (r.break_history || []);
                         } catch(e) {}
-                        const bTotalMin = Math.round(parseInt(r.total_break_seconds || 0, 10) / 60) || Math.round(parseFloat(r.break_time || 0));
+                        const bTotalMin = Math.round(parseInt(r.total_break_seconds || 0, 10) / 60) || Math.round(parseFloat(r.break_time || r.break_hours || 0) * 60);
                         if (Array.isArray(bHist) && bHist.length > 0) {
                             const sTime = bHist[0].start ? new Date(bHist[0].start).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) : '';
                             const eTime = bHist[bHist.length - 1].end ? new Date(bHist[bHist.length - 1].end).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) : '';
-                            breakSummary = `${sTime && eTime ? `${sTime} - ${eTime} ` : ''}(${bTotalMin} mins)`.trim();
+                            breakSummary = `${sTime && eTime ? `${sTime} - ${eTime} ` : ''}(${formatHoursMins(bTotalMin / 60, true)})`.trim();
                         } else if (bTotalMin > 0) {
-                            breakSummary = `${bTotalMin} mins`;
+                            breakSummary = formatHoursMins(bTotalMin / 60, true);
+                        } else if (r.status === 'Present' || r.status === 'Late' || (r.check_in && r.check_in !== '—')) {
+                            breakSummary = '0 hrs 0 mins';
                         }
+                    }
+
+                    let lateEarlyText = '—';
+                    if (r.check_in && r.check_in !== '—' && r.check_in !== '-' && r.status !== 'Absent' && r.status !== 'Week Off' && r.status !== 'Holiday') {
+                        let lateMins = r.late_minutes !== undefined ? parseInt(r.late_minutes, 10) : 0;
+                        let earlyInMins = r.early_in_minutes !== undefined ? parseInt(r.early_in_minutes, 10) : 0;
+                        let earlyOutMins = r.early_out_minutes !== undefined ? parseInt(r.early_out_minutes, 10) : (r.early_logout_seconds ? Math.round(r.early_logout_seconds / 60) : 0);
+
+                        if (lateMins === 0 && earlyInMins === 0 && r.check_in && r.check_in.includes(':')) {
+                            const [inH, inM] = r.check_in.split(':').map(Number);
+                            if (inH >= 7 && inH <= 19) {
+                                const inTotal = inH * 60 + inM;
+                                const shiftStart = 10 * 60;
+                                if (inTotal > shiftStart) lateMins = inTotal - shiftStart;
+                                else if (inTotal < shiftStart) earlyInMins = shiftStart - inTotal;
+                            }
+                        }
+
+                        if (lateMins > 0) lateEarlyText = `${formatHoursMins(lateMins / 60, true)} Late`;
+                        else if (earlyInMins > 0) lateEarlyText = `${formatHoursMins(earlyInMins / 60, true)} Early`;
+                        else lateEarlyText = 'On Time';
+
+                        if (earlyOutMins > 0) lateEarlyText += ` | ${formatHoursMins(earlyOutMins / 60, true)} Early Out`;
                     }
 
                     return [
@@ -2406,6 +2512,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         r.check_in || '—',
                         r.check_out || '—',
                         breakSummary,
+                        lateEarlyText,
                         (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—'),
                         formatHoursMins(r.working_hours, true),
                         r.status || 'Present',
