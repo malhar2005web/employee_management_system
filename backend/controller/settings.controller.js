@@ -85,7 +85,7 @@ export async function getSettings(req, res) {
         // Merge tenant-specific company_preferences if present in DB
         try {
             const dbPrefRes = await activePool.query(
-                `SELECT value FROM system_settings WHERE key = 'company_preferences' LIMIT 1;`
+                `SELECT COALESCE(value, data) AS value FROM system_settings WHERE key = 'company_preferences' OR category = 'company_preferences' LIMIT 1;`
             );
             if (dbPrefRes.rows.length > 0 && dbPrefRes.rows[0].value) {
                 settings.preferences = {
@@ -176,16 +176,30 @@ export async function updateSettings(req, res) {
         try {
             await activePool.query(`
                 CREATE TABLE IF NOT EXISTS system_settings (
-                    key VARCHAR(100) PRIMARY KEY,
-                    value JSONB NOT NULL,
+                    id SERIAL PRIMARY KEY,
+                    category VARCHAR(100),
+                    data JSONB DEFAULT '{}'::jsonb,
+                    key VARCHAR(100),
+                    value JSONB,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
-                INSERT INTO system_settings (key, value, updated_at)
-                VALUES ('company_preferences', $1::jsonb, NOW())
+                ALTER TABLE system_settings ALTER COLUMN category DROP NOT NULL;
+                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS key VARCHAR(100);
+                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS value JSONB;
+                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+                CREATE UNIQUE INDEX IF NOT EXISTS system_settings_key_idx ON system_settings(key);
+            `);
+            const prefJson = JSON.stringify(newSettings.preferences);
+            await activePool.query(`
+                INSERT INTO system_settings (category, data, key, value, updated_at)
+                VALUES ('company_preferences', $1::jsonb, 'company_preferences', $1::jsonb, NOW())
                 ON CONFLICT (key) DO UPDATE SET 
                     value = EXCLUDED.value,
+                    data = EXCLUDED.data,
+                    category = 'company_preferences',
                     updated_at = NOW();
-            `, [JSON.stringify(newSettings.preferences)]);
+            `, [prefJson]);
         } catch (dbErr) {
             console.warn("[updateSettings] DB system_settings notice:", dbErr.message);
         }

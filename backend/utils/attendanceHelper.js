@@ -72,7 +72,7 @@ export async function getCompanyShiftRules(tenantPoolOrClient = null) {
     if (tenantPoolOrClient) {
         try {
             const res = await tenantPoolOrClient.query(
-                `SELECT value FROM system_settings WHERE key = 'company_preferences' LIMIT 1;`
+                `SELECT COALESCE(value, data) AS value FROM system_settings WHERE key = 'company_preferences' OR category = 'company_preferences' LIMIT 1;`
             );
             if (res.rows.length > 0 && res.rows[0].value) {
                 return parseShiftRules(res.rows[0].value);

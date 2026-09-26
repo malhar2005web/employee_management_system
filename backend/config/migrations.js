@@ -1326,10 +1326,19 @@ export async function runMigrations() {
         try {
             await client.query(`
                 CREATE TABLE IF NOT EXISTS system_settings (
-                    key VARCHAR(100) PRIMARY KEY,
-                    value JSONB NOT NULL,
+                    id SERIAL PRIMARY KEY,
+                    category VARCHAR(100),
+                    data JSONB DEFAULT '{}'::jsonb,
+                    key VARCHAR(100),
+                    value JSONB,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+                ALTER TABLE system_settings ALTER COLUMN category DROP NOT NULL;
+                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS key VARCHAR(100);
+                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS value JSONB;
+                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+                CREATE UNIQUE INDEX IF NOT EXISTS system_settings_key_idx ON system_settings(key);
             `);
 
             const defaultPrefs = JSON.stringify({
@@ -1346,9 +1355,13 @@ export async function runMigrations() {
             });
 
             await client.query(`
-                INSERT INTO system_settings (key, value, updated_at)
-                VALUES ('company_preferences', $1::jsonb, NOW())
-                ON CONFLICT (key) DO NOTHING;
+                INSERT INTO system_settings (category, data, key, value, updated_at)
+                VALUES ('company_preferences', $1::jsonb, 'company_preferences', $1::jsonb, NOW())
+                ON CONFLICT (key) DO UPDATE SET 
+                    value = EXCLUDED.value,
+                    data = EXCLUDED.data,
+                    category = 'company_preferences',
+                    updated_at = NOW();
             `, [defaultPrefs]);
 
             // Propagate system_settings table across all registered tenant databases
@@ -1360,13 +1373,26 @@ export async function runMigrations() {
                             const tPool = getTenantPool(c.db_name);
                             await tPool.query(`
                                 CREATE TABLE IF NOT EXISTS system_settings (
-                                    key VARCHAR(100) PRIMARY KEY,
-                                    value JSONB NOT NULL,
+                                    id SERIAL PRIMARY KEY,
+                                    category VARCHAR(100),
+                                    data JSONB DEFAULT '{}'::jsonb,
+                                    key VARCHAR(100),
+                                    value JSONB,
                                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                                 );
-                                INSERT INTO system_settings (key, value, updated_at)
-                                VALUES ('company_preferences', '${defaultPrefs}'::jsonb, NOW())
-                                ON CONFLICT (key) DO NOTHING;
+                                ALTER TABLE system_settings ALTER COLUMN category DROP NOT NULL;
+                                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS key VARCHAR(100);
+                                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS value JSONB;
+                                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+                                ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+                                CREATE UNIQUE INDEX IF NOT EXISTS system_settings_key_idx ON system_settings(key);
+                                INSERT INTO system_settings (category, data, key, value, updated_at)
+                                VALUES ('company_preferences', '${defaultPrefs}'::jsonb, 'company_preferences', '${defaultPrefs}'::jsonb, NOW())
+                                ON CONFLICT (key) DO UPDATE SET 
+                                    value = EXCLUDED.value,
+                                    data = EXCLUDED.data,
+                                    category = 'company_preferences',
+                                    updated_at = NOW();
                             `);
                         } catch (tErr) {
                             console.warn(`[Phase 30 Notice] DB ${c.db_name}: ${tErr.message}`);

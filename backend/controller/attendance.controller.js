@@ -303,7 +303,7 @@ export async function getAttendanceLogs(req, res) {
                 }
                 // Tier 3: Workstation Telemetry Automatic Fallback (Teramind / SQL Server)
                 else if (empRows.length > 0) {
-                    const shiftResult = calculateShiftAttendanceTimes(empRows, targetDateStr);
+                    const shiftResult = calculateShiftAttendanceTimes(empRows, targetDateStr, { rules: shiftRules });
                     const checkInDate = shiftResult.checkInDate;
                     const checkOutDate = shiftResult.checkOutDate;
 
@@ -918,7 +918,7 @@ export async function getEmployeeAttendanceHistory(req, res) {
                 const curH = parseInt(nowP.hour, 10);
 
                 tmDateMap.forEach((pList, dStr) => {
-                    const shiftResult = calculateShiftAttendanceTimes(pList, dStr);
+                    const shiftResult = calculateShiftAttendanceTimes(pList, dStr, { rules: shiftRules });
                     const inD = shiftResult.checkInDate;
                     const outD = shiftResult.checkOutDate;
 
