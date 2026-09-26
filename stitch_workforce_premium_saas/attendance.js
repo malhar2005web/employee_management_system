@@ -78,6 +78,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnPayrollPrevMonth = document.getElementById('btn-payroll-prev-month');
     const btnPayrollCurrentMonth = document.getElementById('btn-payroll-current-month');
     const btnPayrollNextMonth = document.getElementById('btn-payroll-next-month');
+    const btnPayrollCustomRange = document.getElementById('btn-payroll-custom-range');
+    const payrollCustomRangeContainer = document.getElementById('payroll-custom-range-container');
+    const payrollRangeStart = document.getElementById('payroll-range-start');
+    const payrollRangeEnd = document.getElementById('payroll-range-end');
+    const btnPayrollApplyRange = document.getElementById('btn-payroll-apply-range');
+    const btnPayrollResetRange = document.getElementById('btn-payroll-reset-range');
     const payrollSearchInput = document.getElementById('payroll-search-input');
     const btnExportPayrollCsv = document.getElementById('btn-export-payroll-csv');
 
@@ -2467,19 +2473,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPayrollData = [];
     let currentPayrollMonth = today.substring(0, 7); // e.g. "2026-09"
     let currentPayrollDaysInMonth = 30;
+    let isCustomPayrollRange = false;
+    let customPayrollStart = '';
+    let customPayrollEnd = '';
+    let currentDaysList = [];
 
     async function loadMonthlyPayroll() {
         if (!payrollMatrixTbody) return;
         payrollMatrixTbody.innerHTML = '<tr><td colspan="50" style="text-align:center; padding:36px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--teal-600);"></i><div style="margin-top:10px; font-weight:700; color:#64748b; font-size:13.5px;">Calculating monthly attendance matrix & payroll formulas...</div></td></tr>';
 
-        if (payrollMonthSelect && !payrollMonthSelect.value) {
-            payrollMonthSelect.value = currentPayrollMonth;
+        let url = '';
+        if (isCustomPayrollRange && customPayrollStart && customPayrollEnd) {
+            url = `/api/v1/payroll/monthly?startDate=${customPayrollStart}&endDate=${customPayrollEnd}`;
+        } else {
+            if (payrollMonthSelect && !payrollMonthSelect.value) {
+                payrollMonthSelect.value = currentPayrollMonth;
+            }
+            const ym = (payrollMonthSelect && payrollMonthSelect.value) ? payrollMonthSelect.value : currentPayrollMonth;
+            currentPayrollMonth = ym;
+            url = `/api/v1/payroll/monthly?yearMonth=${ym}`;
         }
-        const ym = (payrollMonthSelect && payrollMonthSelect.value) ? payrollMonthSelect.value : currentPayrollMonth;
-        currentPayrollMonth = ym;
 
         try {
-            const resp = await fetch(`/api/v1/payroll/monthly?yearMonth=${ym}`);
+            const resp = await fetch(url);
             const resData = await resp.json();
             if (!resp.ok || !resData.success) {
                 payrollMatrixTbody.innerHTML = `<tr><td colspan="50" style="text-align:center; padding:32px; color:var(--red); font-weight:700;">${resData.message || 'Failed to load payroll records'}</td></tr>`;
@@ -2487,7 +2503,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             currentPayrollData = resData.data || [];
-            currentPayrollDaysInMonth = resData.daysInMonth || 30;
+            currentDaysList = resData.daysList || [];
+            currentPayrollDaysInMonth = resData.daysInMonth || (currentDaysList.length || 30);
             const summary = resData.summary || {};
 
             if (payrollKpiGross) payrollKpiGross.textContent = `₹${(summary.totalGrossPayroll || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
@@ -2525,13 +2542,25 @@ document.addEventListener('DOMContentLoaded', () => {
             <th style="padding:12px 16px; position:sticky; left:0; background:#f1f5f9; z-index:6; min-width:200px; text-align:left; color:#0f172a; border-right:1.5px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">Employee</th>
             <th style="padding:12px 10px; min-width:110px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Salary (AO)</th>
         `;
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateObj = new Date(selYear, selMonth - 1, d);
-            const isSunday = dateObj.getDay() === 0;
-            const bgCol = isSunday ? '#fef3c7' : '#f8fafc';
-            const textCol = isSunday ? '#b45309' : '#334155';
-            const borderR = isSunday ? '#fde68a' : '#e2e8f0';
-            thHtml += `<th style="padding:10px 2px; min-width:32px; width:32px; font-weight:800; text-align:center; color:${textCol}; background:${bgCol}; border-right:1px solid ${borderR}; border-bottom:2px solid #cbd5e1;" title="${isSunday ? 'Sunday / Week Off' : `Day ${d}`}">${d}</th>`;
+        if (currentDaysList && currentDaysList.length > 0) {
+            currentDaysList.forEach((dItem, idx) => {
+                const isSunday = dItem.isSunday;
+                const bgCol = isSunday ? '#fef3c7' : '#f8fafc';
+                const textCol = isSunday ? '#b45309' : '#334155';
+                const borderR = isSunday ? '#fde68a' : '#e2e8f0';
+                const label = isCustomPayrollRange ? `${dItem.day}` : `${dItem.day}`;
+                const title = `${dItem.date}${isSunday ? ' (Sunday)' : ''}`;
+                thHtml += `<th style="padding:10px 2px; min-width:32px; width:32px; font-weight:800; text-align:center; color:${textCol}; background:${bgCol}; border-right:1px solid ${borderR}; border-bottom:2px solid #cbd5e1;" title="${title}">${label}</th>`;
+            });
+        } else {
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(selYear, selMonth - 1, d);
+                const isSunday = dateObj.getDay() === 0;
+                const bgCol = isSunday ? '#fef3c7' : '#f8fafc';
+                const textCol = isSunday ? '#b45309' : '#334155';
+                const borderR = isSunday ? '#fde68a' : '#e2e8f0';
+                thHtml += `<th style="padding:10px 2px; min-width:32px; width:32px; font-weight:800; text-align:center; color:${textCol}; background:${bgCol}; border-right:1px solid ${borderR}; border-bottom:2px solid #cbd5e1;" title="${isSunday ? 'Sunday / Week Off' : `Day ${d}`}">${d}</th>`;
+            }
         }
         thHtml += `
             <th style="padding:12px 8px; min-width:68px; background:#dcfce7; color:#15803d; border-left:1.5px solid #bbf7d0; border-right:1px solid #bbf7d0; border-bottom:2px solid #22c55e;">Present (AI)</th>
@@ -2586,39 +2615,75 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
             `;
 
-            for (let d = 1; d <= daysInMonth; d++) {
-                const code = r.daily_matrix[d] || '—';
-                const dateObj = new Date(selYear, selMonth - 1, d);
-                const isSunday = dateObj.getDay() === 0;
+            if (currentDaysList && currentDaysList.length > 0) {
+                currentDaysList.forEach((dItem, dIdx) => {
+                    const code = r.daily_matrix[dIdx + 1] || r.daily_matrix[dItem.date] || r.daily_matrix[dItem.day] || '—';
+                    const isSunday = dItem.isSunday;
 
-                let badgeClass = 'status-empty';
-                if (code === 'P') badgeClass = 'status-P';
-                else if (code === 'W') badgeClass = 'status-W';
-                else if (code === 'O' || code === 'HL') badgeClass = 'status-O';
-                else if (code === 'H') badgeClass = 'status-H';
-                else if (code === 'L') badgeClass = 'status-L';
-                else if (code === 'LH') badgeClass = 'status-LH';
-                else if (code === 'LP') badgeClass = 'status-LP';
-                else if (code === 'A') badgeClass = 'status-A';
-                else if (code === 'D') badgeClass = 'status-D';
+                    let badgeClass = 'status-empty';
+                    if (code === 'P') badgeClass = 'status-P';
+                    else if (code === 'W') badgeClass = 'status-W';
+                    else if (code === 'O' || code === 'HL') badgeClass = 'status-O';
+                    else if (code === 'H') badgeClass = 'status-H';
+                    else if (code === 'L') badgeClass = 'status-L';
+                    else if (code === 'LH') badgeClass = 'status-LH';
+                    else if (code === 'LP') badgeClass = 'status-LP';
+                    else if (code === 'A') badgeClass = 'status-A';
+                    else if (code === 'D') badgeClass = 'status-D';
 
-                let tipText = `Day ${d}: ${code}`;
-                if (code === 'W') tipText = `Day ${d}: Week Off (W)`;
-                else if (code === 'O' || code === 'HL') tipText = `Day ${d}: Public Holiday (O)`;
-                else if (code === 'L') tipText = `Day ${d}: Full Day Leave (L)`;
-                else if (code === 'LH') tipText = `Day ${d}: 1st Half Leave, 2nd Half Present (LH)`;
-                else if (code === 'H') tipText = `Day ${d}: Half Day Present, 2nd Half Absent (H)`;
-                else if (code === 'P') tipText = `Day ${d}: Present (P)`;
-                else if (code === 'A') tipText = `Day ${d}: Absent (A)`;
-                else if (code === 'D') tipText = `Day ${d}: Off Duty / Client Movement (D)`;
+                    let tipText = `${dItem.date}: ${code}`;
+                    if (code === 'W') tipText = `${dItem.date}: Week Off (W)`;
+                    else if (code === 'O' || code === 'HL') tipText = `${dItem.date}: Public Holiday (O)`;
+                    else if (code === 'L') tipText = `${dItem.date}: Full Day Leave (L)`;
+                    else if (code === 'LH') tipText = `${dItem.date}: 1st Half Leave, 2nd Half Present (LH)`;
+                    else if (code === 'H') tipText = `${dItem.date}: Half Day Present, 2nd Half Absent (H)`;
+                    else if (code === 'P') tipText = `${dItem.date}: Present (P)`;
+                    else if (code === 'A') tipText = `${dItem.date}: Absent (A)`;
+                    else if (code === 'D') tipText = `${dItem.date}: Off Duty / Client Movement (D)`;
 
-                rowHtml += `
-                    <td style="padding:3px 1px; border-right:1px solid ${isSunday ? '#e2e8f0' : '#f1f5f9'}; background:${isSunday ? 'rgba(241, 245, 249, 0.5)' : 'transparent'};">
-                        <span class="matrix-badge ${badgeClass}" title="${tipText}">
-                            ${code}
-                        </span>
-                    </td>
-                `;
+                    rowHtml += `
+                        <td style="padding:3px 1px; border-right:1px solid ${isSunday ? '#e2e8f0' : '#f1f5f9'}; background:${isSunday ? 'rgba(241, 245, 249, 0.5)' : 'transparent'};">
+                            <span class="matrix-badge ${badgeClass}" title="${tipText}">
+                                ${code}
+                            </span>
+                        </td>
+                    `;
+                });
+            } else {
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const code = r.daily_matrix[d] || '—';
+                    const dateObj = new Date(selYear, selMonth - 1, d);
+                    const isSunday = dateObj.getDay() === 0;
+
+                    let badgeClass = 'status-empty';
+                    if (code === 'P') badgeClass = 'status-P';
+                    else if (code === 'W') badgeClass = 'status-W';
+                    else if (code === 'O' || code === 'HL') badgeClass = 'status-O';
+                    else if (code === 'H') badgeClass = 'status-H';
+                    else if (code === 'L') badgeClass = 'status-L';
+                    else if (code === 'LH') badgeClass = 'status-LH';
+                    else if (code === 'LP') badgeClass = 'status-LP';
+                    else if (code === 'A') badgeClass = 'status-A';
+                    else if (code === 'D') badgeClass = 'status-D';
+
+                    let tipText = `Day ${d}: ${code}`;
+                    if (code === 'W') tipText = `Day ${d}: Week Off (W)`;
+                    else if (code === 'O' || code === 'HL') tipText = `Day ${d}: Public Holiday (O)`;
+                    else if (code === 'L') tipText = `Day ${d}: Full Day Leave (L)`;
+                    else if (code === 'LH') tipText = `Day ${d}: 1st Half Leave, 2nd Half Present (LH)`;
+                    else if (code === 'H') tipText = `Day ${d}: Half Day Present, 2nd Half Absent (H)`;
+                    else if (code === 'P') tipText = `Day ${d}: Present (P)`;
+                    else if (code === 'A') tipText = `Day ${d}: Absent (A)`;
+                    else if (code === 'D') tipText = `Day ${d}: Off Duty / Client Movement (D)`;
+
+                    rowHtml += `
+                        <td style="padding:3px 1px; border-right:1px solid ${isSunday ? '#e2e8f0' : '#f1f5f9'}; background:${isSunday ? 'rgba(241, 245, 249, 0.5)' : 'transparent'};">
+                            <span class="matrix-badge ${badgeClass}" title="${tipText}">
+                                ${code}
+                            </span>
+                        </td>
+                    `;
+                }
             }
 
             rowHtml += `
@@ -2871,9 +2936,86 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function formatDateDMY(dStr) {
+        if (!dStr) return '';
+        const parts = dStr.split('-');
+        if (parts.length === 3) {
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const mIdx = parseInt(parts[1], 10) - 1;
+            return `${parts[2]} ${months[mIdx] || parts[1]}`;
+        }
+        return dStr;
+    }
+
+    // Custom Range Event Handlers
+    if (btnPayrollCustomRange) {
+        btnPayrollCustomRange.addEventListener('click', () => {
+            if (payrollCustomRangeContainer.style.display === 'none' || !payrollCustomRangeContainer.style.display) {
+                payrollCustomRangeContainer.style.display = 'inline-flex';
+                // Initialize default range if empty
+                if (payrollRangeStart && !payrollRangeStart.value) {
+                    payrollRangeStart.value = `${currentPayrollMonth}-01`;
+                }
+                if (payrollRangeEnd && !payrollRangeEnd.value) {
+                    payrollRangeEnd.value = today;
+                }
+            } else {
+                payrollCustomRangeContainer.style.display = 'none';
+            }
+        });
+    }
+
+    if (btnPayrollApplyRange) {
+        btnPayrollApplyRange.addEventListener('click', () => {
+            const s = (payrollRangeStart?.value || '').trim();
+            const e = (payrollRangeEnd?.value || '').trim();
+            if (!s || !e) {
+                alert('Please select both From and To dates.');
+                return;
+            }
+            if (s > e) {
+                alert('From date cannot be after To date.');
+                return;
+            }
+            isCustomPayrollRange = true;
+            customPayrollStart = s;
+            customPayrollEnd = e;
+            if (btnPayrollCustomRange) {
+                btnPayrollCustomRange.innerHTML = `<i class="fa-solid fa-calendar-check" style="color:#0f766e;"></i> ${formatDateDMY(s)} - ${formatDateDMY(e)}`;
+                btnPayrollCustomRange.style.background = '#ccfbf1';
+                btnPayrollCustomRange.style.borderColor = '#0d9488';
+            }
+            loadMonthlyPayroll();
+        });
+    }
+
+    if (btnPayrollResetRange) {
+        btnPayrollResetRange.addEventListener('click', () => {
+            isCustomPayrollRange = false;
+            customPayrollStart = '';
+            customPayrollEnd = '';
+            if (payrollCustomRangeContainer) payrollCustomRangeContainer.style.display = 'none';
+            if (btnPayrollCustomRange) {
+                btnPayrollCustomRange.innerHTML = '<i class="fa-solid fa-calendar-week" style="color:var(--teal-600);"></i> Set Custom Range';
+                btnPayrollCustomRange.style.background = '#f0fdfa';
+                btnPayrollCustomRange.style.borderColor = '#99f6e4';
+            }
+            loadMonthlyPayroll();
+        });
+    }
+
     // Month Select & Navigation
     if (payrollMonthSelect) {
         payrollMonthSelect.addEventListener('change', () => {
+            isCustomPayrollRange = false;
+            customPayrollStart = '';
+            customPayrollEnd = '';
+            if (payrollCustomRangeContainer) payrollCustomRangeContainer.style.display = 'none';
+            if (btnPayrollCustomRange) {
+                btnPayrollCustomRange.innerHTML = '<i class="fa-solid fa-calendar-week" style="color:var(--teal-600);"></i> Set Custom Range';
+                btnPayrollCustomRange.style.background = '#f0fdfa';
+                btnPayrollCustomRange.style.borderColor = '#99f6e4';
+            }
             currentPayrollMonth = payrollMonthSelect.value;
             loadMonthlyPayroll();
         });
@@ -2881,6 +3023,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnPayrollCurrentMonth) {
         btnPayrollCurrentMonth.addEventListener('click', () => {
+            isCustomPayrollRange = false;
+            customPayrollStart = '';
+            customPayrollEnd = '';
+            if (payrollCustomRangeContainer) payrollCustomRangeContainer.style.display = 'none';
+            if (btnPayrollCustomRange) {
+                btnPayrollCustomRange.innerHTML = '<i class="fa-solid fa-calendar-week" style="color:var(--teal-600);"></i> Set Custom Range';
+                btnPayrollCustomRange.style.background = '#f0fdfa';
+                btnPayrollCustomRange.style.borderColor = '#99f6e4';
+            }
             currentPayrollMonth = today.substring(0, 7);
             if (payrollMonthSelect) payrollMonthSelect.value = currentPayrollMonth;
             loadMonthlyPayroll();
@@ -2889,6 +3040,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnPayrollPrevMonth) {
         btnPayrollPrevMonth.addEventListener('click', () => {
+            isCustomPayrollRange = false;
+            customPayrollStart = '';
+            customPayrollEnd = '';
+            if (payrollCustomRangeContainer) payrollCustomRangeContainer.style.display = 'none';
+            if (btnPayrollCustomRange) {
+                btnPayrollCustomRange.innerHTML = '<i class="fa-solid fa-calendar-week" style="color:var(--teal-600);"></i> Set Custom Range';
+                btnPayrollCustomRange.style.background = '#f0fdfa';
+                btnPayrollCustomRange.style.borderColor = '#99f6e4';
+            }
             const [y, m] = currentPayrollMonth.split('-').map(Number);
             const prevD = new Date(y, m - 2, 1);
             currentPayrollMonth = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
@@ -2899,6 +3059,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnPayrollNextMonth) {
         btnPayrollNextMonth.addEventListener('click', () => {
+            isCustomPayrollRange = false;
+            customPayrollStart = '';
+            customPayrollEnd = '';
+            if (payrollCustomRangeContainer) payrollCustomRangeContainer.style.display = 'none';
+            if (btnPayrollCustomRange) {
+                btnPayrollCustomRange.innerHTML = '<i class="fa-solid fa-calendar-week" style="color:var(--teal-600);"></i> Set Custom Range';
+                btnPayrollCustomRange.style.background = '#f0fdfa';
+                btnPayrollCustomRange.style.borderColor = '#99f6e4';
+            }
             const [y, m] = currentPayrollMonth.split('-').map(Number);
             const nextD = new Date(y, m, 1);
             currentPayrollMonth = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}`;
@@ -2915,7 +3084,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnExportPayrollCsv) {
         btnExportPayrollCsv.addEventListener('click', () => {
-            window.location.href = `/api/v1/payroll/export-csv?yearMonth=${currentPayrollMonth}`;
+            if (isCustomPayrollRange && customPayrollStart && customPayrollEnd) {
+                window.location.href = `/api/v1/payroll/export-csv?startDate=${customPayrollStart}&endDate=${customPayrollEnd}`;
+            } else {
+                window.location.href = `/api/v1/payroll/export-csv?yearMonth=${currentPayrollMonth}`;
+            }
         });
     }
 

@@ -20,14 +20,56 @@ export async function getMonthlyPayroll(req, res) {
         const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
         const currentYM = todayIST.substring(0, 7);
         const yearMonth = req.query.yearMonth || currentYM;
+        const isCustomRange = !!(req.query.startDate && req.query.endDate);
 
-        const [yearStr, monthStr] = yearMonth.split('-');
-        const year = parseInt(yearStr, 10);
-        const month = parseInt(monthStr, 10);
-        const daysInMonth = getDaysInMonth(yearMonth);
+        let startDate = null;
+        let endDate = null;
+        let daysList = [];
 
-        const startDate = `${yearMonth}-01`;
-        const endDate = `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`;
+        if (isCustomRange) {
+            startDate = req.query.startDate;
+            endDate = req.query.endDate;
+            let cur = new Date(`${startDate}T00:00:00Z`);
+            const endD = new Date(`${endDate}T00:00:00Z`);
+            while (cur <= endD) {
+                const ds = cur.toISOString().split('T')[0];
+                const [y, m, d] = ds.split('-').map(Number);
+                const dObj = new Date(Date.UTC(y, m - 1, d));
+                daysList.push({
+                    date: ds,
+                    day: d,
+                    month: m,
+                    year: y,
+                    dayOfWeek: dObj.getUTCDay(),
+                    isSunday: dObj.getUTCDay() === 0,
+                    isSaturday: dObj.getUTCDay() === 6
+                });
+                cur.setUTCDate(cur.getUTCDate() + 1);
+            }
+        } else {
+            const [yearStr, monthStr] = yearMonth.split('-');
+            const year = parseInt(yearStr, 10);
+            const month = parseInt(monthStr, 10);
+            const daysInMonth = getDaysInMonth(yearMonth);
+
+            startDate = `${yearMonth}-01`;
+            endDate = `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dayStr = String(d).padStart(2, '0');
+                const ds = `${yearMonth}-${dayStr}`;
+                const dObj = new Date(Date.UTC(year, month - 1, d));
+                daysList.push({
+                    date: ds,
+                    day: d,
+                    month: month,
+                    year: year,
+                    dayOfWeek: dObj.getUTCDay(),
+                    isSunday: dObj.getUTCDay() === 0,
+                    isSaturday: dObj.getUTCDay() === 6
+                });
+            }
+        }
+        const totalDays = daysList.length;
 
         // 1. Fetch active employees with workstation mappings and salary parameters from employees master table
         const empRes = await pool.query(`
@@ -270,10 +312,11 @@ export async function getMonthlyPayroll(req, res) {
             let totalOvertimeMinutes = 0; // Total overtime minutes in month
             let totalWorkedHours = 0;
 
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dayStr = String(d).padStart(2, '0');
-                const dateStr = `${yearMonth}-${dayStr}`;
-                const dayOfWeek = new Date(Date.UTC(year, month - 1, d)).getUTCDay(); // 0 = Sunday (timezone independent)
+            for (let idx = 0; idx < daysList.length; idx++) {
+                const dayItem = daysList[idx];
+                const d = idx + 1;
+                const dateStr = dayItem.date;
+                const dayOfWeek = dayItem.dayOfWeek;
                 const isFuture = dateStr > todayIST;
 
                 const dbAtt = attendanceMap.get(`${emp.id}_${dateStr}`);
@@ -465,6 +508,7 @@ export async function getMonthlyPayroll(req, res) {
                 }
 
                 dailyMatrix[d] = code;
+                dailyMatrix[dateStr] = code;
             }
 
             // Calculations strictly matching Book1.xlsx
@@ -509,7 +553,7 @@ export async function getMonthlyPayroll(req, res) {
                 department: emp.department || 'General',
                 designation: emp.designation || 'Staff',
                 year_month: yearMonth,
-                days_in_month: daysInMonth,
+                days_in_month: totalDays,
                 daily_matrix: dailyMatrix,
                 present_days: presentDays,
                 absent_days: absentDays,
@@ -538,60 +582,66 @@ export async function getMonthlyPayroll(req, res) {
 
             records.push(record);
 
-            // Upsert snapshot into database
-            try {
-                await pool.query(`
-                    INSERT INTO monthly_payroll_records (
-                        employee_id, year_month, total_days, present_days, absent_days, leave_days,
-                        base_salary, absent_deduction, advance_deduction, loan_deduction, loan_balance,
-                        incentive_addition, late_hours_deduction, mobile_deduction, pt_misc_deduction,
-                        gross_salary, net_salary, hourly_billing_rate, effective_hourly_cost, total_working_hours,
-                        daily_matrix, overtime_hours, late_hours, late_days, updated_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, NOW())
-                    ON CONFLICT (employee_id, year_month)
-                    DO UPDATE SET
-                        total_days = EXCLUDED.total_days,
-                        present_days = EXCLUDED.present_days,
-                        absent_days = EXCLUDED.absent_days,
-                        leave_days = EXCLUDED.leave_days,
-                        base_salary = EXCLUDED.base_salary,
-                        absent_deduction = EXCLUDED.absent_deduction,
-                        advance_deduction = EXCLUDED.advance_deduction,
-                        loan_deduction = EXCLUDED.loan_deduction,
-                        loan_balance = EXCLUDED.loan_balance,
-                        incentive_addition = EXCLUDED.incentive_addition,
-                        late_hours_deduction = EXCLUDED.late_hours_deduction,
-                        mobile_deduction = EXCLUDED.mobile_deduction,
-                        pt_misc_deduction = EXCLUDED.pt_misc_deduction,
-                        gross_salary = EXCLUDED.gross_salary,
-                        net_salary = EXCLUDED.net_salary,
-                        hourly_billing_rate = EXCLUDED.hourly_billing_rate,
-                        effective_hourly_cost = EXCLUDED.effective_hourly_cost,
-                        total_working_hours = EXCLUDED.total_working_hours,
-                        daily_matrix = EXCLUDED.daily_matrix,
-                        overtime_hours = EXCLUDED.overtime_hours,
-                        late_hours = EXCLUDED.late_hours,
-                        late_days = EXCLUDED.late_days,
-                        updated_at = NOW();
-                `, [
-                    emp.id, yearMonth, daysInMonth, presentDays, absentDays, leaveDays,
-                    baseSalary, absentDeduction, advanceDeduction, loanDeduction, loanBalance,
-                    incentiveAddition, latePenalty, mobileDeduction, ptMiscDeduction,
-                    grossSalary, netSalary, hourlyRate, effectiveHourlyCost, parseFloat(totalWorkedHours.toFixed(2)),
-                    JSON.stringify(dailyMatrix),
-                    parseFloat((totalOvertimeMinutes / 60).toFixed(2)),
-                    parseFloat((totalLateMinutes / 60).toFixed(2)),
-                    countLateDays
-                ]);
-            } catch (saveErr) {
-                console.warn(`Could not cache payroll record for emp ${emp.id}:`, saveErr.message);
+            // Upsert snapshot into database only for standard monthly cycles
+            if (!isCustomRange) {
+                try {
+                    await pool.query(`
+                        INSERT INTO monthly_payroll_records (
+                            employee_id, year_month, total_days, present_days, absent_days, leave_days,
+                            base_salary, absent_deduction, advance_deduction, loan_deduction, loan_balance,
+                            incentive_addition, late_hours_deduction, mobile_deduction, pt_misc_deduction,
+                            gross_salary, net_salary, hourly_billing_rate, effective_hourly_cost, total_working_hours,
+                            daily_matrix, overtime_hours, late_hours, late_days, updated_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, NOW())
+                        ON CONFLICT (employee_id, year_month)
+                        DO UPDATE SET
+                            total_days = EXCLUDED.total_days,
+                            present_days = EXCLUDED.present_days,
+                            absent_days = EXCLUDED.absent_days,
+                            leave_days = EXCLUDED.leave_days,
+                            base_salary = EXCLUDED.base_salary,
+                            absent_deduction = EXCLUDED.absent_deduction,
+                            advance_deduction = EXCLUDED.advance_deduction,
+                            loan_deduction = EXCLUDED.loan_deduction,
+                            loan_balance = EXCLUDED.loan_balance,
+                            incentive_addition = EXCLUDED.incentive_addition,
+                            late_hours_deduction = EXCLUDED.late_hours_deduction,
+                            mobile_deduction = EXCLUDED.mobile_deduction,
+                            pt_misc_deduction = EXCLUDED.pt_misc_deduction,
+                            gross_salary = EXCLUDED.gross_salary,
+                            net_salary = EXCLUDED.net_salary,
+                            hourly_billing_rate = EXCLUDED.hourly_billing_rate,
+                            effective_hourly_cost = EXCLUDED.effective_hourly_cost,
+                            total_working_hours = EXCLUDED.total_working_hours,
+                            daily_matrix = EXCLUDED.daily_matrix,
+                            overtime_hours = EXCLUDED.overtime_hours,
+                            late_hours = EXCLUDED.late_hours,
+                            late_days = EXCLUDED.late_days,
+                            updated_at = NOW();
+                    `, [
+                        emp.id, yearMonth, totalDays, presentDays, absentDays, leaveDays,
+                        baseSalary, absentDeduction, advanceDeduction, loanDeduction, loanBalance,
+                        incentiveAddition, latePenalty, mobileDeduction, ptMiscDeduction,
+                        grossSalary, netSalary, hourlyRate, effectiveHourlyCost, parseFloat(totalWorkedHours.toFixed(2)),
+                        JSON.stringify(dailyMatrix),
+                        parseFloat((totalOvertimeMinutes / 60).toFixed(2)),
+                        parseFloat((totalLateMinutes / 60).toFixed(2)),
+                        countLateDays
+                    ]);
+                } catch (saveErr) {
+                    console.warn(`Could not cache payroll record for emp ${emp.id}:`, saveErr.message);
+                }
             }
         }
 
         res.status(200).json({
             success: true,
             yearMonth,
-            daysInMonth,
+            startDate,
+            endDate,
+            isCustomRange,
+            daysInMonth: totalDays,
+            daysList,
             summary: {
                 totalEmployees: employees.length,
                 totalGrossPayroll: parseFloat(totalGrossPayroll.toFixed(2)),
@@ -715,10 +765,16 @@ export async function exportPayrollCSV(req, res) {
         const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
         const currentYM = todayIST.substring(0, 7);
         const yearMonth = req.query.yearMonth || currentYM;
-        const daysInMonth = getDaysInMonth(yearMonth);
+        const isCustomRange = !!(req.query.startDate && req.query.endDate);
 
         // Fetch payroll records via helper logic
-        const fakeReq = { query: { yearMonth } };
+        const fakeReq = { 
+            query: { 
+                yearMonth,
+                startDate: req.query.startDate,
+                endDate: req.query.endDate
+            } 
+        };
         let payload = null;
         const fakeRes = {
             status: () => ({
@@ -733,11 +789,18 @@ export async function exportPayrollCSV(req, res) {
         }
 
         const records = payload.data;
+        const daysList = payload.daysList || [];
 
         // Build CSV Header
         const headers = ["Employee Name", "Employee Code"];
-        for (let d = 1; d <= 31; d++) {
-            headers.push(String(d));
+        if (daysList.length > 0) {
+            daysList.forEach((dItem, idx) => {
+                headers.push(isCustomRange ? `"${dItem.date}"` : String(idx + 1));
+            });
+        } else {
+            for (let d = 1; d <= 31; d++) {
+                headers.push(String(d));
+            }
         }
         headers.push(
             "Total Present",
@@ -770,12 +833,15 @@ export async function exportPayrollCSV(req, res) {
                 `"${r.employee_code || ''}"`
             ];
 
-            for (let d = 1; d <= 31; d++) {
-                if (d <= daysInMonth) {
+            if (daysList.length > 0) {
+                daysList.forEach((dItem, idx) => {
+                    const val = r.daily_matrix[idx + 1] || r.daily_matrix[dItem.date];
+                    row.push((!val || val === '—') ? '-' : `"${val}"`);
+                });
+            } else {
+                for (let d = 1; d <= 31; d++) {
                     const val = r.daily_matrix[d];
                     row.push((!val || val === '—') ? '-' : `"${val}"`);
-                } else {
-                    row.push('-');
                 }
             }
 
@@ -792,7 +858,7 @@ export async function exportPayrollCSV(req, res) {
                 r.overtime_hours || 0,
                 r.incentive_addition,
                 r.late_hours > 0 ? `"${r.late_hours} hrs (${r.late_days || 0} days late)${r.late_hours_deduction > 0 ? ` (₹${r.late_hours_deduction})` : ''}"` : (r.late_hours_deduction > 0 ? r.late_hours_deduction : 0),
-                30, // Month Days
+                r.days_in_month || 30, // Month Days
                 r.absent_deduction,
                 r.mobile_deduction,
                 r.gross_salary,
@@ -806,8 +872,12 @@ export async function exportPayrollCSV(req, res) {
         });
 
         const csvContent = '\uFEFF' + csvRows.join('\r\n');
+        const fileName = isCustomRange 
+            ? `Employee_Payroll_Register_${payload.startDate}_to_${payload.endDate}.csv`
+            : `Employee_Payroll_Register_${yearMonth}.csv`;
+
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="Employee_Payroll_Register_${yearMonth}.csv"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.status(200).send(csvContent);
 
     } catch (error) {
