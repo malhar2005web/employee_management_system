@@ -2917,6 +2917,16 @@ input[type="range"]::-webkit-slider-thumb:hover {
   letter-spacing: 0.5px !important;
 }
 
+.payroll-month-banner-th {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+.payroll-month-banner-th i,
+.payroll-month-banner-th span {
+  color: #ffffff !important;
+}
+
 .payroll-days-header-row th {
   padding: 5px 2px !important;
   font-size: 11.5px !important;

@@ -2602,9 +2602,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const theme = monthThemes[(group.month - 1) % 12];
             const isBorderLeft = gIdx > 0 ? `border-left: 2.5px solid #ffffff;` : '';
             theadHtml += `
-                <th colspan="${group.count}" style="padding:8px 12px; background:${theme.bg}; color:${theme.text}; text-align:center; font-weight:800; font-size:12px; letter-spacing:0.5px; border-right:2.5px solid #ffffff; ${isBorderLeft} border-bottom:1px solid rgba(0,0,0,0.12); white-space:nowrap; text-transform:uppercase; box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);">
-                    <i class="fa-regular fa-calendar-days" style="margin-right:6px; opacity:0.9;"></i>${theme.full} ${group.year}
-                    <span style="background:rgba(255,255,255,0.22); color:#ffffff; padding:2px 8px; border-radius:9999px; font-size:10px; margin-left:6px; font-weight:700; letter-spacing:0;">${group.count} ${group.count === 1 ? 'Day' : 'Days'}</span>
+                <th colspan="${group.count}" class="payroll-month-banner-th" style="padding:8px 12px; background:${theme.bg} !important; color:#ffffff !important; text-align:center; font-weight:800; font-size:12.5px; letter-spacing:0.5px; border-right:2.5px solid #ffffff; ${isBorderLeft} border-bottom:1px solid rgba(0,0,0,0.12); white-space:nowrap; text-transform:uppercase; box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);">
+                    <span style="color:#ffffff !important; font-weight:800; font-size:12.5px; letter-spacing:0.5px; display:inline-flex; align-items:center; gap:6px; text-shadow:0 1px 2px rgba(0,0,0,0.35);">
+                        <i class="fa-regular fa-calendar-days" style="color:#ffffff !important; font-size:13px; opacity:0.95;"></i>${theme.full} ${group.year}
+                    </span>
+                    <span style="background:rgba(255,255,255,0.25); color:#ffffff !important; border:1px solid rgba(255,255,255,0.4); padding:2px 8px; border-radius:9999px; font-size:10px; margin-left:6px; font-weight:800; letter-spacing:0.3px;">${group.count} ${group.count === 1 ? 'Day' : 'Days'}</span>
                 </th>
             `;
         });
