@@ -1,7 +1,7 @@
 import { pool } from '../config/db.js';
 import bcryptjs from 'bcryptjs';
 import { getWebPagesApplicationsGrid } from '../services/teramind.service.js';
-import { calculateOvertimeAndEarlyOut } from '../utils/attendanceHelper.js';
+import { calculateOvertimeAndEarlyOut, getCompanyShiftRules } from '../utils/attendanceHelper.js';
 
 // Helper to get active employee ID from user session
 async function getEmployeeId(userId) {
@@ -160,6 +160,9 @@ export async function clockIn(req, res) {
         const employeeId = await getEmployeeId(req.user.id);
         const { lat, lng } = req.body;
 
+        const activePool = req.tenant?.pool || pool;
+        const rules = await getCompanyShiftRules(activePool);
+
         const now = new Date();
         const nowParts = new Intl.DateTimeFormat('en-GB', {
             timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
@@ -168,7 +171,10 @@ export async function clockIn(req, res) {
         nowParts.forEach(({ type, value }) => { p[type] = value; });
         const hh = parseInt(p.hour, 10);
         const mm = parseInt(p.minute, 10);
-        const isLate = (hh > 10 || (hh === 10 && mm > 15));
+        const inMins = hh * 60 + mm;
+        const dow = now.getDay();
+        const lateThreshold = (dow === 6) ? rules.satLateThresholdMins : rules.lateThresholdMins;
+        const isLate = (inMins > lateThreshold);
         const status = isLate ? 'Late' : 'Present';
 
         const checkRes = await pool.query(
@@ -262,10 +268,12 @@ export async function startBreak(req, res) {
             return res.status(400).json({ success: false, message: "You are already on a break" });
         }
 
-        // Half-hour (30 mins) max break policy (1800 seconds)
+        const activePool = req.tenant?.pool || pool;
+        const rules = await getCompanyShiftRules(activePool);
+        const maxBreakSecs = (rules.allowedBreakMins || 30) * 60;
         const totalUsed = checkRes.rows[0].total_break_seconds || 0;
-        if (totalUsed >= 1800) {
-            return res.status(400).json({ success: false, message: "Daily 30-minute break limit (30 mins) already consumed" });
+        if (totalUsed >= maxBreakSecs) {
+            return res.status(400).json({ success: false, message: `Daily ${rules.allowedBreakMins}-minute break limit already consumed` });
         }
 
         const result = await pool.query(`
@@ -370,8 +378,10 @@ export async function clockOut(req, res) {
         const totalWorkingHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
         const totalWorkingSecs = Math.round(diffMs / 1000);
 
+        const activePool = req.tenant?.pool || pool;
+        const rules = await getCompanyShiftRules(activePool);
         const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(logoutTime);
-        const otEarlyRes = calculateOvertimeAndEarlyOut(logoutTime, todayDateStr, { totalWorkingSecs });
+        const otEarlyRes = calculateOvertimeAndEarlyOut(logoutTime, todayDateStr, { totalWorkingSecs, rules });
 
         const result = await pool.query(`
             UPDATE attendance 

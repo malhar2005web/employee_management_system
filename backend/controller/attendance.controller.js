@@ -1,6 +1,6 @@
 import { pool } from '../config/db.js';
 import { getWebPagesApplicationsGrid } from '../services/teramind.service.js';
-import { calculateShiftAttendanceTimes, formatISTIso, formatISTTime } from '../utils/attendanceHelper.js';
+import { calculateShiftAttendanceTimes, formatISTIso, formatISTTime, getCompanyShiftRules } from '../utils/attendanceHelper.js';
 
 export async function getAttendanceLogs(req, res) {
     try {
@@ -8,6 +8,9 @@ export async function getAttendanceLogs(req, res) {
         const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
         const startDateStr = startDate || date || todayIST;
         const endDateStr = endDate || date || startDateStr;
+
+        // Load dynamic company shift rules from tenant DB / settings.json
+        const shiftRules = await getCompanyShiftRules(pool);
 
         // 1. Fetch active employees with workstation mapping
         const empQuery = `
@@ -353,8 +356,10 @@ export async function getAttendanceLogs(req, res) {
                             checkOutParts.forEach(({ type, value }) => { p[type] = value; });
                             const outH = parseInt(p.hour, 10);
                             const outM = parseInt(p.minute, 10);
-                            if (outH > 19 || (outH === 19 && outM > 0)) {
-                                overtimeMins = ((outH - 19) * 60) + outM;
+                            const tmOvtCutoffMins = shiftRules.weekdayEndMins;
+                            const tmOutTotalMins = outH * 60 + outM;
+                            if (tmOutTotalMins > tmOvtCutoffMins) {
+                                overtimeMins = tmOutTotalMins - tmOvtCutoffMins;
                             }
                         }
 
@@ -487,14 +492,15 @@ export async function getAttendanceLogs(req, res) {
                         const outH = parseInt(p.hour, 10);
                         const outM = parseInt(p.minute, 10);
                         const outS = parseInt(p.second, 10);
-                        const cutoffTotalMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
+                        const cutoffTotalMins = isSaturday ? shiftRules.satEndMins : shiftRules.weekdayEndMins;
                         const currentTotalMins = outH * 60 + outM;
                         const outTotalSecs = (outH * 3600) + (outM * 60) + outS;
                         const cutoffSecs = cutoffTotalMins * 60;
+                        const cutoffEndHour = Math.ceil(shiftRules.weekdayEndMins / 60);
 
                         if (currentTotalMins > cutoffTotalMins) {
                             overtimeHoursNum = (currentTotalMins - cutoffTotalMins) / 60;
-                        } else if (currentTotalMins < cutoffTotalMins && (!isToday || currentHourIST >= 19 || dbRecord?.portal_check_out || dbRecord?.manual_check_out)) {
+                        } else if (currentTotalMins < cutoffTotalMins && (!isToday || currentHourIST >= cutoffEndHour || dbRecord?.portal_check_out || dbRecord?.manual_check_out)) {
                             earlyLogoutSecs = cutoffSecs - outTotalSecs;
                             earlyLogoutMins = Math.round(earlyLogoutSecs / 60);
                             isEarlyLogout = true;
@@ -767,6 +773,9 @@ export async function getEmployeeAttendanceHistory(req, res) {
     try {
         const { id } = req.params;
         const { range, startDate, endDate } = req.query;
+
+        // Load dynamic company shift rules from tenant DB / settings.json
+        const shiftRules = await getCompanyShiftRules(pool);
 
         const empRes = await pool.query(`
             SELECT e.id, e.full_name, e.employee_code, e.department_id, e.designation_id,
@@ -1177,18 +1186,18 @@ export async function getEmployeeAttendanceHistory(req, res) {
                 ovtHrs = l.overtime / 60;
             } else if (l.check_out && l.check_out !== '—') {
                 const [outH, outM] = l.check_out.split(':').map(Number);
-                const cutoff = isSat ? (16 * 60 + 30) : (19 * 60);
+                const cutoff = isSat ? shiftRules.satEndMins : shiftRules.weekdayEndMins;
                 const outTotal = outH * 60 + outM;
                 if (outTotal > cutoff) {
                     ovtHrs = (outTotal - cutoff) / 60;
                 }
             }
 
-            // Early Out calculation (Mon-Fri before 19:00, Sat before 16:30)
+            // Early Out calculation (dynamic from company shift rules)
             let earlyOutSecs = l.early_logout_seconds || 0;
             if (earlyOutSecs === 0 && l.check_out && l.check_out !== '—' && !isSun) {
                 const [outH, outM] = l.check_out.split(':').map(Number);
-                const cutoffMins = isSat ? (16 * 60 + 30) : (19 * 60);
+                const cutoffMins = isSat ? shiftRules.satEndMins : shiftRules.weekdayEndMins;
                 const outTotalMins = outH * 60 + outM;
                 if (outTotalMins < cutoffMins && (l.date < todayIST || l.is_early_logout)) {
                     earlyOutSecs = (cutoffMins - outTotalMins) * 60;
@@ -1198,18 +1207,19 @@ export async function getEmployeeAttendanceHistory(req, res) {
             l.early_out_minutes = Math.round(earlyOutSecs / 60);
             l.early_out_hours = (earlyOutSecs / 3600).toFixed(2);
 
-            // Late In / Early In calculation (Standard shift starts at 10:00 AM)
+            // Late In / Early In calculation (dynamic shift start + grace period)
+            const histShiftStartMins = isSat ? shiftRules.satStartMins : shiftRules.weekdayStartMins;
+            const histLateThresholdMins = isSat ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
             let lateMins = 0;
             let earlyInMins = 0;
             if (l.check_in && l.check_in !== '—' && !isSun) {
                 const [inH, inM] = l.check_in.split(':').map(Number);
-                if (inH >= 7 && inH <= 19) {
+                if (inH >= 7 && inH <= 23) {
                     const inTotalMins = inH * 60 + inM;
-                    const shiftStartMins = 10 * 60; // 10:00 AM
-                    if (inTotalMins > shiftStartMins) {
-                        lateMins = inTotalMins - shiftStartMins;
-                    } else if (inTotalMins < shiftStartMins) {
-                        earlyInMins = shiftStartMins - inTotalMins;
+                    if (inTotalMins > histLateThresholdMins) {
+                        lateMins = inTotalMins - histShiftStartMins;
+                    } else if (inTotalMins < histShiftStartMins) {
+                        earlyInMins = histShiftStartMins - inTotalMins;
                     }
                 }
             }

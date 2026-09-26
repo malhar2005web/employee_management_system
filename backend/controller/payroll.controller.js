@@ -1,5 +1,6 @@
 import { pool } from '../config/db.js';
 import { getWebPagesApplicationsGrid } from '../services/teramind.service.js';
+import { getCompanyShiftRules } from '../utils/attendanceHelper.js';
 
 /**
  * Helper to get days in a given month (YYYY-MM)
@@ -17,6 +18,7 @@ function getDaysInMonth(yearMonth) {
  */
 export async function getMonthlyPayroll(req, res) {
     try {
+        const rules = await getCompanyShiftRules(pool);
         const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
         const currentYM = todayIST.substring(0, 7);
         const yearMonth = req.query.yearMonth || currentYM;
@@ -353,11 +355,12 @@ export async function getMonthlyPayroll(req, res) {
                                 const ip = {};
                                 inParts.forEach(({ type, value }) => { ip[type] = value; });
                                 const hh = parseInt(ip.hour, 10);
-                                const mm = parseInt(ip.minute, 10);
-                                if (hh > 10 || (hh === 10 && mm > 15)) {
+                                const currentInMins = hh * 60 + mm;
+                                const lateThreshold = isSaturday ? rules.satLateThresholdMins : rules.lateThresholdMins;
+                                if (currentInMins > lateThreshold) {
                                     isLate = true;
-                                    // Official shift start is 10:00 AM (600 minutes)
-                                    dayLateMins = Math.max(0, (hh * 60 + mm) - 600);
+                                    const shiftStartMins = isSaturday ? rules.satStartMins : rules.startMins;
+                                    dayLateMins = Math.max(0, currentInMins - shiftStartMins);
                                 }
                             }
                         } catch (e) {}
@@ -393,7 +396,7 @@ export async function getMonthlyPayroll(req, res) {
                             outParts.forEach(({ type, value }) => { p[type] = value; });
                             const outH = parseInt(p.hour, 10);
                             const outM = parseInt(p.minute, 10);
-                            const cutoffTotalMins = isSaturday ? (16 * 60 + 30) : (19 * 60);
+                            const cutoffTotalMins = isSaturday ? rules.satEndMins : rules.endMins;
                             const currentTotalMins = outH * 60 + outM;
                             if (currentTotalMins > cutoffTotalMins) {
                                 dayOtMins = currentTotalMins - cutoffTotalMins;

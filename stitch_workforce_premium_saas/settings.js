@@ -72,11 +72,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Preferences
         if (settings.preferences) {
-            document.getElementById('pref-hours').value = settings.preferences.standardHours || 8;
-            document.getElementById('pref-grace').value = settings.preferences.gracePeriod || 15;
+            const p = settings.preferences;
+            if (document.getElementById('pref-hours')) document.getElementById('pref-hours').value = p.standardHours ?? 9.5;
+            if (document.getElementById('shift-start')) document.getElementById('shift-start').value = p.shiftStart || '09:30';
+            if (document.getElementById('shift-end')) document.getElementById('shift-end').value = p.shiftEnd || '19:00';
+            if (document.getElementById('sat-shift-start')) document.getElementById('sat-shift-start').value = p.satShiftStart || '09:30';
+            if (document.getElementById('sat-shift-end')) document.getElementById('sat-shift-end').value = p.satShiftEnd || '16:30';
+            if (document.getElementById('late-grace')) document.getElementById('late-grace').value = p.gracePeriod ?? 15;
+            if (document.getElementById('pref-grace')) document.getElementById('pref-grace').value = p.gracePeriod ?? 15;
+            if (document.getElementById('allowed-break')) document.getElementById('allowed-break').value = p.allowedBreakMins ?? 30;
+            if (document.getElementById('ot-min')) document.getElementById('ot-min').value = p.minOvertimeThreshold ?? 1;
+            if (document.getElementById('half-day')) document.getElementById('half-day').value = p.halfDayHours ?? 4.5;
             
             // Checkboxes
-            const workingDays = settings.preferences.workingDays || [1, 2, 3, 4, 5];
+            const workingDays = p.workingDays || [1, 2, 3, 4, 5, 6];
             const checkboxes = document.querySelectorAll('input[name="workdays"]');
             checkboxes.forEach(cb => {
                 const dayVal = parseInt(cb.value, 10);
@@ -327,9 +336,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     pollIntervalSeconds: parseInt(getVal('email-ticket-interval'), 10) || 30
                 },
                 preferences: {
-                    standardHours: parseFloat(getVal('pref-hours')) || 8,
-                    gracePeriod: parseInt(getVal('pref-grace') || getVal('late-grace'), 10) || 15,
-                    workingDays: workingDays.length ? workingDays : [1, 2, 3, 4, 5]
+                    standardHours: parseFloat(getVal('pref-hours')) || 9.5,
+                    shiftStart: getVal('shift-start') || '09:30',
+                    shiftEnd: getVal('shift-end') || '19:00',
+                    satShiftStart: getVal('sat-shift-start') || '09:30',
+                    satShiftEnd: getVal('sat-shift-end') || '16:30',
+                    allowedBreakMins: parseInt(getVal('allowed-break'), 10) || 30,
+                    gracePeriod: parseInt(getVal('late-grace') || getVal('pref-grace'), 10) || 15,
+                    minOvertimeThreshold: parseInt(getVal('ot-min'), 10) || 1,
+                    halfDayHours: parseFloat(getVal('half-day')) || 4.5,
+                    workingDays: workingDays.length ? workingDays : [1, 2, 3, 4, 5, 6]
                 },
                 ipWhitelist: getVal('sec-ip') || getVal('whitelist-ips'),
                 whatsappTemplate: {

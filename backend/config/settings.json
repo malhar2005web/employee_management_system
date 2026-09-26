@@ -27,14 +27,22 @@
     "pollIntervalSeconds": 30
   },
   "preferences": {
-    "standardHours": 8,
+    "standardHours": 9.5,
+    "shiftStart": "09:30",
+    "shiftEnd": "19:00",
+    "satShiftStart": "09:30",
+    "satShiftEnd": "16:30",
+    "allowedBreakMins": 30,
     "gracePeriod": 15,
+    "minOvertimeThreshold": 1,
+    "halfDayHours": 4.5,
     "workingDays": [
       1,
       2,
       3,
       4,
-      5
+      5,
+      6
     ]
   },
   "ipWhitelist": "127.0.0.1, ::1, 173.249.59.181",

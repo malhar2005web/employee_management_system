@@ -1320,6 +1320,66 @@ export async function runMigrations() {
             console.error('❌ Phase 29 Migration Error:', e.message);
         }
 
+        // ==========================================
+        // Phase 30: System Settings Table & Company Preferences
+        // ==========================================
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key VARCHAR(100) PRIMARY KEY,
+                    value JSONB NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            const defaultPrefs = JSON.stringify({
+                standardHours: 9.5,
+                shiftStart: "09:30",
+                shiftEnd: "19:00",
+                satShiftStart: "09:30",
+                satShiftEnd: "16:30",
+                allowedBreakMins: 30,
+                gracePeriod: 15,
+                minOvertimeThreshold: 1,
+                halfDayHours: 4.5,
+                workingDays: [1, 2, 3, 4, 5, 6]
+            });
+
+            await client.query(`
+                INSERT INTO system_settings (key, value, updated_at)
+                VALUES ('company_preferences', $1::jsonb, NOW())
+                ON CONFLICT (key) DO NOTHING;
+            `, [defaultPrefs]);
+
+            // Propagate system_settings table across all registered tenant databases
+            try {
+                const compDbsRes = await masterPool.query(`SELECT DISTINCT db_name FROM companies WHERE db_name IS NOT NULL AND status = 'ACTIVE'`);
+                for (const c of compDbsRes.rows) {
+                    if (c.db_name && c.db_name !== 'ems' && c.db_name !== 'ems_master') {
+                        try {
+                            const tPool = getTenantPool(c.db_name);
+                            await tPool.query(`
+                                CREATE TABLE IF NOT EXISTS system_settings (
+                                    key VARCHAR(100) PRIMARY KEY,
+                                    value JSONB NOT NULL,
+                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                                );
+                                INSERT INTO system_settings (key, value, updated_at)
+                                VALUES ('company_preferences', '${defaultPrefs}'::jsonb, NOW())
+                                ON CONFLICT (key) DO NOTHING;
+                            `);
+                        } catch (tErr) {
+                            console.warn(`[Phase 30 Notice] DB ${c.db_name}: ${tErr.message}`);
+                        }
+                    }
+                }
+            } catch (mErr) {}
+
+            console.log('✅ Phase 30 System Settings Table & Company Preferences successfully ensured.');
+        } catch (e) {
+            console.error('❌ Phase 30 Migration Error:', e.message);
+        }
+
         client.release();
         console.log('🎉 All migrations complete.');
     }

@@ -2240,18 +2240,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let earlyInMins = l.early_in_minutes !== undefined ? parseInt(l.early_in_minutes, 10) : 0;
                 let earlyOutMins = l.early_out_minutes !== undefined ? parseInt(l.early_out_minutes, 10) : (l.early_logout_seconds ? Math.round(l.early_logout_seconds / 60) : 0);
 
-                if (lateMins === 0 && earlyInMins === 0 && l.check_in && l.check_in.includes(':')) {
-                    const [inH, inM] = l.check_in.split(':').map(Number);
-                    if (inH >= 7 && inH <= 19) {
-                        const inTotal = inH * 60 + inM;
-                        const shiftStart = 10 * 60; // 10:00 AM
-                        if (inTotal > shiftStart) {
-                            lateMins = inTotal - shiftStart;
-                        } else if (inTotal < shiftStart) {
-                            earlyInMins = shiftStart - inTotal;
-                        }
-                    }
-                }
+                // Backend provides late_minutes and early_in_minutes dynamically based on company shift rules
+                // No frontend fallback recalculation needed
 
                 let earlyOutHtml = '';
                 if (earlyOutMins > 0) {
@@ -2486,15 +2476,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         let earlyInMins = r.early_in_minutes !== undefined ? parseInt(r.early_in_minutes, 10) : 0;
                         let earlyOutMins = r.early_out_minutes !== undefined ? parseInt(r.early_out_minutes, 10) : (r.early_logout_seconds ? Math.round(r.early_logout_seconds / 60) : 0);
 
-                        if (lateMins === 0 && earlyInMins === 0 && r.check_in && r.check_in.includes(':')) {
-                            const [inH, inM] = r.check_in.split(':').map(Number);
-                            if (inH >= 7 && inH <= 19) {
-                                const inTotal = inH * 60 + inM;
-                                const shiftStart = 10 * 60;
-                                if (inTotal > shiftStart) lateMins = inTotal - shiftStart;
-                                else if (inTotal < shiftStart) earlyInMins = shiftStart - inTotal;
-                            }
-                        }
+                        // Backend provides late_minutes and early_in_minutes dynamically based on company shift rules
+                        // No frontend fallback recalculation needed
 
                         if (lateMins > 0) lateEarlyText = `${formatHoursMins(lateMins / 60, true)} Late`;
                         else if (earlyInMins > 0) lateEarlyText = `${formatHoursMins(earlyInMins / 60, true)} Early`;

@@ -7,6 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const settingsPath = path.join(__dirname, '../config/settings.json');
 
+import { pool as defaultPool } from '../config/db.js';
+
 const defaultSettings = {
     company: {
         name: "PCS Corporation",
@@ -36,9 +38,16 @@ const defaultSettings = {
         pollIntervalSeconds: 30
     },
     preferences: {
-        standardHours: 8,
+        standardHours: 9.5,
+        shiftStart: "09:30",
+        shiftEnd: "19:00",
+        satShiftStart: "09:30",
+        satShiftEnd: "16:30",
+        allowedBreakMins: 30,
         gracePeriod: 15,
-        workingDays: [1, 2, 3, 4, 5]
+        minOvertimeThreshold: 1,
+        halfDayHours: 4.5,
+        workingDays: [1, 2, 3, 4, 5, 6]
     },
     ipWhitelist: "127.0.0.1, ::1, 173.249.59.181",
     whatsappTemplate: {
@@ -56,6 +65,10 @@ async function readSettingsFile() {
         return {
             ...defaultSettings,
             ...parsed,
+            preferences: {
+                ...defaultSettings.preferences,
+                ...(parsed.preferences || {})
+            },
             emailTicketing: emailConfig || parsed.emailTicketing || defaultSettings.emailTicketing
         };
     } catch (e) {
@@ -67,6 +80,23 @@ async function readSettingsFile() {
 export async function getSettings(req, res) {
     try {
         const settings = await readSettingsFile();
+        const activePool = req.tenant?.pool || defaultPool;
+        
+        // Merge tenant-specific company_preferences if present in DB
+        try {
+            const dbPrefRes = await activePool.query(
+                `SELECT value FROM system_settings WHERE key = 'company_preferences' LIMIT 1;`
+            );
+            if (dbPrefRes.rows.length > 0 && dbPrefRes.rows[0].value) {
+                settings.preferences = {
+                    ...settings.preferences,
+                    ...dbPrefRes.rows[0].value
+                };
+            }
+        } catch (dbErr) {
+            // Table might not exist yet before Phase 30 migration runs
+        }
+
         res.status(200).json({ success: true, data: settings });
     } catch (error) {
         console.log("Error in getSettings:", error.message);
@@ -113,9 +143,16 @@ export async function updateSettings(req, res) {
                 pollIntervalSeconds: parseInt(emailTicketing?.pollIntervalSeconds, 10) || 30
             },
             preferences: {
-                standardHours: parseInt(preferences?.standardHours, 10) || 8,
+                standardHours: parseFloat(preferences?.standardHours) || 9.5,
+                shiftStart: preferences?.shiftStart || "09:30",
+                shiftEnd: preferences?.shiftEnd || "19:00",
+                satShiftStart: preferences?.satShiftStart || "09:30",
+                satShiftEnd: preferences?.satShiftEnd || "16:30",
+                allowedBreakMins: parseInt(preferences?.allowedBreakMins, 10) || 30,
                 gracePeriod: parseInt(preferences?.gracePeriod, 10) || 15,
-                workingDays: Array.isArray(preferences?.workingDays) ? preferences.workingDays.map(Number) : [1, 2, 3, 4, 5]
+                minOvertimeThreshold: parseInt(preferences?.minOvertimeThreshold, 10) || 1,
+                halfDayHours: parseFloat(preferences?.halfDayHours) || 4.5,
+                workingDays: Array.isArray(preferences?.workingDays) ? preferences.workingDays.map(Number) : [1, 2, 3, 4, 5, 6]
             },
             ipWhitelist: ipWhitelist || "",
             whatsappTemplate: {
@@ -130,8 +167,28 @@ export async function updateSettings(req, res) {
             newSettings.emailTicketing.password = currentSettings.emailTicketing.password;
         }
 
+        // Save to physical settings.json file
         await fs.writeFile(settingsPath, JSON.stringify(newSettings, null, 2), 'utf-8');
         await saveEmailTicketConfig(newSettings.emailTicketing).catch(e => console.warn("saveEmailTicketConfig notice:", e.message));
+
+        // Save to current tenant database system_settings table (allows multi-tenant custom company rules)
+        const activePool = req.tenant?.pool || defaultPool;
+        try {
+            await activePool.query(`
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key VARCHAR(100) PRIMARY KEY,
+                    value JSONB NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO system_settings (key, value, updated_at)
+                VALUES ('company_preferences', $1::jsonb, NOW())
+                ON CONFLICT (key) DO UPDATE SET 
+                    value = EXCLUDED.value,
+                    updated_at = NOW();
+            `, [JSON.stringify(newSettings.preferences)]);
+        } catch (dbErr) {
+            console.warn("[updateSettings] DB system_settings notice:", dbErr.message);
+        }
 
         res.status(200).json({ success: true, message: "Settings configuration saved successfully", data: newSettings });
     } catch (error) {

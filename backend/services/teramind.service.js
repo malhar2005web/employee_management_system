@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-import { calculateShiftAttendanceTimes, formatISTIso, calculateOvertimeAndEarlyOut } from '../utils/attendanceHelper.js';
+import { calculateShiftAttendanceTimes, formatISTIso, calculateOvertimeAndEarlyOut, getCompanyShiftRules } from '../utils/attendanceHelper.js';
 
 // ── STRICT PRIVACY WHITELIST ──────────────────────────────────────────────────
 // Allowed BI Cubes and Endpoints only.
@@ -618,6 +618,8 @@ export async function syncTeramindDataToCache() {
                 chunkStart.setDate(chunkStart.getDate() + 7);
             }
 
+            const rules = await getCompanyShiftRules(pool);
+
             for (const emp of employees.rows) {
                 const mapRes = await pool.query("SELECT computer_id FROM employee_teramind_mapping WHERE employee_id = $1", [emp.id]);
                 if (mapRes.rows.length === 0 || !mapRes.rows[0].computer_id) continue;
@@ -645,7 +647,7 @@ export async function syncTeramindDataToCache() {
                         });
 
                         for (const [dStr, pList] of dateMap.entries()) {
-                            const shiftRes = calculateShiftAttendanceTimes(pList, dStr);
+                            const shiftRes = calculateShiftAttendanceTimes(pList, dStr, { rules });
                             if (!shiftRes.checkInDate) {
                                 // If an attendance row was previously auto-synced with an off-hours punch, reset it to Absent
                                 const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
@@ -668,7 +670,7 @@ export async function syncTeramindDataToCache() {
                             const hrs = (shiftRes.totalActiveSecs / 3600).toFixed(2);
                             const status = shiftRes.isLate ? 'Late' : 'Present';
 
-                            const otEarly = calculateOvertimeAndEarlyOut(shiftRes.checkOutDate, dStr, { totalWorkingSecs: shiftRes.totalActiveSecs });
+                            const otEarly = calculateOvertimeAndEarlyOut(shiftRes.checkOutDate, dStr, { totalWorkingSecs: shiftRes.totalActiveSecs, rules });
                             const otSecs = otEarly.overtimeSeconds;
                             const otMins = otEarly.overtimeMins;
                             const isEarly = (dStr < todayIST) ? otEarly.isEarlyLogout : false;

@@ -291,33 +291,68 @@
         <!-- Working Hours & Thresholds -->
         <div class="card">
           <div class="card-head">
-            <h3>Working Hours &amp; Rules</h3>
+            <h3><i class="fa-solid fa-clock" style="color:var(--teal-600);margin-right:6px;"></i> Working Hours &amp; Shift Rules</h3>
           </div>
           <div style="padding: 20px;">
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-              <div class="form-group">
-                <label for="shift-start">Shift Start</label>
-                <input type="time" id="shift-start" value="09:00">
+            <div style="font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">Weekday Shift (Mon - Fri)</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="shift-start">Shift Start (Punch In)</label>
+                <input type="time" id="shift-start" value="09:30">
               </div>
-              <div class="form-group">
-                <label for="shift-end">Shift End</label>
-                <input type="time" id="shift-end" value="18:00">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="shift-end">Shift End (Overtime cutoff)</label>
+                <input type="time" id="shift-end" value="19:00">
               </div>
             </div>
 
-            <div class="form-group">
-              <label for="late-grace">Late Grace Period (Minutes)</label>
-              <input type="number" id="late-grace" value="15">
+            <div style="font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">Saturday Shift (Half/Modified)</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:14px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="sat-shift-start">Sat Shift Start</label>
+                <input type="time" id="sat-shift-start" value="09:30">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="sat-shift-end">Sat Shift End</label>
+                <input type="time" id="sat-shift-end" value="16:30">
+              </div>
             </div>
 
-            <div class="form-group">
-              <label for="ot-min">Min Overtime Threshold (Mins)</label>
-              <input type="number" id="ot-min" value="60">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="pref-hours">Standard Daily Hours</label>
+                <input type="number" id="pref-hours" step="0.5" value="9.5">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="late-grace">Late Grace Period (Mins)</label>
+                <input type="number" id="late-grace" value="15">
+              </div>
             </div>
 
-            <div class="form-group">
-              <label for="half-day">Half Day Max Hours</label>
-              <input type="number" id="half-day" value="4">
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:14px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="allowed-break">Allowed Break (Mins)</label>
+                <input type="number" id="allowed-break" value="30">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="ot-min">Min Overtime Threshold (Mins)</label>
+                <input type="number" id="ot-min" value="1">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="half-day">Half Day Min Hours</label>
+                <input type="number" id="half-day" step="0.5" value="4.5">
+              </div>
+            </div>
+
+            <div style="font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">Working Days</div>
+            <div style="display:flex; flex-wrap:wrap; gap:10px;">
+              <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; cursor:pointer;"><input type="checkbox" name="workdays" value="1" checked style="width:15px; height:15px; cursor:pointer; accent-color:var(--teal-600);"> Mon</label>
+              <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; cursor:pointer;"><input type="checkbox" name="workdays" value="2" checked style="width:15px; height:15px; cursor:pointer; accent-color:var(--teal-600);"> Tue</label>
+              <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; cursor:pointer;"><input type="checkbox" name="workdays" value="3" checked style="width:15px; height:15px; cursor:pointer; accent-color:var(--teal-600);"> Wed</label>
+              <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; cursor:pointer;"><input type="checkbox" name="workdays" value="4" checked style="width:15px; height:15px; cursor:pointer; accent-color:var(--teal-600);"> Thu</label>
+              <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; cursor:pointer;"><input type="checkbox" name="workdays" value="5" checked style="width:15px; height:15px; cursor:pointer; accent-color:var(--teal-600);"> Fri</label>
+              <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; cursor:pointer;"><input type="checkbox" name="workdays" value="6" checked style="width:15px; height:15px; cursor:pointer; accent-color:var(--teal-600);"> Sat</label>
+              <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; cursor:pointer;"><input type="checkbox" name="workdays" value="0" style="width:15px; height:15px; cursor:pointer; accent-color:var(--teal-600);"> Sun</label>
             </div>
           </div>
         </div>
