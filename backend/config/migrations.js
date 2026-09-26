@@ -1,5 +1,5 @@
 import { pool } from './db.js';
-import { masterPool } from './tenantManager.js';
+import { masterPool, getTenantPool } from './tenantManager.js';
 
 export async function runMigrations() {
     const client = await pool.connect();
