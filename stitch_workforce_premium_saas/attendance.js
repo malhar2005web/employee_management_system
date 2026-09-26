@@ -2537,50 +2537,127 @@ document.addEventListener('DOMContentLoaded', () => {
         const selYear = parseInt(yStr, 10);
         const selMonth = parseInt(mStr, 10);
 
-        // Build thead with modern light aesthetic matching the dashboard
-        let thHtml = `
-            <th style="padding:12px 16px; position:sticky; left:0; background:#f1f5f9; z-index:6; min-width:200px; text-align:left; color:#0f172a; border-right:1.5px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">Employee</th>
-            <th style="padding:12px 10px; min-width:110px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Salary (AO)</th>
-        `;
-        if (currentDaysList && currentDaysList.length > 0) {
-            currentDaysList.forEach((dItem, idx) => {
-                const isSunday = dItem.isSunday;
-                const bgCol = isSunday ? '#fef3c7' : '#f8fafc';
-                const textCol = isSunday ? '#b45309' : '#334155';
-                const borderR = isSunday ? '#fde68a' : '#e2e8f0';
-                const label = isCustomPayrollRange ? `${dItem.day}` : `${dItem.day}`;
-                const title = `${dItem.date}${isSunday ? ' (Sunday)' : ''}`;
-                thHtml += `<th style="padding:10px 2px; min-width:32px; width:32px; font-weight:800; text-align:center; color:${textCol}; background:${bgCol}; border-right:1px solid ${borderR}; border-bottom:2px solid #cbd5e1;" title="${title}">${label}</th>`;
-            });
-        } else {
+        // Ensure currentDaysList is populated
+        if (!currentDaysList || currentDaysList.length === 0) {
+            currentDaysList = [];
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateObj = new Date(selYear, selMonth - 1, d);
-                const isSunday = dateObj.getDay() === 0;
-                const bgCol = isSunday ? '#fef3c7' : '#f8fafc';
-                const textCol = isSunday ? '#b45309' : '#334155';
-                const borderR = isSunday ? '#fde68a' : '#e2e8f0';
-                thHtml += `<th style="padding:10px 2px; min-width:32px; width:32px; font-weight:800; text-align:center; color:${textCol}; background:${bgCol}; border-right:1px solid ${borderR}; border-bottom:2px solid #cbd5e1;" title="${isSunday ? 'Sunday / Week Off' : `Day ${d}`}">${d}</th>`;
+                const ds = `${selYear}-${String(selMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                currentDaysList.push({
+                    date: ds,
+                    day: d,
+                    month: selMonth,
+                    year: selYear,
+                    dayOfWeek: dateObj.getDay(),
+                    isSunday: dateObj.getDay() === 0,
+                    isSaturday: dateObj.getDay() === 6
+                });
             }
         }
-        thHtml += `
-            <th style="padding:12px 8px; min-width:68px; background:#dcfce7; color:#15803d; border-left:1.5px solid #bbf7d0; border-right:1px solid #bbf7d0; border-bottom:2px solid #22c55e;">Present (AI)</th>
-            <th style="padding:12px 8px; min-width:68px; background:#fee2e2; color:#b91c1c; border-right:1px solid #fecaca; border-bottom:2px solid #ef4444;">Absent (AK)</th>
-            <th style="padding:12px 8px; min-width:68px; background:#e0f2fe; color:#0369a1; border-right:1px solid #bae6fd; border-bottom:2px solid #0ea5e9;">Leave (AL)</th>
-            <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Advance (AP)</th>
-            <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Loan (AR)</th>
-            <th style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Loan Bal (AS)</th>
-            <th style="padding:12px 8px; min-width:85px; background:#eff6ff; color:#1d4ed8; border-right:1px solid #bfdbfe; border-bottom:2px solid #3b82f6;" title="Total Monthly Overtime in Hours">Overtime (Hrs)</th>
-            <th style="padding:12px 8px; min-width:90px; background:#ecfdf5; color:#047857; border-right:1px solid #a7f3d0; border-bottom:2px solid #10b981;" title="Incentive / Conveyance (AT)">Incentive (AT)</th>
-            <th style="padding:12px 8px; min-width:80px; background:#fffbeb; color:#92400e; border-right:1px solid #fde68a; border-bottom:2px solid #f59e0b;" title="Total Monthly Late Hours">Late (AU)</th>
-            <th style="padding:12px 8px; min-width:90px; background:#fee2e2; color:#dc2626; border-right:1px solid #fecaca; border-bottom:2px solid #ef4444;">AbsAmt (AW)</th>
-            <th style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">Mobile (AX)</th>
-            <th style="padding:12px 10px; min-width:115px; background:#fefce8; font-weight:800; color:#854d0e; border-right:1px solid #fef08a; border-bottom:2px solid #eab308;">Gross Sal (AY)</th>
-            <th style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1;">PT/Misc (AZ)</th>
-            <th style="padding:12px 14px; min-width:130px; background:#dcfce7; color:#166534; font-weight:900; border-right:1px solid #bbf7d0; border-bottom:2px solid #16a34a;">Net Salary (BA)</th>
-            <th style="padding:12px 10px; min-width:115px; background:#eff6ff; color:#1e40af; font-weight:900; border-right:1px solid #bfdbfe; border-bottom:2px solid #3b82f6;">Rate (₹/hr)</th>
-            <th style="padding:12px 10px; min-width:75px; background:#f8fafc; color:#475569; border-bottom:2px solid #cbd5e1;">Action</th>
+
+        // 12 Curated Harmonious Themes for Every Month
+        const monthThemes = [
+            { name: 'Jan', full: 'January', bg: '#0f766e', text: '#ffffff', headerBg: '#f0fdfa', cellBg: '#f4fbf9', border: '#0d9488', badgeBg: '#ccfbf1', badgeText: '#0f766e' },
+            { name: 'Feb', full: 'February', bg: '#4338ca', text: '#ffffff', headerBg: '#eef2ff', cellBg: '#f5f6ff', border: '#6366f1', badgeBg: '#e0e7ff', badgeText: '#3730a3' },
+            { name: 'Mar', full: 'March', bg: '#0284c7', text: '#ffffff', headerBg: '#f0f9ff', cellBg: '#f4f9fd', border: '#0ea5e9', badgeBg: '#bae6fd', badgeText: '#0369a1' },
+            { name: 'Apr', full: 'April', bg: '#7e22ce', text: '#ffffff', headerBg: '#faf5ff', cellBg: '#f9f5ff', border: '#a855f7', badgeBg: '#f3e8ff', badgeText: '#6b21a8' },
+            { name: 'May', full: 'May', bg: '#be123c', text: '#ffffff', headerBg: '#fff1f2', cellBg: '#fdf5f6', border: '#f43f5e', badgeBg: '#ffe4e6', badgeText: '#9f1239' },
+            { name: 'Jun', full: 'June', bg: '#c2410c', text: '#ffffff', headerBg: '#fff7ed', cellBg: '#fdf8f4', border: '#f97316', badgeBg: '#ffedd5', badgeText: '#9a3412' },
+            { name: 'Jul', full: 'July', bg: '#15803d', text: '#ffffff', headerBg: '#f0fdf4', cellBg: '#f4fbf5', border: '#22c55e', badgeBg: '#dcfce7', badgeText: '#15803d' },
+            { name: 'Aug', full: 'August', bg: '#1d4ed8', text: '#ffffff', headerBg: '#eff6ff', cellBg: '#f4f7fe', border: '#3b82f6', badgeBg: '#dbeafe', badgeText: '#1e40af' },
+            { name: 'Sep', full: 'September', bg: '#047857', text: '#ffffff', headerBg: '#ecfdf5', cellBg: '#f3fbf6', border: '#10b981', badgeBg: '#d1fae5', badgeText: '#065f46' },
+            { name: 'Oct', full: 'October', bg: '#a16207', text: '#ffffff', headerBg: '#fefce8', cellBg: '#fdfcf4', border: '#eab308', badgeBg: '#fef9c3', badgeText: '#854d0e' },
+            { name: 'Nov', full: 'November', bg: '#475569', text: '#ffffff', headerBg: '#f8fafc', cellBg: '#f6f8fa', border: '#64748b', badgeBg: '#e2e8f0', badgeText: '#334155' },
+            { name: 'Dec', full: 'December', bg: '#9d174d', text: '#ffffff', headerBg: '#fdf2f8', cellBg: '#fdf4f7', border: '#ec4899', badgeBg: '#fce7f3', badgeText: '#831843' }
+        ];
+
+        // Group contiguous days by month
+        const monthGroups = [];
+        let curGroup = null;
+        currentDaysList.forEach((dItem, idx) => {
+            const ym = `${dItem.year}-${String(dItem.month).padStart(2, '0')}`;
+            if (!curGroup || curGroup.ym !== ym) {
+                curGroup = {
+                    ym,
+                    year: dItem.year,
+                    month: dItem.month,
+                    startIndex: idx,
+                    count: 0,
+                    days: []
+                };
+                monthGroups.push(curGroup);
+            }
+            curGroup.count++;
+            curGroup.days.push(dItem);
+        });
+
+        // Build 2-Tier Master Thead (Row 1: Month Banners, Row 2: Day Numbers)
+        let theadHtml = `
+            <tr class="payroll-month-header-row" style="background:#f8fafc;">
+                <th rowspan="2" class="col-sticky-emp" style="padding:14px 16px; position:sticky; left:0; top:0; background:#f1f5f9; z-index:25; min-width:210px; text-align:left; color:#0f172a; border-right:2px solid #cbd5e1; border-bottom:2px solid #cbd5e1; vertical-align:middle; box-shadow: 2px 0 8px rgba(0,0,0,0.04);">Employee</th>
+                <th rowspan="2" style="padding:14px 10px; min-width:110px; background:#f8fafc; color:#475569; border-right:1.5px solid #cbd5e1; border-bottom:2px solid #cbd5e1; vertical-align:middle; text-align:center;">Salary (AO)</th>
         `;
-        payrollMatrixThead.innerHTML = thHtml;
+
+        monthGroups.forEach((group, gIdx) => {
+            const theme = monthThemes[(group.month - 1) % 12];
+            const isBorderLeft = gIdx > 0 ? `border-left: 2.5px solid #ffffff;` : '';
+            theadHtml += `
+                <th colspan="${group.count}" style="padding:8px 12px; background:${theme.bg}; color:${theme.text}; text-align:center; font-weight:800; font-size:12px; letter-spacing:0.5px; border-right:2.5px solid #ffffff; ${isBorderLeft} border-bottom:1px solid rgba(0,0,0,0.12); white-space:nowrap; text-transform:uppercase; box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);">
+                    <i class="fa-regular fa-calendar-days" style="margin-right:6px; opacity:0.9;"></i>${theme.full} ${group.year}
+                    <span style="background:rgba(255,255,255,0.22); color:#ffffff; padding:2px 8px; border-radius:9999px; font-size:10px; margin-left:6px; font-weight:700; letter-spacing:0;">${group.count} ${group.count === 1 ? 'Day' : 'Days'}</span>
+                </th>
+            `;
+        });
+
+        theadHtml += `
+                <th rowspan="2" style="padding:12px 8px; min-width:68px; background:#dcfce7; color:#15803d; border-left:2px solid #bbf7d0; border-right:1px solid #bbf7d0; border-bottom:2px solid #22c55e; vertical-align:middle; text-align:center;">Present (AI)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:68px; background:#fee2e2; color:#b91c1c; border-right:1px solid #fecaca; border-bottom:2px solid #ef4444; vertical-align:middle; text-align:center;">Absent (AK)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:68px; background:#e0f2fe; color:#0369a1; border-right:1px solid #bae6fd; border-bottom:2px solid #0ea5e9; vertical-align:middle; text-align:center;">Leave (AL)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1; vertical-align:middle; text-align:center;">Advance (AP)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1; vertical-align:middle; text-align:center;">Loan (AR)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:85px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1; vertical-align:middle; text-align:center;">Loan Bal (AS)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:85px; background:#eff6ff; color:#1d4ed8; border-right:1px solid #bfdbfe; border-bottom:2px solid #3b82f6; vertical-align:middle; text-align:center;" title="Total Monthly Overtime in Hours">Overtime (Hrs)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:90px; background:#ecfdf5; color:#047857; border-right:1px solid #a7f3d0; border-bottom:2px solid #10b981; vertical-align:middle; text-align:center;" title="Incentive / Conveyance (AT)">Incentive (AT)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:80px; background:#fffbeb; color:#92400e; border-right:1px solid #fde68a; border-bottom:2px solid #f59e0b; vertical-align:middle; text-align:center;" title="Total Monthly Late Hours">Late (AU)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:90px; background:#fee2e2; color:#dc2626; border-right:1px solid #fecaca; border-bottom:2px solid #ef4444; vertical-align:middle; text-align:center;">AbsAmt (AW)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1; vertical-align:middle; text-align:center;">Mobile (AX)</th>
+                <th rowspan="2" style="padding:12px 10px; min-width:115px; background:#fefce8; font-weight:800; color:#854d0e; border-right:1px solid #fef08a; border-bottom:2px solid #eab308; vertical-align:middle; text-align:center;">Gross Sal (AY)</th>
+                <th rowspan="2" style="padding:12px 8px; min-width:80px; background:#f8fafc; color:#475569; border-right:1px solid #e2e8f0; border-bottom:2px solid #cbd5e1; vertical-align:middle; text-align:center;">PT/Misc (AZ)</th>
+                <th rowspan="2" style="padding:12px 14px; min-width:130px; background:#dcfce7; color:#166534; font-weight:900; border-right:1px solid #bbf7d0; border-bottom:2px solid #16a34a; vertical-align:middle; text-align:center;">Net Salary (BA)</th>
+                <th rowspan="2" style="padding:12px 10px; min-width:115px; background:#eff6ff; color:#1e40af; font-weight:900; border-right:1px solid #bfdbfe; border-bottom:2px solid #3b82f6; vertical-align:middle; text-align:center;">Rate (₹/hr)</th>
+                <th rowspan="2" style="padding:12px 10px; min-width:75px; background:#f8fafc; color:#475569; border-bottom:2px solid #cbd5e1; vertical-align:middle; text-align:center;">Action</th>
+            </tr>
+            <tr class="payroll-days-header-row">
+        `;
+
+        currentDaysList.forEach((dItem, idx) => {
+            const isFirstDayOfMonth = idx === 0 || dItem.month !== currentDaysList[idx - 1].month;
+            const theme = monthThemes[(dItem.month - 1) % 12];
+            const isSunday = dItem.isSunday;
+
+            const bgCol = isSunday ? '#fef3c7' : theme.headerBg;
+            const textCol = isSunday ? '#b45309' : '#1e293b';
+            const borderR = isSunday ? '#fde68a' : '#e2e8f0';
+            const borderL = (isFirstDayOfMonth && idx > 0) ? `border-left: 2.5px solid ${theme.border} !important;` : '';
+            const title = `${dItem.date} (${theme.full})${isSunday ? ' - Sunday' : ''}`;
+
+            let cellContent = '';
+            if (isFirstDayOfMonth) {
+                cellContent = `
+                    <div style="font-size:7.5px; font-weight:900; color:${theme.badgeText}; background:${theme.badgeBg}; border-radius:3px; padding:0 2px; text-transform:uppercase; line-height:1.1; margin-bottom:1px; letter-spacing:0.3px;">${theme.name}</div>
+                    <div style="font-size:12px; font-weight:800; line-height:1;">${dItem.day}</div>
+                `;
+            } else {
+                cellContent = `
+                    <div style="font-size:12px; font-weight:800; line-height:1.2; padding-top:2px;">${dItem.day}</div>
+                `;
+            }
+
+            theadHtml += `<th style="padding:5px 2px; min-width:32px; width:32px; font-weight:800; text-align:center; color:${textCol}; background:${bgCol}; ${borderL} border-right:1px solid ${borderR}; border-bottom:2px solid #cbd5e1;" title="${title}">${cellContent}</th>`;
+        });
+        theadHtml += `</tr>`;
+
+        payrollMatrixThead.innerHTML = theadHtml;
 
         if (filteredList.length === 0) {
             payrollMatrixTbody.innerHTML = `<tr><td colspan="50" style="text-align:center; padding:40px; color:#94a3b8; font-weight:700; font-size:14px;"><i class="fa-solid fa-folder-open" style="font-size:24px; margin-bottom:8px; display:block; color:#cbd5e1;"></i>No employee records found for this period.</td></tr>`;
@@ -2610,96 +2687,65 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 </td>
-                <td style="padding:10px 12px; font-weight:800; color:#1e293b; background:${isAlt ? '#f5f5f4' : '#f8fafc'}; border-right:1px solid #e2e8f0; font-feature-settings:'tnum';">
+                <td style="padding:10px 12px; font-weight:800; color:#1e293b; background:${isAlt ? '#f5f5f4' : '#f8fafc'}; border-right:1.5px solid #cbd5e1; font-feature-settings:'tnum'; text-align:center;">
                     ₹${Number(r.base_salary || 0).toLocaleString('en-IN')}
                 </td>
             `;
 
-            if (currentDaysList && currentDaysList.length > 0) {
-                currentDaysList.forEach((dItem, dIdx) => {
-                    const code = r.daily_matrix[dIdx + 1] || r.daily_matrix[dItem.date] || r.daily_matrix[dItem.day] || '—';
-                    const isSunday = dItem.isSunday;
+            currentDaysList.forEach((dItem, dIdx) => {
+                const code = r.daily_matrix[dIdx + 1] || r.daily_matrix[dItem.date] || r.daily_matrix[dItem.day] || '—';
+                const isSunday = dItem.isSunday;
+                const isFirstDayOfMonth = dIdx === 0 || dItem.month !== currentDaysList[dIdx - 1].month;
+                const theme = monthThemes[(dItem.month - 1) % 12];
 
-                    let badgeClass = 'status-empty';
-                    if (code === 'P') badgeClass = 'status-P';
-                    else if (code === 'W') badgeClass = 'status-W';
-                    else if (code === 'O' || code === 'HL') badgeClass = 'status-O';
-                    else if (code === 'H') badgeClass = 'status-H';
-                    else if (code === 'L') badgeClass = 'status-L';
-                    else if (code === 'LH') badgeClass = 'status-LH';
-                    else if (code === 'LP') badgeClass = 'status-LP';
-                    else if (code === 'A') badgeClass = 'status-A';
-                    else if (code === 'D') badgeClass = 'status-D';
+                let badgeClass = 'status-empty';
+                if (code === 'P') badgeClass = 'status-P';
+                else if (code === 'W') badgeClass = 'status-W';
+                else if (code === 'O' || code === 'HL') badgeClass = 'status-O';
+                else if (code === 'H') badgeClass = 'status-H';
+                else if (code === 'L') badgeClass = 'status-L';
+                else if (code === 'LH') badgeClass = 'status-LH';
+                else if (code === 'LP') badgeClass = 'status-LP';
+                else if (code === 'A') badgeClass = 'status-A';
+                else if (code === 'D') badgeClass = 'status-D';
 
-                    let tipText = `${dItem.date}: ${code}`;
-                    if (code === 'W') tipText = `${dItem.date}: Week Off (W)`;
-                    else if (code === 'O' || code === 'HL') tipText = `${dItem.date}: Public Holiday (O)`;
-                    else if (code === 'L') tipText = `${dItem.date}: Full Day Leave (L)`;
-                    else if (code === 'LH') tipText = `${dItem.date}: 1st Half Leave, 2nd Half Present (LH)`;
-                    else if (code === 'H') tipText = `${dItem.date}: Half Day Present, 2nd Half Absent (H)`;
-                    else if (code === 'P') tipText = `${dItem.date}: Present (P)`;
-                    else if (code === 'A') tipText = `${dItem.date}: Absent (A)`;
-                    else if (code === 'D') tipText = `${dItem.date}: Off Duty / Client Movement (D)`;
+                let tipText = `${dItem.date} (${theme.name}): ${code}`;
+                if (code === 'W') tipText = `${dItem.date} (${theme.name}): Week Off (W)`;
+                else if (code === 'O' || code === 'HL') tipText = `${dItem.date} (${theme.name}): Public Holiday (O)`;
+                else if (code === 'L') tipText = `${dItem.date} (${theme.name}): Full Day Leave (L)`;
+                else if (code === 'LH') tipText = `${dItem.date} (${theme.name}): 1st Half Leave, 2nd Half Present (LH)`;
+                else if (code === 'H') tipText = `${dItem.date} (${theme.name}): Half Day Present, 2nd Half Absent (H)`;
+                else if (code === 'P') tipText = `${dItem.date} (${theme.name}): Present (P)`;
+                else if (code === 'A') tipText = `${dItem.date} (${theme.name}): Absent (A)`;
+                else if (code === 'D') tipText = `${dItem.date} (${theme.name}): Off Duty / Client Movement (D)`;
 
-                    rowHtml += `
-                        <td style="padding:3px 1px; border-right:1px solid ${isSunday ? '#e2e8f0' : '#f1f5f9'}; background:${isSunday ? 'rgba(241, 245, 249, 0.5)' : 'transparent'};">
-                            <span class="matrix-badge ${badgeClass}" title="${tipText}">
-                                ${code}
-                            </span>
-                        </td>
-                    `;
-                });
-            } else {
-                for (let d = 1; d <= daysInMonth; d++) {
-                    const code = r.daily_matrix[d] || '—';
-                    const dateObj = new Date(selYear, selMonth - 1, d);
-                    const isSunday = dateObj.getDay() === 0;
+                const cellBg = isSunday ? 'rgba(254, 243, 199, 0.55)' : theme.cellBg;
+                const borderR = isSunday ? '#fde68a' : '#f1f5f9';
+                const borderL = (isFirstDayOfMonth && dIdx > 0) ? `border-left: 2.5px solid ${theme.border} !important;` : '';
 
-                    let badgeClass = 'status-empty';
-                    if (code === 'P') badgeClass = 'status-P';
-                    else if (code === 'W') badgeClass = 'status-W';
-                    else if (code === 'O' || code === 'HL') badgeClass = 'status-O';
-                    else if (code === 'H') badgeClass = 'status-H';
-                    else if (code === 'L') badgeClass = 'status-L';
-                    else if (code === 'LH') badgeClass = 'status-LH';
-                    else if (code === 'LP') badgeClass = 'status-LP';
-                    else if (code === 'A') badgeClass = 'status-A';
-                    else if (code === 'D') badgeClass = 'status-D';
-
-                    let tipText = `Day ${d}: ${code}`;
-                    if (code === 'W') tipText = `Day ${d}: Week Off (W)`;
-                    else if (code === 'O' || code === 'HL') tipText = `Day ${d}: Public Holiday (O)`;
-                    else if (code === 'L') tipText = `Day ${d}: Full Day Leave (L)`;
-                    else if (code === 'LH') tipText = `Day ${d}: 1st Half Leave, 2nd Half Present (LH)`;
-                    else if (code === 'H') tipText = `Day ${d}: Half Day Present, 2nd Half Absent (H)`;
-                    else if (code === 'P') tipText = `Day ${d}: Present (P)`;
-                    else if (code === 'A') tipText = `Day ${d}: Absent (A)`;
-                    else if (code === 'D') tipText = `Day ${d}: Off Duty / Client Movement (D)`;
-
-                    rowHtml += `
-                        <td style="padding:3px 1px; border-right:1px solid ${isSunday ? '#e2e8f0' : '#f1f5f9'}; background:${isSunday ? 'rgba(241, 245, 249, 0.5)' : 'transparent'};">
-                            <span class="matrix-badge ${badgeClass}" title="${tipText}">
-                                ${code}
-                            </span>
-                        </td>
-                    `;
-                }
-            }
+                rowHtml += `
+                    <td style="padding:3px 1px; border-right:1px solid ${borderR}; ${borderL} background:${cellBg}; text-align:center;">
+                        <span class="matrix-badge ${badgeClass}" title="${tipText}">
+                            ${code}
+                        </span>
+                    </td>
+                `;
+            });
 
             rowHtml += `
-                <td style="padding:8px 6px; font-weight:800; color:#15803d; background:#ecfdf5; border-left:1.5px solid #a7f3d0; font-size:13px;">${r.present_days}</td>
-                <td style="padding:8px 6px; font-weight:800; color:#b91c1c; background:#fee2e2; font-size:13px;">${r.absent_days}</td>
-                <td style="padding:8px 6px; font-weight:800; color:#0369a1; background:#e0f2fe; font-size:13px;">${r.leave_days}</td>
-                <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum';">${r.advance_deduction > 0 ? `₹${r.advance_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
-                <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum';">${r.loan_deduction > 0 ? `₹${r.loan_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
-                <td style="padding:8px 6px; font-weight:600; color:#64748b; font-feature-settings:'tnum';">${r.loan_balance > 0 ? `₹${r.loan_balance.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td style="padding:8px 6px; font-weight:800; color:#15803d; background:#ecfdf5; border-left:1.5px solid #a7f3d0; font-size:13px; text-align:center;">${r.present_days}</td>
+                <td style="padding:8px 6px; font-weight:800; color:#b91c1c; background:#fee2e2; font-size:13px; text-align:center;">${r.absent_days}</td>
+                <td style="padding:8px 6px; font-weight:800; color:#0369a1; background:#e0f2fe; font-size:13px; text-align:center;">${r.leave_days}</td>
+                <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum'; text-align:center;">${r.advance_deduction > 0 ? `₹${r.advance_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum'; text-align:center;">${r.loan_deduction > 0 ? `₹${r.loan_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td style="padding:8px 6px; font-weight:600; color:#64748b; font-feature-settings:'tnum'; text-align:center;">${r.loan_balance > 0 ? `₹${r.loan_balance.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
                 <td style="padding:6px 6px; text-align:center; font-feature-settings:'tnum'; background:#f8faff;">
                     ${(r.overtime_hours && r.overtime_hours > 0)
                         ? `<span style="display:inline-block; padding:3px 8px; background:#dbeafe; color:#1e40af; border:1px solid #bfdbfe; border-radius:9999px; font-size:11.5px; font-weight:700; white-space:nowrap; box-shadow:0 1px 2px rgba(30,64,175,0.08);" title="${r.overtime_hours} hrs total overtime in month">${r.overtime_hours} hrs</span>`
                         : `<span style="font-size:11.5px; font-weight:600; color:#94a3b8; white-space:nowrap;">0 hrs</span>`
                     }
                 </td>
-                <td style="padding:8px 6px; font-weight:800; color:#059669; background:#f0fdf4; font-feature-settings:'tnum';">${r.incentive_addition > 0 ? `+₹${r.incentive_addition.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td style="padding:8px 6px; font-weight:800; color:#059669; background:#f0fdf4; font-feature-settings:'tnum'; text-align:center;">${r.incentive_addition > 0 ? `+₹${r.incentive_addition.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
                 <td style="padding:6px 6px; text-align:center; font-feature-settings:'tnum';">
                     ${(r.late_hours && r.late_hours > 0)
                         ? `<span style="display:inline-block; padding:3px 8px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:9999px; font-size:11.5px; font-weight:700; white-space:nowrap; box-shadow:0 1px 2px rgba(180,83,9,0.08);" title="${r.late_days || 0} days late (${r.late_hours} total hours)">${r.late_hours} hrs</span>`
@@ -2707,17 +2753,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     ${r.late_hours_deduction > 0 ? `<div style="font-size:10.5px; color:#b45309; font-weight:700; margin-top:2px;">₹${Number(r.late_hours_deduction).toLocaleString('en-IN')}</div>` : ''}
                 </td>
-                <td style="padding:8px 6px; font-weight:800; color:#dc2626; background:#fff1f2; font-feature-settings:'tnum';">${r.absent_deduction > 0 ? `₹${Number(r.absent_deduction).toLocaleString('en-IN')}` : '<span style="color:#10b981; font-weight:700;">₹0</span>'}</td>
-                <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum';">${r.mobile_deduction > 0 ? `₹${r.mobile_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
-                <td style="padding:8px 10px; font-weight:800; color:#0f172a; background:#fefce8; font-feature-settings:'tnum';">₹${Number(r.gross_salary || 0).toLocaleString('en-IN')}</td>
-                <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum';">${r.pt_misc_deduction > 0 ? `₹${r.pt_misc_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
-                <td style="padding:8px 12px; background:#ecfdf5;">
+                <td style="padding:8px 6px; font-weight:800; color:#dc2626; background:#fff1f2; font-feature-settings:'tnum'; text-align:center;">${r.absent_deduction > 0 ? `₹${Number(r.absent_deduction).toLocaleString('en-IN')}` : '<span style="color:#10b981; font-weight:700;">₹0</span>'}</td>
+                <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum'; text-align:center;">${r.mobile_deduction > 0 ? `₹${r.mobile_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td style="padding:8px 10px; font-weight:800; color:#0f172a; background:#fefce8; font-feature-settings:'tnum'; text-align:center;">₹${Number(r.gross_salary || 0).toLocaleString('en-IN')}</td>
+                <td style="padding:8px 6px; font-weight:700; color:#475569; font-feature-settings:'tnum'; text-align:center;">${r.pt_misc_deduction > 0 ? `₹${r.pt_misc_deduction.toLocaleString('en-IN')}` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td style="padding:8px 12px; background:#ecfdf5; text-align:center;">
                     <span class="pill-net-salary">₹${Number(r.net_salary || 0).toLocaleString('en-IN')}</span>
                 </td>
-                <td style="padding:8px 10px; background:#f5f7ff;">
+                <td style="padding:8px 10px; background:#f5f7ff; text-align:center;">
                     <span class="pill-hourly-rate">₹${Number(r.hourly_billing_rate || 1000).toLocaleString('en-IN')}/hr</span>
                 </td>
-                <td style="padding:8px 10px;">
+                <td style="padding:8px 10px; text-align:center;">
                     <button type="button" class="btn-payroll-edit-action" data-index="${idx}" onclick="event.stopPropagation(); window.openEditPayrollRatesModalByIndex(${idx})" title="Edit Rates & Financials">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
