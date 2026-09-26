@@ -701,13 +701,22 @@ export async function getAttendanceLogs(req, res) {
                 const inTime = dbRecord.manual_check_in || dbRecord.login_time;
                 const outTime = dbRecord.manual_check_out || dbRecord.logout_time;
                 const status = dbRecord.status || 'Present';
+                let calcHours = dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours) : 0;
+                if (isToday && inTime && (!outTime || outTime === '—')) {
+                    try {
+                        const inDate = new Date(inTime);
+                        const now = new Date();
+                        const diffSecs = Math.max(0, Math.floor((now - inDate) / 1000));
+                        calcHours = Math.round((diffSecs / 3600) * 100) / 100;
+                    } catch (_) {}
+                }
                 finalRecord = {
                     id: dbRecord.id,
                     employee_id: employeeId,
                     date: targetDateStr,
                     login_time: inTime,
                     logout_time: outTime,
-                    total_working_hours: dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours).toFixed(2) : '0.00',
+                    total_working_hours: calcHours.toFixed(2),
                     overtime: dbRecord.overtime || null,
                     status: status,
                     calculated_status: status,
@@ -721,13 +730,22 @@ export async function getAttendanceLogs(req, res) {
                 const outTime = dbRecord.portal_check_out || dbRecord.logout_time;
                 const isLate = !!dbRecord.is_late_login;
                 const status = dbRecord.status || (isLate ? 'Late' : 'Present');
+                let calcHours = dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours) : 0;
+                if (isToday && inTime && (!outTime || outTime === '—')) {
+                    try {
+                        const inDate = new Date(inTime);
+                        const now = new Date();
+                        const diffSecs = Math.max(0, Math.floor((now - inDate) / 1000));
+                        calcHours = Math.round((diffSecs / 3600) * 100) / 100;
+                    } catch (_) {}
+                }
                 finalRecord = {
                     id: dbRecord.id,
                     employee_id: employeeId,
                     date: targetDateStr,
                     login_time: inTime,
                     logout_time: outTime,
-                    total_working_hours: dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours).toFixed(2) : '0.00',
+                    total_working_hours: calcHours.toFixed(2),
                     overtime: dbRecord.overtime || null,
                     status: status,
                     calculated_status: status,

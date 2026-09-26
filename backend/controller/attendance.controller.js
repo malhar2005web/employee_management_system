@@ -208,6 +208,19 @@ export async function getAttendanceLogs(req, res) {
 
                 // Tier 1: Admin / HR Manual Approved Override
                 if (dbRecord && (dbRecord.approval_status === 'Approved' || dbRecord.manual_check_in)) {
+                    const effLogin = dbRecord.login_time || dbRecord.manual_check_in;
+                    const effLogout = dbRecord.logout_time || dbRecord.manual_check_out;
+                    let calcHours = dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours) : 0;
+
+                    if (isToday && effLogin && (!effLogout || effLogout === '—')) {
+                        try {
+                            const inDate = new Date(effLogin);
+                            const now = new Date();
+                            const diffSecs = Math.max(0, Math.floor((now - inDate) / 1000));
+                            calcHours = Math.round((diffSecs / 3600) * 100) / 100;
+                        } catch (_) {}
+                    }
+
                     finalRecord = {
                         id: dbRecord.id,
                         employee_id: empId,
@@ -215,9 +228,9 @@ export async function getAttendanceLogs(req, res) {
                         employee_code: emp.employee_code,
                         workstation: emp.computer_name || '—',
                         date: targetDateStr,
-                        login_time: dbRecord.login_time || dbRecord.manual_check_in,
-                        logout_time: dbRecord.logout_time || dbRecord.manual_check_out,
-                        total_working_hours: dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours).toFixed(2) : '0.00',
+                        login_time: effLogin,
+                        logout_time: effLogout,
+                        total_working_hours: calcHours.toFixed(2),
                         overtime: dbRecord.overtime || null,
                         status: dbRecord.status || 'Present',
                         approval_status: 'Approved',
@@ -230,6 +243,19 @@ export async function getAttendanceLogs(req, res) {
                 }
                 // Tier 2: Employee Portal Web Punch
                 else if (dbRecord && (dbRecord.portal_check_in || dbRecord.punch_source === 'PORTAL')) {
+                    const effLogin = dbRecord.portal_check_in || dbRecord.login_time;
+                    const effLogout = dbRecord.portal_check_out || dbRecord.logout_time;
+                    let calcHours = dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours) : 0;
+
+                    if (isToday && effLogin && (!effLogout || effLogout === '—')) {
+                        try {
+                            const inDate = new Date(effLogin);
+                            const now = new Date();
+                            const diffSecs = Math.max(0, Math.floor((now - inDate) / 1000));
+                            calcHours = Math.round((diffSecs / 3600) * 100) / 100;
+                        } catch (_) {}
+                    }
+
                     finalRecord = {
                         id: dbRecord.id,
                         employee_id: empId,
@@ -237,9 +263,9 @@ export async function getAttendanceLogs(req, res) {
                         employee_code: emp.employee_code,
                         workstation: emp.computer_name || '—',
                         date: targetDateStr,
-                        login_time: dbRecord.portal_check_in || dbRecord.login_time,
-                        logout_time: dbRecord.portal_check_out || dbRecord.logout_time,
-                        total_working_hours: dbRecord.total_working_hours ? parseFloat(dbRecord.total_working_hours).toFixed(2) : '0.00',
+                        login_time: effLogin,
+                        logout_time: effLogout,
+                        total_working_hours: calcHours.toFixed(2),
                         overtime: dbRecord.overtime || null,
                         status: dbRecord.status || 'Present',
                         approval_status: 'Auto-Synced',
@@ -604,6 +630,16 @@ export async function createManualCorrection(req, res) {
                 totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
             } else {
                 totalHours = 0;
+            }
+        } else if (finalLoginTime && !finalLogoutTime) {
+            const todayISTStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+            if (cleanDate === todayISTStr) {
+                const diffMs = new Date() - new Date(finalLoginTime);
+                if (diffMs > 0) {
+                    totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+                } else {
+                    totalHours = 0;
+                }
             }
         }
 

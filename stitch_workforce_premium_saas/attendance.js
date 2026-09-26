@@ -736,7 +736,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     earlyOutDisplay = `<span style="color:#dc2626; font-weight:700; background:rgba(239,68,68,0.1); padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-person-walking-arrow-right" style="font-size:10px;"></i> ${earlyStr}</span>`;
                 }
 
-                const workingHours = (log.total_working_hours && parseFloat(log.total_working_hours) > 0) ? formatHoursMins(log.total_working_hours, true) : '—';
+                let workingHours = '—';
+                if (log.total_working_hours && parseFloat(log.total_working_hours) > 0) {
+                    workingHours = formatHoursMins(log.total_working_hours, true);
+                } else if (log.login_time && (!log.logout_time || log.logout_time === '—' || log.logout_time === '-')) {
+                    const logDateStr = log.date || today;
+                    if (logDateStr === today && (log.status === 'Present' || log.status === 'Late' || !log.status)) {
+                        try {
+                            const loginD = new Date(log.login_time);
+                            if (!isNaN(loginD.getTime())) {
+                                const diffMs = new Date() - loginD;
+                                if (diffMs > 0) {
+                                    workingHours = formatHoursMins(diffMs / (1000 * 60 * 60), true);
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                }
 
                 tr.innerHTML = `
                     <td>
@@ -2193,7 +2209,24 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const ovtHours = (r.overtime_hours && parseFloat(r.overtime_hours) > 0) ? formatHoursMins(r.overtime_hours, true) : (r.overtime ? `${r.overtime} mins` : '—');
-            const workingHours = (r.working_hours && parseFloat(r.working_hours) > 0) ? formatHoursMins(r.working_hours, true) : '—';
+            let workingHours = '—';
+            const rawHrs = r.working_hours || r.total_working_hours;
+            if (rawHrs && parseFloat(rawHrs) > 0) {
+                workingHours = formatHoursMins(rawHrs, true);
+            } else if (r.login_time && (!r.logout_time || r.logout_time === '—' || r.logout_time === '-')) {
+                const rDateStr = r.date || today;
+                if (rDateStr === today && (r.status === 'Present' || r.status === 'Late' || !r.status)) {
+                    try {
+                        const loginD = new Date(r.login_time);
+                        if (!isNaN(loginD.getTime())) {
+                            const diffMs = new Date() - loginD;
+                            if (diffMs > 0) {
+                                workingHours = formatHoursMins(diffMs / (1000 * 60 * 60), true);
+                            }
+                        }
+                    } catch (e) {}
+                }
+            }
 
             const dayInfo = getDayOfWeekDetails(r.date);
             let dayBadge = `<span style="font-weight:700; color:#334155; background:#f1f5f9; padding:3px 9px; border-radius:6px; font-size:12px; display:inline-block;">${dayInfo.full}</span>`;
