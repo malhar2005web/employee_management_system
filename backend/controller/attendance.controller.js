@@ -450,6 +450,14 @@ export async function getAttendanceLogs(req, res) {
                 const dayOfWeek = targetDateObj.getDay();
                 const isSunday = (dayOfWeek === 0);
                 const isSaturday = (dayOfWeek === 6);
+                const isWorkingDay = shiftRules.workingDays.includes(dayOfWeek);
+                const isOffDay = !isWorkingDay || isSunday;
+
+                if (isOffDay && (!finalRecord.login_time || finalRecord.login_time === '—') && finalRecord.status === 'Absent' && !finalRecord.out_entry) {
+                    finalRecord.status = 'Week Off';
+                    finalRecord.punch_source = 'WEEKOFF';
+                    absentCount = Math.max(0, absentCount - 1);
+                }
 
                 if (dbRecord && dbRecord.login_seconds && dbRecord.login_seconds > 0) {
                     loginHoursNum = dbRecord.login_seconds / 3600;
@@ -1158,6 +1166,47 @@ export async function getEmployeeAttendanceHistory(req, res) {
             console.warn("getEmployeeAttendanceHistory out_entries query fallback:", oeErr.message);
         }
 
+        // Ensure EVERY calendar date between startDateStr and endDateStr is present in historyMap
+        const [startY, startM, startDay] = startDateStr.split('-').map(Number);
+        const [endY, endM, endDay] = endDateStr.split('-').map(Number);
+        const curD = new Date(endY, endM - 1, endDay, 12, 0, 0);
+        const startD = new Date(startY, startM - 1, startDay, 12, 0, 0);
+
+        while (curD >= startD) {
+            const y = curD.getFullYear();
+            const m = String(curD.getMonth() + 1).padStart(2, '0');
+            const d = String(curD.getDate()).padStart(2, '0');
+            const dStr = `${y}-${m}-${d}`;
+            
+            if (!historyMap.has(dStr)) {
+                const dayOfWeek = curD.getDay(); // 0 is Sun, 6 is Sat
+                const isWorkingDay = shiftRules.workingDays.includes(dayOfWeek);
+                
+                if (!isWorkingDay || dayOfWeek === 0) {
+                    historyMap.set(dStr, {
+                        date: dStr,
+                        check_in: '—',
+                        check_out: '—',
+                        working_hours: '0.00',
+                        overtime: null,
+                        status: 'Week Off',
+                        source: 'WEEKOFF'
+                    });
+                } else if (dStr <= todayIST) {
+                    historyMap.set(dStr, {
+                        date: dStr,
+                        check_in: '—',
+                        check_out: '—',
+                        working_hours: '0.00',
+                        overtime: null,
+                        status: 'Absent',
+                        source: 'AUTO'
+                    });
+                }
+            }
+            curD.setDate(curD.getDate() - 1);
+        }
+
         const sortedLogs = Array.from(historyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 
         let present = 0, late = 0, absent = 0, outEntryCount = 0, leaveCount = 0, holidayCount = 0, weekOffCount = 0, totalHours = 0;
@@ -1178,11 +1227,14 @@ export async function getEmployeeAttendanceHistory(req, res) {
             if (logHrs < wHours) logHrs = wHours;
 
             const targetDateObj = new Date(`${l.date}T12:00:00+05:30`);
-            const isSat = targetDateObj.getDay() === 6;
-            const isSun = targetDateObj.getDay() === 0;
+            const dayOfWeek = targetDateObj.getDay();
+            const isSat = (dayOfWeek === 6);
+            const isSun = (dayOfWeek === 0);
+            const isWorkingDay = shiftRules.workingDays.includes(dayOfWeek);
+            const isOffDay = !isWorkingDay || isSun;
 
-            // If Sunday and no active check-in punch, ensure status is marked Week Off (not Absent)
-            if (isSun && (!l.check_in || l.check_in === '—') && (l.status === 'Absent' || !l.status)) {
+            // If Sunday or non-working day and no active check-in punch, ensure status is marked Week Off (not Absent or stale WeekOff)
+            if (isOffDay && (!l.check_in || l.check_in === '—' || wHours === 0) && l.status !== 'Holiday' && l.status !== 'On Leave' && !l.out_entry) {
                 l.status = 'Week Off';
                 l.source = 'WEEKOFF';
             }
