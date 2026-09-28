@@ -654,19 +654,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // ── File Attachment Helpers ──
-    const getFileIcon = (type, name) => {
-        if (!type && !name) return 'fa-solid fa-file';
+    // ── File Attachment Helpers & Rich Categorization ──
+    const getFileInfo = (type, name) => {
+        if (!type && !name) return { icon: 'fa-solid fa-file', color: '#64748b', badge: 'FILE' };
         const ext = (name || '').split('.').pop().toLowerCase();
-        if (/^image\//.test(type) || ['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return 'fa-solid fa-image';
-        if (type === 'application/pdf' || ext === 'pdf') return 'fa-solid fa-file-pdf';
-        if (/zip|rar|7z|tar|gz/.test(ext)) return 'fa-solid fa-file-zipper';
-        if (/doc|docx/.test(ext)) return 'fa-solid fa-file-word';
-        if (/xls|xlsx/.test(ext)) return 'fa-solid fa-file-excel';
-        if (/ppt|pptx/.test(ext)) return 'fa-solid fa-file-powerpoint';
-        if (ext === 'txt') return 'fa-solid fa-file-lines';
-        return 'fa-solid fa-file';
+        if (/^image\//.test(type) || ['jpg','jpeg','png','gif','webp','svg'].includes(ext)) {
+            return { icon: 'fa-solid fa-file-image', color: '#0ea5e9', badge: 'IMAGE' };
+        }
+        if (type === 'application/pdf' || ext === 'pdf') {
+            return { icon: 'fa-solid fa-file-pdf', color: '#ef4444', badge: 'PDF' };
+        }
+        if (['zip','rar','7z','tar','gz','bz2'].includes(ext)) {
+            return { icon: 'fa-solid fa-file-zipper', color: '#f59e0b', badge: 'ZIP / FOLDER' };
+        }
+        if (['doc','docx','rtf','odt'].includes(ext)) {
+            return { icon: 'fa-solid fa-file-word', color: '#2563eb', badge: 'DOC' };
+        }
+        if (['xls','xlsx','csv','ods'].includes(ext)) {
+            return { icon: 'fa-solid fa-file-excel', color: '#10b981', badge: 'EXCEL / CSV' };
+        }
+        if (['ppt','pptx','odp'].includes(ext)) {
+            return { icon: 'fa-solid fa-file-powerpoint', color: '#ea580c', badge: 'PPT' };
+        }
+        if (['txt','json','xml','html','css','js','ts','py','sql','md'].includes(ext)) {
+            return { icon: 'fa-solid fa-file-lines', color: '#6366f1', badge: ext.toUpperCase() };
+        }
+        if (/^audio\//.test(type) || ['mp3','wav','ogg','m4a'].includes(ext)) {
+            return { icon: 'fa-solid fa-file-audio', color: '#8b5cf6', badge: 'AUDIO' };
+        }
+        if (/^video\//.test(type) || ['mp4','webm','mov','avi','mkv'].includes(ext)) {
+            return { icon: 'fa-solid fa-file-video', color: '#ec4899', badge: 'VIDEO' };
+        }
+        return { icon: 'fa-solid fa-file', color: '#64748b', badge: ext ? ext.toUpperCase() : 'FILE' };
     };
+
+    const getFileIcon = (type, name) => getFileInfo(type, name).icon;
 
     const formatFileSize = (bytes) => {
         if (!bytes) return '';
@@ -683,52 +705,208 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const buildAttachmentHTML = (fileUrl, fileName, fileType, fileSize, isMe) => {
         if (!fileUrl) return '';
-        const linkColor = isMe ? '#a9d94c' : 'var(--teal-700)';
+        const linkColor = isMe ? '#ffffff' : 'var(--teal-900)';
+        const safeName = fileName || 'attachment';
+
         if (isImageFile(fileType, fileName)) {
-            return `<div style="margin-top:6px;"><a href="${fileUrl}" target="_blank"><img src="${fileUrl}" alt="${fileName}" style="max-width:220px; max-height:180px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" /></a><div style="font-size:10px; margin-top:3px; opacity:0.8;">📎 ${fileName} ${fileSize ? '(' + formatFileSize(fileSize) + ')' : ''}</div></div>`;
+            return `
+            <div style="margin-top:8px;">
+                <a href="${fileUrl}" target="_blank" style="display:inline-block; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.3); box-shadow:0 3px 10px rgba(0,0,0,0.12);">
+                    <img src="${fileUrl}" alt="${safeName}" style="max-width:240px; max-height:200px; object-fit:cover; display:block;" />
+                </a>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px; font-size:11px; opacity:0.85;">
+                    <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">📎 ${safeName}</span>
+                    <a href="${fileUrl}" download="${safeName}" style="color:${isMe ? '#a9d94c' : 'var(--teal-700)'}; font-size:12px; margin-left:6px;" title="Download"><i class="fa-solid fa-download"></i></a>
+                </div>
+            </div>`;
         }
-        const icon = getFileIcon(fileType, fileName);
-        return `<div style="margin-top:8px; padding:10px 12px; border-radius:10px; background:${isMe ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)'}; display:flex; align-items:center; gap:10px;">
-            <i class="${icon}" style="font-size:22px; color:${linkColor};"></i>
-            <div style="flex:1; min-width:0;">
-                <a href="${fileUrl}" download="${fileName}" target="_blank" style="color:${linkColor}; font-weight:700; font-size:12.5px; text-decoration:underline; display:block; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${fileName}</a>
-                <span style="font-size:10px; opacity:0.7;">${formatFileSize(fileSize)}</span>
+
+        const info = getFileInfo(fileType, fileName);
+
+        return `
+        <div style="margin-top:8px; padding:10px 12px; border-radius:12px; background:${isMe ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.04)'}; border:1px solid ${isMe ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.08)'}; display:flex; align-items:center; gap:10px; box-shadow:0 2px 6px rgba(0,0,0,0.04);">
+            <div style="width:38px; height:38px; border-radius:10px; background:${info.color}1f; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i class="${info.icon}" style="font-size:20px; color:${info.color};"></i>
             </div>
-            <a href="${fileUrl}" download="${fileName}" style="color:${linkColor}; font-size:14px;" title="Download"><i class="fa-solid fa-download"></i></a>
+            <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+                    <span style="font-size:9px; font-weight:800; padding:1px 5px; border-radius:4px; background:${info.color}22; color:${info.color}; text-transform:uppercase;">${info.badge}</span>
+                    <span style="font-size:10.5px; opacity:0.75;">${formatFileSize(fileSize)}</span>
+                </div>
+                <a href="${fileUrl}" download="${safeName}" target="_blank" style="color:${linkColor}; font-weight:700; font-size:12.5px; text-decoration:none; display:block; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${safeName}">
+                    ${safeName}
+                </a>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <a href="${fileUrl}" target="_blank" style="width:28px; height:28px; border-radius:50%; background:${isMe ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)'}; color:${linkColor}; display:flex; align-items:center; justify-content:center; text-decoration:none; font-size:11px;" title="Open / Preview in New Tab">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+                <a href="${fileUrl}" download="${safeName}" style="width:28px; height:28px; border-radius:50%; background:${isMe ? 'rgba(255,255,255,0.25)' : 'var(--teal-600)'}; color:#ffffff; display:flex; align-items:center; justify-content:center; text-decoration:none; font-size:11px;" title="Download">
+                    <i class="fa-solid fa-download"></i>
+                </a>
+            </div>
         </div>`;
     };
 
-    // ── File Input State ──
+    // ── File & Folder Attachment State ──
     let pendingFile = null;
     const fileInput = document.getElementById('chat-file-input');
+    const folderInput = document.getElementById('chat-folder-input');
     const attachBtn = document.getElementById('btn-chat-attach');
+    const attachFolderBtn = document.getElementById('btn-chat-attach-folder');
     const filePreview = document.getElementById('chat-file-preview');
     const filePreviewName = document.getElementById('chat-file-preview-name');
     const filePreviewSize = document.getElementById('chat-file-preview-size');
     const filePreviewIcon = document.getElementById('chat-file-preview-icon');
     const fileCancelBtn = document.getElementById('chat-file-cancel');
 
+    const stageSelectedFile = (file) => {
+        if (!file) return;
+        const blocked = /\.(exe|bat|cmd|sh|vbs|msi|scr|com|ps1)$/i;
+        if (blocked.test(file.name || '')) {
+            alert("Executable files (.exe, .bat, etc.) cannot be uploaded for security reasons.");
+            return;
+        }
+        if (file.size > 50 * 1024 * 1024) {
+            alert("File size exceeds 50MB limit.");
+            return;
+        }
+        pendingFile = file;
+        if (filePreview) {
+            const info = getFileInfo(file.type, file.name);
+            if (filePreviewName) filePreviewName.textContent = file.name;
+            if (filePreviewSize) filePreviewSize.textContent = `${info.badge} • ${formatFileSize(file.size)}`;
+            if (filePreviewIcon) {
+                filePreviewIcon.className = info.icon;
+                filePreviewIcon.style.color = info.color;
+            }
+            filePreview.style.display = 'flex';
+        }
+    };
+
+    // Standard File Button Click (PDF, Docs, Images, Archives, etc.)
     if (attachBtn && fileInput) {
-        attachBtn.addEventListener('click', () => fileInput.click());
+        attachBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            fileInput.click();
+        });
         fileInput.addEventListener('change', () => {
             if (fileInput.files.length > 0) {
-                pendingFile = fileInput.files[0];
-                if (filePreview) {
-                    filePreviewName.textContent = pendingFile.name;
-                    filePreviewSize.textContent = formatFileSize(pendingFile.size);
-                    filePreviewIcon.className = getFileIcon(pendingFile.type, pendingFile.name);
-                    filePreview.style.display = 'flex';
-                }
+                stageSelectedFile(fileInput.files[0]);
             }
         });
     }
+
+    // Folder Button Click (Auto-ZIP entire selected folder)
+    if (attachFolderBtn && folderInput) {
+        attachFolderBtn.addEventListener('click', () => {
+            folderInput.value = '';
+            folderInput.click();
+        });
+        folderInput.addEventListener('change', async () => {
+            const files = folderInput.files;
+            if (!files || files.length === 0) return;
+
+            const firstPath = files[0].webkitRelativePath || files[0].name;
+            const folderName = firstPath.split('/')[0] || 'folder_archive';
+
+            if (filePreview) {
+                if (filePreviewName) filePreviewName.textContent = `Compressing folder "${folderName}" (${files.length} items)...`;
+                if (filePreviewSize) filePreviewSize.textContent = 'Please wait...';
+                if (filePreviewIcon) {
+                    filePreviewIcon.className = 'fa-solid fa-spinner fa-spin';
+                    filePreviewIcon.style.color = '#f59e0b';
+                }
+                filePreview.style.display = 'flex';
+            }
+
+            if (window.JSZip) {
+                try {
+                    const zip = new window.JSZip();
+                    for (let i = 0; i < files.length; i++) {
+                        const f = files[i];
+                        const relPath = f.webkitRelativePath || f.name;
+                        zip.file(relPath, f);
+                    }
+                    const zipBlob = await zip.generateAsync({
+                        type: 'blob',
+                        compression: 'DEFLATE',
+                        compressionOptions: { level: 6 }
+                    });
+                    const zippedFile = new File([zipBlob], `${folderName}.zip`, { type: 'application/zip' });
+                    stageSelectedFile(zippedFile);
+                } catch (err) {
+                    console.error("Folder compression error:", err);
+                    alert("Could not compress folder: " + err.message);
+                    pendingFile = null;
+                    if (filePreview) filePreview.style.display = 'none';
+                }
+            } else {
+                alert("JSZip library is still loading. Please try again or select a .zip file directly.");
+                if (filePreview) filePreview.style.display = 'none';
+            }
+        });
+    }
+
+    // Remove staged file
     if (fileCancelBtn) {
         fileCancelBtn.addEventListener('click', () => {
             pendingFile = null;
             if (fileInput) fileInput.value = '';
+            if (folderInput) folderInput.value = '';
             if (filePreview) filePreview.style.display = 'none';
         });
     }
+
+    // Drag and Drop files onto chat container
+    const messagesContainer = document.getElementById('chat-messages-container');
+    if (messagesContainer) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            messagesContainer.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                messagesContainer.style.outline = '2px dashed var(--teal-600)';
+                messagesContainer.style.outlineOffset = '-4px';
+                messagesContainer.style.background = 'rgba(13, 148, 136, 0.08)';
+            });
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            messagesContainer.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                messagesContainer.style.outline = '';
+                messagesContainer.style.outlineOffset = '';
+                messagesContainer.style.background = '';
+            });
+        });
+        messagesContainer.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (dt && dt.files && dt.files.length > 0) {
+                stageSelectedFile(dt.files[0]);
+            }
+        });
+    }
+
+    // Paste handler (Ctrl+V) for attachments and screenshot images
+    document.addEventListener('paste', (e) => {
+        const chatView = document.getElementById('chat-view');
+        if (!chatView || chatView.style.display === 'none') return;
+        const items = (e.clipboardData || window.clipboardData)?.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].kind === 'file') {
+                const pasted = items[i].getAsFile();
+                if (pasted) {
+                    const ext = pasted.type ? (pasted.type.split('/')[1] || 'png') : 'png';
+                    const fileWithProperName = pasted.name && !pasted.name.startsWith('image')
+                        ? pasted 
+                        : new File([pasted], `clipboard_${Date.now()}.${ext}`, { type: pasted.type });
+                    stageSelectedFile(fileWithProperName);
+                    break;
+                }
+            }
+        }
+    });
 
     const renderMessages = (messagesList) => {
         const container = document.getElementById('chat-messages-container');
@@ -817,9 +995,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sendChatMessage = async () => {
         const input = document.getElementById('chat-message-input') || document.getElementById('chat-input');
+        const sendBtn = document.getElementById('btn-chat-send') || document.getElementById('chat-send-btn');
         if (!input || !selectedChannel) return;
         const msg = input.value.trim();
         if (!msg && !pendingFile) return;
+
+        const originalBtnHTML = sendBtn ? sendBtn.innerHTML : '';
+        if (sendBtn) {
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        }
 
         try {
             const formData = new FormData();
@@ -827,28 +1012,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (selectedChannel.type === 'DM') {
                 formData.append('recipient_id', selectedChannel.id);
-                if (msg) formData.append('message', msg);
-                await fetch('/api/v1/employee/chat/send', {
+                formData.append('message', msg || '');
+                const res = await fetch('/api/v1/employee/chat/send', {
                     method: 'POST',
                     body: formData,
                     credentials: 'include'
                 });
+                const resData = await res.json();
+                if (!res.ok || !resData.success) {
+                    alert(resData.message || 'Failed to send message/file');
+                }
             } else {
                 formData.append('channelId', selectedChannel.id);
-                if (msg) formData.append('messageText', msg);
-                await fetch('/api/v1/chat/messages', {
+                formData.append('messageText', msg || '');
+                const res = await fetch('/api/v1/chat/messages', {
                     method: 'POST',
                     body: formData,
                     credentials: 'include'
                 });
+                const resData = await res.json();
+                if (!res.ok || !resData.success) {
+                    alert(resData.message || 'Failed to send message/file');
+                }
             }
             input.value = '';
             pendingFile = null;
             if (fileInput) fileInput.value = '';
+            if (folderInput) folderInput.value = '';
             if (filePreview) filePreview.style.display = 'none';
-            loadMessages();
+            await loadMessages();
         } catch (e) {
             console.error("Error sending message:", e);
+            alert("Error sending attachment/message: " + (e.message || e));
+        } finally {
+            if (sendBtn) {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = originalBtnHTML;
+            }
         }
     };
 
