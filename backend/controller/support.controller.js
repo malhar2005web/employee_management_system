@@ -257,9 +257,9 @@ export async function notifyTicketWhatsApp({
                 } else {
                     // Smart fallback for named team members
                     if (emp.full_name?.toLowerCase().includes('malhar') || emp.id === 9) {
-                        phoneList.push({ name: emp.full_name || 'Malhar Kulkarni', phone: '919082270423' });
+                        phoneList.push({ name: emp.full_name || 'Malhar Kulkarni', phone: '918767137790' });
                     } else if (emp.full_name?.toLowerCase().includes('nitin') || emp.id === 10) {
-                        phoneList.push({ name: emp.full_name || 'Nitin RajGuru', phone: '918767137790' });
+                        phoneList.push({ name: emp.full_name || 'Nitin RajGuru', phone: '919821027060' });
                     } else if (emp.full_name?.toLowerCase().includes('vijay') || emp.id === 15) {
                         phoneList.push({ name: emp.full_name || 'Vijay Mourya', phone: '919876543210' });
                     }
@@ -269,8 +269,8 @@ export async function notifyTicketWhatsApp({
 
         // Always fallback to lead engineer if list is empty
         if (phoneList.length === 0) {
-            phoneList.push({ name: 'Malhar Kulkarni', phone: '919082270423' });
-            phoneList.push({ name: 'Nitin RajGuru', phone: '918767137790' });
+            phoneList.push({ name: 'Malhar Kulkarni', phone: '918767137790' });
+            phoneList.push({ name: 'Shrirang Joshi (Escalation Head)', phone: '919821027060' });
         }
 
         // Always ensure Escalation Head (Shrirang Joshi) is alerted

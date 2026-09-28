@@ -33,8 +33,8 @@ export const ACCOUNTS_HEAD_PHONE_2 = '919664540011';
 export const SUPPORT_ESCALATION_PHONE = '919821027060';
 
 export const KNOWN_ENGINEER_PHONES = {
-    9: { name: 'Malhar Kulkarni', phone: '+91 90822 70423', raw: '919082270423' },
-    10: { name: 'Nitin RajGuru', phone: '+91 87671 37790', raw: '918767137790' },
+    9: { name: 'Malhar Kulkarni', phone: '+91 87671 37790', raw: '918767137790' },
+    10: { name: 'Nitin RajGuru', phone: '+91 98210 27060', raw: '919821027060' },
     15: { name: 'Vijay Mourya', phone: '+91 98765 43210', raw: '919876543210' }
 };
 
@@ -493,7 +493,10 @@ async function handlePendingStateResponse(senderPhone, textContent, clientContex
     // Check if client is providing the missing project
     if (state.pending_fields.includes('project')) {
         let projectName = rawText;
-        if (rawText.toLowerCase().includes('ems')) projectName = 'Workforce EMS';
+        const low = rawText.toLowerCase();
+        if (low.includes('ems') || low.includes('workforce')) projectName = 'Workforce EMS';
+        else if (low.includes('softlink') || low.includes('bhy')) projectName = 'SOftlink';
+        else if (low.includes('penta')) projectName = 'Pentasoft';
         
         state.entities.project = projectName;
         state.pending_fields = state.pending_fields.filter(f => f !== 'project');
@@ -670,7 +673,15 @@ function extractMessagesFromPayload(body) {
 
 function handleStatusReceipts(body) {
     try {
-        if (body?.statuses && Array.isArray(body.statuses)) {
+        const wamid = body?.wamid || body?.id || body?.statuses?.[0]?.id;
+        const status = body?.status || body?.statuses?.[0]?.status;
+        if (wamid && status) {
+            pool.query(`
+                UPDATE whatsapp_messages 
+                SET status = $1, updated_at = NOW()
+                WHERE waba_message_id = $2;
+            `, [status, wamid]).catch(() => {});
+        } else if (body?.statuses && Array.isArray(body.statuses)) {
             for (const statusObj of body.statuses) {
                 pool.query(`
                     UPDATE whatsapp_messages 
@@ -848,23 +859,35 @@ async function handleTextMessageWithAI(senderPhone, textContent, clientContext, 
 
         // Tool: create_support_ticket
         if (name === 'create_support_ticket') {
-            const project = args.project || (clientContext.projects?.[0]?.name) || null;
+            let project = args.project || (clientContext.projects?.[0]?.name) || null;
             const desc = args.description || textContent;
             const category = args.category || 'Bug / Defect';
             const priority = args.priority || (args.is_urgent ? 'High' : 'Medium');
 
+            // Auto-detect project if mentioned in text
+            if (!project) {
+                const lowerDesc = (desc + ' ' + (textContent || '')).toLowerCase();
+                if (lowerDesc.includes('softlink') || lowerDesc.includes('bhy')) project = 'SOftlink';
+                else if (lowerDesc.includes('ems') || lowerDesc.includes('workforce')) project = 'Workforce EMS';
+                else if (lowerDesc.includes('penta')) project = 'Pentasoft';
+            }
+
             // If project is missing and customer has multiple/no projects, ask for project first (Section 4 DOCX)
             if (!project && (!clientContext.projects || clientContext.projects.length !== 1)) {
-                updateConversationState(senderPhone, {
-                    intent: 'TECHNICAL_SUPPORT',
-                    entities: { category, priority, description: desc },
-                    pending_fields: ['project'],
-                    attachments: mediaAttachment ? [mediaAttachment] : []
-                });
+                if (clientContext.type === 'employee') {
+                    project = 'Workforce EMS';
+                } else {
+                    updateConversationState(senderPhone, {
+                        intent: 'TECHNICAL_SUPPORT',
+                        entities: { category, priority, description: desc },
+                        pending_fields: ['project'],
+                        attachments: mediaAttachment ? [mediaAttachment] : []
+                    });
 
-                const askProject = `I can help register this. I have the issue type, but I still need the affected project.\nWhich project is affected?`;
-                await sendWhatsAppText(senderPhone, askProject);
-                return;
+                    const askProject = `I can help register this. I have the issue type, but I still need the affected project.\nWhich project is affected?`;
+                    await sendWhatsAppText(senderPhone, askProject);
+                    return;
+                }
             }
 
             // Execute ticket creation or duplicate prevention
@@ -958,9 +981,51 @@ async function handleTextMessageWithAI(senderPhone, textContent, clientContext, 
  */
 async function executeTicketCreation(senderPhone, { project, category, priority, title, description, attachments = [] }, clientContext) {
     try {
-        const customerId = clientContext.id;
-        const customerName = clientContext.name || 'Valued Client';
-        const projectName = project || 'Workforce EMS';
+        let customerId = null;
+        if (clientContext.type === 'customer' && clientContext.id) {
+            customerId = clientContext.id;
+        }
+
+        let projectName = project || 'Workforce EMS';
+        let customerName = clientContext.name || 'Valued Client';
+
+        // Auto-match customer and project if not directly linked
+        try {
+            const searchStr = `${projectName} ${title || ''} ${description || ''}`.toLowerCase();
+            if (!customerId) {
+                const custs = await pool.query('SELECT id, name FROM customers');
+                for (const c of custs.rows) {
+                    if (c.name && searchStr.includes(c.name.toLowerCase())) {
+                        customerId = c.id;
+                        customerName = c.name;
+                        break;
+                    }
+                }
+            }
+
+            // Also check if projectName matches any project in DB
+            const projRes = await pool.query('SELECT id, name, customer_id FROM projects WHERE name ILIKE $1 LIMIT 1', [`%${projectName}%`]);
+            if (projRes.rows.length > 0) {
+                projectName = projRes.rows[0].name;
+                if (!customerId && projRes.rows[0].customer_id) {
+                    customerId = projRes.rows[0].customer_id;
+                }
+            }
+        } catch (e) {}
+
+        // Enforce foreign key safety: customerId MUST exist in customers table, else null
+        if (customerId) {
+            try {
+                const check = await pool.query('SELECT id, name FROM customers WHERE id = $1', [customerId]);
+                if (check.rows.length === 0) {
+                    customerId = null;
+                } else if (!customerName || customerName === 'Valued Client') {
+                    customerName = check.rows[0].name;
+                }
+            } catch (e) {
+                customerId = null;
+            }
+        }
 
         // Check for Existing Open Ticket (Duplicate Prevention - Section 7 DOCX)
         const activeTicket = await getActiveSupportTicket(senderPhone, customerId);
@@ -1132,8 +1197,16 @@ Status: Open`;
 
     } catch (err) {
         console.error("❌ executeTicketCreation Error:", err.message);
-        const failMsg = `I’m unable to complete the ticket registration right now.\nYour request has not been registered yet, so I do not want to give you a false ticket number.\nPlease try again shortly or contact our support team directly.`;
-        await sendWhatsAppText(senderPhone, failMsg);
+        const failMsg = `I’m unable to complete the ticket registration automatically right now.\nYour request has been forwarded to our support team.\nPlease contact our support manager directly if critical.`;
+        await sendWhatsAppText(senderPhone, failMsg).catch(() => {});
+        await sendWhatsAppButtons(senderPhone, {
+            headerText: "Technical Support",
+            bodyText: "Connect with our support team:",
+            footerText: "Planex Technical Support",
+            buttons: [
+                { id: "btn_call_shrirang", title: "Talk to Support" }
+            ]
+        }).catch(() => {});
     }
 }
 
@@ -1142,7 +1215,8 @@ Status: Open`;
  */
 async function handleTicketStatusQuery(senderPhone, clientContext, ticketCode = null) {
     try {
-        const ticket = await getActiveSupportTicket(senderPhone, clientContext.id);
+        const customerId = clientContext.type === 'customer' ? clientContext.id : null;
+        const ticket = await getActiveSupportTicket(senderPhone, customerId);
 
         if (!ticket) {
             const noTicket = `No active open support ticket was found for your account.\nIf you are facing an issue, please send a message or screenshot to raise a request.`;
@@ -1323,7 +1397,7 @@ function isGreeting(text) {
         return false;
     }
     const clean = lower.replace(/[^a-z0-9\s]/g, '').trim();
-    const greetings = ['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'halo', 'yo', 'good morning', 'good evening'];
+    const greetings = ['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'halo', 'yo', 'good morning', 'good evening', 'bhai', 'bhy', 'bro'];
     return greetings.includes(clean);
 }
 

@@ -348,8 +348,10 @@ export function fallbackRuleEngine(message, clientContext = {}) {
         if (lower.includes('urgent') || lower.includes('critical') || lower.includes('asap') || lower.includes('emergency')) pri = 'High';
 
         let detectedProject = null;
-        if (lower.includes('ems')) detectedProject = 'Workforce EMS';
+        if (lower.includes('ems') || lower.includes('workforce')) detectedProject = 'Workforce EMS';
         else if (lower.includes('portal')) detectedProject = 'Workforce EMS';
+        else if (lower.includes('softlink') || lower.includes('bhy')) detectedProject = 'SOftlink';
+        else if (lower.includes('penta')) detectedProject = 'Pentasoft';
 
         return {
             toolCall: {

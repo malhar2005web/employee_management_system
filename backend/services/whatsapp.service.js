@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { pool } from '../config/db.js';
 
 // WABA Credentials & System Constants
 const WABA_CONFIG = {
@@ -200,6 +201,11 @@ export async function sendWhatsAppText(toPhone, messageBody) {
         const token = await getWabaAuthToken();
         const formattedPhone = sanitizePhoneNumber(toPhone);
 
+        if (formattedPhone === WABA_CONFIG.SENDER_PHONE) {
+            console.warn(`⚠️ Skipping sendWhatsAppText to bot's own number (${formattedPhone})`);
+            return { skipped: true, reason: 'Recipient is sender' };
+        }
+
         const payload = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
@@ -220,7 +226,23 @@ export async function sendWhatsAppText(toPhone, messageBody) {
             body: JSON.stringify(payload)
         });
 
-        return await response.json();
+        const result = await response.json();
+        if (result?.error) {
+            console.error(`❌ sendWhatsAppText API Error to ${formattedPhone}:`, JSON.stringify(result.error));
+        } else {
+            console.log(`✅ WhatsApp text sent to ${formattedPhone}`);
+            try {
+                const wamid = result?.messages?.[0]?.id || `OUT-${Date.now()}`;
+                await pool.query(`
+                    INSERT INTO whatsapp_messages (
+                        waba_message_id, sender_phone, recipient_phone, direction,
+                        message_type, message_body, status, created_at
+                    ) VALUES ($1, $2, $3, 'outbound', 'text', $4, 'sent', NOW())
+                    ON CONFLICT DO NOTHING;
+                `, [wamid, WABA_CONFIG.SENDER_PHONE, formattedPhone, messageBody]);
+            } catch (dbErr) {}
+        }
+        return result;
     } catch (error) {
         console.error("❌ sendWhatsAppText Error:", error.message);
         throw error;
@@ -234,6 +256,11 @@ export async function sendWhatsAppTemplate(toPhone, templateName, languageCode =
     try {
         const token = await getWabaAuthToken();
         const formattedPhone = sanitizePhoneNumber(toPhone);
+
+        if (formattedPhone === WABA_CONFIG.SENDER_PHONE) {
+            console.warn(`⚠️ Skipping sendWhatsAppTemplate to bot's own number (${formattedPhone})`);
+            return { skipped: true, reason: 'Recipient is sender' };
+        }
 
         const payload = {
             messaging_product: "whatsapp",
@@ -261,7 +288,23 @@ export async function sendWhatsAppTemplate(toPhone, templateName, languageCode =
             body: JSON.stringify(payload)
         });
 
-        return await response.json();
+        const result = await response.json();
+        if (result?.error) {
+            console.error(`❌ sendWhatsAppTemplate API Error to ${formattedPhone}:`, JSON.stringify(result.error));
+        } else {
+            console.log(`✅ WhatsApp template '${templateName}' sent to ${formattedPhone}`);
+            try {
+                const wamid = result?.messages?.[0]?.id || `OUT-${Date.now()}`;
+                await pool.query(`
+                    INSERT INTO whatsapp_messages (
+                        waba_message_id, sender_phone, recipient_phone, direction,
+                        message_type, message_body, status, created_at
+                    ) VALUES ($1, $2, $3, 'outbound', 'template', $4, 'sent', NOW())
+                    ON CONFLICT DO NOTHING;
+                `, [wamid, WABA_CONFIG.SENDER_PHONE, formattedPhone, `[Template: ${templateName}] ${parameters.join(' | ')}`]);
+            } catch (dbErr) {}
+        }
+        return result;
     } catch (error) {
         console.error("❌ sendWhatsAppTemplate Error:", error.message);
         throw error;
@@ -324,6 +367,11 @@ export async function sendWhatsAppButtons(toPhone, { headerText, bodyText, foote
         const token = await getWabaAuthToken();
         const formattedPhone = sanitizePhoneNumber(toPhone);
 
+        if (formattedPhone === WABA_CONFIG.SENDER_PHONE) {
+            console.warn(`⚠️ Skipping sendWhatsAppButtons to bot's own number (${formattedPhone})`);
+            return { skipped: true, reason: 'Recipient is sender' };
+        }
+
         const interactiveObj = {
             type: "button",
             body: { text: bodyText },
@@ -362,7 +410,24 @@ export async function sendWhatsAppButtons(toPhone, { headerText, bodyText, foote
             body: JSON.stringify(payload)
         });
 
-        return await response.json();
+        const result = await response.json();
+        if (result?.error) {
+            console.error(`❌ sendWhatsAppButtons API Error to ${formattedPhone}:`, JSON.stringify(result.error));
+        } else {
+            console.log(`✅ WhatsApp buttons sent to ${formattedPhone}`);
+            try {
+                const wamid = result?.messages?.[0]?.id || `OUT-${Date.now()}`;
+                const btnText = `${headerText ? headerText + '\n' : ''}${bodyText}\n[Buttons: ${buttons.map(b => b.title).join(', ')}]`;
+                await pool.query(`
+                    INSERT INTO whatsapp_messages (
+                        waba_message_id, sender_phone, recipient_phone, direction,
+                        message_type, message_body, status, created_at
+                    ) VALUES ($1, $2, $3, 'outbound', 'interactive', $4, 'sent', NOW())
+                    ON CONFLICT DO NOTHING;
+                `, [wamid, WABA_CONFIG.SENDER_PHONE, formattedPhone, btnText]);
+            } catch (dbErr) {}
+        }
+        return result;
     } catch (error) {
         console.error("❌ sendWhatsAppButtons Error:", error.message);
         throw error;
@@ -514,9 +579,13 @@ export async function sendProjectContractReminderWhatsApp(phoneOrOptions, maybeO
 // Helper: Sanitize Phone Number (e.g. "+91 98765-43210" -> "919876543210")
 export function sanitizePhoneNumber(phone) {
     if (!phone) return '918767137790';
-    let cleaned = phone.replace(/[^0-9]/g, '');
+    let cleaned = String(phone).replace(/[^0-9]/g, '');
     if (cleaned.length === 10) {
         cleaned = '91' + cleaned;
+    }
+    // Prevent accidentally using WABA bot sender number as recipient
+    if (cleaned === '919082270423') {
+        return '918767137790';
     }
     return cleaned;
 }
