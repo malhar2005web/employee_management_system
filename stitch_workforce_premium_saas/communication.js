@@ -505,61 +505,140 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const renderChatChannels = () => {
+    const renderChatChannels = (filterQuery = '') => {
         const list = document.getElementById('chat-contacts-list');
         if (!list) return;
         list.innerHTML = '';
 
+        const q = (filterQuery || '').toLowerCase().trim();
+
         // 💬 Section 1: Direct Messages
-        const dmHeader = document.createElement('div');
-        dmHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:10px 0 6px 4px;';
-        dmHeader.innerHTML = '<i class="fa-solid fa-user"></i> Direct Messages';
-        list.appendChild(dmHeader);
+        const filteredDMs = (chatChannels.directMessages || []).filter(c => 
+            !q || (c.full_name && c.full_name.toLowerCase().includes(q)) || 
+            (c.designation && c.designation.toLowerCase().includes(q)) ||
+            (c.department_name && c.department_name.toLowerCase().includes(q))
+        );
 
-        chatChannels.directMessages.forEach(c => {
-            const item = document.createElement('div');
-            const isSelected = selectedChannel && selectedChannel.id === c.employee_id && selectedChannel.type === 'DM';
-            const isBusy = c.presence_status === 'Busy';
-            const statusDotColor = isBusy ? '#ef4444' : '#22c55e';
-            const hasUnread = c.unread_count > 0;
+        if (filteredDMs.length > 0) {
+            const dmHeader = document.createElement('div');
+            dmHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:10px 0 6px 4px;';
+            dmHeader.innerHTML = '<i class="fa-solid fa-user"></i> Direct Messages';
+            list.appendChild(dmHeader);
 
-            const avatarHtml = typeof window.renderEmpAvatar === 'function'
-                ? window.renderEmpAvatar(c.full_name, c.profile_picture, 36, 13)
-                : `<div style="width:36px;height:36px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #fff;">${(c.full_name||'').substring(0,2).toUpperCase()}</div>`;
+            filteredDMs.forEach(c => {
+                const item = document.createElement('div');
+                const isSelected = selectedChannel && selectedChannel.id === c.employee_id && selectedChannel.type === 'DM';
+                const isBusy = c.presence_status === 'Busy';
+                const statusDotColor = isBusy ? '#ef4444' : '#22c55e';
+                const hasUnread = c.unread_count > 0;
 
-            item.style.cssText = `
-                display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; cursor:pointer;
-                background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
-                margin-bottom:6px; border:1px solid rgba(0,0,0,0.04); transition: background 0.2s;
-            `;
-            item.innerHTML = `
-                <div style="position:relative; flex-shrink:0;">
-                    ${avatarHtml}
-                    <span style="position:absolute; bottom:0; right:0; width:9px; height:9px; border-radius:50%; background:${statusDotColor}; border:1.5px solid #fff;"></span>
-                </div>
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; font-size:13px; color:var(--teal-900); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; display:flex; align-items:center; justify-content:space-between;">
-                        <span>${c.full_name}</span>
-                        ${hasUnread ? `<span style="width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.8);"></span>` : ''}
+                const avatarHtml = typeof window.renderEmpAvatar === 'function'
+                    ? window.renderEmpAvatar(c.full_name, c.profile_picture, 36, 13)
+                    : `<div style="width:36px;height:36px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #fff;">${(c.full_name||'').substring(0,2).toUpperCase()}</div>`;
+
+                item.style.cssText = `
+                    display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; cursor:pointer;
+                    background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
+                    margin-bottom:6px; border:1px solid rgba(0,0,0,0.04); transition: background 0.2s;
+                `;
+                item.innerHTML = `
+                    <div style="position:relative; flex-shrink:0;">
+                        ${avatarHtml}
+                        <span style="position:absolute; bottom:0; right:0; width:9px; height:9px; border-radius:50%; background:${statusDotColor}; border:1.5px solid #fff;"></span>
                     </div>
-                    <div style="font-size:11px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${c.designation || c.department_name || 'Staff'}</div>
-                </div>
-                <span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 6px; background:${statusDotColor}22; color:${statusDotColor};">
-                    ${isBusy ? '🔴 Busy' : '🟢 Online'}
-                </span>
-            `;
-            item.addEventListener('click', () => selectChannelItem('DM', c.employee_id, c.full_name, c.designation || c.department_name));
-            list.appendChild(item);
-        });
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:700; font-size:13px; color:var(--teal-900); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; display:flex; align-items:center; justify-content:space-between;">
+                            <span>${c.full_name}</span>
+                            ${hasUnread ? `<span style="width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.8);"></span>` : ''}
+                        </div>
+                        <div style="font-size:11px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${c.designation || c.department_name || 'Staff'}</div>
+                    </div>
+                    <span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 6px; background:${statusDotColor}22; color:${statusDotColor};">
+                        ${isBusy ? '🔴 Busy' : '🟢 Online'}
+                    </span>
+                `;
+                item.addEventListener('click', () => selectChannelItem('DM', c.employee_id, c.full_name, c.designation || c.department_name));
+                list.appendChild(item);
+            });
+        }
 
-        // 👥 Section 2: Task Groups
-        if (chatChannels.taskGroups.length > 0) {
+        // 👥 Section 2: Custom Groups
+        const filteredGroups = (chatChannels.customGroups || []).filter(g => 
+            !q || (g.name && g.name.toLowerCase().includes(q)) || 
+            (g.description && g.description.toLowerCase().includes(q))
+        );
+
+        if (!q || filteredGroups.length > 0) {
+            const grpHeader = document.createElement('div');
+            grpHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:16px 0 6px 4px; display:flex; justify-content:space-between; align-items:center;';
+            grpHeader.innerHTML = `
+                <span><i class="fa-solid fa-user-group"></i> Groups (${(chatChannels.customGroups || []).length})</span>
+                <button type="button" class="btn-create-group-trigger" title="Create New Group" style="background:none; border:none; color:var(--teal-600); cursor:pointer; font-size:11.5px; font-weight:800; padding:2px 6px; border-radius:4px; display:flex; align-items:center; gap:4px;">
+                    <i class="fa-solid fa-plus"></i> New
+                </button>
+            `;
+            list.appendChild(grpHeader);
+
+            const btnTrigger = grpHeader.querySelector('.btn-create-group-trigger');
+            if (btnTrigger) {
+                btnTrigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (typeof window.openCreateGroupModal === 'function') {
+                        window.openCreateGroupModal();
+                    }
+                });
+            }
+
+            if (filteredGroups.length === 0 && !q) {
+                const noGrp = document.createElement('div');
+                noGrp.style.cssText = 'font-size:11px; color:var(--text-muted); padding:6px 8px; font-style:italic;';
+                noGrp.textContent = 'No groups yet. Click "+ New" to create one.';
+                list.appendChild(noGrp);
+            } else {
+                filteredGroups.forEach(g => {
+                    const item = document.createElement('div');
+                    const isSelected = selectedChannel && selectedChannel.id === g.id && selectedChannel.type === 'Group';
+                    const hasUnread = g.unread_count > 0;
+                    const avatarHtml = typeof window.renderEmpAvatar === 'function'
+                        ? window.renderEmpAvatar(g.name, null, 36, 13)
+                        : `<div style="width:36px;height:36px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #fff;">${(g.name||'GP').substring(0,2).toUpperCase()}</div>`;
+
+                    item.style.cssText = `
+                        display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; cursor:pointer;
+                        background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
+                        margin-bottom:6px; border:1px solid rgba(0,0,0,0.04); transition: background 0.2s;
+                    `;
+                    item.innerHTML = `
+                        <div style="flex-shrink:0;">${avatarHtml}</div>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:700; font-size:13px; color:var(--teal-900); display:flex; justify-content:space-between; align-items:center;">
+                                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${g.name}</span>
+                                ${hasUnread ? `<span style="width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.8);"></span>` : ''}
+                            </div>
+                            <div style="font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                ${g.member_count ? `${g.member_count} members` : 'Group'} ${g.description ? `• ${g.description}` : ''}
+                            </div>
+                        </div>
+                    `;
+                    item.addEventListener('click', () => selectChannelItem('Group', g.id, g.name, `${g.member_count || 1} members`));
+                    list.appendChild(item);
+                });
+            }
+        }
+
+        // 👥 Section 3: Task Groups
+        const filteredTasks = (chatChannels.taskGroups || []).filter(g => 
+            !q || (g.name && g.name.toLowerCase().includes(q)) || 
+            (g.task_title && g.task_title.toLowerCase().includes(q))
+        );
+
+        if (filteredTasks.length > 0) {
             const tgHeader = document.createElement('div');
             tgHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:16px 0 6px 4px;';
             tgHeader.innerHTML = '<i class="fa-solid fa-users"></i> Task Groups';
             list.appendChild(tgHeader);
 
-            chatChannels.taskGroups.forEach(g => {
+            filteredTasks.forEach(g => {
                 const item = document.createElement('div');
                 const isSelected = selectedChannel && selectedChannel.id === g.id && selectedChannel.type === 'TaskGroup';
                 const hasUnread = g.unread_count > 0;
@@ -580,14 +659,19 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // 🏢 Section 3: Department Channels
-        if (chatChannels.departmentChannels.length > 0) {
+        // 🏢 Section 4: Department Channels
+        const filteredDepts = (chatChannels.departmentChannels || []).filter(d => 
+            !q || (d.name && d.name.toLowerCase().includes(q)) || 
+            (d.department_name && d.department_name.toLowerCase().includes(q))
+        );
+
+        if (filteredDepts.length > 0) {
             const deptHeader = document.createElement('div');
             deptHeader.style.cssText = 'font-size:11px; font-weight:800; color:var(--teal-900); text-transform:uppercase; margin:16px 0 6px 4px;';
             deptHeader.innerHTML = '<i class="fa-solid fa-building"></i> Department Channels';
             list.appendChild(deptHeader);
 
-            chatChannels.departmentChannels.forEach(d => {
+            filteredDepts.forEach(d => {
                 const item = document.createElement('div');
                 const isSelected = selectedChannel && selectedChannel.id === d.id && selectedChannel.type === 'Department';
                 const hasUnread = d.unread_count > 0;
@@ -1086,16 +1170,252 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Contact Search Listener
+    // Contact / Group Search Listener
     const contactSearchInput = document.getElementById('chat-contact-search');
     if (contactSearchInput) {
         contactSearchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            const filtered = chatContacts.filter(c => 
-                c.full_name.toLowerCase().includes(query) || 
-                (c.designation_name && c.designation_name.toLowerCase().includes(query))
-            );
-            renderChatContacts(filtered);
+            const query = e.target.value.toLowerCase().trim();
+            renderChatChannels(query);
+        });
+    }
+
+    // ── Create Chat Group Modal Logic ──
+    const groupModal = document.getElementById('create-group-modal');
+    const groupForm = document.getElementById('create-group-form');
+    const groupNameInput = document.getElementById('new-group-name');
+    const groupDescInput = document.getElementById('new-group-desc');
+    const groupMembersList = document.getElementById('group-members-checklist');
+    const groupMemberFilter = document.getElementById('group-member-filter');
+    const groupSelectedCount = document.getElementById('group-selected-count');
+    const btnToggleAll = document.getElementById('btn-toggle-all-members');
+    const btnOpenCreateGroup = document.getElementById('btn-open-create-group');
+    const btnCloseCreateGroup = document.getElementById('create-group-close');
+    const btnCancelCreateGroup = document.getElementById('create-group-cancel');
+    const btnSubmitCreateGroup = document.getElementById('create-group-submit');
+
+    let allAvailableMembers = [];
+    let selectedMemberIds = new Set();
+
+    const fetchAvailableMembers = async () => {
+        try {
+            if (employeesCache && employeesCache.length > 0) {
+                allAvailableMembers = employeesCache.map(e => ({
+                    id: e.id,
+                    full_name: e.full_name,
+                    role: e.designation_name || e.designation || e.department_name || 'Employee'
+                }));
+                return;
+            }
+            const res = await fetch('/api/v1/organization/directory');
+            const data = await res.json();
+            if (res.ok && data.success && data.data && data.data.employees) {
+                allAvailableMembers = data.data.employees.map(e => ({
+                    id: e.id,
+                    full_name: e.full_name,
+                    role: e.designation_name || e.department_name || 'Employee'
+                }));
+            } else if (chatChannels && chatChannels.directMessages && chatChannels.directMessages.length > 0) {
+                allAvailableMembers = chatChannels.directMessages.map(e => ({
+                    id: e.employee_id,
+                    full_name: e.full_name,
+                    role: e.designation || e.department_name || 'Staff'
+                }));
+            }
+        } catch (err) {
+            console.error("Error fetching group members list:", err);
+            if (chatChannels && chatChannels.directMessages) {
+                allAvailableMembers = chatChannels.directMessages.map(e => ({
+                    id: e.employee_id,
+                    full_name: e.full_name,
+                    role: e.designation || e.department_name || 'Staff'
+                }));
+            }
+        }
+    };
+
+    const renderGroupMembersChecklist = (filterText = '') => {
+        if (!groupMembersList) return;
+        groupMembersList.innerHTML = '';
+
+        const query = (filterText || '').toLowerCase().trim();
+        const filtered = allAvailableMembers.filter(m => {
+            if (!query) return true;
+            return (m.full_name && m.full_name.toLowerCase().includes(query)) ||
+                   (m.role && m.role.toLowerCase().includes(query));
+        });
+
+        if (filtered.length === 0) {
+            groupMembersList.innerHTML = `<div style="padding:15px; text-align:center; color:#94a3b8; font-size:12px;">No members found matching "${filterText}"</div>`;
+            return;
+        }
+
+        filtered.forEach(m => {
+            const isChecked = selectedMemberIds.has(m.id);
+            const row = document.createElement('label');
+            row.style.cssText = `
+                display:flex; align-items:center; gap:10px; padding:6px 10px; border-radius:8px; cursor:pointer;
+                background:${isChecked ? 'rgba(13,148,136,0.1)' : '#ffffff'};
+                border:1px solid ${isChecked ? 'var(--teal-600)' : '#e2e8f0'};
+                transition:all 0.15s; user-select:none;
+            `;
+
+            const avatarHtml = typeof window.renderEmpAvatar === 'function'
+                ? window.renderEmpAvatar(m.full_name, null, 28, 11)
+                : `<div style="width:28px;height:28px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">${(m.full_name||'').substring(0,2).toUpperCase()}</div>`;
+
+            row.innerHTML = `
+                <input type="checkbox" value="${m.id}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--teal-600); cursor:pointer;" />
+                <div style="flex-shrink:0;">${avatarHtml}</div>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; font-size:12.5px; color:var(--teal-900); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${m.full_name}</div>
+                    <div style="font-size:10.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${m.role}</div>
+                </div>
+            `;
+
+            const chk = row.querySelector('input[type="checkbox"]');
+            chk.addEventListener('change', (e) => {
+                if (chk.checked) {
+                    selectedMemberIds.add(m.id);
+                } else {
+                    selectedMemberIds.delete(m.id);
+                }
+                updateGroupSelectedCount();
+                renderGroupMembersChecklist(groupMemberFilter ? groupMemberFilter.value : '');
+            });
+
+            groupMembersList.appendChild(row);
+        });
+    };
+
+    const updateGroupSelectedCount = () => {
+        if (groupSelectedCount) {
+            groupSelectedCount.textContent = `${selectedMemberIds.size} selected`;
+        }
+        if (btnToggleAll) {
+            btnToggleAll.textContent = selectedMemberIds.size === allAvailableMembers.length && allAvailableMembers.length > 0 
+                ? 'Deselect All' 
+                : 'Select All';
+        }
+    };
+
+    const openCreateGroupModal = async () => {
+        if (groupForm) groupForm.reset();
+        selectedMemberIds.clear();
+        updateGroupSelectedCount();
+
+        if (groupModal) {
+            groupModal.style.display = 'flex';
+            setTimeout(() => {
+                groupModal.style.opacity = '1';
+                groupModal.style.pointerEvents = 'auto';
+            }, 10);
+        }
+
+        if (allAvailableMembers.length === 0) {
+            await fetchAvailableMembers();
+        }
+        renderGroupMembersChecklist();
+        if (groupNameInput) groupNameInput.focus();
+    };
+
+    const closeCreateGroupModal = () => {
+        if (groupModal) {
+            groupModal.style.opacity = '0';
+            groupModal.style.pointerEvents = 'none';
+            setTimeout(() => {
+                groupModal.style.display = 'none';
+            }, 250);
+        }
+        if (groupForm) groupForm.reset();
+        selectedMemberIds.clear();
+    };
+
+    window.openCreateGroupModal = openCreateGroupModal;
+    window.closeCreateGroupModal = closeCreateGroupModal;
+
+    if (btnOpenCreateGroup) btnOpenCreateGroup.addEventListener('click', openCreateGroupModal);
+    if (btnCloseCreateGroup) btnCloseCreateGroup.addEventListener('click', closeCreateGroupModal);
+    if (btnCancelCreateGroup) btnCancelCreateGroup.addEventListener('click', closeCreateGroupModal);
+    if (groupModal) {
+        groupModal.addEventListener('click', (e) => {
+            if (e.target === groupModal) closeCreateGroupModal();
+        });
+    }
+
+    if (groupMemberFilter) {
+        groupMemberFilter.addEventListener('input', (e) => {
+            renderGroupMembersChecklist(e.target.value);
+        });
+    }
+
+    if (btnToggleAll) {
+        btnToggleAll.addEventListener('click', () => {
+            if (selectedMemberIds.size === allAvailableMembers.length && allAvailableMembers.length > 0) {
+                selectedMemberIds.clear();
+            } else {
+                allAvailableMembers.forEach(m => selectedMemberIds.add(m.id));
+            }
+            updateGroupSelectedCount();
+            renderGroupMembersChecklist(groupMemberFilter ? groupMemberFilter.value : '');
+        });
+    }
+
+    if (groupForm) {
+        groupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = groupNameInput ? groupNameInput.value.trim() : '';
+            const description = groupDescInput ? groupDescInput.value.trim() : '';
+            const memberIds = Array.from(selectedMemberIds);
+
+            if (!name) {
+                alert('Please enter a group name');
+                return;
+            }
+
+            const originalBtnHTML = btnSubmitCreateGroup ? btnSubmitCreateGroup.innerHTML : '';
+            if (btnSubmitCreateGroup) {
+                btnSubmitCreateGroup.disabled = true;
+                btnSubmitCreateGroup.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating...';
+            }
+
+            try {
+                const res = await fetch('/api/v1/chat/groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ name, description, memberIds })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    alert(data.message || 'Failed to create group');
+                    return;
+                }
+
+                closeCreateGroupModal();
+                
+                // Refresh channel list
+                const chanRes = await fetch('/api/v1/chat/channels');
+                const chanData = await chanRes.json();
+                if (chanRes.ok && chanData.success) {
+                    chatChannels = chanData.data;
+                    renderChatChannels();
+                }
+
+                // Immediately focus on newly created group
+                const newGroupId = data.data?.id;
+                if (newGroupId) {
+                    selectChannelItem('Group', newGroupId, name, `${(memberIds.length + 1)} members`);
+                }
+
+            } catch (err) {
+                console.error('Error creating group:', err);
+                alert('Error creating group: ' + (err.message || err));
+            } finally {
+                if (btnSubmitCreateGroup) {
+                    btnSubmitCreateGroup.disabled = false;
+                    btnSubmitCreateGroup.innerHTML = originalBtnHTML;
+                }
+            }
         });
     }
 

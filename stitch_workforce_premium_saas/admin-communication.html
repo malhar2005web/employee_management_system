@@ -246,8 +246,11 @@
       <div style="display:flex; height:100%; gap:20px; background:rgba(255,255,255,0.1); border-radius:var(--radius-lg); overflow:hidden; border:1px solid rgba(255,255,255,0.25);">
         <!-- Contacts Sidebar -->
         <div style="width:280px; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.15);">
-          <div style="padding:12px; border-bottom:1px solid rgba(255,255,255,0.2);">
-            <input type="text" id="chat-contact-search" placeholder="Search contacts..." style="width:100%; padding:8px 14px; border-radius:20px; border:1px solid rgba(255,255,255,0.4); background:rgba(255,255,255,0.3); font-size:13px; outline:none; color:var(--text-dark);" />
+          <div style="padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.2); display:flex; gap:8px; align-items:center;">
+            <input type="text" id="chat-contact-search" placeholder="Search contacts..." style="flex:1; min-width:0; padding:8px 14px; border-radius:20px; border:1px solid rgba(255,255,255,0.4); background:rgba(255,255,255,0.3); font-size:12.5px; outline:none; color:var(--text-dark);" />
+            <button id="btn-open-create-group" type="button" title="Create New Group" style="display:flex; align-items:center; gap:5px; padding:7px 12px; border-radius:18px; background:linear-gradient(135deg, #0f766e, #0d9488); color:white; border:none; cursor:pointer; font-size:12px; font-weight:700; white-space:nowrap; box-shadow:0 2px 8px rgba(15,118,110,0.3); transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(15,118,110,0.4)';" onmouseout="this.style.transform='none';this.style.boxShadow='0 2px 8px rgba(15,118,110,0.3)';">
+              <i class="fa-solid fa-plus"></i> Group
+            </button>
           </div>
           <div id="chat-contacts-list" style="flex:1; overflow-y:auto; padding:10px;">
             <!-- Dynamic contacts -->
@@ -374,6 +377,70 @@
       <button id="btn-call-mute" style="width:48px; height:48px; border-radius:50%; border:none; background:#e5e7eb; color:#374151; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;"><i class="fa-solid fa-microphone"></i></button>
       <button id="btn-call-hangup" style="width:48px; height:48px; border-radius:50%; border:none; background:#ef4444; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;"><i class="fa-solid fa-phone-slash"></i></button>
     </div>
+  </div>
+</div>
+
+<!-- Create New Chat Group Modal -->
+<div class="modal-overlay" id="create-group-modal" style="display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.6); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); align-items:center; justify-content:center; z-index:10000; opacity:0; transition:opacity 0.25s ease;">
+  <div class="modal-box" style="width:100%; max-width:480px; max-height:90vh; background:rgba(255,255,255,0.96); border:1px solid rgba(255,255,255,0.4); border-radius:20px; box-shadow:0 16px 48px rgba(0,0,0,0.2); display:flex; flex-direction:column; overflow:hidden;">
+    
+    <!-- Modal Header -->
+    <div style="padding:16px 20px; border-bottom:1px solid rgba(0,0,0,0.06); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg, rgba(15,118,110,0.08), rgba(13,148,136,0.02));">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, #0f766e, #0d9488); color:white; display:flex; align-items:center; justify-content:center; font-size:16px; box-shadow:0 2px 8px rgba(15,118,110,0.3);">
+          <i class="fa-solid fa-users"></i>
+        </div>
+        <div>
+          <h3 style="margin:0; font-size:16px; font-weight:800; color:var(--teal-900);">Create New Group</h3>
+          <p style="margin:2px 0 0 0; font-size:11.5px; color:var(--text-muted);">Collaborate with team members in a shared room</p>
+        </div>
+      </div>
+      <button type="button" id="create-group-close" style="width:30px; height:30px; border-radius:50%; border:none; background:rgba(0,0,0,0.05); color:#64748b; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.1)'" onmouseout="this.style.background='rgba(0,0,0,0.05)'">&times;</button>
+    </div>
+
+    <!-- Modal Body / Form -->
+    <form id="create-group-form" style="padding:18px 20px; display:flex; flex-direction:column; gap:14px; overflow-y:auto;">
+      <!-- Group Name -->
+      <div>
+        <label style="display:block; font-size:12px; font-weight:800; color:var(--teal-900); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.5px;">Group Name <span style="color:#ef4444;">*</span></label>
+        <input type="text" id="new-group-name" required placeholder="e.g. Marketing Core, DevOps Squad, Shift Leads" style="width:100%; padding:9px 13px; border-radius:10px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--teal-600)';" onblur="this.style.borderColor='#cbd5e1';" />
+      </div>
+
+      <!-- Group Description -->
+      <div>
+        <label style="display:block; font-size:12px; font-weight:800; color:var(--teal-900); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.5px;">Topic / Description <span style="font-size:11px; font-weight:normal; color:var(--text-muted);">(Optional)</span></label>
+        <input type="text" id="new-group-desc" placeholder="Brief topic or purpose of this group..." style="width:100%; padding:9px 13px; border-radius:10px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--teal-600)';" onblur="this.style.borderColor='#cbd5e1';" />
+      </div>
+
+      <!-- Member Selection -->
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <label style="font-size:12px; font-weight:800; color:var(--teal-900); text-transform:uppercase; letter-spacing:0.5px; margin:0;">
+            Select Members <span id="group-selected-count" style="background:#0d948822; color:var(--teal-700); padding:2px 7px; border-radius:10px; font-size:11px; font-weight:800;">0 selected</span>
+          </label>
+          <button type="button" id="btn-toggle-all-members" style="background:none; border:none; color:var(--teal-600); font-size:11.5px; font-weight:700; cursor:pointer; padding:0; text-decoration:underline;">Select All</button>
+        </div>
+
+        <!-- Filter Input -->
+        <div style="position:relative; margin-bottom:8px;">
+          <input type="text" id="group-member-filter" placeholder="Filter employees by name or role..." style="width:100%; padding:7px 12px 7px 30px; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; font-size:12px; outline:none;" />
+          <i class="fa-solid fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:11px; color:#94a3b8;"></i>
+        </div>
+
+        <!-- Scrollable Member List -->
+        <div id="group-members-checklist" style="max-height:190px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; padding:6px; display:flex; flex-direction:column; gap:4px;">
+          <div style="padding:15px; text-align:center; color:#94a3b8; font-size:12px;">Loading employees...</div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button type="button" id="create-group-cancel" class="btn-secondary" style="flex:1; padding:9px; border-radius:10px; font-size:13px; font-weight:700;">Cancel</button>
+        <button type="submit" id="create-group-submit" class="btn-primary" style="flex:1.5; padding:9px; border-radius:10px; font-size:13px; font-weight:700; background:linear-gradient(135deg, #0f766e, #0d9488); border:none; display:flex; align-items:center; justify-content:center; gap:6px;">
+          <i class="fa-solid fa-check"></i> Create Group
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 

@@ -57,6 +57,36 @@ export const getChannels = async (req, res) => {
             )
         `);
 
+        // Auto-ensure schema columns exist
+        await pool.query(`
+            ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS description TEXT;
+            ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_by INT REFERENCES employees(id) ON DELETE SET NULL;
+        `);
+
+        // Fetch Custom Created Groups
+        const userRole = req.user?.role || '';
+        const customGroupsRes = await pool.query(`
+            SELECT DISTINCT c.id, c.name, c.channel_type, c.description, c.created_by, c.is_pinned,
+                   COALESCE(un.cnt, 0)::INT AS unread_count,
+                   (SELECT COUNT(*)::INT FROM chat_channel_members WHERE channel_id = c.id) AS member_count
+            FROM chat_channels c
+            LEFT JOIN chat_channel_members ccm ON c.id = ccm.channel_id
+            LEFT JOIN (
+                SELECT channel_id, COUNT(*)::INT AS cnt 
+                FROM notifications 
+                WHERE recipient_id = $1 AND is_read = false AND channel_id IS NOT NULL
+                GROUP BY channel_id
+            ) un ON c.id = un.channel_id
+            WHERE c.channel_type = 'Group' AND (
+                $1 = 0 OR
+                $2 = 'Admin' OR
+                $2 = 'SuperAdmin' OR
+                c.created_by = $1 OR
+                ccm.employee_id = $1
+            )
+            ORDER BY unread_count DESC, c.is_pinned DESC, c.id DESC
+        `, [currentEmpId || 0, userRole]);
+
         // Fetch Task/Project Group Channels with Unread count by channel_id
         const taskGroupsRes = await pool.query(`
             SELECT DISTINCT c.id, c.name, c.task_id, c.project_id, c.customer_id, c.is_pinned,
@@ -101,6 +131,7 @@ export const getChannels = async (req, res) => {
             success: true,
             data: {
                 directMessages: dmsRes.rows,
+                customGroups: customGroupsRes.rows,
                 taskGroups: taskGroupsRes.rows,
                 departmentChannels: deptsRes.rows
             }
@@ -109,6 +140,103 @@ export const getChannels = async (req, res) => {
     } catch (error) {
         console.error('Error fetching chat channels:', error);
         return res.status(500).json({ success: false, message: 'Failed to fetch channels' });
+    }
+};
+
+/**
+ * 👥 CREATE NEW CHAT GROUP WITH SELECTED MEMBERS
+ */
+export const createGroup = async (req, res) => {
+    try {
+        const rawCreatorId = getEmpId(req);
+        const { name, description = '', memberIds = [] } = req.body;
+
+        if (!name || !name.trim()) {
+            return res.status(400).json({ success: false, message: 'Group name is required' });
+        }
+
+        const trimmedName = name.trim();
+
+        // Resolve valid employee id and name for creator
+        let validCreatorEmpId = null;
+        let creatorName = 'Admin';
+        if (rawCreatorId) {
+            const empRes = await pool.query(
+                `SELECT id, full_name FROM employees WHERE id = $1 OR user_id = $1 LIMIT 1;`, 
+                [rawCreatorId]
+            );
+            if (empRes.rows.length > 0) {
+                validCreatorEmpId = empRes.rows[0].id;
+                if (empRes.rows[0].full_name) {
+                    creatorName = empRes.rows[0].full_name;
+                }
+            }
+        }
+
+        // 1. Insert Group Channel
+        const insertChanRes = await pool.query(`
+            INSERT INTO chat_channels (channel_type, name, description, created_by, created_at)
+            VALUES ('Group', $1, $2, $3, NOW())
+            RETURNING *;
+        `, [trimmedName, description ? description.trim() : null, validCreatorEmpId]);
+
+        const newChannel = insertChanRes.rows[0];
+        const channelId = newChannel.id;
+
+        // 2. Add creator as Admin member
+        if (validCreatorEmpId) {
+            await pool.query(`
+                INSERT INTO chat_channel_members (channel_id, employee_id, role, joined_at)
+                VALUES ($1, $2, 'Admin', NOW())
+                ON CONFLICT (channel_id, employee_id) DO NOTHING;
+            `, [channelId, validCreatorEmpId]);
+        }
+
+        // 3. Add selected members
+        const parsedMemberIds = Array.isArray(memberIds) 
+            ? memberIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0 && id !== validCreatorEmpId)
+            : [];
+
+        for (const mId of parsedMemberIds) {
+            await pool.query(`
+                INSERT INTO chat_channel_members (channel_id, employee_id, role, joined_at)
+                VALUES ($1, $2, 'Member', NOW())
+                ON CONFLICT (channel_id, employee_id) DO NOTHING;
+            `, [channelId, mId]);
+        }
+
+        // 4. Post system message
+        await pool.query(`
+            INSERT INTO chat_messages (channel_id, sender_id, message_type, message_text, created_at)
+            VALUES ($1, $2, 'SYSTEM', $3, NOW());
+        `, [channelId, validCreatorEmpId || 1, `🎉 Group "${trimmedName}" created by ${creatorName}`]);
+
+        // 5. Notify added members
+        for (const mId of parsedMemberIds) {
+            await pool.query(`
+                INSERT INTO notifications (title, message, type, recipient_id, sender_id, channel_id)
+                VALUES ($1, $2, 'Chat', $3, $4, $5);
+            `, [
+                `New Group: ${trimmedName}`,
+                `${creatorName} added you to group "${trimmedName}"`,
+                mId,
+                validCreatorEmpId || null,
+                channelId
+            ]);
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: 'Group created successfully',
+            data: {
+                ...newChannel,
+                member_count: parsedMemberIds.length + (validCreatorEmpId ? 1 : 0)
+            }
+        });
+
+    } catch (error) {
+        console.error('Error creating chat group:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Failed to create group' });
     }
 };
 

@@ -7,7 +7,8 @@ import {
     getChannels,
     getChannelMessages,
     sendMessage,
-    markChannelRead
+    markChannelRead,
+    createGroup
 } from '../controller/chat.controller.js';
 
 import fs from 'fs';
@@ -52,5 +53,6 @@ router.get('/channels', getChannels);
 router.get('/messages/:channelId', getChannelMessages);
 router.post('/messages', chatUpload.single('file'), sendMessage);
 router.post('/channels/:channelId/read', markChannelRead);
+router.post('/groups', createGroup);
 
 export default router;

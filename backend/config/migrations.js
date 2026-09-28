@@ -436,6 +436,8 @@ export async function runMigrations() {
             );
 
             ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS customer_id INT REFERENCES customers(id) ON DELETE CASCADE;
+            ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS description TEXT;
+            ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_by INT REFERENCES employees(id) ON DELETE SET NULL;
 
             CREATE TABLE IF NOT EXISTS chat_messages (
                 id SERIAL PRIMARY KEY,
