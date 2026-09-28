@@ -1,18 +1,107 @@
+import { pool } from '../config/db.js';
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+// Cache directory in-memory for 60 seconds
+let enterpriseDirectoryCache = null;
+let enterpriseDirectoryCacheTime = 0;
+
+export async function getEnterpriseDatabaseDirectory() {
+    const now = Date.now();
+    if (enterpriseDirectoryCache && (now - enterpriseDirectoryCacheTime < 60000)) {
+        return enterpriseDirectoryCache;
+    }
+
+    try {
+        const custsRes = await pool.query(`
+            SELECT c.id, c.name, c.branch, c.branches, c.contact_persons,
+                   COALESCE(
+                       JSON_AGG(
+                           JSON_BUILD_OBJECT('id', p.id, 'name', p.name, 'branch_name', p.branch_name, 'description', p.description)
+                       ) FILTER (WHERE p.id IS NOT NULL), '[]'
+                   ) as projects
+            FROM customers c
+            LEFT JOIN projects p ON c.id = p.customer_id
+            GROUP BY c.id
+            ORDER BY c.id;
+        `);
+        enterpriseDirectoryCache = custsRes.rows;
+        enterpriseDirectoryCacheTime = now;
+        return enterpriseDirectoryCache;
+    } catch (err) {
+        console.error("❌ Error fetching enterprise directory:", err.message);
+        return enterpriseDirectoryCache || [];
+    }
+}
+
+export function formatDatabaseDirectoryForPrompt(directoryRows) {
+    if (!Array.isArray(directoryRows) || directoryRows.length === 0) {
+        return "No external customer directory loaded.";
+    }
+
+    const lines = ["POSTGRESQL ENTERPRISE CLIENT & PROJECT KNOWLEDGE BASE (LIVE FROM DATABASE):"];
+    for (const row of directoryRows) {
+        let branchInfo = [];
+        let branches = row.branches;
+        if (typeof branches === 'string') {
+            try { branches = JSON.parse(branches); } catch (e) {}
+        }
+        if (Array.isArray(branches)) {
+            for (const b of branches) {
+                const bName = b.branch || 'Main';
+                const bProj = Array.isArray(b.projects) ? b.projects.map(p => (typeof p === 'string' ? p : p.name)).join(', ') : '';
+                const bContacts = Array.isArray(b.contacts) ? b.contacts.map(c => `${c.name || 'Contact'} (${c.phone || ''})`).join(', ') : '';
+                branchInfo.push(`  * Branch: "${bName}" (Projects: [${bProj || 'Active'}], Contacts: [${bContacts}])`);
+            }
+        }
+
+        let projs = row.projects;
+        if (typeof projs === 'string') {
+            try { projs = JSON.parse(projs); } catch (e) {}
+        }
+        let projNames = [];
+        if (Array.isArray(projs)) {
+            for (const p of projs) {
+                if (p && p.name) projNames.push(`"${p.name}" (Branch: ${p.branch_name || 'All'}, ID: ${p.id})`);
+            }
+        }
+
+        lines.push(`• Customer: "${row.name}" (ID: ${row.id})`);
+        if (branchInfo.length > 0) {
+            lines.push(branchInfo.join('\n'));
+        }
+        if (projNames.length > 0) {
+            lines.push(`  Direct Linked Projects: ${projNames.join(', ')}`);
+        }
+    }
+
+    lines.push(`• Internal Solutions: "Workforce EMS" (HRMS, Attendance, Mobile App, Payroll Portal, Security Guard System)`);
+    return lines.join('\n');
+}
 
 // 1. Declare Controlled Tools for Gemini Function Calling
 const AGENT_TOOLS = [
     {
         function_declarations: [
             {
+                name: "start_support_ticket_flow",
+                description: "Start support ticket registration flow when client requests to raise/open/create a support ticket, without giving complete issue details yet.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        preferred_project: { type: "STRING", description: "Optional project if user mentioned one" }
+                    }
+                }
+            },
+            {
                 name: "create_support_ticket",
                 description: "Create or register a technical support ticket when a client reports a bug, error, downtime, defect, or portal issue. If project is known or mentioned, include it.",
                 parameters: {
                     type: "OBJECT",
                     properties: {
-                        project: { type: "STRING", description: "Affected project name (e.g. Workforce EMS, HR Portal, Custom Solution)" },
+                        project: { type: "STRING", description: "Affected project name (e.g. Workforce EMS, SOftlink (Bhy), Pentasoft, CMV, AIC Infrastructures)" },
                         category: { type: "STRING", enum: ["Bug / Defect", "Server / Downtime", "Configuration / Setup", "Data / Report Issue", "Feature Request", "General Support"], description: "Category of issue" },
                         priority: { type: "STRING", enum: ["Low", "Medium", "High", "Critical"], description: "Urgency level" },
                         title: { type: "STRING", description: "Concise summary of the problem" },
@@ -106,7 +195,7 @@ const AGENT_TOOLS = [
             },
             {
                 name: "handover_to_team",
-                description: "Provide direct escalation contact numbers (Lead Architect Shrirang Joshi +91 98210 27060, Project Manager Nitin Sir +91 87671 37790) when user demands a call, escalation, or human discussion.",
+                description: "Provide direct escalation contact numbers (Lead Architect Shrirang Joshi +91 98210 27060 / +91 98217 90231, Technical Delivery Nitin Sir +91 87671 37790) when user demands a call, escalation, or human discussion.",
                 parameters: {
                     type: "OBJECT",
                     properties: {
@@ -117,7 +206,7 @@ const AGENT_TOOLS = [
             },
             {
                 name: "send_services_menu",
-                description: "Send the main 3-option interactive service menu ONLY when user sends a basic greeting ('Hi', 'Hello', 'Start', 'Menu'). Do NOT call this if a specific question or issue was raised.",
+                description: "Send the main 3-option interactive service menu ONLY when user sends a basic greeting ('Hi', 'Hello', 'Start', 'Menu'). Do NOT call this if a specific question, support request, or ticket was raised.",
                 parameters: {
                     type: "OBJECT",
                     properties: {}
@@ -136,34 +225,62 @@ export async function processMessageWithAI({ senderPhone, userMessage, clientCon
     }
 
     try {
+        const directoryRows = await getEnterpriseDatabaseDirectory();
+        const directoryText = formatDatabaseDirectoryForPrompt(directoryRows);
+
         const systemInstruction = `
 You are the Senior Technical Consultant & AI Assistant for "Planex Software / Pentasoft Consultancy".
 We build and support Enterprise Web Applications, Mobile Apps (Android/iOS), Workforce EMS SaaS, and Industrial Automation.
 
 Official Leadership & Contacts:
-- Lead Solution Architect & Business Head: Shrirang Joshi (+91 98210 27060)
+- Lead Solution Architect & Business Head: Shrirang Joshi (+91 98210 27060 / +91 98217 90231)
 - Project Manager & Technical Delivery: Nitin RajGuru (+91 87671 37790)
 - Accounts & Invoicing Desk: (+91 96645 40011)
 
-Current Client Context from EMS Database:
-- Client Name: ${clientContext.name || 'Valued Client'}
-- User Type: ${clientContext.type} (${clientContext.company || 'Enterprise'})
+${directoryText}
+
+Current Caller / Client Context from EMS Database:
+- Caller Name: ${clientContext.name || 'Valued Client'}
+- Caller Type: ${clientContext.type} (${clientContext.company || 'Enterprise'})
 - Active Projects: ${JSON.stringify(clientContext.projects || [])}
 - Assigned Team: ${JSON.stringify(clientContext.assignedEmployees || [])}
+
+DATABASE RECOGNITION & ENTITY MATCHING RULES (CRITICAL):
+1. ALWAYS cross-reference the user's message with the ENTERPRISE CLIENT & PROJECT KNOWLEDGE BASE above:
+   - "bhy", "bhayander", "bhayandar", "softlink", "softlink bhy" maps to Customer: "SOftlink" (ID: 14), Branch: "Bhy", Project: "SOftlink (Bhy)".
+   - "plant 1", "plant 2", "cmv" maps to Customer: "CMV" (ID: 13).
+   - "dadar", "aic", "aic infrastructures" maps to Customer: "AIC Infrastructures" (ID: 15), Project: "Penta RMC".
+   - "kandivali", "anishwar" maps to Customer: "ANISHWAR INFRA" (ID: 17), Project: "SALES".
+   - "mumbai", "algomatix" maps to Customer: "ALGOMATIX TECHNOLOGY" (ID: 16), Project: "Server Data Management".
+   - "dahisar", "miraroad", "penta", "pentarmc" maps to Customer: "Pentasoft" (ID: 5).
+   - "ems", "workforce", "portal", "attendance" maps to "Workforce EMS".
+2. When the user reports an issue containing ANY branch or project reference (e.g. "Login issue in bhy"):
+   - DO NOT ASK "Which project is affected?"! The project is ALREADY IDENTIFIED as "SOftlink (Bhy)".
+   - Immediately call tool 'create_support_ticket' with:
+     project: "SOftlink (Bhy)",
+     category: "Bug / Defect",
+     title: "Login issue in bhy",
+     description: "Login issue in bhy",
+     priority: "High",
+     is_urgent: true
+3. When the user says "Raise support ticket", "Support ticket", "Need support", "Create ticket", or similar:
+   - DO NOT call 'send_services_menu'!
+   - Call tool 'start_support_ticket_flow'.
 
 CORE 4-LAYER RESPONSE RULES (Strictly Enforced):
 1. Gemini interprets; EMS backend validates and executes; PostgreSQL is the single source of truth.
 2. Never say vague phrases like "OK", "Done", "Checking", or "Will try".
 3. Every completed action must return a structured confirmation with Ticket/Invoice ID, Project, Status, Assignee, SLA, or next step.
 4. Ask ONLY for missing information (pending_fields). Never re-ask for details already provided by the customer.
-5. If the client provides complete context in 1 message (e.g. "EMS portal slow, cannot login"), invoke 'create_support_ticket' immediately with project and priority without forcing a multi-step questionnaire.
+5. If the client provides complete context in 1 message (e.g. "Login issue in bhy" or "EMS portal slow, cannot login"), invoke 'create_support_ticket' immediately with project and priority without forcing a multi-step questionnaire.
 6. Never fabricate a fake Ticket ID, resolution timestamp, or successful payment. Real IDs and balances come from EMS backend.
 7. Tone: Crisp, professional, polite, reassuring. Clean corporate English/Hindi/Hinglish.
 8. FORMATTING RULE: Do NOT use loud emojis or markdown asterisk bolding spam. Keep text clean and structured.
 
 CANONICAL INTENTS & BEHAVIOR:
-- GREETING: ("Hi", "Hello") -> Call 'send_services_menu'.
-- TECH SUPPORT / BUG: ("Portal down", "Attendance not submitting") -> Call 'create_support_ticket'.
+- RAISE TICKET INTENT: ("Raise support ticket", "Support ticket", "Ticket raise karo") -> Call 'start_support_ticket_flow'.
+- GREETING ONLY: ("Hi", "Hello") -> Call 'send_services_menu'.
+- TECH SUPPORT / BUG: ("Login issue in bhy", "Portal down", "Attendance not submitting") -> Call 'create_support_ticket'.
 - STATUS CHECK: ("What is the status of my ticket?", "Any update?") -> Call 'check_ticket_status'.
 - RESOLUTION: ("Issue is fixed", "Resolved", "Ticket end", "Kam ho gaya") -> Call 'resolve_support_ticket'.
 - BILLING / INVOICE: ("Send invoice", "How much pending?") -> Call 'get_invoice_and_billing'.
@@ -259,6 +376,18 @@ CANONICAL INTENTS & BEHAVIOR:
 export function fallbackRuleEngine(message, clientContext = {}) {
     const lower = (message || '').toLowerCase().trim();
 
+    // 0. Explicit Support Ticket Intent (Higher priority than general greeting)
+    if (lower === 'raise support ticket' || lower === 'support ticket' || lower === 'raise ticket' || lower === 'create ticket' ||
+        lower.includes('raise support') || lower.includes('support ticket') || lower.includes('ticket raise') || lower.includes('new ticket') ||
+        lower === 'technical support' || lower === 'support') {
+        return {
+            toolCall: {
+                name: 'start_support_ticket_flow',
+                args: {}
+            }
+        };
+    }
+
     // 1. Ticket Resolution (Fixed / Close / Resolved / Solved)
     if (lower === 'resolved' || lower.includes('ticket end') || lower.includes('close ticket') || lower.includes('close it') ||
         lower.includes('issue fixed') || lower.includes('issue is fixed') || lower.includes('is fixed now') ||
@@ -287,6 +416,7 @@ export function fallbackRuleEngine(message, clientContext = {}) {
         let correctedProject = 'Workforce EMS';
         if (lower.includes('ems')) correctedProject = 'Workforce EMS';
         else if (lower.includes('portal')) correctedProject = 'Enterprise Portal';
+        else if (lower.includes('softlink') || lower.includes('bhy')) correctedProject = 'SOftlink (Bhy)';
         return {
             toolCall: {
                 name: 'modify_conversation_context',
@@ -339,7 +469,9 @@ export function fallbackRuleEngine(message, clientContext = {}) {
 
     // 8. Technical Support / Bug / Downtime (HIGHER PRIORITY THAN GENERAL SALES KEYWORDS)
     if (lower.includes('issue') || lower.includes('problem') || lower.includes('error') || lower.includes('bug') || 
-        lower.includes('not working') || lower.includes('unable to') || lower.includes('nahi chal raha') || lower.includes('slow') || lower.includes('crash') || lower.includes('server down') || lower.includes('down')) {
+        lower.includes('not working') || lower.includes('unable to') || lower.includes('nahi chal raha') || lower.includes('slow') || 
+        lower.includes('crash') || lower.includes('server down') || lower.includes('down') || lower.includes('login') ||
+        lower.includes('login issue') || lower.includes('cannot login') || lower.includes('cant login')) {
         
         let cat = 'Bug / Defect';
         if (lower.includes('server') || lower.includes('down') || lower.includes('slow') || lower.includes('downtime')) cat = 'Server / Downtime';
@@ -348,10 +480,13 @@ export function fallbackRuleEngine(message, clientContext = {}) {
         if (lower.includes('urgent') || lower.includes('critical') || lower.includes('asap') || lower.includes('emergency')) pri = 'High';
 
         let detectedProject = null;
-        if (lower.includes('ems') || lower.includes('workforce')) detectedProject = 'Workforce EMS';
-        else if (lower.includes('portal')) detectedProject = 'Workforce EMS';
-        else if (lower.includes('softlink') || lower.includes('bhy')) detectedProject = 'SOftlink';
-        else if (lower.includes('penta')) detectedProject = 'Pentasoft';
+        if (lower.includes('softlink') || lower.includes('bhy') || lower.includes('bhayander')) detectedProject = 'SOftlink (Bhy)';
+        else if (lower.includes('plant 1') || lower.includes('plant2') || lower.includes('cmv')) detectedProject = 'CMV';
+        else if (lower.includes('dadar') || lower.includes('aic')) detectedProject = 'AIC Infrastructures (Dadar)';
+        else if (lower.includes('kandivali') || lower.includes('anishwar')) detectedProject = 'ANISHWAR INFRA (Kandivali)';
+        else if (lower.includes('algomatix') || lower.includes('mumbai')) detectedProject = 'ALGOMATIX TECHNOLOGY (Mumbai)';
+        else if (lower.includes('penta') || lower.includes('dahisar') || lower.includes('miraroad')) detectedProject = 'Pentasoft';
+        else if (lower.includes('ems') || lower.includes('workforce') || lower.includes('portal')) detectedProject = 'Workforce EMS';
 
         return {
             toolCall: {

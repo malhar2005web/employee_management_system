@@ -273,9 +273,11 @@ export async function notifyTicketWhatsApp({
             phoneList.push({ name: 'Shrirang Joshi (Escalation Head)', phone: '919821027060' });
         }
 
-        // Always ensure Escalation Head (Shrirang Joshi) is alerted
-        if (!phoneList.some(p => p.phone === '919821027060')) {
-            phoneList.push({ name: 'Shrirang Joshi (Escalation Head)', phone: '919821027060' });
+        // Always ensure Admin Shrirang Joshi (both numbers) is alerted for each and every ticket event
+        for (const adminPhone of ['919821027060', '919821790231']) {
+            if (!phoneList.some(p => p.phone === adminPhone)) {
+                phoneList.push({ name: 'Admin Shrirang Joshi', phone: adminPhone });
+            }
         }
 
         let attachmentText = '';

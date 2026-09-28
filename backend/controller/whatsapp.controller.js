@@ -31,6 +31,7 @@ export const SALES_HEAD_PHONE = '919821027060';
 export const ACCOUNTS_HEAD_PHONE_1 = '919821027060';
 export const ACCOUNTS_HEAD_PHONE_2 = '919664540011';
 export const SUPPORT_ESCALATION_PHONE = '919821027060';
+export const ADMIN_SHRIRANG_PHONES = ['919821027060', '919821790231'];
 
 export const KNOWN_ENGINEER_PHONES = {
     9: { name: 'Malhar Kulkarni', phone: '+91 87671 37790', raw: '918767137790' },
@@ -349,7 +350,9 @@ You are welcome to connect anytime. Your conversation context and existing ticke
     });
 
     const notif = `[Direct Call Request from WhatsApp]\n\nClient: ${clientContext.name}\nPhone: ${senderPhone}\nNote: ${note || 'Client requested direct call/escalation.'}`;
-    sendWhatsAppText(SALES_HEAD_PHONE, notif).catch(() => {});
+    for (const adminPhone of ADMIN_SHRIRANG_PHONES) {
+        sendWhatsAppText(adminPhone, notif).catch(() => {});
+    }
 }
 
 /**
@@ -495,8 +498,12 @@ async function handlePendingStateResponse(senderPhone, textContent, clientContex
         let projectName = rawText;
         const low = rawText.toLowerCase();
         if (low.includes('ems') || low.includes('workforce')) projectName = 'Workforce EMS';
-        else if (low.includes('softlink') || low.includes('bhy')) projectName = 'SOftlink';
-        else if (low.includes('penta')) projectName = 'Pentasoft';
+        else if (low.includes('softlink') || low.includes('bhy') || low.includes('bhayander')) projectName = 'SOftlink (Bhy)';
+        else if (low.includes('plant 1') || low.includes('plant2') || low.includes('cmv')) projectName = 'CMV';
+        else if (low.includes('dadar') || low.includes('aic')) projectName = 'AIC Infrastructures (Dadar)';
+        else if (low.includes('kandivali') || low.includes('anishwar')) projectName = 'ANISHWAR INFRA (Kandivali)';
+        else if (low.includes('algomatix') || low.includes('mumbai')) projectName = 'ALGOMATIX TECHNOLOGY (Mumbai)';
+        else if (low.includes('penta') || low.includes('dahisar') || low.includes('miraroad')) projectName = 'Pentasoft';
         
         state.entities.project = projectName;
         state.pending_fields = state.pending_fields.filter(f => f !== 'project');
@@ -605,7 +612,7 @@ function extractMessagesFromPayload(body) {
             const lower = (text || '').toLowerCase().trim();
             if (lower === 'btn_menu_sales' || lower.includes('sales & projects') || lower === 'sales' || lower === '1') selectedId = 'btn_menu_sales';
             else if (lower === 'btn_menu_accounts' || lower.includes('accounts & billing') || lower === 'accounts' || lower === 'billing' || lower === '2') selectedId = 'btn_menu_accounts';
-            else if (lower === 'btn_menu_support' || lower.includes('technical support') || lower === 'support' || lower === '3') selectedId = 'btn_menu_support';
+            else if (lower === 'btn_menu_support' || lower.includes('technical support') || lower.includes('raise support') || lower.includes('support ticket') || lower === 'support' || lower === '3') selectedId = 'btn_menu_support';
             else if (lower.includes('btn_call_shrirang') || lower.includes('call shrirang') || lower === 'call') selectedId = 'btn_call_shrirang';
             else if (lower.includes('check status') || lower.includes('ticket status')) selectedId = 'btn_check_status';
             else if (lower.includes('close ticket') || lower === 'close it') selectedId = 'btn_close_ticket';
@@ -651,6 +658,16 @@ function extractMessagesFromPayload(body) {
                         text = msg.document?.filename || '[Document]';
                     } else if (msg.type === 'audio' || msg.type === 'voice') {
                         text = '[Audio / Voice Note]';
+                    }
+
+                    if (!selectedId && (msg.type === 'interactive' || msg.type === 'button' || text)) {
+                        const lower = (text || '').toLowerCase().trim();
+                        if (lower === 'btn_menu_sales' || lower.includes('sales & projects') || lower === 'sales') selectedId = 'btn_menu_sales';
+                        else if (lower === 'btn_menu_accounts' || lower.includes('accounts & billing') || lower === 'accounts' || lower === 'billing') selectedId = 'btn_menu_accounts';
+                        else if (lower === 'btn_menu_support' || lower.includes('technical support') || lower.includes('raise support') || lower.includes('support ticket') || lower === 'support') selectedId = 'btn_menu_support';
+                        else if (lower.includes('btn_call_shrirang') || lower.includes('call shrirang') || lower === 'call') selectedId = 'btn_call_shrirang';
+                        else if (lower.includes('check status') || lower.includes('ticket status')) selectedId = 'btn_check_status';
+                        else if (lower.includes('close ticket') || lower === 'close it') selectedId = 'btn_close_ticket';
                     }
 
                     messages.push({
@@ -801,7 +818,7 @@ Would you like to share your requirements document or discuss the project with o
 export async function startSupportTicketFlow(senderPhone, clientContext) {
     const activeTicket = await getActiveSupportTicket(senderPhone, clientContext.id);
     if (activeTicket) {
-        const activeMsg = `Active Support Request Found\n\nTicket: ${activeTicket.ticket_code}\nProject: ${activeTicket.project_name || 'Workforce EMS'}\nPriority: ${activeTicket.priority || 'High'}\nStatus: ${activeTicket.status || 'Open'}\nAssigned To: ${activeTicket.assigned_engineer_name || 'Nitin RajGuru'}\n\nYou currently have an open ticket. You can track its live progress or send new issue details below.`;
+        const activeMsg = `Active Support Request Found\n\nTicket: ${activeTicket.ticket_code}\nProject: ${activeTicket.project_name || 'Workforce EMS'}\nPriority: ${activeTicket.priority || 'High'}\nStatus: ${activeTicket.status || 'Open'}\nAssigned To: ${activeTicket.assigned_engineer_name || 'Nitin RajGuru'}\n\nYou currently have an open ticket. You can track its live progress or send details for a new issue below (e.g. 'Login issue in bhy').`;
         await sendWhatsAppText(senderPhone, activeMsg);
         await sendWhatsAppButtons(senderPhone, {
             headerText: "Support Options",
@@ -813,6 +830,11 @@ export async function startSupportTicketFlow(senderPhone, clientContext) {
                 { id: "btn_call_shrirang", title: "Talk to Support" }
             ]
         });
+        updateConversationState(senderPhone, {
+            intent: 'TECHNICAL_SUPPORT',
+            pending_fields: ['description'],
+            entities: { priority: 'High', category: 'Bug / Defect' }
+        });
         return;
     }
 
@@ -823,7 +845,7 @@ export async function startSupportTicketFlow(senderPhone, clientContext) {
         entities: { project: projName, priority: 'High', category: 'Bug / Defect' }
     });
 
-    const promptText = `Planex Technical Support Desk\n\nClient: ${clientContext.name || 'Valued Client'}\nProject: ${projName}\n\nPlease describe the issue or error you are experiencing (e.g. login failed, server slow, report mismatch, or attach a screenshot/video).\n\nOur engineering team will immediately register a priority ticket and assign a dedicated engineer.`;
+    const promptText = `Planex Technical Support Desk\n\nClient: ${clientContext.name || 'Valued Client'}\n\nPlease describe the issue or error you are experiencing (e.g. login issue in bhy, server slow, report mismatch, or attach a screenshot/video).\n\nOur engineering team will immediately register a priority ticket and assign a dedicated engineer.`;
     await sendWhatsAppText(senderPhone, promptText);
     await sendWhatsAppButtons(senderPhone, {
         headerText: "Technical Support",
@@ -839,6 +861,15 @@ export async function startSupportTicketFlow(senderPhone, clientContext) {
  * Handle AI Tool Calls and Natural Text Message
  */
 async function handleTextMessageWithAI(senderPhone, textContent, clientContext, mediaAttachment = null) {
+    const rawLower = String(textContent || '').toLowerCase().trim();
+
+    // 0. Intercept Explicit Ticket Intent before greeting or generic AI
+    if (rawLower === 'raise support ticket' || rawLower === 'support ticket' || rawLower === 'raise ticket' || rawLower === 'create ticket' ||
+        rawLower.includes('raise support') || rawLower.includes('support ticket') || rawLower.includes('ticket raise') || rawLower === 'technical support' || rawLower === 'support') {
+        await startSupportTicketFlow(senderPhone, clientContext);
+        return;
+    }
+
     if (isGreeting(textContent)) {
         await sendServicesMenu(senderPhone, clientContext);
         return;
@@ -857,6 +888,12 @@ async function handleTextMessageWithAI(senderPhone, textContent, clientContext, 
     if (aiResult.toolCall) {
         const { name, args } = aiResult.toolCall;
 
+        // Tool: start_support_ticket_flow
+        if (name === 'start_support_ticket_flow') {
+            await startSupportTicketFlow(senderPhone, clientContext);
+            return;
+        }
+
         // Tool: create_support_ticket
         if (name === 'create_support_ticket') {
             let project = args.project || (clientContext.projects?.[0]?.name) || null;
@@ -864,12 +901,15 @@ async function handleTextMessageWithAI(senderPhone, textContent, clientContext, 
             const category = args.category || 'Bug / Defect';
             const priority = args.priority || (args.is_urgent ? 'High' : 'Medium');
 
-            // Auto-detect project if mentioned in text
-            if (!project) {
-                const lowerDesc = (desc + ' ' + (textContent || '')).toLowerCase();
-                if (lowerDesc.includes('softlink') || lowerDesc.includes('bhy')) project = 'SOftlink';
-                else if (lowerDesc.includes('ems') || lowerDesc.includes('workforce')) project = 'Workforce EMS';
-                else if (lowerDesc.includes('penta')) project = 'Pentasoft';
+            // Auto-detect project / customer branch if mentioned in text or desc
+            if (!project || project === 'Workforce EMS') {
+                const combined = (desc + ' ' + (textContent || '')).toLowerCase();
+                if (combined.includes('softlink') || combined.includes('bhy') || combined.includes('bhayander')) project = 'SOftlink (Bhy)';
+                else if (combined.includes('plant 1') || combined.includes('plant2') || combined.includes('cmv')) project = 'CMV';
+                else if (combined.includes('dadar') || combined.includes('aic')) project = 'AIC Infrastructures (Dadar)';
+                else if (combined.includes('kandivali') || combined.includes('anishwar')) project = 'ANISHWAR INFRA (Kandivali)';
+                else if (combined.includes('algomatix') || combined.includes('mumbai')) project = 'ALGOMATIX TECHNOLOGY (Mumbai)';
+                else if (combined.includes('dahisar') || combined.includes('miraroad') || combined.includes('penta')) project = 'Pentasoft';
             }
 
             // If project is missing and customer has multiple/no projects, ask for project first (Section 4 DOCX)
@@ -993,22 +1033,42 @@ async function executeTicketCreation(senderPhone, { project, category, priority,
         try {
             const searchStr = `${projectName} ${title || ''} ${description || ''}`.toLowerCase();
             if (!customerId) {
-                const custs = await pool.query('SELECT id, name FROM customers');
-                for (const c of custs.rows) {
+                const allCusts = await pool.query('SELECT id, name, branches FROM customers');
+                for (const c of allCusts.rows) {
                     if (c.name && searchStr.includes(c.name.toLowerCase())) {
                         customerId = c.id;
                         customerName = c.name;
                         break;
                     }
+                    let branches = c.branches;
+                    if (typeof branches === 'string') { try { branches = JSON.parse(branches); } catch(e){} }
+                    if (Array.isArray(branches)) {
+                        for (const b of branches) {
+                            const bName = (b.branch || '').toLowerCase();
+                            if (bName && bName.length >= 3 && searchStr.includes(bName)) {
+                                customerId = c.id;
+                                customerName = c.name;
+                                break;
+                            }
+                        }
+                    }
+                    if (customerId) break;
                 }
             }
 
-            // Also check if projectName matches any project in DB
-            const projRes = await pool.query('SELECT id, name, customer_id FROM projects WHERE name ILIKE $1 LIMIT 1', [`%${projectName}%`]);
-            if (projRes.rows.length > 0) {
-                projectName = projRes.rows[0].name;
-                if (!customerId && projRes.rows[0].customer_id) {
-                    customerId = projRes.rows[0].customer_id;
+            // Also check if projectName or branch matches any project in DB
+            const allProjs = await pool.query('SELECT id, name, customer_id, branch_name FROM projects');
+            for (const p of allProjs.rows) {
+                const pName = (p.name || '').toLowerCase();
+                const pBranch = (p.branch_name || '').toLowerCase();
+                if ((pName && pName.length >= 3 && searchStr.includes(pName)) || (pBranch && pBranch.length >= 3 && searchStr.includes(pBranch))) {
+                    if (p.customer_id && !customerId) {
+                        customerId = p.customer_id;
+                    }
+                    if (!projectName || projectName === 'Workforce EMS') {
+                        projectName = p.branch_name ? `${p.name} (${p.branch_name})` : p.name;
+                    }
+                    break;
                 }
             }
         } catch (e) {}
@@ -1058,6 +1118,12 @@ Assigned To: ${activeTicket.assigned_engineer_name || 'Nitin RajGuru'}
 I have added your latest message to the existing ticket instead of creating a duplicate.`;
 
             await sendWhatsAppText(senderPhone, dupMsg);
+
+            // Alert Admin Shrirang Kaka on both numbers
+            const dupAdminAlert = `⚠️ [SUPPORT TICKET UPDATE - NEW MESSAGE]\n\nTicket: ${activeTicket.ticket_code}\nCustomer: ${customerName}\nProject: ${activeTicket.project_name || projectName}\nFrom: ${clientContext.name || 'Client'} (${senderPhone})\nNew Message: ${description}\nStatus: ${activeTicket.status || 'Open'}`;
+            for (const adminPhone of ADMIN_SHRIRANG_PHONES) {
+                sendWhatsAppText(adminPhone, dupAdminAlert).catch(() => {});
+            }
 
             await sendWhatsAppButtons(senderPhone, {
                 headerText: "Existing Ticket Linked",
@@ -1185,6 +1251,26 @@ Status: Open`;
 
         await sendWhatsAppText(senderPhone, ticketReceipt);
 
+        // Alert Admin Shrirang Kaka on both numbers immediately
+        const adminTicketAlert = `🚨 [NEW SUPPORT TICKET REGISTERED]
+
+Ticket: ${ticketCode}
+Customer: ${customerName}
+Project: ${projectName}
+Category: ${category}
+Priority: ${priority}
+Reported By: ${clientContext.name || 'Client'} (${senderPhone})
+Issue: ${description}
+Response SLA: ${slaText}
+Status: Open
+Assigned To: Nitin RajGuru / Malhar Kulkarni
+
+Portal: https://planex.pentasoftconsultancy.com/admin-support.html?ticket_code=${ticketCode}`;
+
+        for (const adminPhone of ADMIN_SHRIRANG_PHONES) {
+            sendWhatsAppText(adminPhone, adminTicketAlert).catch(e => console.error(`❌ Admin Alert Error (${adminPhone}):`, e.message));
+        }
+
         await sendWhatsAppButtons(senderPhone, {
             headerText: "Ticket Actions",
             bodyText: "Track progress or connect with assigned engineer:",
@@ -1290,6 +1376,12 @@ Thank you for confirming the resolution.`;
 
         await sendWhatsAppText(senderPhone, closeReceipt);
 
+        // Alert Admin Shrirang Kaka on both numbers for resolution
+        const resolveAlert = `✅ [SUPPORT TICKET RESOLVED BY CLIENT]\n\nTicket: ${ticket.ticket_code}\nCustomer: ${ticket.customer_name || clientContext.name} (${senderPhone})\nProject: ${ticket.project_name || 'Workforce EMS'}\nResolution Time: ${durationStr}\nStatus: Closed`;
+        for (const adminPhone of ADMIN_SHRIRANG_PHONES) {
+            sendWhatsAppText(adminPhone, resolveAlert).catch(() => {});
+        }
+
         notifyTicketWhatsApp({
             ticketCode: ticket.ticket_code,
             title: ticket.title,
@@ -1393,11 +1485,13 @@ function isGreeting(text) {
     if (!text) return false;
     const lower = String(text).toLowerCase().trim();
     if (lower.includes('slow') || lower.includes('issue') || lower.includes('error') || lower.includes('bug') || 
-        lower.includes('invoice') || lower.includes('bill') || lower.includes('status') || lower.includes('leave') || lower.includes('utr')) {
+        lower.includes('invoice') || lower.includes('bill') || lower.includes('status') || lower.includes('leave') || 
+        lower.includes('utr') || lower.includes('ticket') || lower.includes('support') || lower.includes('raise') || 
+        lower.includes('problem') || lower.includes('login') || lower.includes('bhy')) {
         return false;
     }
     const clean = lower.replace(/[^a-z0-9\s]/g, '').trim();
-    const greetings = ['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'halo', 'yo', 'good morning', 'good evening', 'bhai', 'bhy', 'bro'];
+    const greetings = ['hi', 'hello', 'hey', 'start', 'menu', 'namaste', 'halo', 'yo', 'good morning', 'good evening'];
     return greetings.includes(clean);
 }
 
