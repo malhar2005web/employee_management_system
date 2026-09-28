@@ -523,14 +523,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const statusDotColor = isBusy ? '#ef4444' : '#22c55e';
             const hasUnread = c.unread_count > 0;
 
+            const avatarHtml = typeof window.renderEmpAvatar === 'function'
+                ? window.renderEmpAvatar(c.full_name, c.profile_picture, 36, 13)
+                : `<div style="width:36px;height:36px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #fff;">${(c.full_name||'').substring(0,2).toUpperCase()}</div>`;
+
             item.style.cssText = `
                 display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; cursor:pointer;
                 background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
                 margin-bottom:6px; border:1px solid rgba(0,0,0,0.04); transition: background 0.2s;
             `;
             item.innerHTML = `
-                <div style="position:relative;">
-                    <img src="https://i.pravatar.cc/80?img=${c.employee_id + 10}" style="width:34px; height:34px; border-radius:50%; object-fit:cover;" />
+                <div style="position:relative; flex-shrink:0;">
+                    ${avatarHtml}
                     <span style="position:absolute; bottom:0; right:0; width:9px; height:9px; border-radius:50%; background:${statusDotColor}; border:1.5px solid #fff;"></span>
                 </div>
                 <div style="flex:1; min-width:0;">
@@ -617,6 +621,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (headerName) headerName.textContent = title + (subtitle ? ` (${subtitle})` : '');
         const headerStatus = document.getElementById('chat-header-status');
         if (headerStatus) headerStatus.textContent = subtitle;
+
+        const headerAvatarWrap = document.getElementById('chat-header-avatar-wrap');
+        if (headerAvatarWrap) {
+            headerAvatarWrap.innerHTML = typeof window.renderEmpAvatar === 'function'
+                ? window.renderEmpAvatar(title, null, 36, 13)
+                : `<div style="width:36px;height:36px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #fff;">${title.substring(0,2).toUpperCase()}</div>`;
+            headerAvatarWrap.style.display = 'block';
+        }
 
         loadMessages();
         startMessagePolling();
@@ -1099,8 +1111,12 @@ document.addEventListener('DOMContentLoaded', () => {
             callModal.style.display = 'flex';
             setTimeout(() => { callModal.style.opacity = '1'; }, 10);
             
-            const avatarId = selectedContact.id + 10;
-            document.getElementById('call-avatar').src = `https://i.pravatar.cc/120?img=${avatarId}`;
+            const callAvatarEl = document.getElementById('call-avatar');
+            if (callAvatarEl) {
+                callAvatarEl.src = typeof window.getInitialsAvatarDataUri === 'function'
+                    ? window.getInitialsAvatarDataUri(selectedContact.full_name, 120)
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedContact.full_name)}&background=0d9488&color=fff&bold=true`;
+            }
             document.getElementById('call-name').textContent = selectedContact.full_name;
             document.getElementById('call-status').textContent = 'Ringing...';
             document.getElementById('btn-call-mute').style.background = '#e5e7eb';

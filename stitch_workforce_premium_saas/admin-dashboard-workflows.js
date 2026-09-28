@@ -38,9 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const names = Array.isArray(task.assigned_employee_ids)
           ? task.assigned_employee_ids.map(id => employeeName(employees, id)).filter(Boolean)
           : [];
-        const avatars = names.slice(0, 4).map((name, index) => {
-          const img = (task.id + index + 10) % 70 || 12;
-          return `<img src="https://i.pravatar.cc/60?img=${img}" alt="${name}" title="${name}">`;
+        const avatars = names.slice(0, 4).map(name => {
+          if (typeof window.renderEmpAvatar === 'function') {
+            return window.renderEmpAvatar(name, null, 26, 10, 'avatar-item', 'margin-right:-6px;');
+          }
+          return `<div style="width:26px;height:26px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;border:1.5px solid #fff;margin-right:-6px;" title="${name}">${name.substring(0,2).toUpperCase()}</div>`;
         }).join('');
         const due = task.deadline ? new Date(task.deadline).toLocaleDateString() : '-';
         const progress = parseInt(task.completion_percentage, 10) || 0;

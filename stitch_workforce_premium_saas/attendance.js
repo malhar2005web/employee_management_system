@@ -1942,7 +1942,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEmpCode = empCode || `EMP-${String(empId).padStart(4, '0')}`;
         currentEmpWorkstation = workstation && workstation !== '—' ? workstation : 'PC-WORKSTATION';
 
-        if (histEmpAvatar) histEmpAvatar.src = `https://i.pravatar.cc/80?img=${(empId % 65) + 1}`;
+        if (histEmpAvatar) {
+            histEmpAvatar.src = typeof window.getInitialsAvatarDataUri === 'function'
+                ? window.getInitialsAvatarDataUri(currentEmpName, 80)
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(currentEmpName)}&background=0d9488&color=fff&bold=true`;
+        }
         if (histEmpName) histEmpName.textContent = currentEmpName;
         if (histEmpCode) histEmpCode.textContent = currentEmpCode;
         if (histEmpWorkstation) histEmpWorkstation.innerHTML = `<i class="fa-solid fa-desktop" style="color:#047857; margin-right:4px;"></i> ${currentEmpWorkstation}`;
@@ -1981,7 +1985,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEmpName = empName || 'Employee';
         currentEmpCode = empCode || `EMP-${String(empId).padStart(4, '0')}`;
 
-        if (histEmpAvatar) histEmpAvatar.src = `https://i.pravatar.cc/80?img=${(empId % 65) + 1}`;
+        if (histEmpAvatar) {
+            histEmpAvatar.src = typeof window.getInitialsAvatarDataUri === 'function'
+                ? window.getInitialsAvatarDataUri(currentEmpName, 80)
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(currentEmpName)}&background=0d9488&color=fff&bold=true`;
+        }
         if (histEmpName) histEmpName.textContent = `${currentEmpName} — Leave Records`;
         if (histEmpCode) histEmpCode.textContent = currentEmpCode;
         if (histEmpWorkstation) histEmpWorkstation.innerHTML = `<i class="fa-solid fa-umbrella-beach" style="color:#0284c7; margin-right:4px;"></i> Leave Register`;
@@ -2003,7 +2011,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEmpName = empName || 'Employee';
         currentEmpCode = empCode || `EMP-${String(empId).padStart(4, '0')}`;
 
-        if (histEmpAvatar) histEmpAvatar.src = `https://i.pravatar.cc/80?img=${(empId % 65) + 1}`;
+        if (histEmpAvatar) {
+            histEmpAvatar.src = typeof window.getInitialsAvatarDataUri === 'function'
+                ? window.getInitialsAvatarDataUri(currentEmpName, 80)
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(currentEmpName)}&background=0d9488&color=fff&bold=true`;
+        }
         if (histEmpName) histEmpName.textContent = `${currentEmpName} — Gate Pass / Out Entries`;
         if (histEmpCode) histEmpCode.textContent = currentEmpCode;
         if (histEmpWorkstation) histEmpWorkstation.innerHTML = `<i class="fa-solid fa-person-walking-arrow-right" style="color:#ea580c; margin-right:4px;"></i> Duty Movement Logs`;

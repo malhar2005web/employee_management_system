@@ -20,6 +20,69 @@
     };
 })();
 
+// ── Vibrant Initials Avatar System (Replaces random placeholder photos) ──
+const AVATAR_COLORS = [
+    '#0d9488', // Teal
+    '#8b5cf6', // Violet / Purple
+    '#10b981', // Emerald Green
+    '#0284c7', // Sky Blue
+    '#d97706', // Amber / Gold
+    '#e11d48', // Rose Red
+    '#6366f1', // Indigo
+    '#ec4899', // Pink
+    '#14b8a6', // Cyan
+    '#7c3aed', // Purple
+    '#ea580c', // Bright Orange
+    '#059669', // Forest Green
+    '#2563eb', // Royal Blue
+    '#db2777'  // Magenta
+];
+
+window.getInitials = function(name) {
+    if (!name || typeof name !== 'string') return '??';
+    const cleaned = name.replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').trim();
+    const parts = cleaned.split(/[\s_\-]+/).filter(Boolean);
+    if (parts.length === 0) return '??';
+    if (parts.length === 1) {
+        return parts[0].substring(0, 2).toUpperCase();
+    }
+    const firstChar = parts[0][0] || '';
+    const lastChar = parts[parts.length - 1][0] || '';
+    return (firstChar + lastChar).toUpperCase();
+};
+
+window.getAvatarColor = function(name) {
+    if (!name) return AVATAR_COLORS[0];
+    let hash = 0;
+    const str = name.trim().toLowerCase();
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const idx = Math.abs(hash) % AVATAR_COLORS.length;
+    return AVATAR_COLORS[idx];
+};
+
+window.renderInitialsAvatar = function(name, size = 34, fontSize = 12, extraClass = '', extraStyle = '') {
+    const initials = window.getInitials(name);
+    const bg = window.getAvatarColor(name);
+    return `<div class="emp-initials-avatar ${extraClass}" style="width:${size}px; height:${size}px; min-width:${size}px; min-height:${size}px; border-radius:50%; background:${bg}; color:#ffffff; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:${fontSize}px; line-height:1; letter-spacing:0.5px; border:2px solid #ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.1); flex-shrink:0; user-select:none; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; ${extraStyle}" title="${name || ''}">${initials}</div>`;
+};
+
+window.renderEmpAvatar = function(name, picUrl, size = 34, fontSize = 12, extraClass = '', extraStyle = '') {
+    if (picUrl && typeof picUrl === 'string' && !picUrl.includes('pravatar.cc') && picUrl.trim() !== '') {
+        return `<img src="${picUrl}" alt="${name || ''}" class="${extraClass}" style="width:${size}px; height:${size}px; min-width:${size}px; min-height:${size}px; border-radius:50%; object-fit:cover; border:2px solid #fff; box-shadow:0 2px 4px rgba(0,0,0,0.1); flex-shrink:0; ${extraStyle}">`;
+    }
+    return window.renderInitialsAvatar(name, size, fontSize, extraClass, extraStyle);
+};
+
+window.getInitialsAvatarDataUri = function(name, size = 80) {
+    const initials = window.getInitials(name);
+    const bg = window.getAvatarColor(name);
+    const fontSize = Math.round(size * 0.40);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${size/2}" fill="${bg}"/><text x="50%" y="50%" dy="0.36em" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="${fontSize}" font-weight="700" text-anchor="middle">${initials}</text></svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+};
+
 // Renders the productivity bar+line combo chart used on both dashboards,
 // styled so the bars read as translucent glass columns rather than flat fills.
 function renderProductivityChart(canvasId, dataValues, lineValues, customLabels){
@@ -154,9 +217,7 @@ window.syncAllTopbarAvatars = function() {
             '.profile-avatar img',
             '.user-avatar img',
             '.admin-avatar img',
-            '#emp-log-avatar',
-            '#chat-header-avatar',
-            '#call-avatar'
+            '#emp-log-avatar'
         ];
         document.querySelectorAll(selectors.join(',')).forEach(img => {
             if (img && img.src !== savedProfilePic) {
@@ -187,6 +248,13 @@ window.syncAllTopbarAvatars = function() {
             }
         });
     }
+
+    // Auto-replace any leftover pravatar.cc placeholder images across the page with SVG initials
+    document.querySelectorAll('img[src*="pravatar.cc"]').forEach(img => {
+        const name = img.alt || img.title || localStorage.getItem('user_full_name') || 'User';
+        const size = parseInt(img.width || img.offsetWidth || 40, 10);
+        img.src = window.getInitialsAvatarDataUri(name, size > 0 ? size : 40);
+    });
 };
 
 // Immediate & Listener-based sync

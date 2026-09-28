@@ -688,9 +688,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const safeEmpJson = JSON.stringify(emp).replace(/"/g, '&quot;');
 
+                const empAvatar = typeof window.renderEmpAvatar === 'function'
+                    ? window.renderEmpAvatar(emp.full_name, emp.profile_picture, 34, 12)
+                    : `<div style="width:34px;height:34px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid #fff;">${(emp.full_name||'').substring(0,2).toUpperCase()}</div>`;
+
                 tr.innerHTML = `
                     <td class="task-name" style="display:flex;align-items:center;gap:12px;">
-                        <img src="https://i.pravatar.cc/80?img=${avatarId}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                        ${empAvatar}
                         <span style="font-weight:700;color:var(--teal-900);">${emp.full_name}</span>
                     </td>
                     <td style="font-weight:600;color:var(--teal-700);">${emp.employee_code || '-'}</td>
@@ -1265,10 +1269,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                 }
 
+                const nodeAvatar = typeof window.renderEmpAvatar === 'function'
+                    ? window.renderEmpAvatar(node.full_name, node.profile_picture, 40, 14, 'org-node-avatar')
+                    : `<div class="org-node-avatar" style="width:40px;height:40px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;">${(node.full_name||'').substring(0,2).toUpperCase()}</div>`;
+
                 return `
                     <div class="org-tree-item">
                         <div class="org-node">
-                            <img src="https://i.pravatar.cc/80?img=${avatarId}" alt="" class="org-node-avatar">
+                            ${nodeAvatar}
                             <div class="org-node-info">
                                 <div class="name">${node.full_name}</div>
                                 <div class="role">${node.designation_name || 'Team Member'}</div>
@@ -1369,10 +1377,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusClass = emp.status === 'Active' || emp.status === 'active' ? 'progress' : 'todo';
                 const statusLabel = emp.status || 'Active';
                 
+                const deptEmpAvatar = typeof window.renderEmpAvatar === 'function'
+                    ? window.renderEmpAvatar(emp.full_name, emp.profile_picture, 32, 11)
+                    : `<div style="width:32px;height:32px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;border:2px solid #fff;">${(emp.full_name||'').substring(0,2).toUpperCase()}</div>`;
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="task-name" style="display:flex;align-items:center;gap:12px;">
-                        <img src="https://i.pravatar.cc/80?img=${avatarId}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #fff;">
+                        ${deptEmpAvatar}
                         <span>${emp.full_name}</span>
                     </td>
                     <td style="font-weight:600;color:var(--teal-900);">${emp.employee_code || '-'}</td>
@@ -1454,9 +1466,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
                 margin-bottom:6px; border:1px solid rgba(0,0,0,0.04); transition: background 0.2s;
             `;
+            const cAvatarHtml = typeof window.renderEmpAvatar === 'function'
+                ? window.renderEmpAvatar(c.full_name, c.profile_picture, 36, 13)
+                : `<div style="width:36px;height:36px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #fff;">${(c.full_name||'').substring(0,2).toUpperCase()}</div>`;
+
             item.innerHTML = `
-                <div style="position:relative;">
-                    <img src="https://i.pravatar.cc/80?img=${c.employee_id + 10}" style="width:34px; height:34px; border-radius:50%; object-fit:cover;" />
+                <div style="position:relative; flex-shrink:0;">
+                    ${cAvatarHtml}
                     <span style="position:absolute; bottom:0; right:0; width:9px; height:9px; border-radius:50%; background:${statusDotColor}; border:1.5px solid #fff;"></span>
                 </div>
                 <div style="flex:1; min-width:0;">
@@ -1539,6 +1555,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const nameEl = document.getElementById('chat-header-name'); if (nameEl) nameEl.textContent = title;
         const statusEl = document.getElementById('chat-header-status'); if (statusEl) statusEl.textContent = subtitle;
+        const headerAvatar = document.getElementById('chat-header-avatar');
+        if (headerAvatar) {
+            headerAvatar.src = typeof window.getInitialsAvatarDataUri === 'function'
+                ? window.getInitialsAvatarDataUri(title, 80)
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(title)}&background=0d9488&color=fff&bold=true`;
+        }
 
         loadMessages();
         startMessagePolling();
