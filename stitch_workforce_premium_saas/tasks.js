@@ -1271,23 +1271,42 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
     // WORKFLOW BLUEPRINT LIBRARY ENGINE & WIZARD (9 DEPARTMENTS, COMPLETE CATALOG)
     // =========================================================================
-    const departmentsConfig = (typeof window.WORKFLOW_DEPARTMENTS_CONFIG !== 'undefined' && Array.isArray(window.WORKFLOW_DEPARTMENTS_CONFIG))
-        ? window.WORKFLOW_DEPARTMENTS_CONFIG
-        : [];
+    const escapeHtml = (str) => {
+        if (!str && str !== 0) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    };
 
-    let blueprintLibraryCache = (typeof window.DEFAULT_WORKFLOW_BLUEPRINTS !== 'undefined' && Array.isArray(window.DEFAULT_WORKFLOW_BLUEPRINTS))
-        ? [...window.DEFAULT_WORKFLOW_BLUEPRINTS]
-        : [];
-
-    // Load any user-created custom blueprints from localStorage
-    try {
-        const savedCustom = JSON.parse(localStorage.getItem('ems_custom_blueprints') || '[]');
-        if (Array.isArray(savedCustom) && savedCustom.length > 0) {
-            blueprintLibraryCache = [...savedCustom, ...blueprintLibraryCache];
+    const getDepartmentsConfig = () => {
+        if (typeof window.WORKFLOW_DEPARTMENTS_CONFIG !== 'undefined' && Array.isArray(window.WORKFLOW_DEPARTMENTS_CONFIG)) {
+            return window.WORKFLOW_DEPARTMENTS_CONFIG;
         }
-    } catch (e) {
-        console.error('Error loading custom blueprints from storage:', e);
-    }
+        return [];
+    };
+
+    let blueprintLibraryCache = [];
+    const getBlueprints = () => {
+        if (blueprintLibraryCache && blueprintLibraryCache.length > 0) {
+            return blueprintLibraryCache;
+        }
+        let bps = (typeof window.DEFAULT_WORKFLOW_BLUEPRINTS !== 'undefined' && Array.isArray(window.DEFAULT_WORKFLOW_BLUEPRINTS))
+            ? [...window.DEFAULT_WORKFLOW_BLUEPRINTS]
+            : [];
+        try {
+            const savedCustom = JSON.parse(localStorage.getItem('ems_custom_blueprints') || '[]');
+            if (Array.isArray(savedCustom) && savedCustom.length > 0) {
+                bps = [...savedCustom, ...bps];
+            }
+        } catch (e) {
+            console.error('Error loading custom blueprints from storage:', e);
+        }
+        blueprintLibraryCache = bps;
+        return blueprintLibraryCache;
+    };
 
     const deptSelect = document.getElementById('filter-blueprint-dept');
     const catSelect = document.getElementById('filter-blueprint-category');
@@ -1302,17 +1321,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateCategoryOptionsForDept = (selectedDept) => {
         if (!catSelect) return;
         catSelect.innerHTML = '';
+        const allBlueprints = getBlueprints();
 
         if (!selectedDept) {
             catSelect.innerHTML = '<option value="">All Project Types</option>';
-            const uniqueTypes = [...new Set(blueprintLibraryCache.map(b => b.name))].sort();
+            const uniqueTypes = [...new Set(allBlueprints.map(b => b.name))].sort();
             uniqueTypes.forEach(type => {
                 catSelect.innerHTML += `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`;
             });
             return;
         }
 
-        const deptTemplates = blueprintLibraryCache.filter(b => b.dept === selectedDept);
+        const deptTemplates = allBlueprints.filter(b => (b.dept || '').toLowerCase().trim() === selectedDept.toLowerCase().trim());
         catSelect.innerHTML = `<option value="">All ${escapeHtml(selectedDept)} (${deptTemplates.length})</option>`;
         deptTemplates.forEach(t => {
             catSelect.innerHTML += `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`;
@@ -1324,13 +1344,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pillsContainer) return;
         pillsContainer.innerHTML = '';
         const currentDept = deptSelect ? deptSelect.value : '';
+        const allBlueprints = getBlueprints();
+        const deptsCfg = getDepartmentsConfig();
 
         // "All Departments" pill
         const allPill = document.createElement('button');
         allPill.type = 'button';
         allPill.className = `btn-pill-action ${!currentDept ? 'active' : ''}`;
         allPill.style.cssText = `white-space:nowrap; padding:6px 14px; font-size:12px; font-weight:700; border-radius:20px; border:1px solid ${!currentDept ? 'var(--teal-600)' : 'var(--glass-border)'}; background:${!currentDept ? 'var(--teal-600)' : 'rgba(255,255,255,0.6)'}; color:${!currentDept ? '#fff' : 'var(--text-dark)'}; cursor:pointer; display:inline-flex; align-items:center; gap:6px;`;
-        allPill.innerHTML = `<i class="fa-solid fa-layer-group"></i> All (${blueprintLibraryCache.length})`;
+        allPill.innerHTML = `<i class="fa-solid fa-layer-group"></i> All (${allBlueprints.length})`;
         allPill.onclick = () => {
             if (deptSelect) deptSelect.value = '';
             updateCategoryOptionsForDept('');
@@ -1339,14 +1361,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         pillsContainer.appendChild(allPill);
 
-        departmentsConfig.forEach(dept => {
-            const count = blueprintLibraryCache.filter(b => b.dept === dept.dept).length;
-            const isSelected = currentDept === dept.dept;
+        deptsCfg.forEach(dept => {
+            const count = allBlueprints.filter(b => (b.dept || '').toLowerCase().trim() === (dept.dept || '').toLowerCase().trim()).length;
+            const isSelected = (currentDept || '').toLowerCase().trim() === (dept.dept || '').toLowerCase().trim();
             const pill = document.createElement('button');
             pill.type = 'button';
             pill.className = `btn-pill-action ${isSelected ? 'active' : ''}`;
             pill.style.cssText = `white-space:nowrap; padding:6px 14px; font-size:12px; font-weight:700; border-radius:20px; border:1px solid ${isSelected ? 'var(--teal-600)' : 'var(--glass-border)'}; background:${isSelected ? 'var(--teal-600)' : 'rgba(255,255,255,0.6)'}; color:${isSelected ? '#fff' : 'var(--text-dark)'}; cursor:pointer; display:inline-flex; align-items:center; gap:6px;`;
-            pill.innerHTML = `<i class="fa-solid ${dept.icon || 'fa-folder'}"></i> ${dept.dept} <span style="font-size:10.5px; opacity:0.85; background:rgba(0,0,0,0.1); padding:1px 6px; border-radius:10px;">${count}</span>`;
+            pill.innerHTML = `<i class="fa-solid ${dept.icon || 'fa-folder'}"></i> ${escapeHtml(dept.dept)} <span style="font-size:10.5px; opacity:0.85; background:rgba(0,0,0,0.1); padding:1px 6px; border-radius:10px;">${count}</span>`;
             pill.onclick = () => {
                 if (deptSelect) deptSelect.value = dept.dept;
                 updateCategoryOptionsForDept(dept.dept);
@@ -1357,10 +1379,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const renderBlueprintLibrary = () => {
+    function renderBlueprintLibrary() {
         const grid = document.getElementById('blueprint-cards-grid');
         const emptyState = document.getElementById('blueprint-empty-state');
         if (!grid) return;
+
+        const allBlueprints = getBlueprints();
+        const deptsCfg = getDepartmentsConfig();
 
         const searchVal = (document.getElementById('search-blueprint-input')?.value || '').toLowerCase().trim();
         const catVal = catSelect ? catSelect.value : '';
@@ -1369,10 +1394,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update Department Banner
         if (bannerEl) {
             if (deptVal) {
-                const currentDeptConfig = departmentsConfig.find(d => d.dept === deptVal);
-                const count = blueprintLibraryCache.filter(b => b.dept === deptVal).length;
+                const currentDeptConfig = deptsCfg.find(d => (d.dept || '').toLowerCase().trim() === deptVal.toLowerCase().trim());
+                const count = allBlueprints.filter(b => (b.dept || '').toLowerCase().trim() === deptVal.toLowerCase().trim()).length;
                 bannerEl.style.display = 'flex';
-                if (bannerTitle) bannerTitle.innerHTML = `<i class="fa-solid ${currentDeptConfig?.icon || 'fa-folder'}" style="color:var(--teal-700); margin-right:6px;"></i> ${deptVal}`;
+                if (bannerTitle) bannerTitle.innerHTML = `<i class="fa-solid ${currentDeptConfig?.icon || 'fa-folder'}" style="color:var(--teal-700); margin-right:6px;"></i> ${escapeHtml(deptVal)}`;
                 if (bannerBadge) {
                     bannerBadge.textContent = currentDeptConfig?.frequency || 'Standard';
                     bannerBadge.style.background = (currentDeptConfig?.frequency || '').includes('High') ? '#0f766e' : '#d97706';
@@ -1384,12 +1409,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        let filtered = blueprintLibraryCache.filter(bp => {
+        let filtered = allBlueprints.filter(bp => {
             const matchSearch = !searchVal || 
-                bp.name.toLowerCase().includes(searchVal) || 
+                (bp.name && bp.name.toLowerCase().includes(searchVal)) || 
                 (bp.description && bp.description.toLowerCase().includes(searchVal)) || 
+                (bp.summary && bp.summary.toLowerCase().includes(searchVal)) || 
                 (bp.tags && bp.tags.some(t => t.toLowerCase().includes(searchVal)));
-            const matchDept = !deptVal || bp.dept === deptVal;
+            const matchDept = !deptVal || (bp.dept || '').toLowerCase().trim() === deptVal.toLowerCase().trim();
             const matchCat = !catVal || bp.name === catVal || bp.category === catVal;
             return matchSearch && matchDept && matchCat;
         });
@@ -1487,7 +1513,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             grid.appendChild(card);
         });
-    };
+    }
+
+    // Expose helpers globally so tab-switching or external callers can invoke safely
+    window.renderBlueprintLibrary = renderBlueprintLibrary;
+    window.updateCategoryOptionsForDept = updateCategoryOptionsForDept;
+    window.renderDepartmentPills = renderDepartmentPills;
 
     // Filter listeners
     document.getElementById('search-blueprint-input')?.addEventListener('input', renderBlueprintLibrary);
@@ -1510,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderBlueprintLibrary();
 
     // Apply blueprint into Workflow builder
-    const applyBlueprintToWorkflow = (bp) => {
+    function applyBlueprintToWorkflow(bp) {
         resetWorkflowModal();
 
         const nameEl = document.getElementById('workflow-name') || document.getElementById('task-title');
@@ -1554,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Preview Modal logic
     const previewModal = document.getElementById('blueprint-preview-modal');
-    const openBlueprintPreviewModal = (bp) => {
+    function openBlueprintPreviewModal(bp) {
         if (!previewModal) return;
         document.getElementById('preview-bp-title').textContent = bp.name;
         document.getElementById('preview-bp-category').textContent = bp.category || 'General';
