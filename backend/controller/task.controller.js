@@ -87,9 +87,13 @@ function buildWorkflowRows(workflows, teams, tasks) {
     return workflows.map(workflow => {
         const workflowTeams = teams.filter(team => team.workflow_id === workflow.id);
         const workflowTasks = tasks.filter(task => task.workflow_id === workflow.id);
-        const overall = workflowTasks.length
-            ? Math.round(workflowTasks.reduce((sum, task) => sum + (parseInt(task.completion_percentage, 10) || 0), 0) / workflowTasks.length)
-            : 0;
+        const isCompleted = workflow.status === 'Completed';
+        let overall = 0;
+        if (isCompleted) {
+            overall = 100;
+        } else if (workflowTasks.length) {
+            overall = Math.round(workflowTasks.reduce((sum, task) => sum + (parseInt(task.completion_percentage, 10) || 0), 0) / workflowTasks.length);
+        }
 
         return {
             ...workflow,
@@ -289,13 +293,27 @@ export async function updateWorkflowStatus(req, res) {
         if (!status || !allowed.includes(status)) {
             return res.status(400).json({ success: false, message: 'Invalid status value' });
         }
+        const workflowId = parseInt(id, 10);
         const result = await pool.query(
             'UPDATE workflows SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, status;',
-            [status, parseInt(id, 10)]
+            [status, workflowId]
         );
         if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: 'Workflow not found' });
         }
+
+        // If workflow is marked Completed, update all its tasks to Completed (100%)
+        if (status === 'Completed') {
+            await pool.query(
+                `UPDATE workflow_tasks
+                 SET status = 'Completed',
+                     completion_percentage = 100,
+                     updated_at = NOW()
+                 WHERE workflow_id = $1`,
+                [workflowId]
+            );
+        }
+
         res.status(200).json({ success: true, data: result.rows[0] });
     } catch (error) {
         console.log('Error in updateWorkflowStatus:', error.message);
@@ -312,21 +330,35 @@ export async function updateWorkflowTaskStatus(req, res) {
         if (!status || !allowed.includes(status)) {
             return res.status(400).json({ success: false, message: 'Invalid status value' });
         }
-        const completionPercentage = status === 'Completed' ? 100 : undefined;
+        const completionPercentage = status === 'Completed' ? 100 : (status === 'In Progress' ? 50 : 0);
         const result = await pool.query(
             `UPDATE workflow_tasks
              SET status = $1::varchar,
-                 status_history = COALESCE(status_history, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('status', $1::varchar, 'changed_at', NOW()::text))::jsonb
-                 ${completionPercentage !== undefined ? ', completion_percentage = $3' : ''}
-             WHERE id = $2 AND workflow_id = ${completionPercentage !== undefined ? '$4' : '$3'}
+                 status_history = COALESCE(status_history, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('status', $1::varchar, 'changed_at', NOW()::text))::jsonb,
+                 completion_percentage = $2
+             WHERE id = $3 AND workflow_id = $4
              RETURNING id, status, completion_percentage, status_history;`,
-            completionPercentage !== undefined
-                ? [status, parseInt(taskId, 10), completionPercentage, parseInt(id, 10)]
-                : [status, parseInt(taskId, 10), parseInt(id, 10)]
+            [status, completionPercentage, parseInt(taskId, 10), parseInt(id, 10)]
         );
         if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: 'Task not found' });
         }
+
+        // Check if all tasks in this workflow are now Completed
+        const allTasksRes = await pool.query(
+            'SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = \'Completed\') as completed FROM workflow_tasks WHERE workflow_id = $1',
+            [parseInt(id, 10)]
+        );
+        if (allTasksRes.rows.length > 0) {
+            const { total, completed } = allTasksRes.rows[0];
+            if (parseInt(total, 10) > 0 && parseInt(total, 10) === parseInt(completed, 10)) {
+                await pool.query(
+                    'UPDATE workflows SET status = \'Completed\', updated_at = NOW() WHERE id = $1',
+                    [parseInt(id, 10)]
+                );
+            }
+        }
+
         res.status(200).json({ success: true, data: result.rows[0] });
     } catch (error) {
         console.log('Error in updateWorkflowTaskStatus:', error.message);
@@ -392,11 +424,14 @@ export async function updateWorkflowProgressStage(req, res) {
                             [t.id]
                         );
                     } else if (t.step_order === order) {
+                        const isFinalStep = order >= total;
+                        const taskStatus = isFinalStep ? 'Completed' : 'In Progress';
+                        const compPercent = isFinalStep ? 100 : 50;
                         await client.query(
                             `UPDATE workflow_tasks 
-                             SET status = 'In Progress', completion_percentage = 50, updated_at = NOW() 
-                             WHERE id = $1`,
-                            [t.id]
+                             SET status = $1, completion_percentage = $2, updated_at = NOW() 
+                             WHERE id = $3`,
+                            [taskStatus, compPercent, t.id]
                         );
                     } else {
                         await client.query(
@@ -411,8 +446,9 @@ export async function updateWorkflowProgressStage(req, res) {
                 for (let i = 1; i <= Math.min(order, STANDARD_WORKFLOW_STAGES.length); i++) {
                     const stageTitle = STANDARD_WORKFLOW_STAGES[i - 1];
                     const existing = tasksRes.rows.find(t => t.step_order === i || t.name.toLowerCase() === stageTitle.toLowerCase());
-                    const taskStatus = i < order ? 'Completed' : 'In Progress';
-                    const compPercent = i < order ? 100 : 50;
+                    const isFinalStep = (i === order && order >= total);
+                    const taskStatus = i < order ? 'Completed' : (isFinalStep ? 'Completed' : 'In Progress');
+                    const compPercent = i < order ? 100 : (isFinalStep ? 100 : 50);
 
                     if (existing) {
                         await client.query(
@@ -434,8 +470,9 @@ export async function updateWorkflowProgressStage(req, res) {
         } else {
             for (let i = 1; i <= Math.min(order, STANDARD_WORKFLOW_STAGES.length); i++) {
                 const stageTitle = STANDARD_WORKFLOW_STAGES[i - 1];
-                const taskStatus = i < order ? 'Completed' : 'In Progress';
-                const compPercent = i < order ? 100 : 50;
+                const isFinalStep = (i === order && order >= total);
+                const taskStatus = i < order ? 'Completed' : (isFinalStep ? 'Completed' : 'In Progress');
+                const compPercent = i < order ? 100 : (isFinalStep ? 100 : 50);
                 await client.query(
                     `INSERT INTO workflow_tasks (
                         workflow_id, step_order, name, status, priority, completion_percentage, created_at, updated_at

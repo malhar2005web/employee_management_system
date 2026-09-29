@@ -1163,6 +1163,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!select) return;
         const id = select.dataset.id;
         const newStatus = select.value;
+        const tr = select.closest('tr');
         try {
             const res = await fetch(`/api/v1/admin/tasks/workflows/${id}/status`, {
                 method: 'PUT',
@@ -1172,9 +1173,44 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.message || 'Status update failed');
+
+            // Immediate UI update
+            if (newStatus === 'Completed') {
+                const progressFill = tr ? tr.querySelector('.progress-fill') : null;
+                const progressSpan = tr ? tr.querySelector('.row-progress span') : null;
+                if (progressFill) progressFill.style.width = '100%';
+                if (progressSpan) progressSpan.textContent = '100%';
+                const stagePill = tr ? tr.querySelector('.wf-stage-pill') : null;
+                if (stagePill) {
+                    const parts = stagePill.textContent.split('/');
+                    if (parts.length === 2) {
+                        const total = parts[1].trim();
+                        stagePill.textContent = `${total}/${total}`;
+                    }
+                    stagePill.style.background = 'rgba(16, 185, 129, 0.15)';
+                    stagePill.style.color = '#059669';
+                }
+                const stageSelect = tr ? tr.querySelector('.wf-stage-select') : null;
+                if (stageSelect && stageSelect.options.length) {
+                    stageSelect.selectedIndex = stageSelect.options.length - 1;
+                }
+            }
+
             // Update cache
             const wf = workflowsCache.find(w => parseInt(w.id, 10) === parseInt(id, 10));
-            if (wf) wf.status = newStatus;
+            if (wf) {
+                wf.status = newStatus;
+                if (newStatus === 'Completed') {
+                    wf.overall_completion = 100;
+                    if (Array.isArray(wf.tasks)) {
+                        wf.tasks.forEach(t => {
+                            t.status = 'Completed';
+                            t.completion_percentage = 100;
+                        });
+                    }
+                }
+            }
+            showMiniToast(`Workflow status set to ${newStatus}`);
         } catch (err) {
             console.error('Status update error:', err);
             alert('Failed to update status: ' + err.message);

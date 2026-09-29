@@ -29,11 +29,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const rows = [];
 
     workflows.forEach(workflow => {
-      const activeTasks = (workflow.tasks || [])
+      let activeTasks = (workflow.tasks || [])
         .filter(task => isRunnable(task, workflow.tasks || []))
         .sort((a, b) => (a.step_order || 0) - (b.step_order || 0));
 
+      // If workflow is Completed, display its final completed step with 100%
+      if (workflow.status === 'Completed') {
+        const sorted = [...(workflow.tasks || [])].sort((a, b) => (a.step_order || 0) - (b.step_order || 0));
+        const lastTask = sorted[sorted.length - 1];
+        if (lastTask) {
+          activeTasks = [{
+            ...lastTask,
+            status: 'Completed',
+            completion_percentage: 100
+          }];
+        }
+      } else if (activeTasks.length === 0 && (workflow.tasks || []).length > 0) {
+        const sorted = [...workflow.tasks].sort((a, b) => (a.step_order || 0) - (b.step_order || 0));
+        activeTasks = [sorted[sorted.length - 1]];
+      }
+
       activeTasks.forEach(task => {
+        const isWfDone = workflow.status === 'Completed';
+        const taskStatusVal = isWfDone ? 'Completed' : (task.status || 'Not Started');
         const team = (workflow.teams || []).find(t => parseInt(t.id, 10) === parseInt(task.assigned_team_id, 10));
         const names = Array.isArray(task.assigned_employee_ids)
           ? task.assigned_employee_ids.map(id => employeeName(employees, id)).filter(Boolean)
@@ -45,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return `<div style="width:26px;height:26px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;border:1.5px solid #fff;margin-right:-6px;" title="${name}">${name.substring(0,2).toUpperCase()}</div>`;
         }).join('');
         const due = task.deadline ? new Date(task.deadline).toLocaleDateString() : '-';
-        const progress = parseInt(task.completion_percentage, 10) || 0;
+        const progress = isWfDone ? 100 : (parseInt(task.completion_percentage, 10) || 0);
         const history = Array.isArray(task.status_history) ? task.status_history : [];
         const historyHtml = history.map(h => {
           const date = new Date(h.changed_at);
@@ -64,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="avatar-stack">${avatars || '<span style="font-size:12.5px;color:var(--text-muted);">No assignee</span>'}</div>
             </td>
             <td>${due}</td>
-            <td><span class="status-pill ${statusClass(task.status)}">${task.status || 'Not Started'}</span></td>
+            <td><span class="status-pill ${statusClass(taskStatusVal)}">${taskStatusVal}</span></td>
             <td>
               <div class="row-progress">
                 <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
@@ -77,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <td>
               <select class="dash-task-status" data-workflow-id="${workflow.id}" data-task-id="${task.id}"
                 style="padding:4px 8px;border-radius:8px;font-size:11.5px;font-weight:700;border:1px solid var(--glass-border);background:rgba(255,255,255,0.55);color:var(--text-dark);cursor:pointer;min-width:120px;">
-                ${['Not Started','In Progress','Completed','Blocked'].map(s => `<option value="${s}" ${s === (task.status || 'Not Started') ? 'selected' : ''}>${s}</option>`).join('')}
+                ${['Not Started','In Progress','Completed','Blocked'].map(s => `<option value="${s}" ${s === taskStatusVal ? 'selected' : ''}>${s}</option>`).join('')}
               </select>
             </td>
           </tr>
@@ -113,6 +131,12 @@ document.addEventListener('DOMContentLoaded', () => {
             td.className = `status-pill ${sc}`;
             td.textContent = newStatus;
           }
+          // Update progress bar and percentage
+          const fill = tr.querySelector('.progress-fill');
+          const span = tr.querySelector('.row-progress span');
+          const compPct = newStatus === 'Completed' ? 100 : (newStatus === 'In Progress' ? 50 : 0);
+          if (fill) fill.style.width = `${compPct}%`;
+          if (span) span.textContent = `${compPct}%`;
           // Update status history log cell
           const historyTd = tr.querySelector('.history-log-cell');
           if (historyTd && data.data && Array.isArray(data.data.status_history)) {
