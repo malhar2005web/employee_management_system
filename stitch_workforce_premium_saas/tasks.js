@@ -1269,452 +1269,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // =========================================================================
-    // WORKFLOW BLUEPRINT LIBRARY ENGINE & WIZARD
+    // WORKFLOW BLUEPRINT LIBRARY ENGINE & WIZARD (9 DEPARTMENTS, COMPLETE CATALOG)
     // =========================================================================
-    let blueprintLibraryCache = [
-        {
-            id: 'bp-web-dev',
-            name: 'Website Development & Deployment',
-            category: 'Software & Tech',
-            dept: 'Engineering',
-            estDays: 18,
-            priority: 'High',
-            tags: ['Web', 'Frontend', 'Backend', 'DevOps'],
-            description: 'Comprehensive end-to-end workflow for designing, building, testing, and deploying responsive enterprise web applications.',
-            isFavorite: true,
-            createdBy: 'System Architect',
-            lastUpdated: '2026-07-20',
-            teamsCount: 4,
-            tasksCount: 8,
-            subtasksCount: 31,
-            phasesCount: 5,
-            teams: [
-                { name: 'UI/UX Design Team' },
-                { name: 'Frontend Engineering' },
-                { name: 'Backend Engineering' },
-                { name: 'QA & DevOps Team' }
-            ],
-            phases: [
-                {
-                    name: 'Planning & Discovery',
-                    color: '#0284c7',
-                    tasks: [
-                        {
-                            name: 'Requirement Gathering & Scope',
-                            team: 'UI/UX Design Team',
-                            subtasks: [
-                                { name: 'Client Stakeholder Interviews', priority: 'High', estimatedHours: 8, status: 'Completed' },
-                                { name: 'Technical Feasibility Analysis', priority: 'High', estimatedHours: 6, status: 'Completed' },
-                                { name: 'Scope Definition Document', priority: 'Medium', estimatedHours: 4, status: 'Completed' }
-                            ]
-                        },
-                        {
-                            name: 'Architecture & DB Schema Design',
-                            team: 'Backend Engineering',
-                            subtasks: [
-                                { name: 'PostgreSQL Schema Blueprint', priority: 'High', estimatedHours: 8, status: 'Completed' },
-                                { name: 'REST API Specification', priority: 'High', estimatedHours: 6, status: 'In Progress' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Design & Prototyping',
-                    color: '#8b5cf6',
-                    tasks: [
-                        {
-                            name: 'Figma Design System & Wireframes',
-                            team: 'UI/UX Design Team',
-                            subtasks: [
-                                { name: 'Component Library & Colors', priority: 'Medium', estimatedHours: 12, status: 'In Progress' },
-                                { name: 'Responsive Mobile Layouts', priority: 'Medium', estimatedHours: 8, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Core Development',
-                    color: '#047857',
-                    tasks: [
-                        {
-                            name: 'Frontend UI Components',
-                            team: 'Frontend Engineering',
-                            subtasks: [
-                                { name: 'Dashboard & Navigation Shell', priority: 'High', estimatedHours: 16, status: 'Pending' },
-                                { name: 'Interactive Data Tables', priority: 'Medium', estimatedHours: 12, status: 'Pending' }
-                            ]
-                        },
-                        {
-                            name: 'REST Microservices & DB Controllers',
-                            team: 'Backend Engineering',
-                            subtasks: [
-                                { name: 'Auth & JWT Middleware', priority: 'High', estimatedHours: 10, status: 'Pending' },
-                                { name: 'CRUD Controllers & Validation', priority: 'High', estimatedHours: 14, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Quality Assurance & Testing',
-                    color: '#f59e0b',
-                    tasks: [
-                        {
-                            name: 'Functional & Integration Testing',
-                            team: 'QA & DevOps Team',
-                            subtasks: [
-                                { name: 'End-to-End User Flow Audit', priority: 'High', estimatedHours: 10, status: 'Pending' },
-                                { name: 'OWASP Security Vulnerability Scan', priority: 'High', estimatedHours: 8, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Deployment & Release',
-                    color: '#ec4899',
-                    tasks: [
-                        {
-                            name: 'Production Release & Monitoring',
-                            team: 'QA & DevOps Team',
-                            subtasks: [
-                                { name: 'SSL Certificate & Domain Setup', priority: 'High', estimatedHours: 4, status: 'Pending' },
-                                { name: 'Production Smoke Testing', priority: 'High', estimatedHours: 4, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 'bp-crm-impl',
-            name: 'Enterprise CRM Implementation',
-            category: 'Operations',
-            dept: 'Operations',
-            estDays: 25,
-            priority: 'High',
-            tags: ['CRM', 'Data Migration', 'Enterprise'],
-            description: 'Standardized operational blueprint for auditing legacy customer data, configuring custom fields, migrating records, and training staff.',
-            isFavorite: false,
-            createdBy: 'Operations Director',
-            lastUpdated: '2026-07-22',
-            teamsCount: 3,
-            tasksCount: 6,
-            subtasksCount: 24,
-            phasesCount: 4,
-            teams: [
-                { name: 'Business Analysis Team' },
-                { name: 'CRM Integration Team' },
-                { name: 'Training & Support Team' }
-            ],
-            phases: [
-                {
-                    name: 'Discovery & Audit',
-                    color: '#0284c7',
-                    tasks: [
-                        {
-                            name: 'Legacy System Audit',
-                            team: 'Business Analysis Team',
-                            subtasks: [
-                                { name: 'Export Legacy Customer CSVs', priority: 'High', estimatedHours: 6, status: 'Completed' },
-                                { name: 'Field Mapping & Normalization', priority: 'High', estimatedHours: 8, status: 'Completed' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Configuration & Customization',
-                    color: '#047857',
-                    tasks: [
-                        {
-                            name: 'Custom Pipeline & Role Setup',
-                            team: 'CRM Integration Team',
-                            subtasks: [
-                                { name: 'Role-based Permissions', priority: 'High', estimatedHours: 6, status: 'In Progress' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Data Import & Validation',
-                    color: '#8b5cf6',
-                    tasks: [
-                        {
-                            name: 'Staged CSV Bulk Import',
-                            team: 'CRM Integration Team',
-                            subtasks: [
-                                { name: 'Duplicate Record Scrubbing', priority: 'High', estimatedHours: 10, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Go-Live & Adoption',
-                    color: '#f59e0b',
-                    tasks: [
-                        {
-                            name: 'Staff Workshops & Go-Live',
-                            team: 'Training & Support Team',
-                            subtasks: [
-                                { name: 'Conduct Admin Training Session', priority: 'Medium', estimatedHours: 6, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 'bp-emp-onboard',
-            name: 'Employee Onboarding & Provisioning',
-            category: 'HR & Onboarding',
-            dept: 'HR',
-            estDays: 7,
-            priority: 'Medium',
-            tags: ['HR', 'Onboarding', 'Compliance'],
-            description: 'Automated 7-day employee pre-boarding and IT asset provisioning workflow for seamless team integration.',
-            isFavorite: true,
-            createdBy: 'HR Lead',
-            lastUpdated: '2026-07-24',
-            teamsCount: 2,
-            tasksCount: 5,
-            subtasksCount: 16,
-            phasesCount: 4,
-            teams: [
-                { name: 'HR Operations Team' },
-                { name: 'IT Asset Support Team' }
-            ],
-            phases: [
-                {
-                    name: 'Pre-boarding Documentation',
-                    color: '#047857',
-                    tasks: [
-                        {
-                            name: 'Background Verification & Offer',
-                            team: 'HR Operations Team',
-                            subtasks: [
-                                { name: 'Identity Proof Audit', priority: 'High', estimatedHours: 4, status: 'Completed' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'IT Workstation Setup',
-                    color: '#0284c7',
-                    tasks: [
-                        {
-                            name: 'Hardware & Email Provisioning',
-                            team: 'IT Asset Support Team',
-                            subtasks: [
-                                { name: 'Create Google Workspace Email', priority: 'High', estimatedHours: 2, status: 'Completed' },
-                                { name: 'Laptop OS & Security Image', priority: 'High', estimatedHours: 4, status: 'In Progress' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Orientation & Training',
-                    color: '#8b5cf6',
-                    tasks: [
-                        {
-                            name: 'Company Policies & Culture Brief',
-                            team: 'HR Operations Team',
-                            subtasks: [
-                                { name: 'Handbook Signoff', priority: 'Medium', estimatedHours: 2, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'First Week Review',
-                    color: '#ec4899',
-                    tasks: [
-                        {
-                            name: '30-Day Check-in Schedule',
-                            team: 'HR Operations Team',
-                            subtasks: [
-                                { name: 'Manager Feedback Survey', priority: 'Low', estimatedHours: 1, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 'bp-client-support',
-            name: 'Client Support & SLA Escalation',
-            category: 'Customer Success',
-            dept: 'Sales & Support',
-            estDays: 5,
-            priority: 'High',
-            tags: ['Support', 'SLA', 'Client Success'],
-            description: 'Incident triage and customer SLA escalation workflow for resolving critical bugs and customer requests.',
-            isFavorite: false,
-            createdBy: 'Support Lead',
-            lastUpdated: '2026-07-25',
-            teamsCount: 2,
-            tasksCount: 4,
-            subtasksCount: 12,
-            phasesCount: 3,
-            teams: [
-                { name: 'L1/L2 Support Team' },
-                { name: 'Engineering Escalation' }
-            ],
-            phases: [
-                {
-                    name: 'Triage & Classification',
-                    color: '#f59e0b',
-                    tasks: [
-                        {
-                            name: 'Ticket Logging & Impact Audit',
-                            team: 'L1/L2 Support Team',
-                            subtasks: [
-                                { name: 'Verify SLA Threshold', priority: 'High', estimatedHours: 1, status: 'Completed' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Engineering Investigation',
-                    color: '#0284c7',
-                    tasks: [
-                        {
-                            name: 'Hotfix & Patch Deployment',
-                            team: 'Engineering Escalation',
-                            subtasks: [
-                                { name: 'Reproduce Issue in Staging', priority: 'High', estimatedHours: 4, status: 'In Progress' }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: 'Client Communication',
-                    color: '#047857',
-                    tasks: [
-                        {
-                            name: 'Resolution Notice & RCA Report',
-                            team: 'L1/L2 Support Team',
-                            subtasks: [
-                                { name: 'Send Client Closure Email', priority: 'Medium', estimatedHours: 1, status: 'Pending' }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 'bp-office-setup',
-            name: 'Office Facilities & Infrastructure Setup',
-            category: 'Operations',
-            dept: 'Operations',
-            estDays: 14,
-            priority: 'Medium',
-            tags: ['Facilities', 'Infrastructure', 'Office'],
-            description: 'Structured facilities setup workflow for new branch locations, networking, desks, and safety compliance.',
-            isFavorite: false,
-            createdBy: 'Facilities Lead',
-            lastUpdated: '2026-07-21',
-            teamsCount: 3,
-            tasksCount: 9,
-            subtasksCount: 35,
-            phasesCount: 5,
-            teams: [
-                { name: 'Admin & Procurement' },
-                { name: 'IT Infrastructure' },
-                { name: 'Safety & Compliance' }
-            ],
-            phases: [
-                {
-                    name: 'Lease & Permits',
-                    color: '#0284c7',
-                    tasks: [
-                        {
-                            name: 'Commercial Agreement Signoff',
-                            team: 'Admin & Procurement',
-                            subtasks: [{ name: 'Fire & Building Safety Permits', priority: 'High', estimatedHours: 8, status: 'Completed' }]
-                        }
-                    ]
-                },
-                {
-                    name: 'IT Networking',
-                    color: '#047857',
-                    tasks: [
-                        {
-                            name: 'ISP Fiber Link & Rack Mounting',
-                            team: 'IT Infrastructure',
-                            subtasks: [{ name: 'WIFI Access Points Setup', priority: 'High', estimatedHours: 12, status: 'In Progress' }]
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 'bp-marketing-launch',
-            name: 'Omnichannel Marketing Campaign',
-            category: 'Marketing',
-            dept: 'Marketing',
-            estDays: 21,
-            priority: 'Medium',
-            tags: ['Marketing', 'Campaign', 'Brand'],
-            description: 'Multi-channel brand awareness campaign blueprint covering creative copywriting, video editing, ad networks, and lead tracking.',
-            isFavorite: false,
-            createdBy: 'Marketing Manager',
-            lastUpdated: '2026-07-23',
-            teamsCount: 3,
-            tasksCount: 7,
-            subtasksCount: 22,
-            phasesCount: 4,
-            teams: [
-                { name: 'Creative Design' },
-                { name: 'Content & Copywriting' },
-                { name: 'Performance Media' }
-            ],
-            phases: [
-                {
-                    name: 'Strategy & Brief',
-                    color: '#8b5cf6',
-                    tasks: [
-                        {
-                            name: 'Campaign Messaging Brief',
-                            team: 'Content & Copywriting',
-                            subtasks: [{ name: 'Target Persona Mapping', priority: 'Medium', estimatedHours: 6, status: 'Completed' }]
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 'bp-qa-audit',
-            name: 'QA & Security Compliance Audit',
-            category: 'QA & Testing',
-            dept: 'Engineering',
-            estDays: 10,
-            priority: 'High',
-            tags: ['Security', 'QA', 'Audit', 'SOC2'],
-            description: 'Rigorous security vulnerability scanning, automated test suite runs, penetration testing, and compliance reporting.',
-            isFavorite: false,
-            createdBy: 'Head of QA',
-            lastUpdated: '2026-07-24',
-            teamsCount: 2,
-            tasksCount: 6,
-            subtasksCount: 18,
-            phasesCount: 4,
-            teams: [
-                { name: 'Security Audit Team' },
-                { name: 'QA Automation Team' }
-            ],
-            phases: [
-                {
-                    name: 'Vulnerability Scan',
-                    color: '#ef4444',
-                    tasks: [
-                        {
-                            name: 'SAST & DAST Code Scan',
-                            team: 'Security Audit Team',
-                            subtasks: [{ name: 'Dependency Risk Analysis', priority: 'High', estimatedHours: 8, status: 'Completed' }]
-                        }
-                    ]
-                }
-            ]
+    const departmentsConfig = (typeof window.WORKFLOW_DEPARTMENTS_CONFIG !== 'undefined' && Array.isArray(window.WORKFLOW_DEPARTMENTS_CONFIG))
+        ? window.WORKFLOW_DEPARTMENTS_CONFIG
+        : [];
+
+    let blueprintLibraryCache = (typeof window.DEFAULT_WORKFLOW_BLUEPRINTS !== 'undefined' && Array.isArray(window.DEFAULT_WORKFLOW_BLUEPRINTS))
+        ? [...window.DEFAULT_WORKFLOW_BLUEPRINTS]
+        : [];
+
+    // Load any user-created custom blueprints from localStorage
+    try {
+        const savedCustom = JSON.parse(localStorage.getItem('ems_custom_blueprints') || '[]');
+        if (Array.isArray(savedCustom) && savedCustom.length > 0) {
+            blueprintLibraryCache = [...savedCustom, ...blueprintLibraryCache];
         }
-    ];
+    } catch (e) {
+        console.error('Error loading custom blueprints from storage:', e);
+    }
+
+    const deptSelect = document.getElementById('filter-blueprint-dept');
+    const catSelect = document.getElementById('filter-blueprint-category');
+    const pillsContainer = document.getElementById('blueprint-dept-pills');
+    const bannerEl = document.getElementById('blueprint-dept-banner');
+    const bannerTitle = document.getElementById('dept-banner-title');
+    const bannerBadge = document.getElementById('dept-banner-badge');
+    const bannerDesc = document.getElementById('dept-banner-desc');
+    const bannerCount = document.getElementById('dept-banner-count');
+
+    // Populate category dropdown based on currently chosen Department
+    const updateCategoryOptionsForDept = (selectedDept) => {
+        if (!catSelect) return;
+        catSelect.innerHTML = '';
+
+        if (!selectedDept) {
+            catSelect.innerHTML = '<option value="">All Project Types</option>';
+            const uniqueTypes = [...new Set(blueprintLibraryCache.map(b => b.name))].sort();
+            uniqueTypes.forEach(type => {
+                catSelect.innerHTML += `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`;
+            });
+            return;
+        }
+
+        const deptTemplates = blueprintLibraryCache.filter(b => b.dept === selectedDept);
+        catSelect.innerHTML = `<option value="">All ${escapeHtml(selectedDept)} (${deptTemplates.length})</option>`;
+        deptTemplates.forEach(t => {
+            catSelect.innerHTML += `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`;
+        });
+    };
+
+    // Render quick-switch department pills
+    const renderDepartmentPills = () => {
+        if (!pillsContainer) return;
+        pillsContainer.innerHTML = '';
+        const currentDept = deptSelect ? deptSelect.value : '';
+
+        // "All Departments" pill
+        const allPill = document.createElement('button');
+        allPill.type = 'button';
+        allPill.className = `btn-pill-action ${!currentDept ? 'active' : ''}`;
+        allPill.style.cssText = `white-space:nowrap; padding:6px 14px; font-size:12px; font-weight:700; border-radius:20px; border:1px solid ${!currentDept ? 'var(--teal-600)' : 'var(--glass-border)'}; background:${!currentDept ? 'var(--teal-600)' : 'rgba(255,255,255,0.6)'}; color:${!currentDept ? '#fff' : 'var(--text-dark)'}; cursor:pointer; display:inline-flex; align-items:center; gap:6px;`;
+        allPill.innerHTML = `<i class="fa-solid fa-layer-group"></i> All (${blueprintLibraryCache.length})`;
+        allPill.onclick = () => {
+            if (deptSelect) deptSelect.value = '';
+            updateCategoryOptionsForDept('');
+            renderDepartmentPills();
+            renderBlueprintLibrary();
+        };
+        pillsContainer.appendChild(allPill);
+
+        departmentsConfig.forEach(dept => {
+            const count = blueprintLibraryCache.filter(b => b.dept === dept.dept).length;
+            const isSelected = currentDept === dept.dept;
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = `btn-pill-action ${isSelected ? 'active' : ''}`;
+            pill.style.cssText = `white-space:nowrap; padding:6px 14px; font-size:12px; font-weight:700; border-radius:20px; border:1px solid ${isSelected ? 'var(--teal-600)' : 'var(--glass-border)'}; background:${isSelected ? 'var(--teal-600)' : 'rgba(255,255,255,0.6)'}; color:${isSelected ? '#fff' : 'var(--text-dark)'}; cursor:pointer; display:inline-flex; align-items:center; gap:6px;`;
+            pill.innerHTML = `<i class="fa-solid ${dept.icon || 'fa-folder'}"></i> ${dept.dept} <span style="font-size:10.5px; opacity:0.85; background:rgba(0,0,0,0.1); padding:1px 6px; border-radius:10px;">${count}</span>`;
+            pill.onclick = () => {
+                if (deptSelect) deptSelect.value = dept.dept;
+                updateCategoryOptionsForDept(dept.dept);
+                renderDepartmentPills();
+                renderBlueprintLibrary();
+            };
+            pillsContainer.appendChild(pill);
+        });
+    };
 
     const renderBlueprintLibrary = () => {
         const grid = document.getElementById('blueprint-cards-grid');
@@ -1722,17 +1363,35 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!grid) return;
 
         const searchVal = (document.getElementById('search-blueprint-input')?.value || '').toLowerCase().trim();
-        const catVal = document.getElementById('filter-blueprint-category')?.value || '';
-        const deptVal = document.getElementById('filter-blueprint-dept')?.value || '';
+        const catVal = catSelect ? catSelect.value : '';
+        const deptVal = deptSelect ? deptSelect.value : '';
+
+        // Update Department Banner
+        if (bannerEl) {
+            if (deptVal) {
+                const currentDeptConfig = departmentsConfig.find(d => d.dept === deptVal);
+                const count = blueprintLibraryCache.filter(b => b.dept === deptVal).length;
+                bannerEl.style.display = 'flex';
+                if (bannerTitle) bannerTitle.innerHTML = `<i class="fa-solid ${currentDeptConfig?.icon || 'fa-folder'}" style="color:var(--teal-700); margin-right:6px;"></i> ${deptVal}`;
+                if (bannerBadge) {
+                    bannerBadge.textContent = currentDeptConfig?.frequency || 'Standard';
+                    bannerBadge.style.background = (currentDeptConfig?.frequency || '').includes('High') ? '#0f766e' : '#d97706';
+                }
+                if (bannerDesc) bannerDesc.textContent = currentDeptConfig?.summary || 'Standardized department workflows';
+                if (bannerCount) bannerCount.textContent = `${count} Templates Available`;
+            } else {
+                bannerEl.style.display = 'none';
+            }
+        }
 
         let filtered = blueprintLibraryCache.filter(bp => {
             const matchSearch = !searchVal || 
                 bp.name.toLowerCase().includes(searchVal) || 
                 (bp.description && bp.description.toLowerCase().includes(searchVal)) || 
                 (bp.tags && bp.tags.some(t => t.toLowerCase().includes(searchVal)));
-            const matchCat = !catVal || bp.category === catVal;
             const matchDept = !deptVal || bp.dept === deptVal;
-            return matchSearch && matchCat && matchDept;
+            const matchCat = !catVal || bp.name === catVal || bp.category === catVal;
+            return matchSearch && matchDept && matchCat;
         });
 
         if (filtered.length === 0) {
@@ -1751,36 +1410,38 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'card glass blueprint-card';
             card.style.cssText = `
                 padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--glass-border);
-                background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(14px); transition: transform 0.2s, box-shadow 0.2s;
+                background: rgba(255, 255, 255, 0.45); backdrop-filter: blur(14px); transition: transform 0.2s, box-shadow 0.2s;
                 display: flex; flex-direction: column; justify-content: space-between; position: relative;
             `;
 
             card.innerHTML = `
                 <div>
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-                        <span class="status-pill progress" style="font-size:11px; font-weight:800; background:rgba(4, 120, 87, 0.15); color:var(--teal-900);">${bp.category || 'General'}</span>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <span style="font-size:11px; font-weight:700; color:var(--text-muted);">${bp.dept || 'Engineering'}</span>
-                            <i class="fa-star ${isFav ? 'fa-solid' : 'fa-regular'} btn-fav-bp" data-id="${bp.id}" style="cursor:pointer; color:${isFav ? '#f59e0b' : 'var(--text-muted)'}; font-size:16px;"></i>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; gap:8px;">
+                        <span class="status-pill progress" style="font-size:11px; font-weight:800; background:rgba(15, 118, 110, 0.12); color:var(--teal-900); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">
+                            <i class="fa-solid ${bp.icon || 'fa-folder'}" style="margin-right:4px;"></i>${bp.dept}
+                        </span>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <span style="font-size:10.5px; font-weight:800; color:#0f766e; background:rgba(15,118,110,0.08); padding:2px 7px; border-radius:6px; white-space:nowrap;">${bp.frequency || 'Standard'}</span>
+                            <i class="fa-star ${isFav ? 'fa-solid' : 'fa-regular'} btn-fav-bp" data-id="${bp.id}" style="cursor:pointer; color:${isFav ? '#f59e0b' : 'var(--text-muted)'}; font-size:15px;" title="${isFav ? 'Unstar' : 'Star'}"></i>
                         </div>
                     </div>
 
-                    <h4 style="font-size:16px; font-weight:800; color:var(--teal-900); margin-bottom:6px; line-height:1.3;">${bp.name}</h4>
-                    <p style="font-size:12.5px; color:var(--text-dark); line-height:1.4; margin-bottom:16px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${bp.description || 'No description provided.'}</p>
+                    <h4 style="font-size:15.5px; font-weight:800; color:var(--teal-900); margin-bottom:6px; line-height:1.35;">${escapeHtml(bp.name)}</h4>
+                    <p style="font-size:12px; color:var(--text-dark); line-height:1.45; margin-bottom:14px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(bp.description || bp.summary || 'No description provided.')}</p>
 
                     <!-- Metric Chips -->
-                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-bottom:16px; background:rgba(255,255,255,0.3); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.4);">
+                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-bottom:16px; background:rgba(255,255,255,0.5); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.6);">
                         <div style="text-align:center;">
                             <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Phases</span>
-                            <strong style="display:block; font-size:13.5px; color:var(--teal-900); font-weight:800;">${bp.phasesCount || (bp.phases ? bp.phases.length : 1)}</strong>
+                            <strong style="display:block; font-size:13px; color:var(--teal-900); font-weight:800;">${bp.phasesCount || (bp.phases ? bp.phases.length : 5)}</strong>
                         </div>
                         <div style="text-align:center;">
                             <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Tasks</span>
-                            <strong style="display:block; font-size:13.5px; color:var(--teal-900); font-weight:800;">${bp.tasksCount || 5}</strong>
+                            <strong style="display:block; font-size:13px; color:var(--teal-900); font-weight:800;">${bp.tasksCount || 6}</strong>
                         </div>
                         <div style="text-align:center;">
-                            <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Duration</span>
-                            <strong style="display:block; font-size:13.5px; color:var(--teal-900); font-weight:800;">${bp.estDays} Days</strong>
+                            <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Est. Time</span>
+                            <strong style="display:block; font-size:13px; color:var(--teal-900); font-weight:800;">${bp.estDays} Days</strong>
                         </div>
                     </div>
                 </div>
@@ -1788,9 +1449,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <!-- Footer Action Buttons -->
                 <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(0,0,0,0.06); padding-top:12px; margin-top:8px;">
                     <div style="display:flex; gap:6px;">
-                        <button type="button" class="btn-pill-action btn-pill-template btn-preview-bp" data-id="${bp.id}" style="padding:6px 12px; font-size:12px;"><i class="fa-solid fa-eye"></i> Preview</button>
+                        <button type="button" class="btn-pill-action btn-pill-template btn-preview-bp" data-id="${bp.id}" style="padding:6px 12px; font-size:12px; font-weight:700;"><i class="fa-solid fa-eye"></i> Preview</button>
                         <button type="button" class="btn-pill-action btn-pill-template btn-duplicate-bp" data-id="${bp.id}" style="padding:6px 10px; font-size:12px;" title="Duplicate Blueprint"><i class="fa-solid fa-copy"></i></button>
-                        <button type="button" class="btn-pill-action btn-delete-bp" data-id="${bp.id}" style="padding:6px 10px; font-size:12px; color:var(--danger-color, #dc2626); border-color:rgba(220, 38, 38, 0.3);" title="Delete Blueprint"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                     <button type="button" class="btn-primary btn-use-bp" data-id="${bp.id}" style="padding:7px 16px; font-size:12.5px; font-weight:800; border-radius:var(--radius-pill);"><i class="fa-solid fa-play"></i> Use</button>
                 </div>
@@ -1812,14 +1472,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 clone.name = bp.name + ' (Copy)';
                 clone.isFavorite = false;
                 blueprintLibraryCache.unshift(clone);
+                try {
+                    const savedCustom = JSON.parse(localStorage.getItem('ems_custom_blueprints') || '[]');
+                    savedCustom.unshift(clone);
+                    localStorage.setItem('ems_custom_blueprints', JSON.stringify(savedCustom));
+                } catch(e){}
+                renderDepartmentPills();
                 renderBlueprintLibrary();
-            });
-
-            card.querySelector('.btn-delete-bp').addEventListener('click', () => {
-                if (confirm(`Are you sure you want to delete the "${bp.name}" blueprint?`)) {
-                    blueprintLibraryCache = blueprintLibraryCache.filter(item => item.id !== bp.id);
-                    renderBlueprintLibrary();
-                }
             });
 
             card.querySelector('.btn-use-bp').addEventListener('click', () => {
@@ -1832,17 +1491,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Filter listeners
     document.getElementById('search-blueprint-input')?.addEventListener('input', renderBlueprintLibrary);
-    document.getElementById('filter-blueprint-category')?.addEventListener('change', renderBlueprintLibrary);
-    document.getElementById('filter-blueprint-dept')?.addEventListener('change', renderBlueprintLibrary);
+    
+    if (deptSelect) {
+        deptSelect.addEventListener('change', () => {
+            updateCategoryOptionsForDept(deptSelect.value);
+            renderDepartmentPills();
+            renderBlueprintLibrary();
+        });
+    }
+
+    if (catSelect) {
+        catSelect.addEventListener('change', renderBlueprintLibrary);
+    }
+
+    // Initialize department pills and dropdown options
+    updateCategoryOptionsForDept('');
+    renderDepartmentPills();
+    renderBlueprintLibrary();
 
     // Apply blueprint into Workflow builder
     const applyBlueprintToWorkflow = (bp) => {
         resetWorkflowModal();
 
-        const nameEl = document.getElementById('workflow-name');
-        const descEl = document.getElementById('workflow-description');
+        const nameEl = document.getElementById('workflow-name') || document.getElementById('task-title');
+        const descEl = document.getElementById('workflow-description') || document.getElementById('task-desc');
         if (nameEl) nameEl.value = bp.name || '';
-        if (descEl) descEl.value = bp.description || '';
+        if (descEl) descEl.value = bp.description || bp.summary || '';
 
         // Clear existing default teams & add Blueprint teams
         teamList.innerHTML = '';
@@ -1872,8 +1546,9 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshAllTaskAssignees();
         refreshDependencyOptions();
 
-        if (modal) {
-            modal.classList.add('active');
+        const activeModal = modal || document.getElementById('task-modal');
+        if (activeModal) {
+            activeModal.classList.add('active');
         }
     };
 

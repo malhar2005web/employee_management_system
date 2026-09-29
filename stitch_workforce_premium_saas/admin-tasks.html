@@ -434,33 +434,52 @@
       <!-- Workflow Blueprint Library View (Hidden by default) -->
       <div id="view-templates" style="display:none; padding: 20px;">
         <!-- Header Controls & Filters -->
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--glass-border);">
-          <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 320px;">
-            <div class="search-box" style="flex: 1; margin: 0; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--glass-border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--glass-border);">
+          <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 320px; flex-wrap: wrap;">
+            <div class="search-box" style="flex: 1; min-width: 220px; margin: 0; background: rgba(255, 255, 255, 0.4); border: 1px solid var(--glass-border);">
               <i class="fa-solid fa-magnifying-glass"></i>
-              <input type="text" id="search-blueprint-input" placeholder="Search blueprints by title, category..." style="background: transparent; border: none; outline: none; width: 100%; font-size: 13.5px; color: var(--text-dark); font-weight: 600;">
+              <input type="text" id="search-blueprint-input" placeholder="Search blueprints by title, service, keyword..." style="background: transparent; border: none; outline: none; width: 100%; font-size: 13.5px; color: var(--text-dark); font-weight: 600;">
             </div>
-            <select id="filter-blueprint-category" style="padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.4); font-size: 13px; font-weight: 700; color: var(--text-dark); outline: none; cursor: pointer;">
-              <option value="">All Categories</option>
-              <option value="Software & Tech">Software & Tech</option>
-              <option value="HR & Onboarding">HR & Onboarding</option>
-              <option value="Operations">Operations</option>
-              <option value="Customer Success">Customer Success</option>
-              <option value="Marketing">Marketing</option>
-              <option value="QA & Testing">QA & Testing</option>
+            
+            <!-- 1. Department Dropdown -->
+            <select id="filter-blueprint-dept" style="padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.7); font-size: 13px; font-weight: 700; color: var(--teal-900); outline: none; cursor: pointer; min-width: 220px;">
+              <option value="">All Departments (9)</option>
+              <option value="Website Development">1. Website Development</option>
+              <option value="Web Application Development">2. Web Application Development</option>
+              <option value="Mobile App Development">3. Mobile App Development</option>
+              <option value="Industrial Automation, SCADA & IoT">4. Industrial Automation, SCADA &amp; IoT</option>
+              <option value="AI, ML & Intelligent Automation">5. AI, ML &amp; Intelligent Automation</option>
+              <option value="API & System Integration">6. API &amp; System Integration</option>
+              <option value="Cloud, DevOps & Infrastructure">7. Cloud, DevOps &amp; Infrastructure</option>
+              <option value="Data Engineering & Business Intelligence">8. Data Engineering &amp; Business Intelligence</option>
+              <option value="Software Maintenance, QA & Support">9. Software Maintenance, QA &amp; Support</option>
             </select>
-            <select id="filter-blueprint-dept" style="padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.4); font-size: 13px; font-weight: 700; color: var(--text-dark); outline: none; cursor: pointer;">
-              <option value="">All Departments</option>
-              <option value="Engineering">Engineering</option>
-              <option value="HR">HR</option>
-              <option value="Sales & Support">Sales & Support</option>
-              <option value="Operations">Operations</option>
-              <option value="Marketing">Marketing</option>
+
+            <!-- 2. Project Option / Template Type Dropdown (Dynamically Filled) -->
+            <select id="filter-blueprint-category" style="padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.7); font-size: 13px; font-weight: 700; color: var(--text-dark); outline: none; cursor: pointer; min-width: 200px;">
+              <option value="">All Project Types</option>
             </select>
           </div>
           <div style="display: flex; align-items: center; gap: 10px;">
             <button type="button" class="btn-primary" id="btn-open-create-blueprint-modal" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700;"><i class="fa-solid fa-plus-circle"></i> Create Blueprint</button>
           </div>
+        </div>
+
+        <!-- Department Pills Quick Navigation -->
+        <div id="blueprint-dept-pills" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 16px; scrollbar-width: thin;">
+          <!-- Dynamically populated department pills with icons & counts -->
+        </div>
+
+        <!-- Active Department Overview Banner -->
+        <div id="blueprint-dept-banner" style="display: none; padding: 14px 18px; border-radius: 12px; background: rgba(15, 118, 110, 0.08); border: 1px solid rgba(15, 118, 110, 0.2); margin-bottom: 20px; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h4 id="dept-banner-title" style="font-size: 15.5px; font-weight: 800; color: var(--teal-900); margin: 0;">Department</h4>
+              <span id="dept-banner-badge" style="font-size: 11px; font-weight: 800; padding: 2px 10px; border-radius: 12px; background: #0f766e; color: #fff;">High frequency</span>
+            </div>
+            <p id="dept-banner-desc" style="font-size: 12.5px; color: var(--text-dark); margin: 4px 0 0 0; font-weight: 500;">Client requirement</p>
+          </div>
+          <span id="dept-banner-count" style="font-size: 12px; font-weight: 800; color: var(--teal-900); background: rgba(255,255,255,0.8); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(15, 118, 110, 0.2); white-space: nowrap;">8 Templates</span>
         </div>
 
         <!-- Blueprint Cards Grid -->
@@ -957,7 +976,8 @@
 <script src="js/csv-exporter.js"></script>
 <script src="js/csvImportExportModal.js"></script>
 <script src="js/deletionWizardModal.js"></script>
-<script src="tasks.js?v=20260929_wf_complete"></script>
+<script src="js/workflow-blueprints-data.js?v=20260929_dept_blueprints"></script>
+<script src="tasks.js?v=20260929_wf_departments"></script>
 <script src="js/taskHandoverModal.js"></script>
 </body>
 </html>
