@@ -1436,12 +1436,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             if (res.ok && data.success) {
                 chatChannels = data.data;
-                renderChatChannels();
+                const searchVal = document.getElementById('chat-contact-search')?.value || '';
+                renderChatChannels(searchVal);
             }
         } catch (e) {
             console.error("Error loading chat channels:", e);
         }
     };
+    // Periodically sync live Workstation Monitoring presence every 15s
+    setInterval(loadChatContacts, 15000);
 
     const renderChatChannels = (filterQuery = '') => {
         const list = document.getElementById('chat-contacts-list');
@@ -1466,36 +1469,59 @@ document.addEventListener('DOMContentLoaded', () => {
             filteredDMs.forEach(c => {
                 const item = document.createElement('div');
                 const isSelected = selectedChannel && selectedChannel.id === c.employee_id && selectedChannel.type === 'DM';
-                const isBusy = c.presence_status === 'Busy';
-                const statusDotColor = isBusy ? '#ef4444' : '#22c55e';
                 const hasUnread = c.unread_count > 0;
+
+                // 🟢 Workstation Monitoring Presence Mapping
+                let statusDotColor = '#94a3b8'; // Grey (Unassigned)
+                let statusBadgeHtml = '<span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 7px; background:rgba(148,163,184,0.18); color:#64748b; border-radius:10px;">⚪ Offline</span>';
+                let presenceLabel = 'Offline';
+
+                if (c.presence_status === 'Online') {
+                    statusDotColor = '#22c55e'; // Green (Active Workstation)
+                    statusBadgeHtml = '<span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 7px; background:rgba(34,197,94,0.15); color:#15803d; border-radius:10px;">🟢 Online</span>';
+                    presenceLabel = '🟢 Online';
+                } else if (c.presence_status === 'Idle') {
+                    statusDotColor = '#f59e0b'; // Amber (Online, but Idle)
+                    statusBadgeHtml = '<span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 7px; background:rgba(245,158,11,0.15); color:#b45309; border-radius:10px;">🟡 Idle</span>';
+                    presenceLabel = '🟡 Idle';
+                } else if (c.presence_status === 'Busy') {
+                    statusDotColor = '#ef4444'; // Red (In active task session)
+                    statusBadgeHtml = '<span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 7px; background:rgba(239,68,68,0.15); color:#dc2626; border-radius:10px;">🔴 Busy</span>';
+                    presenceLabel = '🔴 Busy';
+                } else {
+                    // Offline - if workstation assigned but agent stopped/offline, red dot like Workstation Monitoring
+                    if (c.computer_name && c.computer_name !== '—') {
+                        statusDotColor = '#dc2626'; // Red (Workstation Offline)
+                        statusBadgeHtml = '<span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 7px; background:rgba(220,38,38,0.12); color:#dc2626; border-radius:10px;">🔴 Offline</span>';
+                        presenceLabel = '🔴 Offline';
+                    }
+                }
+
+                const cAvatarHtml = typeof window.renderEmpAvatar === 'function'
+                    ? window.renderEmpAvatar(c.full_name, c.profile_picture, 36, 13)
+                    : `<div style="width:36px;height:36px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #fff;">${(c.full_name||'').substring(0,2).toUpperCase()}</div>`;
 
                 item.style.cssText = `
                     display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; cursor:pointer;
                     background:${isSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.1)'};
                     margin-bottom:6px; border:1px solid rgba(0,0,0,0.04); transition: background 0.2s;
                 `;
-                const cAvatarHtml = typeof window.renderEmpAvatar === 'function'
-                    ? window.renderEmpAvatar(c.full_name, c.profile_picture, 36, 13)
-                    : `<div style="width:36px;height:36px;border-radius:50%;background:#0d9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #fff;">${(c.full_name||'').substring(0,2).toUpperCase()}</div>`;
-
                 item.innerHTML = `
                     <div style="position:relative; flex-shrink:0;">
                         ${cAvatarHtml}
-                        <span style="position:absolute; bottom:0; right:0; width:9px; height:9px; border-radius:50%; background:${statusDotColor}; border:1.5px solid #fff;"></span>
+                        <span style="position:absolute; bottom:0; right:0; width:9.5px; height:9.5px; border-radius:50%; background:${statusDotColor}; border:1.5px solid #fff; box-shadow:0 0 4px ${statusDotColor}66;"></span>
                     </div>
                     <div style="flex:1; min-width:0;">
                         <div style="font-weight:700; font-size:13px; color:var(--teal-900); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; display:flex; align-items:center; justify-content:space-between;">
                             <span>${c.full_name}</span>
                             ${hasUnread ? `<span style="width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.8);"></span>` : ''}
                         </div>
-                        <div style="font-size:11px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${c.designation || c.department_name || 'Staff'}</div>
+                        <div style="font-size:11px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${c.designation || c.department_name || 'Staff'}${c.computer_name && c.computer_name !== '—' ? ` • ${c.computer_name}` : ''}</div>
                     </div>
-                    <span class="status-pill" style="font-size:9.5px; font-weight:800; padding:2px 6px; background:${statusDotColor}22; color:${statusDotColor};">
-                        ${isBusy ? '🔴 Busy' : '🟢 Online'}
-                    </span>
+                    ${statusBadgeHtml}
                 `;
-                item.addEventListener('click', () => selectChannelItem('DM', c.employee_id, c.full_name, c.designation || c.department_name));
+                const headerSubtitle = `${c.designation || c.department_name || 'Staff'} • ${presenceLabel}${c.computer_name && c.computer_name !== '—' ? ` (${c.computer_name})` : ''}`;
+                item.addEventListener('click', () => selectChannelItem('DM', c.employee_id, c.full_name, headerSubtitle));
                 list.appendChild(item);
             });
         }

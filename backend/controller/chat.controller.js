@@ -13,20 +13,34 @@ export const getChannels = async (req, res) => {
     try {
         const currentEmpId = getEmpId(req);
 
-        // Fetch DMs (Individual Employees with Live Presence & Unread Count from specific sender)
+        // Fetch DMs (Individual Employees with Live Presence from Workstation Monitoring & Unread Count)
         const dmsRes = await pool.query(`
             SELECT 
-                e.id AS employee_id, e.full_name, e.employee_code,
+                e.id AS employee_id, e.full_name, e.employee_code, e.profile_picture,
                 d.name AS department_name, ds.title AS designation,
+                m.computer_id, m.computer_name,
+                c.is_online, c.agent_status, c.last_seen,
                 CASE 
+                    WHEN m.computer_id IS NULL THEN 'Offline'
+                    WHEN c.is_online IS NOT TRUE THEN 'Offline'
+                    WHEN c.agent_status = 'Idle' OR c.agent_status = 'Stopped' THEN 'Idle'
                     WHEN ts.id IS NOT NULL THEN 'Busy'
                     ELSE 'Online'
                 END AS presence_status,
+                CASE
+                    WHEN m.computer_id IS NULL THEN 'No Workstation'
+                    WHEN c.is_online IS NOT TRUE THEN 'Offline'
+                    WHEN c.agent_status = 'Idle' OR c.agent_status = 'Stopped' THEN 'Idle'
+                    WHEN ts.id IS NOT NULL THEN 'Busy'
+                    ELSE 'Online'
+                END AS workstation_status,
                 t.title AS active_task_title,
                 COALESCE(un.cnt, 0)::INT AS unread_count
             FROM employees e
             LEFT JOIN departments d ON e.department_id = d.id
             LEFT JOIN designations ds ON e.designation_id = ds.id
+            LEFT JOIN employee_teramind_mapping m ON e.id = m.employee_id
+            LEFT JOIN teramind_computer_cache c ON m.computer_id = c.computer_id
             LEFT JOIN task_sessions ts ON (ts.employee_id = e.id AND ts.status = 'Running')
             LEFT JOIN tasks t ON ts.task_id = t.id
             LEFT JOIN (
@@ -36,7 +50,14 @@ export const getChannels = async (req, res) => {
                 GROUP BY sender_id
             ) un ON e.id = un.sender_id
             WHERE e.id != $1 AND (e.status = 'Active' OR e.status = 'active' OR e.status IS NULL)
-            ORDER BY unread_count DESC, e.full_name ASC
+            ORDER BY 
+                unread_count DESC,
+                CASE 
+                    WHEN m.computer_id IS NOT NULL AND c.is_online = true AND (c.agent_status != 'Idle' AND c.agent_status != 'Stopped') THEN 1
+                    WHEN m.computer_id IS NOT NULL AND c.is_online = true THEN 2
+                    ELSE 3
+                END ASC,
+                e.full_name ASC
         `, [currentEmpId || 0]);
 
         // Auto-ensure Department Channels exist for all departments
