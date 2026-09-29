@@ -135,6 +135,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const adminMods = Array.isArray(comp.admin_modules) ? comp.admin_modules : [];
             const empMods = Array.isArray(comp.employee_modules) ? comp.employee_modules : [];
             const initials = (comp.company_name || 'EM').slice(0, 2).toUpperCase();
+            const isPcs = (comp.company_code || '').toLowerCase() === 'pcs' || (comp.company_name || '').toLowerCase().includes('pcs');
+            const avatarContent = isPcs
+                ? `<img src="assets/logo.png" alt="PCS" onerror="this.onerror=null; this.src='logo.png';" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">`
+                : escapeHtml(initials);
             const tempPass = comp.admin_temp_password || 'Penta@123';
             const isActive = comp.status === 'ACTIVE';
 
@@ -142,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr>
                     <td>
                         <div class="comp-avatar-pill">
-                            <div class="avatar-circ">${initials}</div>
+                            <div class="avatar-circ" style="${isPcs ? 'background:#fff; border:1.5px solid rgba(0,0,0,0.08); padding:1px;' : ''}">${avatarContent}</div>
                             <div class="comp-meta">
                                 <div class="c-title">${escapeHtml(comp.company_name)}</div>
                                 <div class="c-slug">
@@ -677,6 +681,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         credTableBody.innerHTML = filtered.map(cred => {
             const initials = (cred.company_name || 'CO').slice(0, 2).toUpperCase();
+            const isPcs = (cred.company_code || '').toLowerCase() === 'pcs' || (cred.company_name || '').toLowerCase().includes('pcs');
+            const avatarContent = isPcs
+                ? `<img src="assets/logo.png" alt="PCS" onerror="this.onerror=null; this.src='logo.png';" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">`
+                : escapeHtml(initials);
             const pass = cred.plain_password || 'Admin@123';
             const portalUrl = cred.login_url || `/login.html?org=${encodeURIComponent(cred.company_code)}&switch=1`;
 
@@ -684,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr>
                     <td>
                         <div class="comp-avatar-pill">
-                            <div class="avatar-circ">${initials}</div>
+                            <div class="avatar-circ" style="${isPcs ? 'background:#fff; border:1.5px solid rgba(0,0,0,0.08); padding:1px;' : ''}">${avatarContent}</div>
                             <div class="comp-meta">
                                 <div class="c-title">${escapeHtml(cred.company_name)}</div>
                                 <div class="c-slug">
