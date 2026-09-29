@@ -312,42 +312,42 @@
 
     #tickets-table {
       width: 100% !important;
-      min-width: 960px;
+      min-width: 820px;
       border-collapse: separate !important;
       border-spacing: 0 !important;
     }
 
     #tickets-table thead th {
-      padding: 12px 10px !important;
-      font-size: 11.5px !important;
+      padding: 9px 8px !important;
+      font-size: 11px !important;
       font-weight: 800 !important;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
       color: #475569 !important;
-      background: rgba(248, 250, 252, 0.85);
+      background: rgba(248, 250, 252, 0.9);
       border-bottom: 2px solid #e2e8f0 !important;
       white-space: nowrap;
     }
 
     #tickets-table tbody td {
-      padding: 9px 10px !important;
-      font-size: 13px !important;
+      padding: 7px 8px !important;
+      font-size: 12.5px !important;
       border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
       vertical-align: middle;
     }
 
     /* Compact, High-Precision Action Buttons (Overrides style.css !important) */
     .support-tbl-btn {
-      padding: 4px 8px !important;
-      font-size: 11px !important;
+      padding: 3.5px 6.5px !important;
+      font-size: 10.5px !important;
       font-weight: 700 !important;
-      height: 26px !important;
-      min-height: 26px !important;
+      height: 25px !important;
+      min-height: 25px !important;
       line-height: 1 !important;
-      border-radius: 6px !important;
+      border-radius: 5px !important;
       display: inline-flex !important;
       align-items: center !important;
       justify-content: center !important;
-      gap: 3.5px !important;
+      gap: 3px !important;
       cursor: pointer !important;
       transition: all 0.15s ease !important;
       box-shadow: none !important;
@@ -357,8 +357,8 @@
     }
 
     .support-tbl-btn-icon {
-      width: 26px !important;
-      min-width: 26px !important;
+      width: 25px !important;
+      min-width: 25px !important;
       padding: 0 !important;
     }
 
@@ -1138,13 +1138,13 @@
           <table class="data-table" id="tickets-table">
             <thead>
               <tr>
-                <th>Ticket Code</th>
-                <th>Customer &amp; Project</th>
+                <th style="width:90px; white-space:nowrap;">Ticket Code</th>
+                <th style="width:130px;">Customer &amp; Project</th>
                 <th>Issue Title &amp; Category</th>
-                <th>Priority &amp; Time Elapsed</th>
-                <th>Status</th>
-                <th>Assigned To</th>
-                <th style="white-space:nowrap; text-align:right; width:230px;">Actions</th>
+                <th style="width:135px; white-space:nowrap;">Priority &amp; Time Elapsed</th>
+                <th style="width:90px; white-space:nowrap;">Status</th>
+                <th style="width:125px; white-space:nowrap;">Assigned To</th>
+                <th style="white-space:nowrap; text-align:left; width:1%;">Actions</th>
               </tr>
             </thead>
             <tbody id="tickets-list">
@@ -1813,7 +1813,7 @@
   </div>
 
   <script src="script.js?v=20260922_3"></script>
-  <script src="support.js?v=2.3"></script>
+  <script src="support.js?v=2.4"></script>
 </body>
 
 </html>

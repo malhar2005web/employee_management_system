@@ -920,8 +920,8 @@
                         ${t.reported_by || 'Staff'}
                     </div>
                 </td>
-                <td style="white-space:nowrap; text-align:right; padding-right:16px;">
-                    <div style="display:inline-flex; gap:4px; align-items:center; justify-content:flex-end; flex-wrap:nowrap;">
+                <td style="white-space:nowrap; text-align:left;">
+                    <div style="display:inline-flex; gap:3px; align-items:center; justify-content:flex-start; flex-wrap:nowrap;">
                         ${actionButtons}
                     </div>
                 </td>
