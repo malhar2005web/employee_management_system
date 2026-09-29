@@ -676,6 +676,26 @@ export async function syncTeramindDataToCache() {
                             const isEarly = (dStr < todayIST) ? otEarly.isEarlyLogout : false;
                             const earlySecs = (dStr < todayIST) ? otEarly.earlyLogoutSeconds : 0;
 
+                            let lateMins = 0;
+                            let isLateLogin = false;
+                            if (shiftRes.checkInDate) {
+                                const inParts = new Intl.DateTimeFormat('en-GB', {
+                                    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                                }).formatToParts(shiftRes.checkInDate);
+                                const inP = {};
+                                inParts.forEach(({ type, value }) => { inP[type] = value; });
+                                const inH = parseInt(inP.hour, 10);
+                                const inM = parseInt(inP.minute, 10);
+                                const inTotalMins = inH * 60 + inM;
+                                const dow = new Date(dStr).getDay();
+                                const lateThreshold = (dow === 6) ? rules.satLateThresholdMins : rules.lateThresholdMins;
+                                if (inTotalMins > lateThreshold) {
+                                    lateMins = inTotalMins - lateThreshold;
+                                    isLateLogin = true;
+                                }
+                            }
+                            const lateSecs = lateMins * 60;
+
                             const checkRes = await pool.query("SELECT * FROM attendance WHERE employee_id = $1 AND date = $2", [emp.id, dStr]);
                             if (checkRes.rows.length > 0) {
                                 const row = checkRes.rows[0];
@@ -684,15 +704,16 @@ export async function syncTeramindDataToCache() {
                                         UPDATE attendance
                                         SET status = $1, login_time = $2, logout_time = $3, total_working_hours = $4,
                                             overtime = $5, overtime_seconds = $6, is_early_logout = $7, early_logout_seconds = $8,
+                                            is_late_login = $9, late_seconds = $10,
                                             punch_source = 'TERAMIND', approval_status = 'Auto-Synced', updated_at = NOW()
-                                        WHERE id = $9;
-                                    `, [status, inStr, outStr, hrs, otMins, otSecs, isEarly, earlySecs, row.id]);
+                                        WHERE id = $11;
+                                    `, [status, inStr, outStr, hrs, otMins, otSecs, isEarly, earlySecs, isLateLogin, lateSecs, row.id]);
                                 }
                             } else {
                                 await pool.query(`
-                                    INSERT INTO attendance (employee_id, date, status, login_time, logout_time, total_working_hours, overtime, overtime_seconds, is_early_logout, early_logout_seconds, punch_source, approval_status, created_at, updated_at)
-                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'TERAMIND', 'Auto-Synced', NOW(), NOW());
-                                `, [emp.id, dStr, status, inStr, outStr, hrs, otMins, otSecs, isEarly, earlySecs]);
+                                    INSERT INTO attendance (employee_id, date, status, login_time, logout_time, total_working_hours, overtime, overtime_seconds, is_early_logout, early_logout_seconds, is_late_login, late_seconds, punch_source, approval_status, created_at, updated_at)
+                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'TERAMIND', 'Auto-Synced', NOW(), NOW());
+                                `, [emp.id, dStr, status, inStr, outStr, hrs, otMins, otSecs, isEarly, earlySecs, isLateLogin, lateSecs]);
                             }
                         }
                     } catch (e) {}

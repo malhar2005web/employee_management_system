@@ -548,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (filterEndDate) filterEndDate.value = endVal;
 
         if (logsList) {
-            logsList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:18px;margin-bottom:8px;display:block;color:var(--teal-900);"></i>Syncing live attendance logs (${startVal}${startVal !== endVal ? ' to ' + endVal : ''})...</td></tr>`;
+            logsList.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:28px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:18px;margin-bottom:8px;display:block;color:var(--teal-900);"></i>Syncing live attendance logs (${startVal}${startVal !== endVal ? ' to ' + endVal : ''})...</td></tr>`;
         }
 
         try {
@@ -583,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let absent = 0;
 
         if (logs.length === 0) {
-            logsList.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;color:#94a3b8;"></i>No attendance records found for this period</td></tr>`;
+            logsList.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13.5px;"><i class="fa-solid fa-calendar-xmark" style="font-size:24px;margin-bottom:8px;display:block;color:#94a3b8;"></i>No attendance records found for this period</td></tr>`;
         } else {
             logs.forEach(log => {
                 if (log.status === 'Present') present++;
@@ -738,9 +738,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     return '<span style="color:#94a3b8; font-weight:600;">—</span>';
                 };
-
+ 
                 const ovtHours = (log.overtime_hours && parseFloat(log.overtime_hours) > 0) ? formatHoursMins(log.overtime_hours, true) : (log.overtime ? `${log.overtime} mins` : '—');
                 
+                let lateInDisplay = '<span style="color:#94a3b8; font-weight:600;">—</span>';
+                const lateMins = log.late_minutes !== undefined ? parseInt(log.late_minutes, 10) : 0;
+                if (lateMins > 0) {
+                    const lateH = Math.floor(lateMins / 60);
+                    const lateRemM = lateMins % 60;
+                    const lateStr = lateH > 0 ? `${lateH}h ${lateRemM}m` : `${lateRemM} mins`;
+                    lateInDisplay = `<span style="color:#b91c1c; font-weight:700; background:rgba(239,68,68,0.1); padding:2px 7px; border-radius:4px; font-size:11.5px; border:1px solid rgba(239,68,68,0.25); display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-clock" style="font-size:10px;"></i> ${lateStr}</span>`;
+                }
+
                 let earlyOutDisplay = '—';
                 const earlyMins = log.early_logout_mins || (log.early_logout_seconds ? Math.round(log.early_logout_seconds / 60) : 0);
                 if (earlyMins > 0) {
@@ -751,7 +760,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 let workingHours = '—';
-                if (log.total_working_hours && parseFloat(log.total_working_hours) > 0) {
+                if (log.total_working_hours && parseFloat(log.total_working_hours) > 0 && log.logout_time && log.logout_time !== '—' && log.logout_time !== '-') {
                     workingHours = formatHoursMins(log.total_working_hours, true);
                 } else if (log.login_time && (!log.logout_time || log.logout_time === '—' || log.logout_time === '-')) {
                     const logDateStr = log.date || today;
@@ -761,7 +770,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (!isNaN(loginD.getTime())) {
                                 const diffMs = new Date() - loginD;
                                 if (diffMs > 0) {
-                                    workingHours = formatHoursMins(diffMs / (1000 * 60 * 60), true);
+                                    const activeStr = formatHoursMins(diffMs / (1000 * 60 * 60), true);
+                                    workingHours = `<span style="color:#0f766e; font-weight:700; font-size:11.5px; display:inline-flex; align-items:center; gap:3.5px;" title="Current active session duration"><i class="fa-solid fa-stopwatch" style="font-size:10px; color:#0d9488;"></i> ${activeStr} (Active)</span>`;
                                 }
                             }
                         } catch (e) {}
@@ -788,6 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong style="color:${loginStr !== '—' ? '#047857' : '#94a3b8'};">${loginStr}</strong></td>
                     <td><strong style="color:${logoutStr !== '—' ? '#0f172a' : '#94a3b8'};">${logoutStr}</strong></td>
                     <td>${getBreakHtml(log)}</td>
+                    <td>${lateInDisplay}</td>
                     <td>${earlyOutDisplay}</td>
                     <td><strong style="color:${parseFloat(log.overtime_hours || log.overtime || 0) > 0 ? '#b45309' : '#64748b'};">${ovtHours !== '—' ? `<span style="color:#059669; font-weight:700; background:rgba(5,150,105,0.1); padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-fire" style="font-size:10px; color:#ea580c;"></i> ${ovtHours}</span>` : '—'}</strong></td>
                     <td><strong style="color:#0f172a;">${workingHours}</strong></td>

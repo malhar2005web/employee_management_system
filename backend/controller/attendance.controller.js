@@ -522,6 +522,39 @@ export async function getAttendanceLogs(req, res) {
                     isEarlyLogout = true;
                 }
 
+                // Late In / Early In calculation (dynamic shift start + grace period)
+                const targetDow = new Date(targetDateStr).getDay();
+                const isSaturdayTarget = (targetDow === 6);
+                const curShiftStartMins = isSaturdayTarget ? shiftRules.satStartMins : shiftRules.weekdayStartMins;
+                const curLateThresholdMins = isSaturdayTarget ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
+                let lateMins = 0;
+                let earlyInMins = 0;
+
+                if (finalRecord.login_time) {
+                    const inD = new Date(finalRecord.login_time);
+                    if (!isNaN(inD.getTime())) {
+                        const inParts = new Intl.DateTimeFormat('en-GB', {
+                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+                        }).formatToParts(inD);
+                        const inP = {};
+                        inParts.forEach(({ type, value }) => { inP[type] = value; });
+                        const inH = parseInt(inP.hour, 10);
+                        const inM = parseInt(inP.minute, 10);
+                        const inTotalMins = inH * 60 + inM;
+
+                        if (inTotalMins > curLateThresholdMins) {
+                            lateMins = inTotalMins - curLateThresholdMins;
+                            finalRecord.status = 'Late';
+                        } else if (inTotalMins < curShiftStartMins) {
+                            earlyInMins = curShiftStartMins - inTotalMins;
+                        }
+                    }
+                }
+
+                finalRecord.late_minutes = lateMins;
+                finalRecord.late_hours = (lateMins / 60).toFixed(2);
+                finalRecord.early_in_minutes = earlyInMins;
+                finalRecord.early_in_hours = (earlyInMins / 60).toFixed(2);
                 finalRecord.login_hours = loginHoursNum > 0 ? loginHoursNum.toFixed(2) : '0.00';
                 finalRecord.overtime_hours = overtimeHoursNum > 0 ? overtimeHoursNum.toFixed(2) : '0.00';
                 finalRecord.overtime_mins = Math.round(overtimeHoursNum * 60);
