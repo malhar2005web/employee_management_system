@@ -2347,6 +2347,230 @@ body.is-mobile-app .sidebar .nav-item.active i {
   color: #ffffff !important;
 }
 
+/* ---------------------------------- APK Exclusive: Topbar & Scrollable Tab Navigation ---------------------------------- */
+/* 1. Topbar in Mobile App: Hide search box and dashboard/nav links, keep hamburger & right actions */
+html.is-mobile-app .topbar .search-box,
+body.is-mobile-app .topbar .search-box,
+html.is-mobile-app .topbar-nav,
+body.is-mobile-app .topbar-nav {
+  display: none !important;
+}
+
+html.is-mobile-app .topbar,
+body.is-mobile-app .topbar {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 8px 14px !important;
+  height: 58px !important;
+  min-height: 58px !important;
+  margin-bottom: 14px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  border-radius: 16px !important;
+  position: relative !important;
+  top: 0 !important;
+}
+
+html.is-mobile-app .topbar-actions,
+body.is-mobile-app .topbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-left: auto !important;
+  flex-shrink: 0 !important;
+}
+
+html.is-mobile-app .topbar-actions .icon-btn,
+body.is-mobile-app .topbar-actions .icon-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(15, 118, 110, 0.2) !important;
+  color: var(--teal-900) !important;
+  font-size: 16px !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.is-mobile-app .topbar-actions .icon-btn .badge,
+body.is-mobile-app .topbar-actions .icon-btn .badge {
+  position: absolute !important;
+  top: -4px !important;
+  right: -4px !important;
+}
+
+html.is-mobile-app .topbar-user,
+body.is-mobile-app .topbar-user {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+html.is-mobile-app .topbar-user img,
+body.is-mobile-app .topbar-user img {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+}
+
+/* 2. Module Header & Card Head Stacking for Mobile App */
+html.is-mobile-app .card-head,
+body.is-mobile-app .card-head {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app .card-head h3,
+body.is-mobile-app .card-head h3 {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  white-space: normal !important;
+}
+
+/* 3. Universal Horizontally Scrollable Tab Containers Across All Modules */
+html.is-mobile-app .tab-group,
+body.is-mobile-app .tab-group,
+html.is-mobile-app .tab-nav,
+body.is-mobile-app .tab-nav,
+html.is-mobile-app .tab-nav-wrapper,
+body.is-mobile-app .tab-nav-wrapper,
+html.is-mobile-app .tabs-bar,
+body.is-mobile-app .tabs-bar,
+html.is-mobile-app .profile-sub-tabs-list,
+body.is-mobile-app .profile-sub-tabs-list,
+html.is-mobile-app .filter-tabs,
+body.is-mobile-app .filter-tabs,
+html.is-mobile-app #comm-tabs,
+body.is-mobile-app #comm-tabs,
+html.is-mobile-app #org-tabs,
+body.is-mobile-app #org-tabs,
+html.is-mobile-app #task-tabs,
+body.is-mobile-app #task-tabs,
+html.is-mobile-app #audit-sub-tabs,
+body.is-mobile-app #audit-sub-tabs,
+html.is-mobile-app #main-attendance-leave-tabs,
+body.is-mobile-app #main-attendance-leave-tabs,
+html.is-mobile-app #attendance-subtabs,
+body.is-mobile-app #attendance-subtabs,
+html.is-mobile-app #customer-main-tabs,
+body.is-mobile-app #customer-main-tabs,
+html.is-mobile-app #blueprint-dept-pills,
+body.is-mobile-app #blueprint-dept-pills {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  padding-bottom: 6px !important;
+  gap: 8px !important;
+}
+
+html.is-mobile-app .tab-group::-webkit-scrollbar,
+body.is-mobile-app .tab-group::-webkit-scrollbar,
+html.is-mobile-app .tab-nav::-webkit-scrollbar,
+body.is-mobile-app .tab-nav::-webkit-scrollbar,
+html.is-mobile-app .tabs-bar::-webkit-scrollbar,
+body.is-mobile-app .tabs-bar::-webkit-scrollbar,
+html.is-mobile-app #comm-tabs::-webkit-scrollbar,
+body.is-mobile-app #comm-tabs::-webkit-scrollbar,
+html.is-mobile-app #org-tabs::-webkit-scrollbar,
+body.is-mobile-app #org-tabs::-webkit-scrollbar,
+html.is-mobile-app #task-tabs::-webkit-scrollbar,
+body.is-mobile-app #task-tabs::-webkit-scrollbar,
+html.is-mobile-app #blueprint-dept-pills::-webkit-scrollbar,
+body.is-mobile-app #blueprint-dept-pills::-webkit-scrollbar {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+
+/* 4. Tab Buttons Flex Shrink & Styling inside Mobile App */
+html.is-mobile-app .tab-group button,
+body.is-mobile-app .tab-group button,
+html.is-mobile-app .tab-nav .tab-btn,
+body.is-mobile-app .tab-nav .tab-btn,
+html.is-mobile-app .tabs-bar .tab-item,
+body.is-mobile-app .tabs-bar .tab-item,
+html.is-mobile-app .profile-sub-tab-btn,
+body.is-mobile-app .profile-sub-tab-btn,
+html.is-mobile-app .filter-tab-btn,
+body.is-mobile-app .filter-tab-btn,
+html.is-mobile-app #comm-tabs button,
+body.is-mobile-app #comm-tabs button {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 13px !important;
+  padding: 8px 14px !important;
+  border-radius: 12px !important;
+  min-height: 38px !important;
+  box-sizing: border-box !important;
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* 5. Page Header Action Buttons Bar in Mobile App */
+html.is-mobile-app .page-header,
+body.is-mobile-app .page-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app .page-header > div:last-child,
+body.is-mobile-app .page-header > div:last-child {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-bottom: 4px !important;
+  gap: 8px !important;
+}
+
+html.is-mobile-app .page-header > div:last-child::-webkit-scrollbar,
+body.is-mobile-app .page-header > div:last-child::-webkit-scrollbar {
+  display: none !important;
+}
+
+html.is-mobile-app .page-header button,
+body.is-mobile-app .page-header button {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
 
 /* Modal Styling */
 .modal-overlay {
