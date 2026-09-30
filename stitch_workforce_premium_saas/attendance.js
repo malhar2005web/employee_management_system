@@ -427,6 +427,46 @@ document.addEventListener('DOMContentLoaded', () => {
     if (correctionClose) correctionClose.addEventListener('click', closeCorrectionModal);
     if (correctionCancel) correctionCancel.addEventListener('click', closeCorrectionModal);
 
+    const updateLeaveDurationHint = () => {
+        const typeSelect = document.getElementById('leave-type');
+        const startEl = document.getElementById('leave-start');
+        const endEl = document.getElementById('leave-end');
+        const hintEl = document.getElementById('leave-duration-hint');
+        if (!typeSelect || !startEl || !endEl || !hintEl) return;
+
+        const val = (typeSelect.value || '').toLowerCase();
+        const isHalfDay = val.includes('half') || val.includes('lh') || val.includes('1st') || val.includes('2nd');
+
+        if (isHalfDay) {
+            if (startEl.value) {
+                endEl.value = startEl.value;
+            }
+            if (val.includes('1st') || val.includes('first') || val.includes('lh')) {
+                hintEl.innerHTML = `<span style="color:#0f766e;"><i class="fa-solid fa-clock-half-stroke"></i> <strong>0.5 Day Leave (LH)</strong>: 1st Half On Leave, 2nd Half Present</span>`;
+            } else {
+                hintEl.innerHTML = `<span style="color:#0f766e;"><i class="fa-solid fa-clock-half-stroke"></i> <strong>0.5 Day Leave (H)</strong>: 1st Half Present, 2nd Half Absent / Leave</span>`;
+            }
+        } else {
+            if (startEl.value && endEl.value) {
+                const s = new Date(startEl.value);
+                const e = new Date(endEl.value);
+                if (!isNaN(s) && !isNaN(e)) {
+                    if (e < s) {
+                        hintEl.innerHTML = `<span style="color:#ef4444;"><i class="fa-solid fa-circle-exclamation"></i> End date cannot be before start date</span>`;
+                    } else {
+                        const days = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+                        hintEl.innerHTML = `<span style="color:#475569;"><i class="fa-solid fa-calendar-check"></i> <strong>${days} Day${days > 1 ? 's' : ''}</strong> Leave Duration</span>`;
+                    }
+                } else {
+                    hintEl.innerHTML = '';
+                }
+            } else {
+                hintEl.innerHTML = '';
+            }
+        }
+    };
+    window.updateLeaveDurationHint = updateLeaveDurationHint;
+
     const openLeaveModal = async () => {
         await ensureEmployeesLoaded();
         const startEl = document.getElementById('leave-start');
@@ -434,6 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (startEl) startEl.value = today;
         if (endEl) endEl.value = today;
         populateEmployeesDropdowns();
+        updateLeaveDurationHint();
         const m = document.getElementById('leave-modal');
         if (m) {
             m.style.display = 'flex';
@@ -455,12 +496,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (typeof window.closeModal === 'function') window.closeModal('leave-modal');
         if (leaveForm) leaveForm.reset();
+        const hintEl = document.getElementById('leave-duration-hint');
+        if (hintEl) hintEl.innerHTML = '';
     };
     window.closeLeaveModal = closeLeaveModal;
 
     if (btnAddLeave) btnAddLeave.addEventListener('click', openLeaveModal);
     if (leaveClose) leaveClose.addEventListener('click', closeLeaveModal);
     if (leaveCancel) leaveCancel.addEventListener('click', closeLeaveModal);
+
+    const leaveTypeEl = document.getElementById('leave-type');
+    const leaveStartEl = document.getElementById('leave-start');
+    const leaveEndEl = document.getElementById('leave-end');
+    if (leaveTypeEl) leaveTypeEl.addEventListener('change', updateLeaveDurationHint);
+    if (leaveStartEl) {
+        leaveStartEl.addEventListener('change', () => {
+            const val = (leaveTypeEl?.value || '').toLowerCase();
+            const isHalfDay = val.includes('half') || val.includes('lh') || val.includes('1st') || val.includes('2nd');
+            if (isHalfDay && leaveEndEl) {
+                leaveEndEl.value = leaveStartEl.value;
+            }
+            updateLeaveDurationHint();
+        });
+    }
+    if (leaveEndEl) leaveEndEl.addEventListener('change', updateLeaveDurationHint);
 
     const openOutEntryModal = async () => {
         await ensureEmployeesLoaded();
@@ -1108,6 +1167,38 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
     // 2. LEAVE MANAGEMENT
     // =========================================================================
+    const populateLeaveTypesDropdown = (types) => {
+        const select = document.getElementById('leave-type');
+        if (!select) return;
+        const currentVal = select.value;
+        const defaultList = [
+            'Paid / Annual Leave',
+            'Casual Leave',
+            'Sick Leave',
+            '1st Half Leave / 2nd Half Present',
+            'Half Day Present / 2nd Half Absent',
+            'Half Day Present / 2nd Half Leave',
+            'Compensatory Off',
+            'Maternity Leave',
+            'Unpaid Leave'
+        ];
+        const combined = [...defaultList];
+        if (Array.isArray(types)) {
+            types.forEach(t => {
+                if (t.name && !combined.some(x => x.toLowerCase() === t.name.toLowerCase())) {
+                    combined.push(t.name);
+                }
+            });
+        }
+        select.innerHTML = combined.map(name => `<option value="${name}">${name}</option>`).join('');
+        if (currentVal && combined.includes(currentVal)) {
+            select.value = currentVal;
+        }
+        if (typeof updateLeaveDurationHint === 'function') {
+            updateLeaveDurationHint();
+        }
+    };
+
     const loadLeaves = async () => {
         try {
             const response = await fetch('/api/v1/admin/leaves');
@@ -1116,6 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 employeesCache = data.data.employees || [];
                 leavesCache = data.data.leaves || [];
                 populateEmployeesDropdowns();
+                populateLeaveTypesDropdown(data.data.leaveTypes);
                 renderLeaves();
             }
         } catch (error) {
@@ -1143,7 +1235,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusLabel = req.status || 'Pending';
 
                 if (req.status === 'Pending') pending++;
-                if (req.status === 'Approved' && (req.leave_type === 'Annual Leave' || req.leave_type === 'Paid Leave')) annual++;
+                if (req.status === 'Approved' && (req.leave_type === 'Annual Leave' || req.leave_type === 'Paid Leave' || req.leave_type === 'Paid / Annual Leave')) annual++;
                 if (req.status === 'Approved' && req.leave_type === 'Sick Leave') sick++;
 
                 const tr = document.createElement('tr');
@@ -1208,6 +1300,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (response.ok && data.success) {
                     closeLeaveModal();
                     loadLeaves();
+                    if (typeof loadPayrollMatrix === 'function') {
+                        loadPayrollMatrix();
+                    }
                 } else {
                     alert(data.message || 'Error saving leave request');
                 }
@@ -1224,6 +1319,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (response.ok && data.success) {
                 loadLeaves();
+                if (typeof loadPayrollMatrix === 'function') {
+                    loadPayrollMatrix();
+                }
             } else {
                 alert(data.message || 'Approval failed');
             }
@@ -1239,6 +1337,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (response.ok && data.success) {
                 loadLeaves();
+                if (typeof loadPayrollMatrix === 'function') {
+                    loadPayrollMatrix();
+                }
             } else {
                 alert(data.message || 'Rejection failed');
             }
@@ -1254,6 +1355,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (response.ok && data.success) {
                 loadLeaves();
+                if (typeof loadPayrollMatrix === 'function') {
+                    loadPayrollMatrix();
+                }
             } else {
                 alert(data.message || 'Deletion failed');
             }

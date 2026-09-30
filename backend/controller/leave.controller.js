@@ -13,11 +13,16 @@ export async function getLeaves(req, res) {
             "SELECT id, full_name FROM employees WHERE status = 'Active' OR status IS NULL OR status = 'active' ORDER BY full_name ASC;"
         );
 
+        const leaveTypesRes = await pool.query(
+            "SELECT id, name, code, default_balance FROM leave_types WHERE is_active = true ORDER BY id ASC;"
+        );
+
         res.status(200).json({
             success: true,
             data: {
                 leaves: leavesRes.rows,
-                employees: employeesRes.rows
+                employees: employeesRes.rows,
+                leaveTypes: leaveTypesRes.rows
             }
         });
     } catch (error) {
@@ -51,7 +56,9 @@ export async function createManualLeave(req, res) {
 
         const start = new Date(startDate);
         const end = new Date(endDate);
-        const diffDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+        const lTypeStr = String(leaveType || '').toLowerCase();
+        const isHalfDay = lTypeStr.includes('half') || lTypeStr.includes('lh') || lTypeStr.includes('1st');
+        const diffDays = isHalfDay ? 0.5 : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
         const query = `
             INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status, approved_by)
@@ -71,11 +78,17 @@ export async function createManualLeave(req, res) {
         try {
             const ltRes = await pool.query(`
                 SELECT id, default_balance FROM leave_types 
-                WHERE LOWER(name) = LOWER($1) OR LOWER(code) = LOWER($1) LIMIT 1;
+                WHERE LOWER(name) = LOWER($1) 
+                   OR LOWER(code) = LOWER($1)
+                   OR ($1 ILIKE '%1st half%' AND code = 'LH')
+                   OR ($1 ILIKE '%half%' AND ($1 ILIKE '%present%' OR $1 ILIKE '%absent%' OR $1 ILIKE '%leave%') AND code = 'H')
+                   OR ($1 ILIKE '%annual%' AND code = 'PL')
+                ORDER BY (CASE WHEN LOWER(name) = LOWER($1) THEN 1 ELSE 2 END)
+                LIMIT 1;
             `, [leaveType]);
 
-            const leaveTypeId = ltRes.rows[0]?.id || 1;
-            const defaultBal = parseFloat(ltRes.rows[0]?.default_balance || 15);
+            const leaveTypeId = ltRes.rows[0]?.id || (isHalfDay ? 4 : 1);
+            const defaultBal = parseFloat(ltRes.rows[0]?.default_balance || (isHalfDay ? 6 : 15));
 
             await pool.query(`
                 INSERT INTO leaves (employee_id, leave_type_id, start_date, end_date, total_days, reason, status, approved_by)
@@ -97,8 +110,8 @@ export async function createManualLeave(req, res) {
                 VALUES ($1, 'Leave', $2, $3, '/employee-attendance.html', $4, false);
             `, [
                 parseInt(employeeId, 10),
-                `Leave Approved: ${leaveType}`,
-                `Your leave for ${leaveType} (${startFmt} to ${endFmt}, ${diffDays} day${diffDays > 1 ? 's' : ''}) has been approved by admin.\nReason: ${reason || 'Approved by Administrator'}`,
+                `Leave Recorded: ${leaveType}`,
+                `Admin recorded an approved leave for ${leaveType} (${startFmt} to ${endFmt}, ${diffDays} day${diffDays > 1 ? 's' : ''}).\nReason: ${reason || 'Approved by Administrator'}`,
                 JSON.stringify({ leave_type: leaveType, start_date: startDate, end_date: endDate, total_days: diffDays, status: 'Approved', reason: reason || "" })
             ]);
         } catch (syncErr) {
@@ -132,17 +145,23 @@ export async function approveLeave(req, res) {
         const start = new Date(lr.start_date);
         const end = new Date(lr.end_date);
         const lTypeStr = (lr.leave_type || '').toLowerCase();
-        const isHalfDay = lTypeStr.includes('half') || lTypeStr === 'lh' || lTypeStr === 'h' || lTypeStr === 'hd';
+        const isHalfDay = lTypeStr.includes('half') || lTypeStr === 'lh' || lTypeStr === 'h' || lTypeStr === 'hd' || lTypeStr.includes('1st') || lTypeStr.includes('2nd');
         const diffDays = isHalfDay ? 0.5 : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
         try {
             const ltRes = await pool.query(`
                 SELECT id, default_balance FROM leave_types 
-                WHERE LOWER(name) = LOWER($1) OR LOWER(code) = LOWER($1) LIMIT 1;
+                WHERE LOWER(name) = LOWER($1) 
+                   OR LOWER(code) = LOWER($1)
+                   OR ($1 ILIKE '%1st half%' AND code = 'LH')
+                   OR ($1 ILIKE '%half%' AND ($1 ILIKE '%present%' OR $1 ILIKE '%absent%' OR $1 ILIKE '%leave%') AND code = 'H')
+                   OR ($1 ILIKE '%annual%' AND code = 'PL')
+                ORDER BY (CASE WHEN LOWER(name) = LOWER($1) THEN 1 ELSE 2 END)
+                LIMIT 1;
             `, [lr.leave_type]);
 
-            let leaveTypeId = ltRes.rows[0]?.id || 1;
-            const defaultBal = parseFloat(ltRes.rows[0]?.default_balance || 15);
+            let leaveTypeId = ltRes.rows[0]?.id || (isHalfDay ? 4 : 1);
+            const defaultBal = parseFloat(ltRes.rows[0]?.default_balance || (isHalfDay ? 6 : 15));
 
             // 1. Update matching row in leaves table
             const updateLeavesRes = await pool.query(`
@@ -214,7 +233,7 @@ export async function rejectLeave(req, res) {
         const start = new Date(lr.start_date);
         const end = new Date(lr.end_date);
         const lTypeStr = (lr.leave_type || '').toLowerCase();
-        const isHalfDay = lTypeStr.includes('half') || lTypeStr === 'lh' || lTypeStr === 'h' || lTypeStr === 'hd';
+        const isHalfDay = lTypeStr.includes('half') || lTypeStr === 'lh' || lTypeStr === 'h' || lTypeStr === 'hd' || lTypeStr.includes('1st') || lTypeStr.includes('2nd');
         const diffDays = isHalfDay ? 0.5 : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
         try {
@@ -225,7 +244,16 @@ export async function rejectLeave(req, res) {
             `, [approvedBy, lr.employee_id, lr.start_date, lr.end_date]);
 
             if (prevStatus === 'Approved') {
-                const ltRes = await pool.query(`SELECT id FROM leave_types WHERE LOWER(name) = LOWER($1) LIMIT 1;`, [lr.leave_type]);
+                const ltRes = await pool.query(`
+                    SELECT id FROM leave_types 
+                    WHERE LOWER(name) = LOWER($1) 
+                       OR LOWER(code) = LOWER($1)
+                       OR ($1 ILIKE '%1st half%' AND code = 'LH')
+                       OR ($1 ILIKE '%half%' AND ($1 ILIKE '%present%' OR $1 ILIKE '%absent%' OR $1 ILIKE '%leave%') AND code = 'H')
+                       OR ($1 ILIKE '%annual%' AND code = 'PL')
+                    ORDER BY (CASE WHEN LOWER(name) = LOWER($1) THEN 1 ELSE 2 END)
+                    LIMIT 1;
+                `, [lr.leave_type]);
                 if (ltRes.rows.length > 0) {
                     await pool.query(`
                         UPDATE leave_balances
@@ -268,7 +296,9 @@ export async function deleteLeave(req, res) {
         const lr = oldRes.rows[0];
         const start = new Date(lr.start_date);
         const end = new Date(lr.end_date);
-        const diffDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+        const lTypeStr = (lr.leave_type || '').toLowerCase();
+        const isHalfDay = lTypeStr.includes('half') || lTypeStr === 'lh' || lTypeStr === 'h' || lTypeStr === 'hd' || lTypeStr.includes('1st') || lTypeStr.includes('2nd');
+        const diffDays = isHalfDay ? 0.5 : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
         await pool.query("DELETE FROM leave_requests WHERE id = $1;", [id]);
 
@@ -279,7 +309,16 @@ export async function deleteLeave(req, res) {
             `, [lr.employee_id, lr.start_date, lr.end_date]);
 
             if (lr.status === 'Approved') {
-                const ltRes = await pool.query(`SELECT id FROM leave_types WHERE LOWER(name) = LOWER($1) LIMIT 1;`, [lr.leave_type]);
+                const ltRes = await pool.query(`
+                    SELECT id FROM leave_types 
+                    WHERE LOWER(name) = LOWER($1) 
+                       OR LOWER(code) = LOWER($1)
+                       OR ($1 ILIKE '%1st half%' AND code = 'LH')
+                       OR ($1 ILIKE '%half%' AND ($1 ILIKE '%present%' OR $1 ILIKE '%absent%' OR $1 ILIKE '%leave%') AND code = 'H')
+                       OR ($1 ILIKE '%annual%' AND code = 'PL')
+                    ORDER BY (CASE WHEN LOWER(name) = LOWER($1) THEN 1 ELSE 2 END)
+                    LIMIT 1;
+                `, [lr.leave_type]);
                 if (ltRes.rows.length > 0) {
                     await pool.query(`
                         UPDATE leave_balances
