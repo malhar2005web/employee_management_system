@@ -510,6 +510,351 @@ public partial class MainPage : ContentPage
                             justify-content: center !important;
                             box-sizing: border-box !important;
                         }
+
+                        /* 14. Comprehensive APK Form & Modal Overhaul (De-cramping & Workstation Logs Fix) */
+                        .modal-overlay {
+                            padding: 8px 6px !important;
+                            align-items: center !important;
+                            justify-content: center !important;
+                            box-sizing: border-box !important;
+                            backdrop-filter: none !important;
+                            -webkit-backdrop-filter: none !important;
+                            background: rgba(15, 23, 42, 0.75) !important;
+                        }
+                        .modal-box,
+                        .modal-box-solid {
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            max-height: 94vh !important;
+                            padding: 16px 14px !important;
+                            border-radius: 18px !important;
+                            margin: 0 auto !important;
+                            box-sizing: border-box !important;
+                            overflow-y: auto !important;
+                            -webkit-overflow-scrolling: touch !important;
+                            background: #ffffff !important;
+                            backdrop-filter: none !important;
+                            -webkit-backdrop-filter: none !important;
+                            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3) !important;
+                        }
+                        .form-grid,
+                        form .grid,
+                        .modal-box form [style*='grid-template-columns'] {
+                            grid-template-columns: 1fr !important;
+                            gap: 10px !important;
+                        }
+                        .form-group {
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                            margin-bottom: 10px !important;
+                            grid-column: span 1 !important;
+                        }
+                        .form-group input,
+                        .form-group select,
+                        .form-group textarea {
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                            font-size: 13.5px !important;
+                        }
+
+                        /* Edit Customer Form De-cramping (Image 1 Fix) */
+                        #cust-modal .modal-box {
+                            padding: 16px 12px !important;
+                        }
+                        .branch-card {
+                            padding: 10px !important;
+                            border-radius: 12px !important;
+                            background: rgba(248, 250, 252, 0.9) !important;
+                            border: 1px solid #cbd5e1 !important;
+                            margin-bottom: 10px !important;
+                        }
+                        .branch-card > div:first-child {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 8px !important;
+                            align-items: stretch !important;
+                            position: relative !important;
+                        }
+                        .branch-card > div:first-child .branch-name,
+                        .branch-card > div:first-child .branch-gst {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                            font-size: 13px !important;
+                            padding: 8px 10px !important;
+                        }
+                        .branch-card > div:first-child .btn-remove-branch {
+                            align-self: flex-end !important;
+                            padding: 4px 8px !important;
+                            font-size: 16px !important;
+                        }
+                        .branch-card > div:nth-child(2) {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 8px !important;
+                            align-items: stretch !important;
+                            padding: 10px !important;
+                            background: #f1f5f9 !important;
+                            border-radius: 8px !important;
+                        }
+                        .branch-card .branch-address,
+                        .branch-card .branch-lat,
+                        .branch-card .branch-lng {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                            font-size: 13px !important;
+                            padding: 8px 10px !important;
+                        }
+                        .branch-card .btn-geocode-branch {
+                            width: 100% !important;
+                            margin-top: 4px !important;
+                            padding: 8px 12px !important;
+                            font-size: 12px !important;
+                            justify-content: center !important;
+                            text-align: center !important;
+                        }
+                        .contact-entry-row-nested {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 6px !important;
+                            align-items: stretch !important;
+                            background: #ffffff !important;
+                            padding: 10px !important;
+                            border-radius: 10px !important;
+                            border: 1px solid #cbd5e1 !important;
+                            margin-bottom: 8px !important;
+                            box-sizing: border-box !important;
+                        }
+                        .contact-entry-row-nested input {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                            font-size: 13px !important;
+                            padding: 8px 10px !important;
+                        }
+                        .contact-entry-row-nested .btn-remove-nested-item {
+                            align-self: flex-end !important;
+                            padding: 4px 8px !important;
+                            font-size: 15px !important;
+                        }
+                        .project-entry-row-nested {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 8px !important;
+                            padding: 10px !important;
+                            box-sizing: border-box !important;
+                        }
+                        .project-entry-row-nested [style*='grid-template-columns'],
+                        #cust-modal [style*='grid-template-columns'] {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 8px !important;
+                        }
+
+                        /* Workstation Activity Logs Modal (Image 2 Fix) */
+                        #emp-logs-modal .modal-box {
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            height: 96vh !important;
+                            max-height: 96vh !important;
+                            padding: 12px 10px !important;
+                            border-radius: 16px !important;
+                            display: flex !important;
+                            flex-direction: column !important;
+                            box-sizing: border-box !important;
+                            background: #f8fafc !important;
+                            overflow: hidden !important;
+                        }
+                        #emp-logs-modal .modal-box > div:first-child {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 6px !important;
+                            margin-bottom: 8px !important;
+                            padding-bottom: 8px !important;
+                            border-bottom: 1px solid #e2e8f0 !important;
+                            flex-shrink: 0 !important;
+                        }
+                        #emp-logs-modal .modal-box > div:first-child > div:first-child {
+                            display: flex !important;
+                            align-items: center !important;
+                            gap: 10px !important;
+                            width: 100% !important;
+                        }
+                        #emp-log-avatar {
+                            width: 38px !important;
+                            height: 38px !important;
+                            min-width: 38px !important;
+                            border-width: 2px !important;
+                        }
+                        #emp-log-name {
+                            font-size: 16px !important;
+                            font-weight: 800 !important;
+                            line-height: 1.2 !important;
+                        }
+                        #emp-logs-modal .modal-box > div:first-child > div:last-child {
+                            display: flex !important;
+                            flex-direction: row !important;
+                            justify-content: space-between !important;
+                            align-items: center !important;
+                            width: 100% !important;
+                            gap: 6px !important;
+                            font-size: 11px !important;
+                        }
+                        #emp-logs-modal .modal-box > div:first-child > div:last-child > div:first-child {
+                            display: flex !important;
+                            gap: 8px !important;
+                            font-size: 11px !important;
+                            text-align: left !important;
+                        }
+                        #emp-logs-modal .modal-box > div:nth-child(2) {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 6px !important;
+                            margin-bottom: 8px !important;
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                            flex-shrink: 0 !important;
+                        }
+                        #emp-logs-modal .modal-box > div:nth-child(2) > div:first-child {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            flex: 1 1 100% !important;
+                        }
+                        #emp-log-search {
+                            height: 36px !important;
+                            font-size: 12.5px !important;
+                            padding-left: 34px !important;
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        #emp-logs-modal .modal-box > div:nth-child(2) > div:last-child {
+                            display: flex !important;
+                            flex-direction: row !important;
+                            align-items: center !important;
+                            gap: 6px !important;
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        #emp-logs-modal .modal-box > div:nth-child(2) > div:last-child label {
+                            display: none !important;
+                        }
+                        #emp-log-time-filter {
+                            flex: 1 1 auto !important;
+                            height: 36px !important;
+                            font-size: 11.5px !important;
+                            padding: 4px 8px !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                        }
+                        #btn-export-emp-logs {
+                            flex: 0 0 auto !important;
+                            height: 36px !important;
+                            font-size: 11.5px !important;
+                            padding: 0 10px !important;
+                            white-space: nowrap !important;
+                            box-sizing: border-box !important;
+                        }
+                        #emp-logs-modal .modal-box > div:nth-child(3) {
+                            flex: 1 1 360px !important;
+                            min-height: 280px !important;
+                            max-height: none !important;
+                            overflow-y: auto !important;
+                            overflow-x: auto !important;
+                            -webkit-overflow-scrolling: touch !important;
+                            touch-action: pan-x pan-y !important;
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                            border-radius: 10px !important;
+                            border: 1px solid #cbd5e1 !important;
+                            background: #ffffff !important;
+                        }
+                        #table-emp-logs {
+                            min-width: 620px !important;
+                            width: 100% !important;
+                        }
+                        #table-emp-logs th {
+                            padding: 8px 10px !important;
+                            font-size: 11px !important;
+                            position: sticky !important;
+                            top: 0 !important;
+                            background: #f1f5f9 !important;
+                            z-index: 5 !important;
+                        }
+                        #table-emp-logs td {
+                            padding: 8px 10px !important;
+                            font-size: 11.5px !important;
+                        }
+                        #emp-logs-modal .modal-box > div:last-child {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            align-items: flex-start !important;
+                            gap: 2px !important;
+                            margin-top: 6px !important;
+                            font-size: 10px !important;
+                            color: #64748b !important;
+                            flex-shrink: 0 !important;
+                        }
+
+                        /* Edit Employee Form De-cramping (Image 3 Fix) */
+                        #emp-modal .modal-box {
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            max-height: 95vh !important;
+                            height: auto !important;
+                            padding: 0 !important;
+                            border-radius: 18px !important;
+                            overflow: hidden !important;
+                            display: flex !important;
+                            flex-direction: column !important;
+                            background: #ffffff !important;
+                        }
+                        #emp-modal .modal-header {
+                            padding: 12px 14px !important;
+                        }
+                        #emp-modal .modal-body-scroll {
+                            padding: 12px 14px !important;
+                            flex: 1 1 auto !important;
+                            overflow-y: auto !important;
+                            -webkit-overflow-scrolling: touch !important;
+                        }
+                        #emp-modal .form-grid {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 12px !important;
+                            margin-bottom: 16px !important;
+                        }
+                        #emp-modal .form-group {
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                            grid-column: span 1 !important;
+                        }
+                        #emp-modal input,
+                        #emp-modal select {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                            font-size: 13.5px !important;
+                            padding: 10px 12px !important;
+                        }
+                        #emp-modal .modal-footer {
+                            padding: 12px 14px !important;
+                            display: flex !important;
+                            flex-direction: row !important;
+                            gap: 10px !important;
+                            background: #f8fafc !important;
+                            border-top: 1px solid #e2e8f0 !important;
+                            flex-shrink: 0 !important;
+                        }
+                        #emp-modal .modal-footer button {
+                            flex: 1 !important;
+                            padding: 10px 14px !important;
+                            font-size: 13px !important;
+                            justify-content: center !important;
+                            text-align: center !important;
+                        }
                     `;
                 })();
 
