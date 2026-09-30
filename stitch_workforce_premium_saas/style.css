@@ -2547,8 +2547,9 @@ body.is-mobile-app .page-header {
   box-sizing: border-box !important;
 }
 
-html.is-mobile-app .page-header > div:last-child,
-body.is-mobile-app .page-header > div:last-child {
+html.is-mobile-app .page-header > div:last-child:not(#overview-card-picker):not(.overview-card-dropdown):not(#comm-tabs),
+body.is-mobile-app .page-header > div:last-child:not(#overview-card-picker):not(.overview-card-dropdown):not(#comm-tabs),
+body.is-apk .page-header > div:last-child:not(#overview-card-picker):not(.overview-card-dropdown):not(#comm-tabs) {
   display: flex !important;
   flex-wrap: nowrap !important;
   overflow-x: auto !important;
@@ -2560,8 +2561,9 @@ body.is-mobile-app .page-header > div:last-child {
   gap: 8px !important;
 }
 
-html.is-mobile-app .page-header > div:last-child::-webkit-scrollbar,
-body.is-mobile-app .page-header > div:last-child::-webkit-scrollbar {
+html.is-mobile-app .page-header > div:last-child:not(#overview-card-picker):not(.overview-card-dropdown):not(#comm-tabs)::-webkit-scrollbar,
+body.is-mobile-app .page-header > div:last-child:not(#overview-card-picker):not(.overview-card-dropdown):not(#comm-tabs)::-webkit-scrollbar,
+body.is-apk .page-header > div:last-child:not(#overview-card-picker):not(.overview-card-dropdown):not(#comm-tabs)::-webkit-scrollbar {
   display: none !important;
 }
 
@@ -2757,6 +2759,148 @@ body.is-apk .controls-right .btn-pill {
   justify-content: center !important;
   box-sizing: border-box !important;
 }
+
+/* 10. APK Performance Optimization: Disable heavy real-time GPU backdrop-blur */
+html.is-mobile-app .card,
+body.is-mobile-app .card,
+body.is-apk .card,
+html.is-mobile-app .glass,
+body.is-mobile-app .glass,
+body.is-apk .glass {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* 11. Notice Board & Communication Tabs in APK */
+html.is-mobile-app .page-header:has(#comm-tabs),
+body.is-mobile-app .page-header:has(#comm-tabs),
+body.is-apk .page-header:has(#comm-tabs) {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  gap: 12px !important;
+}
+
+html.is-mobile-app #comm-tabs,
+body.is-mobile-app #comm-tabs,
+body.is-apk #comm-tabs {
+  order: -1 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  padding: 6px !important;
+  margin-bottom: 8px !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(15, 118, 110, 0.15) !important;
+}
+
+html.is-mobile-app #comm-tabs button,
+body.is-mobile-app #comm-tabs button,
+body.is-apk #comm-tabs button {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* 12. Dashboard Overview Cards Customizer in APK */
+html.is-mobile-app #overview-card-picker,
+body.is-mobile-app #overview-card-picker,
+body.is-apk #overview-card-picker {
+  display: none;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 92% !important;
+  max-width: 440px !important;
+  max-height: 82vh !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  box-sizing: border-box !important;
+  z-index: 99999 !important;
+  padding: 18px 16px !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(15, 118, 110, 0.2) !important;
+}
+
+html.is-mobile-app #overview-card-picker.is-open,
+body.is-mobile-app #overview-card-picker.is-open,
+body.is-apk #overview-card-picker.is-open {
+  display: flex !important;
+}
+
+html.is-mobile-app #overview-card-picker > div:first-child,
+body.is-mobile-app #overview-card-picker > div:first-child,
+body.is-apk #overview-card-picker > div:first-child {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-bottom: 14px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
+}
+
+html.is-mobile-app #overview-card-picker > div:first-child > div:last-child,
+body.is-mobile-app #overview-card-picker > div:first-child > div:last-child,
+body.is-apk #overview-card-picker > div:first-child > div:last-child {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app #overview-card-options-grid,
+body.is-mobile-app #overview-card-options-grid,
+body.is-apk #overview-card-options-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  max-height: 52vh !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app .overview-option-item,
+body.is-mobile-app .overview-option-item,
+body.is-apk .overview-option-item {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 12px 14px !important;
+}
+
+/* 13. Unified Template / Export / Import Button in APK */
+html.is-mobile-app .btn-pill-template,
+html.is-mobile-app .btn-pill-export,
+html.is-mobile-app .btn-pill-import,
+body.is-mobile-app .btn-pill-template,
+body.is-mobile-app .btn-pill-export,
+body.is-mobile-app .btn-pill-import,
+body.is-apk .btn-pill-template,
+body.is-apk .btn-pill-export,
+body.is-apk .btn-pill-import {
+  display: none !important;
+}
+
 
 
 

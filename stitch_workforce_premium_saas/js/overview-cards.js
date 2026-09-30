@@ -357,7 +357,12 @@
 
     optionsGrid.innerHTML = CARD_CATALOG.map(card => {
       const isSelected = selectedIds.includes(card.id);
-      const liveVal = card.getValue(cachedSummaryData);
+      let liveVal = '—';
+      try {
+        liveVal = card.getValue(cachedSummaryData) ?? '—';
+      } catch (e) {
+        liveVal = '—';
+      }
 
       return `
         <div class="overview-option-item ${isSelected ? 'selected' : ''}" 
@@ -479,10 +484,12 @@
 
     if (isDropdownOpen) {
       renderDropdownOptions();
-      dropdown.style.display = 'block';
+      dropdown.style.display = 'flex';
+      dropdown.classList.add('is-open');
       if (chevron) chevron.style.transform = 'rotate(180deg)';
     } else {
       dropdown.style.display = 'none';
+      dropdown.classList.remove('is-open');
       if (chevron) chevron.style.transform = 'rotate(0deg)';
     }
   }
@@ -533,6 +540,10 @@
           renderOverviewDeck();
           renderDropdownOptions();
           showToast('No cards selected, restored default 4 overview cards.', 'info');
+        }
+        if (dropdown) {
+          dropdown.classList.remove('is-open');
+          dropdown.style.display = 'none';
         }
         toggleDropdown(false);
       });
