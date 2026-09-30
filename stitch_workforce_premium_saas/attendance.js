@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (val.includes('1st') || val.includes('first') || val.includes('lh')) {
                 hintEl.innerHTML = `<span style="color:#0f766e;"><i class="fa-solid fa-clock-half-stroke"></i> <strong>0.5 Day Leave (LH)</strong>: 1st Half On Leave, 2nd Half Present</span>`;
             } else {
-                hintEl.innerHTML = `<span style="color:#0f766e;"><i class="fa-solid fa-clock-half-stroke"></i> <strong>0.5 Day Leave (H)</strong>: 1st Half Present, 2nd Half Absent / Leave</span>`;
+                hintEl.innerHTML = `<span style="color:#0f766e;"><i class="fa-solid fa-clock-half-stroke"></i> <strong>0.5 Day Leave (H)</strong>: 1st Half Present, 2nd Half Leave</span>`;
             }
         } else {
             if (startEl.value && endEl.value) {
@@ -1176,7 +1176,6 @@ document.addEventListener('DOMContentLoaded', () => {
             'Casual Leave',
             'Sick Leave',
             '1st Half Leave / 2nd Half Present',
-            'Half Day Present / 2nd Half Absent',
             'Half Day Present / 2nd Half Leave',
             'Compensatory Off',
             'Maternity Leave',
