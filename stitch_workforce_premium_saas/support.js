@@ -881,7 +881,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="margin-bottom:4px;">${getPriorityBadge(t.priority)}</div>
                             <div>${getSlaTimerHtml(t)}</div>
                         </td>
-                        <td style="white-space:nowrap; max-width:130px;">${assigneeColHtml}</td>
+                        <td style="white-space:nowrap;">
+                            ${getStatusBadge(t.status)}
+                        </td>
+                        <td style="white-space:nowrap; max-width:140px;">${assigneeColHtml}</td>
                         <td style="white-space:nowrap; text-align:left;">
                             <div style="display:inline-flex; gap:3px; align-items:center; justify-content:flex-start;">
                                 <button type="button" class="support-tbl-btn tbl-btn-open" onclick="window.openTicketWorkspace(${t.id})" title="Open Ticket Workspace">

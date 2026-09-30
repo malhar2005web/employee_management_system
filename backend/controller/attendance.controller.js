@@ -1,6 +1,6 @@
 import { pool } from '../config/db.js';
 import { getWebPagesApplicationsGrid } from '../services/teramind.service.js';
-import { calculateShiftAttendanceTimes, formatISTIso, formatISTTime, getCompanyShiftRules } from '../utils/attendanceHelper.js';
+import { calculateShiftAttendanceTimes, formatISTIso, formatISTTime, getCompanyShiftRules, parseTimeToMins } from '../utils/attendanceHelper.js';
 
 export async function getAttendanceLogs(req, res) {
     try {
@@ -325,21 +325,15 @@ export async function getAttendanceLogs(req, res) {
                             punch_source: 'AUTO'
                         };
                     } else {
-                        const loginTimeStr = formatISTIso(checkInDate);
-                        const logoutTimeStr = formatISTIso(checkOutDate);
-                        const totalHoursNum = (shiftResult.totalActiveSecs / 3600).toFixed(2);
+                        const loginTimeStr = formatISTIso(checkInDate, true);
+                        const logoutTimeStr = formatISTIso(checkOutDate, true);
                         const isLate = shiftResult.isLate;
 
                         let finalLogoutTimeStr = logoutTimeStr;
                         if (isToday) {
                             if (checkOutDate) {
-                                const outParts = new Intl.DateTimeFormat('en-GB', {
-                                    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
-                                }).formatToParts(checkOutDate);
-                                const outP = {};
-                                outParts.forEach(({ type, value }) => { outP[type] = value; });
-                                const outH = parseInt(outP.hour, 10);
-                                if (currentHourIST < 19 && outH < 19) {
+                                const outMins = parseTimeToMins(checkOutDate);
+                                if (currentHourIST < 19 && outMins !== null && outMins < 19 * 60) {
                                     finalLogoutTimeStr = null;
                                 }
                             } else {
@@ -347,25 +341,28 @@ export async function getAttendanceLogs(req, res) {
                             }
                         }
 
+                        // Total working hours: difference between check-in and check-out
+                        let totalHoursNum = '0.00';
+                        if (checkInDate && finalLogoutTimeStr && checkOutDate) {
+                            const diffSecs = Math.max(0, Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / 1000));
+                            totalHoursNum = (diffSecs / 3600).toFixed(2);
+                        } else if (checkInDate && isToday) {
+                            const diffSecs = Math.max(0, Math.floor((Date.now() - checkInDate.getTime()) / 1000));
+                            totalHoursNum = (diffSecs / 3600).toFixed(2);
+                        } else if (shiftResult.totalActiveSecs > 0) {
+                            totalHoursNum = (shiftResult.totalActiveSecs / 3600).toFixed(2);
+                        }
+
                         let overtimeMins = null;
                         if (checkOutDate) {
-                            const checkOutParts = new Intl.DateTimeFormat('en-GB', {
-                                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
-                            }).formatToParts(checkOutDate);
-                            const p = {};
-                            checkOutParts.forEach(({ type, value }) => { p[type] = value; });
-                            const outH = parseInt(p.hour, 10);
-                            const outM = parseInt(p.minute, 10);
+                            const tmOutTotalMins = parseTimeToMins(checkOutDate);
                             const tmOvtCutoffMins = shiftRules.weekdayEndMins;
-                            const tmOutTotalMins = outH * 60 + outM;
-                            if (tmOutTotalMins > tmOvtCutoffMins) {
+                            if (tmOutTotalMins !== null && tmOutTotalMins > tmOvtCutoffMins) {
                                 overtimeMins = tmOutTotalMins - tmOvtCutoffMins;
                             }
                         }
 
                         const calculatedStatus = isLate ? 'Late' : 'Present';
-                        if (isLate) lateCount++;
-                        else presentCount++;
 
                         finalRecord = {
                             id: dbRecord?.id || null,
@@ -441,11 +438,7 @@ export async function getAttendanceLogs(req, res) {
                     finalRecord.break_time = null;
                 }
 
-                // Robust Calculation of Total Login Time (loginHr) & Overtime (OvTHrs)
-                const workingHoursNum = parseFloat(finalRecord.total_working_hours) || 0;
-                let loginHoursNum = 0;
-                let overtimeHoursNum = 0;
-
+                // Target day classification
                 const targetDateObj = new Date(`${targetDateStr}T12:00:00+05:30`);
                 const dayOfWeek = targetDateObj.getDay();
                 const isSunday = (dayOfWeek === 0);
@@ -456,64 +449,90 @@ export async function getAttendanceLogs(req, res) {
                 if (isOffDay && (!finalRecord.login_time || finalRecord.login_time === '—') && finalRecord.status === 'Absent' && !finalRecord.out_entry) {
                     finalRecord.status = 'Week Off';
                     finalRecord.punch_source = 'WEEKOFF';
-                    absentCount = Math.max(0, absentCount - 1);
                 }
 
-                if (dbRecord && dbRecord.login_seconds && dbRecord.login_seconds > 0) {
-                    loginHoursNum = dbRecord.login_seconds / 3600;
-                } else if (finalRecord.login_time && finalRecord.logout_time) {
-                    const inD = new Date(finalRecord.login_time);
-                    const outD = new Date(finalRecord.logout_time);
-                    if (!isNaN(inD.getTime()) && !isNaN(outD.getTime()) && outD > inD) {
-                        loginHoursNum = (outD.getTime() - inD.getTime()) / (1000 * 3600);
+                // Parse exact IST minutes from login_time and logout_time (host-server timezone immune)
+                const inTotalMins = parseTimeToMins(finalRecord.login_time);
+                const outTotalMins = parseTimeToMins(finalRecord.logout_time);
+
+                // Working Hours calculation: Difference between check-in and check-out
+                let computedWorkingHours = '0.00';
+                let loginHoursNum = 0;
+                if (finalRecord.login_time && finalRecord.logout_time && finalRecord.logout_time !== '—' && inTotalMins !== null && outTotalMins !== null && outTotalMins >= inTotalMins) {
+                    loginHoursNum = (outTotalMins - inTotalMins) / 60;
+                    computedWorkingHours = loginHoursNum.toFixed(2);
+                } else if (finalRecord.login_time && isToday && inTotalMins !== null) {
+                    // For active ongoing session today: difference between checkin and current IST time
+                    const nowMins = currentHourIST * 60 + parseInt(nowP.minute || 0, 10);
+                    if (nowMins >= inTotalMins) {
+                        loginHoursNum = (nowMins - inTotalMins) / 60;
+                        computedWorkingHours = loginHoursNum.toFixed(2);
                     }
-                } else if (finalRecord.login_time && isToday) {
-                    const inD = new Date(finalRecord.login_time);
-                    if (!isNaN(inD.getTime())) {
-                        loginHoursNum = Math.max(0, (Date.now() - inD.getTime()) / (1000 * 3600));
-                    }
+                } else if (finalRecord.total_working_hours && parseFloat(finalRecord.total_working_hours) > 0) {
+                    loginHoursNum = parseFloat(finalRecord.total_working_hours);
+                    computedWorkingHours = loginHoursNum.toFixed(2);
                 }
-                if (loginHoursNum < workingHoursNum) {
-                    loginHoursNum = workingHoursNum;
+                finalRecord.total_working_hours = computedWorkingHours;
+
+                // Shift cutoffs:
+                // Weekday: 09:45 AM (585 mins) cutoff, 19:00 (1140 mins) shift end
+                // Saturday: 09:45 AM (585 mins) cutoff, 16:30 (990 mins) shift end
+                const curShiftStartMins = isSaturday ? shiftRules.satStartMins : shiftRules.weekdayStartMins;
+                const curLateThresholdMins = isSaturday ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
+                const cutoffEndMins = isSaturday ? shiftRules.satEndMins : shiftRules.weekdayEndMins;
+
+                // 1. Late In / Early In calculation:
+                // Cutoff 09:45 (585 mins). If inTotalMins <= 585 -> On-Time / Present (0 late mins)
+                // If inTotalMins > 585 (e.g. 09:46 = 586) -> Late by (inTotalMins - 585) mins
+                let lateMins = 0;
+                let earlyInMins = 0;
+
+                if (inTotalMins !== null && !isSunday) {
+                    if (inTotalMins > curLateThresholdMins) {
+                        lateMins = inTotalMins - curLateThresholdMins;
+                        finalRecord.status = 'Late';
+                    } else {
+                        lateMins = 0;
+                        if (finalRecord.status === 'Late' || !finalRecord.status || finalRecord.status === 'Absent') {
+                            finalRecord.status = 'Present';
+                        }
+                        if (inTotalMins < curShiftStartMins) {
+                            earlyInMins = curShiftStartMins - inTotalMins;
+                        }
+                    }
                 }
 
+                // 2. Overtime calculation:
+                // If checkout is after shift end (19:00 = 1140 mins), Overtime = checkout - 1140 mins.
+                // E.g. checkout 19:05 -> 5 mins overtime.
+                let overtimeMins = 0;
+                let overtimeHoursNum = 0;
+
+                // 3. Early Out calculation:
+                // If checkout is before shift end (19:00 = 1140 mins), Early Out = 1140 - checkout mins.
+                // E.g. checkout 18:59 -> 1 min early out.
                 let earlyLogoutMins = 0;
                 let earlyLogoutSecs = 0;
                 let isEarlyLogout = false;
 
-                if (dbRecord && dbRecord.overtime_seconds && dbRecord.overtime_seconds > 0) {
-                    overtimeHoursNum = dbRecord.overtime_seconds / 3600;
-                } else if (dbRecord && dbRecord.overtime && typeof dbRecord.overtime === 'number' && dbRecord.overtime > 0) {
-                    overtimeHoursNum = dbRecord.overtime / 60;
-                } else if (finalRecord.overtime && typeof finalRecord.overtime === 'number' && finalRecord.overtime > 0) {
-                    overtimeHoursNum = finalRecord.overtime / 60;
-                } else if (isSunday && workingHoursNum > 0) {
-                    overtimeHoursNum = workingHoursNum;
-                } else if (finalRecord.logout_time) {
-                    const outD = new Date(finalRecord.logout_time);
-                    if (!isNaN(outD.getTime())) {
-                        const outParts = new Intl.DateTimeFormat('en-GB', {
-                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-                        }).formatToParts(outD);
-                        const p = {};
-                        outParts.forEach(({ type, value }) => { p[type] = value; });
-                        const outH = parseInt(p.hour, 10);
-                        const outM = parseInt(p.minute, 10);
-                        const outS = parseInt(p.second, 10);
-                        const cutoffTotalMins = isSaturday ? shiftRules.satEndMins : shiftRules.weekdayEndMins;
-                        const currentTotalMins = outH * 60 + outM;
-                        const outTotalSecs = (outH * 3600) + (outM * 60) + outS;
-                        const cutoffSecs = cutoffTotalMins * 60;
-                        const cutoffEndHour = Math.ceil(shiftRules.weekdayEndMins / 60);
-
-                        if (currentTotalMins > cutoffTotalMins) {
-                            overtimeHoursNum = (currentTotalMins - cutoffTotalMins) / 60;
-                        } else if (currentTotalMins < cutoffTotalMins && (!isToday || currentHourIST >= cutoffEndHour || dbRecord?.portal_check_out || dbRecord?.manual_check_out)) {
-                            earlyLogoutSecs = cutoffSecs - outTotalSecs;
-                            earlyLogoutMins = Math.round(earlyLogoutSecs / 60);
+                if (isSunday && loginHoursNum > 0) {
+                    overtimeHoursNum = loginHoursNum;
+                    overtimeMins = Math.round(loginHoursNum * 60);
+                } else if (outTotalMins !== null && finalRecord.logout_time && finalRecord.logout_time !== '—') {
+                    if (outTotalMins > cutoffEndMins) {
+                        overtimeMins = outTotalMins - cutoffEndMins;
+                        overtimeHoursNum = overtimeMins / 60;
+                    } else if (outTotalMins < cutoffEndMins) {
+                        const cutoffEndHour = Math.ceil(cutoffEndMins / 60);
+                        if (!isToday || currentHourIST >= cutoffEndHour || dbRecord?.portal_check_out || dbRecord?.manual_check_out || dbRecord?.approval_status === 'Approved') {
+                            earlyLogoutMins = cutoffEndMins - outTotalMins;
+                            earlyLogoutSecs = earlyLogoutMins * 60;
                             isEarlyLogout = true;
                         }
                     }
+                } else if (dbRecord && (dbRecord.overtime_seconds > 0 || dbRecord.overtime > 0)) {
+                    overtimeMins = dbRecord.overtime_seconds ? Math.round(dbRecord.overtime_seconds / 60) : dbRecord.overtime;
+                    overtimeHoursNum = overtimeMins / 60;
                 }
 
                 if (dbRecord && dbRecord.early_logout_seconds && dbRecord.early_logout_seconds > 0) {
@@ -522,42 +541,14 @@ export async function getAttendanceLogs(req, res) {
                     isEarlyLogout = true;
                 }
 
-                // Late In / Early In calculation (dynamic shift start + grace period)
-                const targetDow = new Date(targetDateStr).getDay();
-                const isSaturdayTarget = (targetDow === 6);
-                const curShiftStartMins = isSaturdayTarget ? shiftRules.satStartMins : shiftRules.weekdayStartMins;
-                const curLateThresholdMins = isSaturdayTarget ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
-                let lateMins = 0;
-                let earlyInMins = 0;
-
-                if (finalRecord.login_time) {
-                    const inD = new Date(finalRecord.login_time);
-                    if (!isNaN(inD.getTime())) {
-                        const inParts = new Intl.DateTimeFormat('en-GB', {
-                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
-                        }).formatToParts(inD);
-                        const inP = {};
-                        inParts.forEach(({ type, value }) => { inP[type] = value; });
-                        const inH = parseInt(inP.hour, 10);
-                        const inM = parseInt(inP.minute, 10);
-                        const inTotalMins = inH * 60 + inM;
-
-                        if (inTotalMins > curLateThresholdMins) {
-                            lateMins = inTotalMins - curLateThresholdMins;
-                            finalRecord.status = 'Late';
-                        } else if (inTotalMins < curShiftStartMins) {
-                            earlyInMins = curShiftStartMins - inTotalMins;
-                        }
-                    }
-                }
-
                 finalRecord.late_minutes = lateMins;
                 finalRecord.late_hours = (lateMins / 60).toFixed(2);
                 finalRecord.early_in_minutes = earlyInMins;
                 finalRecord.early_in_hours = (earlyInMins / 60).toFixed(2);
                 finalRecord.login_hours = loginHoursNum > 0 ? loginHoursNum.toFixed(2) : '0.00';
                 finalRecord.overtime_hours = overtimeHoursNum > 0 ? overtimeHoursNum.toFixed(2) : '0.00';
-                finalRecord.overtime_mins = Math.round(overtimeHoursNum * 60);
+                finalRecord.overtime_mins = overtimeMins;
+                finalRecord.overtime = overtimeMins > 0 ? overtimeMins : null;
                 finalRecord.is_early_logout = isEarlyLogout;
                 finalRecord.early_logout_mins = earlyLogoutMins;
                 finalRecord.early_logout_seconds = earlyLogoutSecs;
@@ -577,16 +568,22 @@ export async function getAttendanceLogs(req, res) {
             logs = logs.filter(l => l.status === status);
         }
 
+        // Recompute clean summary directly from finalized logs
+        const finalPresentCount = logs.filter(l => l.status === 'Present').length;
+        const finalLateCount = logs.filter(l => l.status === 'Late').length;
+        const finalAbsentCount = logs.filter(l => l.status === 'Absent').length;
+        const finalLeaveCount = logs.filter(l => l.status === 'Leave' || l.status === 'Half Day').length;
+
         res.status(200).json({
             success: true,
             startDate: startDateStr,
             endDate: endDateStr,
             date: startDateStr === endDateStr ? startDateStr : `${startDateStr} to ${endDateStr}`,
             summary: {
-                present: presentCount,
-                late: lateCount,
-                absent: absentCount,
-                leave: leaveCount,
+                present: finalPresentCount,
+                late: finalLateCount,
+                absent: finalAbsentCount,
+                leave: finalLeaveCount,
                 total: logs.length
             },
             data: {
@@ -696,19 +693,13 @@ export async function createManualCorrection(req, res) {
         const shiftRules = await getCompanyShiftRules(pool);
         let isLate = false;
         if (finalLoginTime) {
-            const inDate = new Date(finalLoginTime);
-            const inParts = new Intl.DateTimeFormat('en-GB', {
-                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
-            }).formatToParts(inDate);
-            const p = {};
-            inParts.forEach(({ type, value }) => { p[type] = value; });
-            const hh = parseInt(p.hour, 10);
-            const mm = parseInt(p.minute, 10);
-            const inMins = hh * 60 + mm;
-            const inDow = new Date(cleanDate).getDay();
-            const lateCutoff = (inDow === 6) ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
-            if (inMins > lateCutoff) {
-                isLate = true;
+            const inMins = parseTimeToMins(finalLoginTime);
+            if (inMins !== null) {
+                const inDow = new Date(`${cleanDate}T12:00:00+05:30`).getDay();
+                const lateCutoff = (inDow === 6) ? shiftRules.satLateThresholdMins : shiftRules.lateThresholdMins;
+                if (inMins > lateCutoff) {
+                    isLate = true;
+                }
             }
         }
 
@@ -1305,9 +1296,8 @@ export async function getEmployeeAttendanceHistory(req, res) {
             let lateMins = 0;
             let earlyInMins = 0;
             if (l.check_in && l.check_in !== '—' && !isSun) {
-                const [inH, inM] = l.check_in.split(':').map(Number);
-                if (inH >= 7 && inH <= 23) {
-                    const inTotalMins = inH * 60 + inM;
+                const inTotalMins = parseTimeToMins(l.check_in);
+                if (inTotalMins !== null) {
                     if (inTotalMins > histLateThresholdMins) {
                         lateMins = inTotalMins - histLateThresholdMins;
                     } else if (inTotalMins < histShiftStartMins) {

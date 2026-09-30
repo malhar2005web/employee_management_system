@@ -766,7 +766,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const logDateStr = log.date || today;
                     if (logDateStr === today && (log.status === 'Present' || log.status === 'Late' || !log.status)) {
                         try {
-                            const loginD = new Date(log.login_time);
+                            const rawLogin = String(log.login_time || '').trim();
+                            const loginIsoStr = (rawLogin && !rawLogin.includes('+') && !rawLogin.endsWith('Z')) ? (rawLogin.replace(' ', 'T') + '+05:30') : rawLogin;
+                            const loginD = new Date(loginIsoStr);
                             if (!isNaN(loginD.getTime())) {
                                 const diffMs = new Date() - loginD;
                                 if (diffMs > 0) {

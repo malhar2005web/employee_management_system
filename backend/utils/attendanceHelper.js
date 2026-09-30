@@ -157,6 +157,7 @@ export function calculateShiftAttendanceTimes(packets, targetDateStr, options = 
     const checkOutDate = checkOutTs ? new Date(checkOutTs * 1000) : null;
 
     let isLate = false;
+    let lateMinutes = 0;
     if (checkInDate) {
         const checkInParts = new Intl.DateTimeFormat('en-GB', {
             timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
@@ -167,12 +168,13 @@ export function calculateShiftAttendanceTimes(packets, targetDateStr, options = 
         const mm = parseInt(p.minute, 10);
         const inMins = hh * 60 + mm;
 
-        const dow = new Date(targetDateStr).getDay();
+        const dow = new Date(`${targetDateStr}T12:00:00+05:30`).getDay();
         const lateThreshold = (dow === 6) ? rules.satLateThresholdMins : rules.lateThresholdMins;
 
-        // Mark late after 9:45 AM (or configured threshold)
+        // Cutoff: 09:45 AM (585 mins). If inMins > lateThreshold (e.g. 09:46 -> 586) -> Late!
         if (inMins > lateThreshold) {
             isLate = true;
+            lateMinutes = inMins - lateThreshold;
         }
     }
 
@@ -182,17 +184,58 @@ export function calculateShiftAttendanceTimes(packets, targetDateStr, options = 
         checkInDate,
         checkOutDate,
         totalActiveSecs,
-        isLate
+        isLate,
+        lateMinutes
     };
 }
 
-export function formatISTIso(d, withTz = false) {
+/**
+ * Safely parses any time representation (ISO string, "HH:mm", "HH:mm:ss", Date object)
+ * into numeric minutes from midnight in IST (0 to 1439).
+ * Immune to host server / VPS timezone skew.
+ */
+export function parseTimeToMins(val) {
+    if (!val || val === '—' || val === '-') return null;
+    if (typeof val === 'string') {
+        const trimmed = val.trim();
+        const m = trimmed.match(/(?:T|\s|^)(\d{1,2}):(\d{2})(?::\d{2})?/);
+        if (m) {
+            const hh = parseInt(m[1], 10);
+            const mm = parseInt(m[2], 10);
+            if (!isNaN(hh) && !isNaN(mm)) {
+                return hh * 60 + mm;
+            }
+        }
+    }
+    const d = (val instanceof Date) ? val : new Date(val);
+    if (!isNaN(d.getTime())) {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false
+        }).formatToParts(d);
+        const p = {};
+        parts.forEach(({ type, value }) => { p[type] = value; });
+        return parseInt(p.hour, 10) * 60 + parseInt(p.minute, 10);
+    }
+    return null;
+}
+
+export function formatISTIso(d, withTz = true) {
     if (!d) return null;
+    if (typeof d === 'string') {
+        const trimmed = d.trim();
+        if (trimmed.includes('+05:30')) return trimmed;
+        const m = trimmed.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}:\d{2})/);
+        if (m) {
+            return `${m[1]}T${m[2]}${withTz ? '+05:30' : ''}`;
+        }
+    }
+    const dateObj = (d instanceof Date) ? d : new Date(d);
+    if (isNaN(dateObj.getTime())) return null;
     const parts = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Asia/Kolkata',
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    }).formatToParts(d);
+    }).formatToParts(dateObj);
     const p = {};
     parts.forEach(({ type, value }) => { p[type] = value; });
     return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}${withTz ? '+05:30' : ''}`;
@@ -204,6 +247,10 @@ export function formatISTTime(d) {
         const trimmed = d.trim();
         if (/^\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
             return trimmed.slice(0, 5);
+        }
+        const m = trimmed.match(/[T\s](\d{2}:\d{2})/);
+        if (m) {
+            return m[1];
         }
     }
     const dateObj = (d instanceof Date) ? d : new Date(d);
