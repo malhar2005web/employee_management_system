@@ -2571,6 +2571,194 @@ body.is-mobile-app .page-header button {
   white-space: nowrap !important;
 }
 
+/* 6. Workflow Templates Blueprint Grid & Cards in APK */
+html.is-mobile-app #blueprint-cards-grid,
+body.is-mobile-app #blueprint-cards-grid,
+body.is-apk #blueprint-cards-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  gap: 16px !important;
+}
+
+html.is-mobile-app .blueprint-card,
+body.is-mobile-app .blueprint-card,
+body.is-apk .blueprint-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 16px 14px !important;
+  overflow: hidden !important;
+}
+
+html.is-mobile-app .blueprint-card > div:last-child,
+body.is-mobile-app .blueprint-card > div:last-child,
+body.is-apk .blueprint-card > div:last-child {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app .blueprint-card .btn-use-bp,
+body.is-mobile-app .blueprint-card .btn-use-bp,
+body.is-apk .blueprint-card .btn-use-bp {
+  flex-shrink: 0 !important;
+  padding: 7px 14px !important;
+  white-space: nowrap !important;
+  margin-left: auto !important;
+}
+
+html.is-mobile-app #filter-blueprint-dept,
+body.is-mobile-app #filter-blueprint-dept,
+body.is-apk #filter-blueprint-dept,
+html.is-mobile-app #filter-blueprint-category,
+body.is-mobile-app #filter-blueprint-category,
+body.is-apk #filter-blueprint-category {
+  max-width: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* 7. Customer Bill Search Box & Refresh Button in APK */
+html.is-mobile-app #tab-content-billing-report .card > div:first-child > div:last-child,
+body.is-mobile-app #tab-content-billing-report .card > div:first-child > div:last-child,
+body.is-apk #tab-content-billing-report .card > div:first-child > div:last-child {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app #report-search,
+body.is-mobile-app #report-search,
+body.is-apk #report-search {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app #tab-content-billing-report .search-box,
+body.is-mobile-app #tab-content-billing-report .search-box,
+body.is-apk #tab-content-billing-report .search-box {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app #btn-refresh-report,
+body.is-mobile-app #btn-refresh-report,
+body.is-apk #btn-refresh-report {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* 8. Customer Master Search Box & Industry Filter in APK */
+html.is-mobile-app #tab-content-master .card-head > div:last-child,
+body.is-mobile-app #tab-content-master .card-head > div:last-child,
+body.is-apk #tab-content-master .card-head > div:last-child {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app #tab-content-master .card-head .search-box,
+body.is-mobile-app #tab-content-master .card-head .search-box,
+body.is-apk #tab-content-master .card-head .search-box {
+  flex: 1 1 130px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app #cust-search,
+body.is-mobile-app #cust-search,
+body.is-apk #cust-search {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app #cust-industry-filter,
+body.is-mobile-app #cust-industry-filter,
+body.is-apk #cust-industry-filter {
+  flex: 1 1 110px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* 9. Workstation Monitoring Controls Bar & Date Range in APK */
+html.is-mobile-app .controls-bar,
+body.is-mobile-app .controls-bar,
+body.is-apk .controls-bar {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  padding: 12px 14px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app .controls-left,
+body.is-mobile-app .controls-left,
+body.is-apk .controls-left,
+html.is-mobile-app .controls-right,
+body.is-mobile-app .controls-right,
+body.is-apk .controls-right {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px 10px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app .controls-left label,
+body.is-mobile-app .controls-left label,
+body.is-apk .controls-left label {
+  margin-left: 0 !important;
+  white-space: nowrap !important;
+  font-size: 13px !important;
+}
+
+html.is-mobile-app .controls-left .select-pill,
+body.is-mobile-app .controls-left .select-pill,
+body.is-apk .controls-left .select-pill {
+  flex: 1 1 120px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  font-size: 13px !important;
+}
+
+html.is-mobile-app .controls-right .btn-pill,
+body.is-mobile-app .controls-right .btn-pill,
+body.is-apk .controls-right .btn-pill {
+  flex: 1 1 110px !important;
+  text-align: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+
+
 
 /* Modal Styling */
 .modal-overlay {

@@ -10,6 +10,16 @@ public partial class MainPage : ContentPage
     public MainPage(Native.Bridge.BridgeRouter router, Microsoft.Extensions.Logging.ILogger<Native.Bridge.NativeBridgeHost> logger)
     {
         InitializeComponent();
+#if ANDROID
+        Microsoft.Maui.Handlers.WebViewHandler.Mapper.AppendToMapping("EmsWebViewCustomizer", (handler, view) =>
+        {
+            if (handler.PlatformView is Android.Webkit.WebView aWebView)
+            {
+                aWebView.Settings.CacheMode = Android.Webkit.CacheModes.NoCache;
+                aWebView.ClearCache(true);
+            }
+        });
+#endif
         EmsWebView.Source = ServerUrl;
         _bridgeHost = new Native.Bridge.NativeBridgeHost(EmsWebView, router, logger);
         Unloaded += (s, e) => _bridgeHost.Dispose();
@@ -258,7 +268,179 @@ public partial class MainPage : ContentPage
                             flex-shrink: 0 !important;
                             white-space: nowrap !important;
                         }
+
+                        /* 6. Workflow Templates Blueprint Grid & Cards in APK */
+                        #blueprint-cards-grid {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                            gap: 16px !important;
+                        }
+                        .blueprint-card {
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                            padding: 16px 14px !important;
+                            overflow: hidden !important;
+                        }
+                        .blueprint-card > div:last-child {
+                            display: flex !important;
+                            justify-content: space-between !important;
+                            align-items: center !important;
+                            flex-wrap: wrap !important;
+                            gap: 8px !important;
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        .blueprint-card .btn-use-bp {
+                            flex-shrink: 0 !important;
+                            padding: 7px 14px !important;
+                            white-space: nowrap !important;
+                            margin-left: auto !important;
+                        }
+                        #filter-blueprint-dept,
+                        #filter-blueprint-category {
+                            max-width: 100% !important;
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                        }
+
+                        /* 7. Customer Bill Search Box & Refresh Button in APK */
+                        #tab-content-billing-report .card > div:first-child > div:last-child {
+                            display: flex !important;
+                            align-items: center !important;
+                            gap: 8px !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        #report-search {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                        }
+                        #tab-content-billing-report .search-box {
+                            flex: 1 1 auto !important;
+                            min-width: 0 !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        #btn-refresh-report {
+                            flex-shrink: 0 !important;
+                            white-space: nowrap !important;
+                        }
+
+                        /* 8. Customer Master Search Box & Industry Filter in APK */
+                        #tab-content-master .card-head > div:last-child {
+                            display: flex !important;
+                            flex-wrap: wrap !important;
+                            align-items: center !important;
+                            gap: 8px !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        #tab-content-master .card-head .search-box {
+                            flex: 1 1 130px !important;
+                            min-width: 0 !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        #cust-search {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            box-sizing: border-box !important;
+                        }
+                        #cust-industry-filter {
+                            flex: 1 1 110px !important;
+                            min-width: 0 !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+
+                        /* 9. Workstation Monitoring Controls Bar & Date Range in APK */
+                        .controls-bar {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            align-items: stretch !important;
+                            flex-wrap: wrap !important;
+                            gap: 12px !important;
+                            padding: 12px 14px !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        .controls-left,
+                        .controls-right {
+                            display: flex !important;
+                            flex-wrap: wrap !important;
+                            align-items: center !important;
+                            gap: 8px 10px !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                        }
+                        .controls-left label {
+                            margin-left: 0 !important;
+                            white-space: nowrap !important;
+                            font-size: 13px !important;
+                        }
+                        .controls-left .select-pill {
+                            flex: 1 1 120px !important;
+                            min-width: 0 !important;
+                            max-width: 100% !important;
+                            box-sizing: border-box !important;
+                            font-size: 13px !important;
+                        }
+                        .controls-right .btn-pill {
+                            flex: 1 1 110px !important;
+                            text-align: center !important;
+                            justify-content: center !important;
+                            box-sizing: border-box !important;
+                        }
                     `;
+                })();
+
+                (function() {
+                    function applyApkLayoutFixes() {
+                        const bpGrid = document.getElementById('blueprint-cards-grid');
+                        if (bpGrid) bpGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))';
+
+                        const repSearch = document.getElementById('report-search');
+                        if (repSearch) {
+                            repSearch.style.width = '100%';
+                            if (repSearch.parentElement) {
+                                repSearch.parentElement.style.flex = '1 1 auto';
+                                repSearch.parentElement.style.minWidth = '0';
+                            }
+                        }
+
+                        const custSearch = document.getElementById('cust-search');
+                        if (custSearch) {
+                            custSearch.style.width = '100%';
+                            if (custSearch.parentElement) {
+                                custSearch.parentElement.style.flex = '1 1 130px';
+                                custSearch.parentElement.style.minWidth = '0';
+                            }
+                        }
+                        const custInd = document.getElementById('cust-industry-filter');
+                        if (custInd) {
+                            custInd.style.flex = '1 1 110px';
+                            custInd.style.minWidth = '0';
+                        }
+
+                        const ctrlBar = document.querySelector('.controls-bar');
+                        if (ctrlBar) ctrlBar.style.flexWrap = 'wrap';
+                        const ctrlLeft = document.querySelector('.controls-left');
+                        if (ctrlLeft) ctrlLeft.style.flexWrap = 'wrap';
+                    }
+                    applyApkLayoutFixes();
+                    if (!window._apkLayoutObserver) {
+                        window._apkLayoutObserver = setInterval(applyApkLayoutFixes, 1000);
+                    }
                 })();
 
                 if (!window.EMS || !window.EMS.Native) {
