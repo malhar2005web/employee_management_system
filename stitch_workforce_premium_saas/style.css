@@ -3405,8 +3405,316 @@ body.is-apk #emp-modal .modal-footer button {
   text-align: center !important;
 }
 
+/* 15. Comprehensive APK Dashboard Touch Scrolling & Table Viewport Fix */
 
+/* 15.1 Universal Body & Dashboard Pan-Y Scroll Propagation */
+html.is-mobile-app,
+body.is-mobile-app,
+body.is-apk {
+  touch-action: pan-y !important;
+}
 
+html.is-mobile-app .main,
+body.is-mobile-app .main,
+body.is-apk .main,
+html.is-mobile-app .content-grid,
+body.is-mobile-app .content-grid,
+body.is-apk .content-grid,
+html.is-mobile-app .admin-dashboard-grid,
+body.is-mobile-app .admin-dashboard-grid,
+body.is-apk .admin-dashboard-grid {
+  touch-action: pan-y !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* 15.2 Active Workflow Tasks Table Horizontal Touch Scrolling (Image 2 Fix) */
+html.is-mobile-app .card.table-card,
+body.is-mobile-app .card.table-card,
+body.is-apk .card.table-card {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x pan-y !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 16px 12px !important;
+  position: relative !important;
+}
+
+html.is-mobile-app .table-scroll-wrap-apk,
+body.is-mobile-app .table-scroll-wrap-apk,
+body.is-apk .table-scroll-wrap-apk,
+html.is-mobile-app .table-responsive,
+body.is-mobile-app .table-responsive,
+body.is-apk .table-responsive {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x pan-y !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 0 6px 0 !important;
+}
+
+html.is-mobile-app .card.table-card > table,
+body.is-mobile-app .card.table-card > table,
+body.is-apk .card.table-card > table,
+html.is-mobile-app .table-scroll-wrap-apk > table,
+body.is-mobile-app .table-scroll-wrap-apk > table,
+body.is-apk .table-scroll-wrap-apk > table {
+  min-width: 720px !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+html.is-mobile-app .card.table-card th,
+body.is-mobile-app .card.table-card th,
+body.is-apk .card.table-card th {
+  padding: 10px 8px !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.4px !important;
+}
+
+html.is-mobile-app .card.table-card td,
+body.is-mobile-app .card.table-card td,
+body.is-apk .card.table-card td {
+  padding: 12px 8px !important;
+  font-size: 12.5px !important;
+  vertical-align: middle !important;
+}
+
+html.is-mobile-app #dashboard-workflow-tasks tr td.task-name,
+body.is-mobile-app #dashboard-workflow-tasks tr td.task-name,
+body.is-apk #dashboard-workflow-tasks tr td.task-name {
+  min-width: 160px !important;
+  max-width: 220px !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+html.is-mobile-app #dashboard-workflow-tasks tr td.history-log-cell,
+body.is-mobile-app #dashboard-workflow-tasks tr td.history-log-cell,
+body.is-apk #dashboard-workflow-tasks tr td.history-log-cell {
+  min-width: 130px !important;
+  white-space: nowrap !important;
+}
+
+html.is-mobile-app .dash-task-status,
+body.is-mobile-app .dash-task-status,
+body.is-apk .dash-task-status {
+  min-width: 110px !important;
+  font-size: 12px !important;
+  padding: 6px 8px !important;
+  box-sizing: border-box !important;
+}
+
+/* 15.3 Performance Intelligence Section Layout & Gesture De-blocking (Image 1 Fix) */
+html.is-mobile-app .performance-card,
+body.is-mobile-app .performance-card,
+body.is-apk .performance-card {
+  padding: 14px 10px !important;
+  border-radius: 20px !important;
+  transform-style: flat !important;
+  touch-action: pan-y !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+html.is-mobile-app .performance-card .card-head,
+body.is-mobile-app .performance-card .card-head,
+body.is-apk .performance-card .card-head {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+  margin-bottom: 12px !important;
+  padding-bottom: 10px !important;
+}
+
+html.is-mobile-app .performance-card .card-head > div:first-child,
+body.is-mobile-app .performance-card .card-head > div:first-child,
+body.is-apk .performance-card .card-head > div:first-child {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+}
+
+html.is-mobile-app .performance-card .card-head > div:last-child,
+body.is-mobile-app .performance-card .card-head > div:last-child,
+body.is-apk .performance-card .card-head > div:last-child {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+
+html.is-mobile-app #pi-preset-select,
+body.is-mobile-app #pi-preset-select,
+body.is-apk #pi-preset-select {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  font-size: 11.5px !important;
+  padding: 5px 8px !important;
+  box-sizing: border-box !important;
+}
+
+html.is-mobile-app #pi-ai-banner,
+body.is-mobile-app #pi-ai-banner,
+body.is-apk #pi-ai-banner {
+  padding: 10px 12px !important;
+  margin-bottom: 12px !important;
+  gap: 10px !important;
+  touch-action: pan-y !important;
+}
+
+/* 15.4 Micro KPI Grid Clipping Fix (Image 1 Fix) */
+html.is-mobile-app .pi-kpi-grid,
+body.is-mobile-app .pi-kpi-grid,
+body.is-apk .pi-kpi-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+  margin-bottom: 14px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  touch-action: pan-y !important;
+}
+
+html.is-mobile-app .pi-kpi-card,
+body.is-mobile-app .pi-kpi-card,
+body.is-apk .pi-kpi-card {
+  padding: 10px 8px !important;
+  border-radius: 14px !important;
+  transform-style: flat !important;
+  touch-action: pan-y !important;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+html.is-mobile-app .pi-kpi-header,
+body.is-mobile-app .pi-kpi-header,
+body.is-apk .pi-kpi-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 4px !important;
+  width: 100% !important;
+}
+
+html.is-mobile-app .pi-kpi-label,
+body.is-mobile-app .pi-kpi-label,
+body.is-apk .pi-kpi-label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  min-width: 0 !important;
+}
+
+html.is-mobile-app .pi-kpi-icon,
+body.is-mobile-app .pi-kpi-icon,
+body.is-apk .pi-kpi-icon {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  font-size: 11px !important;
+  flex-shrink: 0 !important;
+}
+
+html.is-mobile-app .pi-kpi-value-row,
+body.is-mobile-app .pi-kpi-value-row,
+body.is-apk .pi-kpi-value-row {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  width: 100% !important;
+}
+
+html.is-mobile-app .pi-kpi-number,
+body.is-mobile-app .pi-kpi-number,
+body.is-apk .pi-kpi-number {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+}
+
+html.is-mobile-app .pi-kpi-trend,
+body.is-mobile-app .pi-kpi-trend,
+body.is-apk .pi-kpi-trend {
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  padding: 1px 4px !important;
+  border-radius: 99px !important;
+  white-space: nowrap !important;
+}
+
+html.is-mobile-app .pi-kpi-sparkline,
+body.is-mobile-app .pi-kpi-sparkline,
+body.is-apk .pi-kpi-sparkline {
+  height: 20px !important;
+  margin-top: 2px !important;
+  pointer-events: none !important;
+}
+
+/* 15.5 Team Performance Table & Chart Gesture Pass-through */
+html.is-mobile-app #team-performance-list tr td,
+body.is-mobile-app #team-performance-list tr td,
+body.is-apk #team-performance-list tr td,
+html.is-mobile-app .performance-card table th,
+body.is-mobile-app .performance-card table th,
+body.is-apk .performance-card table th {
+  padding: 8px 6px !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+}
+
+html.is-mobile-app .performance-card table,
+body.is-mobile-app .performance-card table,
+body.is-apk .performance-card table {
+  min-width: 620px !important;
+}
+
+html.is-mobile-app #pi-area-chart,
+body.is-mobile-app #pi-area-chart,
+body.is-apk #pi-area-chart {
+  touch-action: pan-y !important;
+  height: 180px !important;
+}
+
+html.is-mobile-app #pi-area-chart canvas,
+body.is-mobile-app #pi-area-chart canvas,
+body.is-apk #pi-area-chart canvas {
+  touch-action: pan-y !important;
+}
+
+/* 15.6 Activity Card Padding De-cramping */
+html.is-mobile-app .activity-card,
+body.is-mobile-app .activity-card,
+body.is-apk .activity-card {
+  padding: 16px 14px !important;
+  box-sizing: border-box !important;
+  touch-action: pan-y !important;
+}
+
+html.is-mobile-app .activity-card .card-head,
+body.is-mobile-app .activity-card .card-head,
+body.is-apk .activity-card .card-head {
+  margin-bottom: 12px !important;
+}
 
 /* Modal Styling */
 .modal-overlay {

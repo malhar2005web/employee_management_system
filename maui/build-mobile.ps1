@@ -141,7 +141,7 @@ if (Test-Path $packageDir) {
 # 5. Append to ReleaseNotes
 $releaseNotesPath = Join-Path $publishPath "ReleaseNotes.txt"
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-"[Android Build Success] - $timestamp - Version 1.2.8" | Out-File -FilePath $releaseNotesPath -Append
+"[Android Build Success] - $timestamp - Version 1.2.9" | Out-File -FilePath $releaseNotesPath -Append
 
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host "ANDROID COMPILATION COMPLETE!" -ForegroundColor Cyan
